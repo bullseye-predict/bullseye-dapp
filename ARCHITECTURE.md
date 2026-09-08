@@ -37,3 +37,23 @@ Implement the future player as a React feature with explicit stream source and m
 
 ## Validation
 Run bun run check and bun test for this boundary refactor. Actual wallet authentication requires browser verification and the correct Dynamic environment; portability does not resolve authentication failures by itself.
+
+## Prediction backend and settlement foundation
+
+The prediction services are separate from Astro and Colyseus. `apps/api/main.ts` is a standalone Bun host for REST and resumable, read-only WebSocket feeds. Runtime configuration and secrets stay in that host. No game commands are exposed by the telemetry bridge.
+
+- `packages/prediction-core`: market/order/position contracts, validation, integer arithmetic, serialization. Prices use 1,000,000 as one; quantities use atomic collateral units. Public JSON carries amounts as decimal strings. Application timestamps use milliseconds; chain encoders use seconds.
+- `packages/venue-interface/PredictionVenue.ts`: account-scoped interface shared by manual trading and Hermes. Network and signer configuration stays in adapters.
+- `packages/adapters`: actual EVM RPC reads/EIP712 validation and Solana RPC/account/PDA/Ed25519 validation; portable venue clients and transaction builders. DreamDEX has a separate SDK driver boundary with exact binary outcome conversion and tick/lot checks. It is not a connected DreamDEX deployment.
+- `packages/telemetry`: authenticated, monotonic, freshness-checked game snapshots. The publisher signs the exact body with a separate server secret. Telemetry cannot resolve a market or mutate gameplay.
+- `apps/matcher`: price/time orderbook, atomic reservation planning and confirmed-fill accounting. Submission uncertainty retains reservations; confirmed failure suppresses retrying the same signed pair. A relayer transport is explicitly injected.
+- `apps/api/storage`: durable local SQLite/WAL adapter, normalized read models, matcher state, auth nonces, event log and Hermes execution journal. This is a single-host implementation; PostgreSQL/Redis distribution is not implemented.
+- `apps/indexer`: finalized event projection with atomic cursor and duplicate-event protection. Chain event decoding and complete/fresh portfolio sources are injected; an unconfigured portfolio endpoint returns unavailable instead of an invented empty portfolio.
+- `apps/settlement`: durable, authority-verified result queue; unknown submission outcomes are reconciled rather than blindly broadcast again. A chain-specific result transport must verify matching receipts.
+- `apps/hermes-worker` and `packages/risk-engine`: structured decisions, immutable hard limits, event filtering, scoped tools, durable intent reservations and stop/cancel reconciliation. The reasoner receives serializable observations and user strategy text, never wallet keys or RPC access. Real reasoning and signer providers require host configuration.
+- `contracts/evm`: shared Solidity factory, settlement, ERC1155 outcomes, result oracle and constrained vault. These deploy separately on each EVM chain. Markets currently open immediately; the PENDING scheduling contract remains an application concern on EVM.
+- `programs/prediction_market_pinocchio`: separate Rust/Pinocchio implementation with classic SPL collateral, internal position PDAs and user-owned collateral vaults. Position and order nonce PDAs must exist before fills. Solana outcome labels come from explicitly configured metadata, not synthesized probability data.
+
+Liquidity and funds remain independent per venue/chain. Both implementations support 2–16 outcomes, complete-set collateral, partial fills, cancellation, owner-only vault withdrawal, pauses that preserve exits, and timeout voids. Void redemption carries a global fractional remainder so all collateral can be returned; redemption order can shift at most one atomic unit between claimants. Fees are zero in this MVP, result settlement is immediate, and configured oracle authorities are trusted.
+
+The existing React live screen remains capability-locked. This foundation does not claim a deployed wallet flow, funded liquidity, a live Hermes reasoner, a provisioned SOLZ DreamDEX event, or production indexer/relayer operations. Those must be connected and verified before enabling the live UI.

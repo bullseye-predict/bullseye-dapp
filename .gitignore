@@ -27,3 +27,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Local prediction services and Rust build output
+.data/
+**/target/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

@@ -6,7 +6,10 @@
     "./worker-configuration.d.ts"
   ],
   "exclude": [
-    "dist"
+    "dist",
+    "contracts/evm/test",
+    "contracts/evm/scripts",
+    "programs/**/target"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",

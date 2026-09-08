@@ -13,7 +13,18 @@
     "test": "bun test",
     "preview": "astro preview",
     "astro": "astro",
-    "generate-types": "wrangler types"
+    "generate-types": "wrangler types",
+    "dev:prediction-api": "bun run apps/api/main.ts",
+    "dev:prediction-worker": "bun run apps/chain-worker/main.ts",
+    "dev:prediction-telemetry": "bun run apps/telemetry-worker/main.ts",
+    "dev:hermes": "bun run apps/hermes-worker/main.ts",
+    "dev:prediction-local": "bun run contracts/evm/scripts/local-demo.ts --local-demo",
+    "test:prediction": "bun test tests/prediction tests/prediction-trading packages/adapters packages/telemetry apps/api apps/chain-worker apps/telemetry-worker apps/hermes-worker src/components/prediction",
+    "test:chain-worker": "bun test contracts/evm/test/worker.integration.test.ts",
+    "test:evm": "bun run --cwd contracts/evm test",
+    "test:solana": "cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml",
+    "build:solana": "cargo build-sbf --manifest-path programs/prediction_market_pinocchio/Cargo.toml",
+    "test:solana:svm": "cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml --features svm-tests"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.6",
@@ -21,14 +32,17 @@
     "@dynamic-labs/sdk-react-core": "5.6.1",
     "@dynamic-labs/solana": "5.6.1",
     "@dynamic-labs/solana-core": "5.6.1",
+    "@scure/base": "1.2.6",
     "@solana/web3.js": "1.98.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "astro": "^7.2.10",
+    "buffer": "6.0.3",
     "colyseus.js": "^0.16.22",
     "lucide-react": "1.39.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "viem": "2.46.3",
     "wrangler": "^4.128.0"
   },
   "allowScripts": {
