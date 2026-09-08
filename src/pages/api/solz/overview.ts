@@ -1,5 +1,4 @@
 import type { APIRoute } from 'astro'
-import { env } from 'cloudflare:workers'
 
 export const prerender = false
 
@@ -10,17 +9,20 @@ function httpOrigin(value: string) {
   return normalized
 }
 
-function configuredColyseusUrl() {
+function configuredColyseusUrl(runtimeEnv: Record<string, unknown> = {}) {
   return String(
-    env.SOLZ_COLYSEUS_SERVER_URL ??
+    runtimeEnv.SOLZ_COLYSEUS_SERVER_URL ??
+    (typeof process !== 'undefined' ? process.env.SOLZ_COLYSEUS_SERVER_URL : undefined) ??
     import.meta.env.VITE_COLYSEUS_SERVER_URL ??
     import.meta.env.VITE_COLYSEUS_SERVER_URL_ASIA ??
     ''
   ).trim().replace(/\/+$/, '')
 }
 
-function configuredGameOrigin() {
-  return String(env.SOLZ_GAME_ORIGIN ?? import.meta.env.VITE_SOLZ_GAME_ORIGIN ?? '')
+function configuredGameOrigin(runtimeEnv: Record<string, unknown> = {}) {
+  return String(runtimeEnv.SOLZ_GAME_ORIGIN ??
+    (typeof process !== 'undefined' ? process.env.SOLZ_GAME_ORIGIN : undefined) ??
+    import.meta.env.VITE_SOLZ_GAME_ORIGIN ?? '')
     .trim()
     .replace(/\/+$/, '')
 }
@@ -45,8 +47,9 @@ async function readJson(url: string) {
   return payload
 }
 
-export const GET: APIRoute = async () => {
-  const colyseusUrl = configuredColyseusUrl()
+export const GET: APIRoute = async ({ locals }) => {
+  const runtimeEnv = (locals as { runtime?: { env?: Record<string, unknown> } }).runtime?.env ?? {}
+  const colyseusUrl = configuredColyseusUrl(runtimeEnv)
   if (!colyseusUrl) {
     return json({
       code: 'solz_live_source_not_configured',
@@ -66,7 +69,7 @@ export const GET: APIRoute = async () => {
     return json({
       generatedAt: Date.now(),
       colyseusUrl,
-      gameOrigin: configuredGameOrigin() || null,
+      gameOrigin: configuredGameOrigin(runtimeEnv) || null,
       activity: activityResult.value,
       leaderboard: {
         kills: killsResult.status === 'fulfilled' ? killsResult.value : null,

@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 
 import react from '@astrojs/react';
 
-import cloudflare from '@astrojs/cloudflare';
+import vercel from '@astrojs/vercel';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from 'vite';
 
@@ -13,7 +13,7 @@ const publicEnvironment = loadEnv(process.env.NODE_ENV === 'production' ? 'produ
 // https://astro.build/config
 export default defineConfig({
   integrations: [react()],
-  adapter: cloudflare(),
+  adapter: vercel(),
   output: 'server',
   vite: {
     // Astro and Dynamic both consume React as a peer; one resolved identity keeps every hook on the renderer's dispatcher.

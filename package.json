@@ -29,6 +29,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.6",
     "@astrojs/react": "^6.0.5",
+    "@astrojs/vercel": "^11.0.10",
     "@dynamic-labs/sdk-react-core": "5.6.1",
     "@dynamic-labs/solana": "5.6.1",
     "@dynamic-labs/solana-core": "5.6.1",
