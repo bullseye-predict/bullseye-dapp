@@ -1,0 +1,65 @@
+/* Matches form complete rows; token identity occupies a dedicated adjacent column. */
+.ch-arena-discovery { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: stretch; }
+.ch-arena-discovery .sh-live-matches { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; min-width: 0; }
+.ch-arena-discovery .sh-match-card { display: flex; flex-direction: column; min-width: 0; min-height: 182px; padding: 17px; container-type: inline-size; }
+.ch-arena-discovery .sh-match-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.ch-arena-discovery .sh-match-pair { flex-direction: row; gap: 10px; padding: 24px 0 18px; }
+.ch-arena-discovery .sh-match-pair > div { gap: 7px; min-width: 0; }
+.ch-arena-discovery .sh-match-pair > div:last-child { flex-direction: row-reverse; }
+.ch-arena-discovery .sh-match-pair > span { flex-shrink: 0; font-size: 11px; }
+.ch-arena-discovery .sh-match-pair strong { font-size: 19px; white-space: nowrap; }
+.ch-arena-discovery .sh-match-pair .sh-team-mark { width: 25px; height: 27px; flex-shrink: 0; }
+.ch-arena-discovery .sh-match-card-bottom { margin-top: auto; padding-top: 14px; }
+.ch-arena-discovery .sh-match-card-top { flex-wrap: nowrap; }
+.ch-arena-discovery .sh-match-card-top > span:nth-child(2) { font-size: 8px; }
+.ch-arena-discovery .ch-ffa-match-teams { padding: 24px 0 13px; gap: 14px 18px; }
+.ch-arena-discovery .ch-ffa-match-teams > span { min-width: 0; }
+.ch-arena-discovery .ch-ffa-match-teams b { font-size: 13px; }
+.ch-token-directory { min-width: 0; display: flex; flex-direction: column; background: #181d21; border: 1px solid #485348; }
+.ch-token-directory > header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 13px 16px; border-bottom: 1px solid #485348; }
+.ch-token-directory > header h2 { font: 600 12px var(--sh-heading); color: #dce5d5; }
+.ch-token-directory > header > span { font-size: 7px; color: #adbc9e; white-space: nowrap; }
+.ch-token-records { flex: 1; display: grid; grid-template-rows: 1fr 1fr; }
+.ch-token-record { --token-accent: #c7ff00; padding: 14px 16px 7px; min-width: 0; }
+.ch-token-record.is-solz { --token-accent: #9fd7fc; border-top: 1px solid #3e4943; }
+.ch-token-record > header { display: flex; align-items: center; gap: 10px; }
+.ch-token-emblem { flex-shrink: 0; display: grid; place-items: center; width: 35px; height: 38px; background: var(--token-accent); color: #1b2618; }
+.ch-token-emblem > span { font: 700 15px var(--sh-heading); }
+.ch-token-record h3 { font: 700 22px/1.1 var(--sh-heading); color: var(--token-accent); }
+.ch-token-record > header > div > span { display: block; font-size: 7px; color: #b3bfa9; margin-top: 3px; }
+.ch-token-record > header > a { margin-left: auto; padding: 6px; color: #cee1c0; }
+.ch-token-record > header > a:hover { color: var(--token-accent); background: #2b392b; }
+.ch-token-record > p { margin-top: 9px; font-size: 10px; line-height: 1.7; color: #bfccd1; }
+.ch-token-record dl { margin: 10px 0 0; display: grid; gap: 8px; font-size: 9px; }
+.ch-token-record dl > div { display: flex; gap: 10px; justify-content: space-between; }
+.ch-token-record dt { color: #a2b3bd; flex-shrink: 0; }
+.ch-token-record dd { margin: 0; display: flex; align-items: center; gap: 7px; color: #e0e9e4; min-width: 0; }
+.ch-token-record .ch-token-contract { display: flex; align-items: flex-start; border-top: 1px solid #39433d; padding-top: 8px; }
+.ch-token-contract dt { padding-top: 3px; }
+.ch-token-contract dd { margin-top: 0; justify-content: space-between; flex: 1; }
+.ch-token-contract code { font: 400 9px/1.8 var(--sh-mono); overflow-wrap: anywhere; user-select: all; min-width: 0; }
+.ch-token-contract button { flex-shrink: 0; display: flex; padding: 7px; background: #2e3931; color: #d9ebc6; border: 1px solid #5b6b53; }
+.ch-token-contract button:hover { color: #1a2513; background: var(--token-accent); }
+.ch-token-pending { color: #cec39f; font-size: 10px; }
+.ch-token-copy-status { display: block; min-height: 12px; font-size: 8px; margin-top: 3px; color: #c7e6b3; }
+.ch-token-preview-note { padding: 9px 16px; border-top: 1px solid #3e4943; color: #a6b7a0; font-size: 8px; line-height: 1.6; }
+@container (max-width: 330px) {
+  .ch-arena-discovery .sh-match-pair { gap: 6px; }
+  .ch-arena-discovery .sh-match-pair strong { font-size: 16px; }
+  .ch-arena-discovery .sh-match-pair .sh-team-mark { width: 20px; height: 22px; }
+  .ch-arena-discovery .sh-match-pair > div { gap: 5px; }
+  .ch-arena-discovery .sh-match-card-top > span:nth-child(2) { font-size: 7px; }
+}
+@media (max-width: 1100px) {
+  .ch-arena-discovery { grid-template-columns: minmax(0, 1fr); }
+  .ch-token-records { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; }
+  .ch-token-record.is-solz { border-top: 0; border-left: 1px solid #3e4943; }
+  .ch-token-record .ch-token-contract { margin-top: auto; }
+}
+@media (max-width: 620px) {
+  .ch-arena-discovery .sh-live-matches { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .ch-arena-discovery .sh-match-card { min-height: 174px; padding: 15px; }
+  .ch-arena-discovery .sh-match-card:last-child { grid-column: auto; }
+  .ch-token-records { grid-template-columns: minmax(0, 1fr); }
+  .ch-token-record.is-solz { border-top: 1px solid #3e4943; border-left: 0; }
+}

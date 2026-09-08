@@ -1,0 +1,140 @@
+/* Genesis collection, anchored records, and the path to player ownership. */
+.ga-collection-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; }
+.ga-collection-intro .sh-genesis-description { font-size: 12px; max-width: 76ch; line-height: 1.8; }
+.ga-collection-intro > span { color: #a8b39a; font-size: 9px; white-space: nowrap; }
+.ga-breeding-link { display: inline-flex; align-items: center; gap: 10px; font-size: 10px; color: #cbd2bd !important; }
+.ga-breeding-link:hover { color: var(--sh-lime) !important; }
+.sh-genesis .sh-section-heading h2 { font-size: 30px; }
+.sh-genesis .sh-section-heading h2 > span { display: inline-block; margin-left: 15px; padding: 4px 7px; vertical-align: middle; border: 1px solid #536037; background: #202717; color: #c9e498; font: 500 8px var(--sh-mono); }
+.ga-profile { position: fixed; margin: 0; padding: 20px; max-height: calc(100dvh - 32px); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; background: #1b1e22; color: #e9ecf1; border: 1px solid #8c9580; box-shadow: 0 14px 55px #000a; outline: none; }
+.ga-profile:popover-open { animation: genesis-inspect .2s cubic-bezier(.22, 1, .36, 1); }
+.ga-profile::backdrop { background: transparent; pointer-events: none; }
+.ga-profile-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.ga-profile-heading > div > span { font-size: 9px; color: var(--team-color); }
+.ga-profile-heading h3 { display: flex; align-items: center; gap: 12px; font: 700 30px/1.25 var(--sh-heading); margin-top: 5px; }
+.ga-profile-heading h3 > span { font: 600 10px var(--sh-mono); background: var(--sh-lime); color: #19200c; padding: 4px 6px; }
+.ga-profile-heading button { display: flex; padding: 6px; background: transparent; color: #d8dce3; border: 1px solid #555e53; }
+.ga-profile-heading button:hover { color: #13180b; background: #c7ff00; }
+.ga-profile-bio { font-size: 11px; line-height: 1.8; color: #b9c1cc; margin-top: 12px !important; max-width: 70ch; }
+.ga-profile-main { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.3fr); gap: 25px; margin-top: 19px; border-block: 1px solid #3e4641; }
+.ga-agent-record { padding: 17px 0; }
+.ga-agent-record h4 { margin: 0 0 15px; font: 600 11px var(--sh-heading); color: #d9e0d0; }
+.ga-agent-record dl { margin: 0; display: grid; gap: 11px; }
+.ga-agent-record dl > div { display: flex; justify-content: space-between; gap: 9px; font-size: 10px; }
+.ga-agent-record dt { color: #aab5c3; }
+.ga-agent-record dd { margin: 0; color: #f0f2f6; font-weight: 500; }
+.ga-lineage-tag { display: flex; gap: 8px; align-items: center; margin-top: 21px; color: #c0e292; }
+.ga-lineage-tag > span { font-size: 8px; }
+.ga-lineage-tag small { display: block; font-size: 8px; color: #aab5a1; margin-top: 4px; }
+.ga-trait-radar { margin: 0; padding-top: 16px; min-width: 0; }
+.ga-trait-radar figcaption { display: flex; justify-content: space-between; gap: 10px; font: 600 11px var(--sh-heading); }
+.ga-trait-radar figcaption small { color: #98a590; font: 400 8px var(--sh-mono); }
+.ga-trait-radar svg { width: 100%; display: block; }
+.ga-radar-ring { fill: #93ac7405; stroke: #717d614d; stroke-width: 1; }
+.ga-radar-ring.is-outer { stroke: #c2cbb9; stroke-width: 1.6; }
+.ga-radar-axis { stroke: #9fae8055; stroke-dasharray: 2 4; }
+.ga-radar-fill { fill: #c7ff0055; stroke: #c7ff00; stroke-width: 1.8; }
+.ga-radar-point { fill: #e1ff85; }
+.ga-radar-label { fill: #c6cfc0; font: 500 9px var(--sh-mono); }
+.ga-radar-value { fill: #eff7dd; font: 600 12px var(--sh-heading); }
+.ga-radar-can { fill: #e9ffd1; stroke: #172410; stroke-width: 1.5; }
+.ga-radar-can path { fill: #172410; stroke: none; }
+.ga-profile-history { margin-top: 13px !important; font-size: 8px; color: #91a081; }
+.ga-profile-history > span { color: #c6cdba; margin-left: 8px; }
+.ga-profile footer { display: flex; align-items: center; justify-content: space-between; gap: 13px; margin-top: 17px; }
+.ga-prompt-button { border: 0; display: inline-flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 40px; background: #c7ff00; color: #1b230c; padding: 10px 13px; font: 600 11px var(--sh-heading) !important; }
+.ga-prompt-button:hover { background: #d8ff59; }
+.ga-profile footer > a { display: inline-flex; align-items: center; gap: 7px; font-size: 9px; color: #c0caba; }
+.ga-profile footer > a:hover { color: #d2ff7c; }
+.ga-reserve { color: #bac4b1; font-size: 10px; }
+.ga-breeding { background: #191c20; border: 1px solid #363c3f; margin-top: 30px; padding: 27px 30px 0; }
+.ga-breeding > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.ga-program-label { display: flex; align-items: center; gap: 8px; color: #bfd689; font-size: 10px; }
+.ga-breeding h3 { font: 700 29px/1.2 var(--sh-heading); margin-top: 12px; color: #f0f2ed; }
+.ga-upcoming { white-space: nowrap; font-size: 8px; color: #d7c499; background: #2c291e; border: 1px solid #766647; padding: 5px 8px; }
+.ga-breeding-main { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 65px; margin: 28px 0 26px; align-items: center; }
+.ga-lineage-diagram { margin: 0; padding: 25px; background-color: #14171a; background-image: radial-gradient(#5c644133 .8px, transparent .8px); background-size: 12px 12px; border: 1px solid #353c39; }
+.ga-lineage-originals { display: flex; align-items: center; gap: 18px; }
+.ga-lineage-portraits { display: flex; flex-shrink: 0; }
+.ga-lineage-portraits .sh-portrait { width: 52px; height: 61px; border: 1px solid #8a936e; }
+.ga-lineage-portraits .sh-portrait + .sh-portrait { margin-left: -24px; margin-top: 10px; }
+.ga-lineage-portraits .sh-portrait:nth-child(3) { margin-top: 20px; }
+.ga-lineage-originals > span { font: 700 20px var(--sh-heading); }
+.ga-lineage-originals small { display: block; color: #a4af98; font: 400 8px var(--sh-mono); margin-top: 6px; }
+.ga-lineage-originals > b, .ga-owned-agent > b { margin-left: auto; align-self: flex-start; color: #c7ff00; font: 500 9px var(--sh-mono); }
+.ga-inheritance-link { display: flex; flex-direction: column; align-items: center; color: #b9d475; margin: 2px 0 9px; }
+.ga-inheritance-link i { display: block; width: 1px; height: 18px; background: #6c8050; }
+.ga-inheritance-link > span { display: flex; align-items: center; gap: 8px; font-size: 9px; border: 1px solid #637344; padding: 7px 13px; background: #242d1a; }
+.ga-owned-agent { display: flex; align-items: center; gap: 18px; padding: 14px 17px; border: 1px solid #b3d578; background: #252d1c; }
+.ga-owned-agent > div:nth-child(2) { display: grid; gap: 6px; }
+.ga-owned-agent strong { font: 700 18px var(--sh-heading); color: #e4ffd0; }
+.ga-owned-agent span { font-size: 7px; color: #b7cb9e; }
+.ga-owned-agent > div > svg { color: #bcdf82; }
+.ga-owned-can { flex-shrink: 0; width: 51px; }
+.ga-owned-can svg { width: 100%; fill: #526c2d; stroke: #d0ed9f; stroke-width: 1.6; }
+.ga-owned-can svg rect { fill: #162410; }
+.ga-lineage-diagram figcaption { text-align: center; color: #98a58a; font-size: 8px; margin-top: 16px; }
+.ga-breeding-steps { list-style: none; padding: 0; margin: 0; }
+.ga-breeding-steps li { display: flex; gap: 20px; padding: 20px 0; border-top: 1px solid #3c433d; }
+.ga-breeding-steps li:first-child { padding-top: 0; border-top: 0; }
+.ga-breeding-steps li:last-child { padding-bottom: 0; }
+.ga-breeding-steps li > span { color: #c7ff00; font: 500 11px var(--sh-mono); padding-top: 4px; }
+.ga-breeding-steps h4 { margin: 0 0 8px; font: 600 19px var(--sh-heading); }
+.ga-breeding-steps p { color: #b5bfc9; font-size: 11px; line-height: 1.8; max-width: 65ch; }
+.ga-royalties { display: flex; align-items: center; gap: 19px; padding: 20px 0; border-top: 1px solid #48513f; }
+.ga-royalties > svg { flex-shrink: 0; color: #c1da90; }
+.ga-royalties h4 { margin: 0 0 5px; font: 600 15px var(--sh-heading); color: #e1e8d7; }
+.ga-royalties p { max-width: 85ch; font-size: 10px; line-height: 1.8; color: #aab5a3; }
+.ga-royalties > a { display: flex; align-items: center; gap: 8px; font-size: 9px; white-space: nowrap; margin-left: auto; color: #c9e595; }
+@keyframes genesis-inspect { from { opacity: .2; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1100px) {
+  .ga-collection-intro > span { display: none; }
+  .ga-breeding-main { gap: 25px; }
+  .ga-lineage-diagram { padding: 18px; }
+  .ga-lineage-originals { gap: 10px; }
+  .ga-lineage-originals > span { font-size: 17px; }
+  .ga-owned-agent { padding: 12px; gap: 10px; }
+  .ga-owned-agent strong { font-size: 15px; }
+}
+@media (max-width: 720px) {
+  .sh-genesis .sh-section-heading { flex-wrap: wrap; align-items: flex-start; }
+  .sh-genesis .sh-section-heading h2 { font-size: 25px; max-width: none; }
+  .sh-genesis .sh-section-heading h2 > span { margin-left: 9px; font-size: 7px; }
+  .ga-breeding-link { font-size: 9px; }
+  .ga-collection-intro .sh-genesis-description { font-size: 11px; }
+  .ga-profile { padding: 16px; }
+  .ga-profile-main { gap: 14px; }
+  .ga-breeding { padding: 21px 18px 0; }
+  .ga-breeding > header { flex-wrap: wrap; gap: 13px; }
+  .ga-breeding h3 { font-size: 25px; }
+  .ga-breeding-main { grid-template-columns: 1fr; gap: 27px; }
+  .ga-lineage-diagram { padding: 22px; }
+  .ga-lineage-originals { gap: 18px; }
+  .ga-breeding-steps li { gap: 17px; }
+  .ga-royalties { flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+  .ga-royalties > div { flex: 1; min-width: 0; }
+  .ga-royalties > a { margin-left: 33px; }
+}
+@media (max-width: 520px) {
+  .ga-profile-main { grid-template-columns: 1fr; gap: 0; }
+  .ga-agent-record dl { grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+  .ga-agent-record dl > div { font-size: 9px; }
+  .ga-lineage-tag { margin-top: 16px; }
+  .ga-trait-radar { border-top: 1px solid #3e4641; padding-top: 15px; max-width: 320px; width: 100%; margin: 0 auto; }
+  .ga-trait-radar svg { max-height: 260px; }
+  .ga-profile-heading h3 { font-size: 27px; }
+  .ga-profile footer { flex-wrap: wrap; gap: 12px; }
+  .ga-prompt-button { flex: 1; }
+}
+@media (max-width: 360px) {
+  .sh-genesis .sh-section-heading h2 { font-size: 22px; }
+  .sh-genesis .sh-section-heading h2 > span { font-size: 6px; padding: 3px 5px; }
+  .ga-lineage-diagram { padding: 15px; }
+  .ga-lineage-portraits .sh-portrait { width: 45px; height: 54px; }
+  .ga-lineage-originals { gap: 12px; }
+  .ga-lineage-originals > span { font-size: 16px; }
+  .ga-lineage-originals small { font-size: 6px; }
+  .ga-owned-agent span { font-size: 6px; }
+  .ga-owned-can { width: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .ga-profile:popover-open { animation: none; } }

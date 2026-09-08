@@ -1,0 +1,9 @@
+---
+import { DemoArenaApp } from '../components/arena/DemoArenaApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+---
+
+<SiteLayout title="Practice Arena · SOLZ / ODDS" description="Simulate SOLZ match predictions, Genesis agent directives, and SOL or SOLZ positions.">
+  <!-- Dynamic's wallet transports are browser-owned; the practice arena intentionally uses the same client-only boundary as live. -->
+  <DemoArenaApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} client:only="react" />
+</SiteLayout>

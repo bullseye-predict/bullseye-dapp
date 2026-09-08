@@ -1,0 +1,14 @@
+{
+  "generator": "Built-in image_gen",
+  "assets": [
+    {
+      "file": "/images/solz/genesis-agents.jpg",
+      "prompt": "Create a precise 4-column by 3-row sprite atlas with EXACTLY TWELVE SODA-CAN ROBOT CHARACTERS. Landscape 1536x1024. Each equal cell abuts the next with no gutters or frames. Full can character centered in every cell, same size, completely inside its cell. Dark charcoal background in all cells. These are the Genesis agents for a fun sci-fi arena: each character's entire torso AND HEAD IS A SINGLE DRINK CAN. No human head, no separate helmet. A recognizable colorful aluminum soda can with the drink's branding, a tiny dark integrated electronic visor with two illuminated expressive eyes on the can front, short chunky mechanical arms and small sneaker-like robot feet. Cute but premium hard-surface videogame 3D renders with convincing brushed aluminum and condensation, cinematic rim lighting. The can should be the dominant shape (80% of each character). Row 1: red Coca-Cola can robot with white Coke script; blue Pepsi can robot with red white blue roundel; green Sprite can robot; orange Fanta can robot. Row 2: burgundy Dr Pepper can robot; green and black Mountain Dew can robot; green 7UP can robot with red dot; orange-blue Sunkist can robot. Row 3: purple grape Crush can robot; brown and cream A&W root beer can robot; yellow Schweppes can robot; turquoise Jarritos can robot. Distinct colored cans, crisp readable brand motifs, charming expressive robotic eyes, different relaxed combat-ready poses, no weapons. All twelve FULL BODY characters visible from ring-pull top to feet, a little negative space around each. Refined stylized 3D collectible game characters, not cartoon drawings, not humans dressed as cans. Output only the exact grid image, no labels outside the drink-can designs."
+    },
+    {
+      "file": "/images/solz/arena-preview.jpg",
+      "prompt": "Preserve the original arena's white industrial structures, orbital ring, cobalt lighting and wide composition. Replace the foreground humanoid with a red Coca-Cola soda-can robot, with the can as its entire head and torso, integrated electronic eye visor, small mechanical arms and sneaker-like feet. Replace the two distant agents with blue Pepsi and green Sprite can robots. Use the 12-character soda-can atlas as the character reference. Keep the upper quarter clear for UI. No HUD, borders or text outside the drink branding.",
+      "reference": "Original generated arena composition and the soda-can Genesis atlas."
+    }
+  ]
+}

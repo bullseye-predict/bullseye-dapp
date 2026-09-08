@@ -1,0 +1,36 @@
+/* Outcome colors remain meaningful before selection; the Trade action stays blue. */
+.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-yes,
+.solz-home .ch-answer.is-yes { background: #153d2e; color: #43e7a5; border: 1px solid #267654; }
+.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-no,
+.solz-home .ch-answer.is-no { background: #3d2029; color: #ff7c8d; border: 1px solid #964050; }
+.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-yes[aria-pressed='true'],
+.solz-home .ch-answer.is-yes[aria-pressed='true'] { background: #087447; color: #f0fff6; border-color: #4ade99; }
+.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-no[aria-pressed='true'],
+.solz-home .ch-answer.is-no[aria-pressed='true'] { background: #a9243a; color: #fff2f4; border-color: #ff7b90; }
+.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > button:hover { filter: brightness(1.14); }
+.ch-answer { gap: 4px; }
+.ch-option-row { position: sticky; top: -2px; z-index: 1; background: #1d2229; }
+/* Depth bands fill the quoted liquidity rather than leaving a blank side column. */
+.solz-home .ch-order-book { font-variant-numeric: tabular-nums; }
+.solz-home .ch-order-book .ch-book-side-column { width: 64px; }
+.solz-home .ch-order-book :is(th, td):first-child { width: auto; border-left: 0; }
+.solz-home .ch-order-book :is(th, td) { padding: 7px 13px; }
+.solz-home .ch-order-book th { font-size: 9px; color: #a8b7c4; }
+.solz-home .ch-order-book td { color: #dde5ec; }
+.solz-home .ch-order-book :is(.is-ask, .is-bid) { background-repeat: no-repeat; background-position: right; background-size: var(--depth) 100%; }
+.solz-home .ch-order-book .is-ask { background-image: linear-gradient(#d336531c, #d336531c); }
+.solz-home .ch-order-book .is-bid { background-image: linear-gradient(#15b47a22, #15b47a22); }
+.solz-home .ch-order-book .is-ask td:nth-child(2) { color: #ff7385; font-weight: 500; }
+.solz-home .ch-order-book .is-bid td:nth-child(2) { color: #3ce1a0; font-weight: 500; }
+.solz-home .ch-order-book td > span { padding: 3px 6px; }
+.solz-home .ch-order-book .is-ask td > span { background: #bd2940; color: #fff; }
+.solz-home .ch-order-book .is-bid td > span { background: #087447; color: #fff; }
+.solz-home .ch-order-book .ch-book-spread td { color: #b7c9d5; padding-block: 10px; }
+.solz-home .ch-order-book .ch-book-spread td:last-child { text-align: right; }
+.ch-book-heading { color: #afc0ce; }
+@media (max-width: 720px) {
+  .solz-home .ch-order-book :is(th, td) { padding: 7px 8px; }
+  .solz-home .ch-order-book .ch-book-side-column { width: 49px; }
+  .solz-home .ch-order-book th { font-size: 8px; }
+  .ch-buy-label { display: none; }
+}

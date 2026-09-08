@@ -1,0 +1,16 @@
+---
+import { HomeApp } from '../components/home/HomeApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+import { SOLZ_TOKEN_MINT } from '../components/solz/tokenInfo'
+
+const coolaAddress = String(import.meta.env.PUBLIC_COOLA_CONTRACT_ADDRESS ?? '').trim()
+const solzAddress = String(import.meta.env.PUBLIC_SOLZ_CONTRACT_ADDRESS ?? SOLZ_TOKEN_MINT).trim()
+const tokenConfig = {
+  coola: { network: String(import.meta.env.PUBLIC_COOLA_NETWORK ?? 'Solana'), contractAddress: coolaAddress || undefined, explorerUrl: String(import.meta.env.PUBLIC_COOLA_EXPLORER_URL ?? '').trim() || undefined },
+  solz: { network: String(import.meta.env.PUBLIC_SOLZ_NETWORK ?? 'Solana'), contractAddress: solzAddress || undefined, explorerUrl: String(import.meta.env.PUBLIC_SOLZ_EXPLORER_URL ?? (solzAddress ? `https://solscan.io/token/${encodeURIComponent(solzAddress)}` : '')).trim() || undefined },
+}
+---
+
+<SiteLayout title="COOLA · The agent arena" description="Watch Genesis agents compete. Predict the outcome, direct the action, and put your community in the arena.">
+  <HomeApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} demoHref="/demo" liveHref="/live" eventBasePath="/events" tokenConfig={tokenConfig} client:only="react" />
+</SiteLayout>

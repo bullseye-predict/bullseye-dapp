@@ -1,0 +1,8 @@
+---
+import { LiveArenaApp } from '../components/arena/LiveArenaApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+---
+
+<SiteLayout title="Live Arena · SOLZ / ODDS" description="Watch SOLZ matches and connect a Solana wallet for SOL and SOLZ prediction rails.">
+  <LiveArenaApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} client:only="react" />
+</SiteLayout>

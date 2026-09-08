@@ -1,0 +1,95 @@
+import '../../styles/home.css'
+import '../../styles/home-hero.css'
+import '../../styles/events.css'
+import { ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Crosshair, Eye, Link as LinkIcon, Menu, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
+import { createSolzDataSource } from '../solz/solzDataSource'
+import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
+import { useHomeData } from '../home/useHomeData'
+import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
+import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
+import { EventStage } from './EventStage'
+import { EventMarkets } from './EventMarkets'
+import { EventComments, EventCommunity } from './EventCommunity'
+import { EventAgentRail, EventMarketRail } from './EventRails'
+import { eventAnswerMarket, eventHref, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
+import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predictionContracts'
+
+type Props = { environmentId: string; eventId: string; predictionId?: string; initialOutcomeId?: string; variant: EventVariant; paths: EventPaths }
+
+export function EventApp({ environmentId, ...props }: Props) {
+  const source = useMemo(() => createSolzDataSource(), [])
+  const { snapshot, error, retry } = useHomeData(source)
+  return <DynamicSolanaSession environmentId={environmentId}>{(session) => <EventShell {...props} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+}
+
+function EventShell({ eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, walletControl }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; walletControl: ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const match = snapshot ? resolveEvent(snapshot, eventId) : undefined
+  const prediction = snapshot && match ? resolveEventPrediction(snapshot, match.id, predictionId ?? eventId) : undefined
+  const valid = match && (!predictionId || prediction)
+  return <div className={`solz-home ev-app ev-app--${variant}`}>
+    <a className="sh-skip-link" href="#event-content">Skip to event</a>
+    <div className="sh-utility"><span><Crosshair size={12}/> AUTONOMOUS AGENT NETWORK</span><span>EVENT PREVIEW <i/> SIMULATED ACTIVITY &amp; CREDITS</span><div><a href={paths.demo}>Demo <ArrowUpRight size={12}/></a><a href={paths.live}>Live arena <ArrowUpRight size={12}/></a></div></div>
+    <header className="sh-header ev-header"><a className="sh-logo" href={paths.home} aria-label="COOLA home">COOLA<span>®</span><i aria-hidden="true"/></a><nav aria-label="Main navigation" className={menuOpen ? 'is-open' : ''}><a className="is-active" href={`${paths.home}#highlight`}>Arena <span>01</span></a><a href="#event-markets" onClick={() => setMenuOpen(false)}>Markets</a><a href={`${paths.home}#teams`}>Teams</a><a href={`${paths.home}#agents`}>Agents</a><a href={`${paths.home}#enter-arena`}>Get in the arena <ArrowUpRight size={13}/></a></nav><div className="sh-wallet">{walletControl}</div><button className="sh-menu-button" aria-expanded={menuOpen} aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20}/> : <Menu size={20}/>}</button></header>
+    {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot ? <main className="ev-load-state" id="event-content" aria-busy="true"><div className="ev-skeleton"/><p role="status">Loading the event…</p></main> : valid ? <EventDetail key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
+    <footer className="sh-footer ev-footer"><a className="sh-footer-logo" href={paths.home}>COOLA®</a><span>AGENTS COMPETE. COMMUNITIES RISE.</span><div><a href={paths.home}>All events <ArrowUpRight size={12}/></a><a href="#event-content">Back to top ↑</a></div><small>GENESIS / SEASON 01</small></footer>
+  </div>
+}
+
+function EventDetail({ eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch }) {
+  const markets = snapshot.markets.filter((item) => item.matchId === match.id)
+  const prediction = markets.find((item) => item.id === predictionId)
+  const [marketId, setMarketId] = useState(prediction?.id ?? markets.find((item) => item.id === eventId)?.id ?? match.marketId)
+  const [outcomeId, setOutcomeId] = useState(initialOutcomeId ?? '')
+  const [section, setSection] = useState<ConsoleSection | null>('trade')
+  const [saved, setSaved] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [mobileRail, setMobileRail] = useState(false)
+  const [mobileTrade, setMobileTrade] = useState(false)
+  const [tradeRequest, setTradeRequest] = useState(0)
+  const tradeRail = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (mobileTrade && window.matchMedia('(max-width: 760px)').matches) tradeRail.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }, [mobileTrade, tradeRequest])
+  const market = prediction ?? markets.find((item) => item.id === marketId) ?? markets[0]
+  const answer = market?.outcomes.find((item) => item.id === baseOutcomeId(outcomeId)) ?? market?.outcomes[0]
+  const ticketMarket = market && answer && market.outcomes.length > 2 ? eventAnswerMarket(market, answer) : market
+  const outcome = ticketMarket?.outcomes.find((item) => item.id === outcomeId) ?? ticketMarket?.outcomes[0]
+  const savedId = prediction?.id ?? match.id
+  const selectionHref = (base: string) => `${eventHref(base, match.id, prediction?.id)}${outcome ? `?outcome=${encodeURIComponent(outcome.id)}` : ''}`
+  useEffect(() => { try { setSaved(localStorage.getItem(`coola.saved-event.${savedId}`) === 'true') } catch { /* Saving is optional when storage is disabled. */ } }, [savedId])
+  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 3200); return () => window.clearTimeout(timer) }, [notice])
+  const select = (next: ArenaMarket, pick: ArenaMarketOutcome, openTrade = true) => { setMarketId(next.id); setOutcomeId(pick.id); setSection('trade'); if (openTrade) { setMobileTrade(true); setTradeRequest((request) => request + 1) } }
+  const toggleSaved = () => { try { localStorage.setItem(`coola.saved-event.${savedId}`, String(!saved)); setSaved(!saved); setNotice(saved ? 'Event removed from saved events.' : 'Event saved on this device.') } catch { setNotice('This browser can’t save events right now.') } }
+  async function copyLink() { try { await navigator.clipboard.writeText(new URL(selectionHref(paths.variants[variant]), window.location.origin).href); setNotice('Event link copied.') } catch { setNotice('Copy the event link from your address bar.') } }
+  const variants = [{ id: 'markets' as const, label: 'Market view', number: '01' }, { id: 'community' as const, label: 'Community view', number: '02' }, { id: 'agents' as const, label: 'Agent view', number: '03' }]
+  if (!market || !outcome || !answer || !ticketMarket) return <main className="ev-load-state" id="event-content"><h1>Markets are being prepared.</h1><a href={paths.home}>Back to the arena</a></main>
+  return <main className="ev-main" id="event-content">
+    <div className="ev-layout-bar"><a href={prediction ? eventHref(paths.variants[variant], match.id) : paths.home}><ArrowLeft size={13}/>{prediction ? 'BACK TO MATCH' : 'ALL EVENTS'}</a><nav aria-label="Event layout">{variants.map((item) => <a key={item.id} href={selectionHref(paths.variants[item.id])} aria-current={variant === item.id ? 'page' : undefined}><span>{item.number}</span>{item.label}</a>)}</nav></div>
+    <div className="ev-mobile-actions"><button onClick={() => setMobileRail(!mobileRail)} aria-expanded={mobileRail} aria-controls="event-left-rail">{variant === 'community' ? 'Comments' : variant === 'agents' ? 'Agents & prompts' : 'Explore events'}<ChevronRight size={14}/></button><button onClick={() => setMobileTrade(!mobileTrade)} aria-expanded={mobileTrade} aria-controls="event-trade-rail">Trade {market.outcomes.length > 2 ? `${answer.label} · ${outcome.label}` : outcome.label} <span>{percent(outcome.probability)}</span></button></div>
+    <div className="ev-layout">
+      <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail">{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</div></aside>
+      <div className="ev-center">
+        <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{match.teams.map((team) => team.symbol).join(' vs. ')}</a><ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? (match.teams.length > 2 ? `${match.teams.length}-TEAM FREE FOR ALL` : match.teams.map((team) => team.symbol).join(' vs. '))}</h1><div><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div></div><p><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE NOW' : match.phase.toUpperCase()}</StatusDot><span>{match.map}</span><span>{match.roster.length} agents · {match.round}</span></p></div>
+        <EventStage match={match} market={market} snapshot={snapshot} outcome={answer} onOutcome={(pick) => { setOutcomeId(pick.id); setSection('trade') }} prediction={!!prediction}/>
+        <EventMarkets markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/>
+        <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} hideComments={variant === 'community'}/>
+        <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
+      </div>
+      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} simulation={true} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
+    </div>
+    {notice && <div className="ev-toast" role="status"><Check size={15}/>{notice}</div>}
+  </main>
+}
+
+function RelatedEvents({ snapshot, match, prefix }: { snapshot: SolzSnapshot; match: SolzMatch; prefix: string }) {
+  const matches = snapshot.matches.filter((item) => item.id !== match.id).slice(0, 3)
+  return <section className="ev-related" aria-labelledby="related-events-title"><div className="ev-section-title"><h2 id="related-events-title">Elsewhere in the arena <span>{matches.filter((item) => item.phase === 'live').length} LIVE</span></h2><ArrowUpRight size={16}/></div><div className="ev-related-grid">{matches.map((item) => {
+    const market = snapshot.markets.find((row) => row.id === item.marketId)
+    const [home, away] = item.teams
+    const chance = market?.outcomes[0]?.probability ?? .5
+    return <a href={eventHref(prefix, item.id)} className="sh-match-card" key={item.id}><div className="sh-match-card-top"><StatusDot pink={item.phase !== 'live'}>{item.phase === 'live' ? 'LIVE' : 'UP NEXT'}</StatusDot><ArrowUpRight size={15}/></div><div className="ev-related-teams"><div><TeamMark id={home.teamId} color={home.color}/><strong>{home.symbol}</strong></div><span>VS</span><div><TeamMark id={away.teamId} color={away.color}/><strong>{away.symbol}</strong></div></div><div className="sh-match-odds"><span style={{ color: home.color }}>{percent(chance)}</span><span style={{ color: away.color }}>{percent(1 - chance)}</span></div><div className="sh-odds-bar" style={{ background: away.color }}><i style={{ width: percent(chance), background: home.color }}/></div><div className="sh-match-card-bottom"><span>{compact(item.volume.COOLA)} VOL.</span><span><Eye size={12}/>{compact(item.viewers)}</span></div></a>
+  })}</div></section>
+}

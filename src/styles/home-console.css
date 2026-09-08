@@ -1,0 +1,87 @@
+/* Stable section colors; trading and chat use dark surfaces for readable semantics. */
+.solz-home .ch-console { --ch-body: #a6a8b3; --ch-ink: #191c25; --ch-muted: #383e4a; --ch-field: #c4c6d0; --ch-line: #797e8c; }
+.ch-console-trade { --console-accent: #9fcef1; }
+.ch-console-automate { --console-accent: #e2bd77; }
+.ch-console-chat { --console-accent: #e9a9c5; }
+.ch-prompt-accordion { --console-accent: #c7ff00; }
+.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3,
+.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3 > button:hover { background: var(--console-accent); }
+.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3 > button { color: #171c23; }
+.solz-home .ch-console .ch-console-accordion .sh-console-body { background: var(--ch-body); color: var(--ch-ink); }
+.solz-home .ch-console .sh-console-body :focus-visible { outline-color: currentColor; }
+.solz-home .ch-console :is(.ch-console-trade, .ch-console-chat) { --ch-body: #171d21; --ch-ink: #edf1f4; --ch-muted: #aebcc6; --ch-field: #242e35; --ch-line: #3d4a53; }
+.solz-home .ch-console .ch-trade { color: var(--ch-ink); background: var(--ch-body); border-color: var(--ch-line); }
+.solz-home .ch-console .ch-trade-title span { color: var(--ch-muted); }
+.solz-home .ch-console .ch-trade-title strong { color: var(--ch-ink); }
+.solz-home .ch-console .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }
+.solz-home .ch-console .ch-trade-controls { border-color: var(--ch-line); }
+.solz-home .ch-console .ch-trade-controls button.is-buy { color: #40df9f; }
+.solz-home .ch-console .ch-trade-controls button.is-sell { color: #ff7181; }
+.solz-home .ch-console .ch-trade-controls button[aria-pressed='true'] { border-color: currentColor; }
+.solz-home .ch-console .ch-trade-controls button:hover { filter: brightness(1.2); }
+.solz-home .ch-console .ch-trade-controls select { background: var(--ch-body); color: var(--ch-ink); }
+.solz-home .ch-console .ch-trade-amount input { color: var(--ch-ink); border-color: var(--ch-line); }
+.solz-home .ch-console :is(.ch-trade-amount small, .ch-trade-amount > div:last-child > span, .ch-sample-note) { color: var(--ch-muted); }
+.solz-home .ch-console .ch-limit-price > div { background: var(--ch-field); border-color: var(--ch-line); }
+.solz-home .ch-console .ch-limit-price :is(button, input) { color: var(--ch-ink); }
+.solz-home .ch-console .ch-trade-presets button { background: var(--ch-field); color: var(--ch-ink); min-height: 28px; }
+.solz-home .ch-console .ch-trade-presets button:hover { background: #35444f; }
+.solz-home .ch-console .ch-trade-action { background: var(--ch-body); bottom: 0; }
+.solz-home .ch-console .ch-trade > .ch-trade-feedback { color: #7ceaab; }
+.solz-home .ch-console .ch-trade > .ch-trade-feedback.is-error { color: #ff9baa; }
+.solz-home .ch-console .ch-holdings { border-color: var(--ch-line); }
+.solz-home .ch-console .ch-holdings summary { color: var(--ch-ink); }
+.solz-home .ch-console .ch-holdings :is(small, summary > span) { color: var(--ch-muted); }
+.solz-home .ch-console .ch-holdings p { border-color: var(--ch-line); }
+.solz-home .ch-console .ch-holdings button { color: var(--ch-ink); background: var(--ch-field); }
+
+/* Chat identity, message content and the input are separate visual levels. */
+.solz-home .ch-console .ch-console-chat .sh-console-body { padding: 10px 12px 12px; gap: 7px; }
+.solz-home .ch-console .sh-chat { margin: 0; padding-right: 4px; }
+.ch-chat-message { display: flex; align-items: flex-start; gap: 9px; padding: 12px 0; border-bottom: 1px solid #303b42; }
+.ch-chat-message > div { flex: 1; min-width: 0; }
+.ch-chat-message header { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.solz-home .ch-console .ch-chat-message b { font-size: 10px; color: #f1b6d0; margin: 0; }
+.ch-chat-message time { margin-left: auto; color: #a0aeb8; font-size: 8px; }
+.solz-home .ch-console .ch-chat-message p { margin: 0; color: #e0e7ed; font-size: 11px; line-height: 1.7; }
+.ch-chat-initial { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; background: #402b38; color: #ffc3de; font: 600 11px var(--sh-heading); border-radius: 50%; }
+.solz-home .ch-console .sh-chat .is-self { padding: 10px; background: #26313a; border: 1px solid #4f6472; margin-block: 7px; }
+.solz-home .ch-console .ch-chat-message.is-self b { color: #9cdbff; }
+.ch-chat-message.is-self .ch-chat-initial { background: #314e61; color: #c3e9ff; }
+.solz-home .ch-console .sh-chat-form { background: #242f37; border-color: #586d7a; }
+.solz-home .ch-console .sh-chat-form input { background: transparent; color: #f3f5f6; font-size: 11px; }
+.solz-home .ch-console .sh-chat-form input::placeholder { color: #b7c5cf; }
+.solz-home .ch-console .sh-chat-form button { background: #e9a9c5; color: #34202e; }
+.solz-home .ch-console .ch-console-chat .sh-form-note { color: #aebcc6; font-size: 8px; margin: 0; }
+
+/* A continuous charcoal prompt surface; lime is reserved for small controls. */
+.solz-home .ch-console .ch-prompt-accordion { --console-accent: #202226; --ch-body: #202226; --ch-ink: #e7eaf0; --ch-muted: #b7bdc7; --ch-field: #292d32; --ch-line: #59616b; color: var(--ch-ink); border-color: var(--ch-line); background: var(--ch-body); }
+.solz-home .ch-console .ch-mini-prompt { height: 224px; padding: 0; background: var(--ch-body); }
+.solz-home .ch-console .ch-mini-prompt > h3 { background: var(--ch-body); }
+.solz-home .ch-console .ch-mini-heading { min-height: 42px; padding: 10px 12px; color: var(--ch-ink); }
+.solz-home .ch-console .ch-mini-heading > span:first-child { color: var(--ch-ink); font: 700 12px var(--sh-heading); }
+.solz-home .ch-console .ch-mini-heading b,
+.solz-home .ch-console .ch-mini-heading > span:first-child > svg { color: #c5e780; }
+.solz-home .ch-console .ch-mini-prompt form { padding: 4px 12px 10px; }
+.solz-home .ch-console .ch-prompt-label { margin-top: 0; color: var(--ch-ink); }
+.solz-home .ch-console .ch-prompt-label > span { color: var(--ch-muted); }
+.solz-home .ch-console .ch-mini-prompt textarea { background: var(--ch-field); color: var(--ch-ink); border-color: var(--ch-line); }
+.solz-home .ch-console .ch-mini-prompt textarea::placeholder { color: #b0b8c3; }
+.solz-home .ch-console .ch-mini-prompt textarea:focus { outline-color: #bada65; background: #30353b; }
+.solz-home .ch-console .ch-prompt-target { flex: 1; min-width: 0; }
+.solz-home .ch-console .ch-prompt-target select { width: 100%; min-height: 34px; background: transparent; color: var(--ch-ink); border: 1px solid var(--ch-line); padding: 6px 22px 6px 8px; font-size: 10px; }
+.solz-home .ch-console .ch-prompt-target option { color: var(--ch-ink); background: var(--ch-field); }
+.solz-home .ch-console .ch-mini-controls button { background: #bada65; color: #1c270e; min-height: 34px; }
+.solz-home .ch-console .is-fueling .ch-mini-controls button { color: #19240d; opacity: 1; }
+.solz-home .ch-console .ch-prompt-hint { color: var(--ch-muted); }
+.solz-home .ch-console .ch-prompt-hint.is-success { color: #c5e780; }
+.solz-home .ch-console .ch-prompt-hint.is-error { color: #ff9fac; }
+.solz-home .ch-console .ch-prompt-details { border-top: 1px solid var(--ch-line); }
+.solz-home .ch-console .ch-agent-energy h4 { color: var(--ch-ink); }
+.solz-home .ch-console :is(.ch-agent-energy p, .ch-prompt-details > p) { color: var(--ch-muted); }
+.solz-home .ch-console .ch-prompt-details dl { border-color: var(--ch-line); }
+.solz-home .ch-console .ch-prompt-details dd { color: var(--ch-ink); }
+.solz-home .ch-console .ch-prompt-examples button { background: var(--ch-field); border-color: var(--ch-line); color: var(--ch-ink); }
+.solz-home .ch-console .ch-prompt-examples button:hover { background: #343a41; border-color: #bada65; }
+.ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 226px; }
+@media (max-width: 720px) { .ch-home .ch-hero-grid > .ch-console { height: 780px; } }
