@@ -1,0 +1,35 @@
+/* Rounding is reserved for standalone cards and conversation surfaces. */
+.solz-home {
+  --radius-control: 4px;
+  --radius-panel: 7px;
+  --radius-floating: 12px;
+}
+
+.solz-home :is(.sh-logo, .sh-footer-logo) { font-stretch: 62%; }
+.solz-home .sh-highlight-heading h1 { font-weight: 800; font-stretch: 110%; }
+
+/* The stage, trading controls, console strips, and standings stay square. */
+.solz-home :is(.ch-screen, .ev-screen, .ev-scoreboard, .sh-panel-title) { border-radius: 0; }
+.solz-home .ch-console .sh-console-panel,
+.solz-home .ch-console .sh-console-panel > h3,
+.solz-home .ch-console .sh-console-panel > h3 > button,
+.solz-home .ch-console .ch-trade,
+.solz-home .ch-console .ch-trade-action button,
+.solz-home :is(.ch-option-picks, .ch-answer-picks, .ch-trade-outcomes, .ev-market-picks, .ev-answer-picks) button { border-radius: 0; }
+
+/* Individual market cards and the activity below the stage can be softer. */
+.solz-home :is(.sh-match-card, .sh-agent-card, .ch-token-directory, .ev-prediction-link, .ch-chat-preview, .ch-prompt-preview, .ch-option, .ev-market) { border-radius: var(--radius-panel); }
+.solz-home .ch-option { overflow: clip; }
+.solz-home .ch-option-row { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
+.solz-home .ch-option:not(:has([aria-expanded="true"])) .ch-option-row { border-radius: var(--radius-panel); }
+.solz-home .ev-answer { border-radius: 0; }
+.solz-home .ev-answer:first-of-type { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
+.solz-home .ev-answer:last-of-type { border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
+
+/* The entry banner shares the card's outer corners, with a straight inner seam. */
+.solz-home .sh-entry-panel { border-radius: var(--radius-panel); overflow: clip; }
+.solz-home .sh-entry-banner { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
+
+.solz-home .ch-console .ch-prompt-accordion { border-radius: var(--radius-panel); }
+.solz-home :is(.sh-chat-form, .ev-comment-form, .ev-comment-form textarea, .ev-comment-form button) { border-radius: var(--radius-control); }
+.solz-home :is(.ch-event-dialog, .sh-agent-dialog, .ev-toast) { border-radius: var(--radius-floating); }

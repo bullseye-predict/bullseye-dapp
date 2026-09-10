@@ -1,0 +1,86 @@
+import { arenaAdapter, parseAgents, parseMatch } from '../agent-arena/adapter'
+import { emptyFilters, type ArenaAgent, type ArenaMatch } from '../agent-arena/model'
+
+export interface ArenaFeed {
+  agents: ArenaAgent[]
+  current: ArenaMatch | null
+  matches: ArenaMatch[]
+  historyError: string | null
+  readAt: number
+}
+
+/**
+ * The Genesis arena is a fixed twelve-agent channel. Older game responses for
+ * a newly reserved room omit the participant projection even though that
+ * reservation already contains every Genesis agent. Keep this reconstruction
+ * confined to that documented twelve-agent reservation case.
+ */
+function reservedGenesisRoster(match: ArenaMatch, agents: ArenaAgent[], policy: unknown): ArenaMatch {
+  const participantCount = (policy as { participants?: unknown } | undefined)?.participants
+  if (match.status !== 'reserved' || match.participants.length || participantCount !== 12 || agents.length !== 12) return match
+  return {
+    ...match,
+    participants: agents.map(agent => ({
+      agentId: agent.agentId, actorId: `server-bot-0-${agent.slot}`, teamId: null,
+      kills: null, deaths: null, won: null,
+    })),
+  }
+}
+
+export function createArenaFeed(endpoint: string, fetcher: (input: string | URL, init?: RequestInit) => Promise<Response> = fetch, predictionApiUrl = '', currentOnly = false) {
+  const api = arenaAdapter(endpoint, fetcher)
+  return async (signal: AbortSignal): Promise<ArenaFeed> => {
+    if (predictionApiUrl) {
+      const response = await fetcher(new URL('/arena/feed', predictionApiUrl), {signal, headers:{accept:'application/json'}})
+      if (!response.ok) throw Error(`Prediction match feed could not load (${response.status}).`)
+      const feed = await response.json()
+      const agents = parseAgents(feed)
+      if (!Array.isArray(feed.matches)) throw Error('Invalid prediction match feed.')
+      return {agents,current:feed.current ? parseMatch(feed.current,agents) : null,matches:feed.matches.map((m:unknown)=>parseMatch(m,agents)),historyError:null,readAt:Date.now()}
+    }
+    const [agents, current] = await Promise.all([api.agents(signal), api.current(signal)])
+    const match = current.match ? reservedGenesisRoster(parseMatch(current.match, agents), agents, current.policy) : null
+    if (currentOnly) return { agents, current: match, matches: match ? [match] : [], historyError: null, readAt: Date.now() }
+    let matches: ArenaMatch[] = [], historyError: string | null = null
+    try { matches = (await api.matches(agents, emptyFilters, signal)).matches }
+    catch (e) { if (signal.aborted) throw e; historyError = 'Match history could not refresh.' }
+    // A game API may temporarily fail the paginated history route while its
+    // current-match route remains healthy. The hero must still show that real
+    // reserved/live room instead of dropping back to sample matches.
+    if (!matches.length && match) matches = [match]
+    return { agents, current: match, matches, historyError, readAt: Date.now() }
+  }
+}
+
+/** A profile is not evidence of entry. Only saved participation creates a match question. */
+export function matchQuestions(match: ArenaMatch, agents: ArenaAgent[]) {
+  return match.participants.map(p => ({
+    id: `arena-${match.roomId}-winner-${p.agentId}`,
+    subjectId: p.actorId,
+    agentId: p.agentId,
+    label: `Will ${agents.find(a => a.agentId === p.agentId)?.codename ?? p.agentId} win?`,
+    answer: match.status === 'cancelled' ? 'VOID' : match.status === 'settled' && p.won !== null ? (p.won ? 'YES' : 'NO') : null,
+  }))
+}
+
+/** Read-only event drafts derived from the authoritative current game room.
+ * They let the hero render the real twelve YES/NO questions while the separate
+ * prediction importer is unavailable; no market, order, or collateral action
+ * is enabled by this fallback. */
+export function currentMatchDrafts(feed: ArenaFeed) {
+  const match = feed.current
+  if (!match) return { events: [] }
+  return {
+    events: [{
+      eventId: `arena-${match.roomId}`, roomId: match.roomId, status: match.status,
+      questions: matchQuestions(match, feed.agents).map(question => ({
+        questionId: `winner-${question.agentId}`, agentId: question.agentId,
+        actorId: question.subjectId, answer: question.answer,
+      })),
+    }],
+  }
+}
+
+export function tradingCollateral(network: 'SOLANA' | 'SOMNIA', chainId: string) {
+  return network === 'SOLANA' ? 'SOL' : chainId === '5031' ? 'USDso' : 'tUSDC'
+}

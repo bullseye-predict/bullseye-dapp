@@ -85,3 +85,18 @@
 .solz-home .ch-console .ch-prompt-examples button:hover { background: #343a41; border-color: #bada65; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 226px; }
 @media (max-width: 720px) { .ch-home .ch-hero-grid > .ch-console { height: 780px; } }
+
+/* One composer surface groups the directive, recipient and fuel action. */
+.solz-home .ch-console .ch-prompt-accordion { border: 0; }
+.solz-home .ch-console .ch-mini-prompt { height: auto; min-height: 250px; }
+.solz-home .ch-console .ch-mini-prompt form { padding: 4px 12px 12px; }
+.solz-home .ch-console .ch-prompt-label { font-size: 10px; margin-bottom: 8px; }
+.solz-home .ch-console .ch-prompt-composer { border: 1px solid #59616b; border-radius: 16px; padding: 4px; background: #191c20; }
+.solz-home .ch-console .ch-prompt-composer:focus-within { border-color: #bada65; }
+.solz-home .ch-console .ch-prompt-composer textarea { display: block; width: 100%; min-height: 76px; height: 76px; padding: 10px; margin: 0; border: 0; border-radius: 12px; background: transparent; resize: none; font-size: 12px; line-height: 1.6; }
+.solz-home .ch-console .ch-prompt-composer textarea:focus { outline: none; background: transparent; }
+.solz-home .ch-console .ch-prompt-composer .ch-mini-controls { display: flex; gap: 8px; margin: 0; padding: 6px; }
+.solz-home .ch-console .ch-prompt-composer select { height: 36px; min-height: 36px; border-radius: 8px; font-size: 10px; background: #25292e; border-color: #444b55; }
+.solz-home .ch-console .ch-prompt-composer button { min-height: 36px; border-radius: 8px; padding: 8px 10px; }
+.solz-home .ch-console .ch-prompt-hint { margin-top: 8px; font-size: 9px; line-height: 1.6; }
+.ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 250px; }

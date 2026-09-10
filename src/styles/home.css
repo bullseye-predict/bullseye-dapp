@@ -1,11 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800;900&family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import './fonts.css';
+@import './game-surfaces.css';
 
 html { min-width: 320px; background: #111215; scroll-behavior: smooth; }
 body { margin: 0; }
 .solz-home {
   --sh-bg: #111215; --sh-panel: #191a1e; --sh-line: #33343a; --sh-text: #eeeef0;
   --sh-muted: #a1a2ac; --sh-lime: #c7ff00; --sh-pink: #ff579d; --sh-gray: #a6a8b3;
-  --sh-heading: 'Chakra Petch', sans-serif; --sh-mono: 'IBM Plex Mono', monospace;
+  --sh-heading: 'Archivo', sans-serif; --sh-mono: 'Geist Mono', monospace;
   --arena-accent: var(--sh-lime); --arena-coral: var(--sh-pink); --arena-blue: #66caff;
   --arena-muted: var(--sh-muted); --arena-border: var(--sh-line); --arena-border-strong: #5a5c65;
   --arena-text: var(--sh-text); --arena-bg: var(--sh-bg); --arena-accent-ink: #111215;
@@ -35,7 +36,7 @@ body { margin: 0; }
 .sh-utility i { width: 3px; height: 3px; background: #a6a6af; }
 .sh-utility a:hover { color: var(--sh-lime); }
 .sh-header { min-height: 93px; display: flex; align-items: center; gap: 48px; padding: 12px 3.6%; border-bottom: 1px solid var(--sh-line); }
-.sh-logo { position: relative; flex-shrink: 0; font: 900 58px/.9 'Barlow Condensed', sans-serif; letter-spacing: -.025em; color: var(--sh-lime) !important; }
+.sh-logo { position: relative; flex-shrink: 0; font: 900 58px/.9 'Archivo', sans-serif; letter-spacing: -.025em; color: var(--sh-lime) !important; }
 .sh-logo > span { font: 600 11px var(--sh-mono); position: absolute; top: 1px; right: -13px; }
 .sh-logo i { width: 6px; height: 36px; background: var(--sh-lime); margin-left: 6px; display: inline-block; }
 .sh-header nav { display: flex; align-items: center; gap: 6px; flex: 1; }
@@ -347,7 +348,7 @@ body { margin: 0; }
 .sh-bottom-callout a { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; min-width: 220px; font-size: 11px; font-weight: 500; color: #15190a; background: var(--sh-lime); text-transform: uppercase; }
 .sh-bottom-callout a:hover { background: #d9ff59; }
 .sh-footer { display: flex; align-items: center; gap: 28px; padding: 26px 3.6%; background: #0a0b0e; border-top: 1px solid #36383f; }
-.sh-footer-logo { font: 900 30px/1 'Barlow Condensed', sans-serif; color: #bdc1cc !important; }
+.sh-footer-logo { font: 900 30px/1 'Archivo', sans-serif; color: #bdc1cc !important; }
 .sh-footer > span { font-size: 8px; color: #a1a5b2; }
 .sh-footer > div { display: flex; gap: 22px; margin-left: auto; }
 .sh-footer > div a { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #d0d2da; }

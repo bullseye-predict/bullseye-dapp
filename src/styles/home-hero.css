@@ -587,3 +587,81 @@
 .ch-chart-controls button[aria-pressed='true'] { color: #ebeff6; background: #303640; }
 .ch-chart-controls button:focus-visible { outline: 2px solid #c2f838; outline-offset: 2px; }
 .ch-chart-domain { margin-left: auto; }
+
+/* Viewer navigation shares a grid row with the console's starting edge. */
+.ch-home .ch-hero-grid { grid-template-rows: auto auto; row-gap: 12px; }
+.ch-home .ch-viewer { grid-column: 1; grid-row: 1 / span 2; display: grid; grid-template-rows: subgrid; }
+.ch-home .ch-view-navigation { min-height: 48px; padding: 0; border: 0; align-items: center; }
+.ch-home .ch-view-navigation h2 { font-size: 16px; }
+.ch-home .ch-view-navigation .mx-tabs { flex-shrink: 0; }
+.ch-home .ch-viewer-body { min-width: 0; }
+.ch-home .ch-hero-grid > .ch-console { grid-column: 2; grid-row: 2; }
+.ch-home .ch-viewer-body .ch-activity { padding-top: 16px; }
+.ch-home .sh-highlight-heading { margin-bottom: 16px; }
+
+/* The guide is a separate reading break between the hero and live discovery. */
+.ch-home .ch-guide { margin-block: 64px; padding-block: 16px; border: 0; }
+.ch-guide-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; }
+.ch-guide-heading h2 { font-size: 23px; }
+.ch-guide-heading p { color: #b0b4be; font-size: 11px; }
+.ch-home .ch-guide .sh-how-strip { margin-top: 24px; gap: 24px; border: 0; background: transparent; }
+.ch-home .ch-guide .sh-how-strip > button { padding: 12px 20px 12px 0; border: 0; background: transparent; gap: 12px; }
+.ch-home .ch-guide .sh-how-strip > button:hover strong { color: var(--sh-lime); }
+.ch-home .ch-guide .sh-how-strip > button > span { gap: 8px; }
+.ch-home .ch-guide .sh-how-strip small { color: #adb1bb; font-size: 10px; line-height: 1.7; }
+.ch-home .ch-guide .sh-how-arrow { top: 14px; right: 0; }
+.ch-home .sh-live-section { margin-top: 0; }
+.ch-home .sh-community-grid, .ch-home .sh-genesis { margin-top: 72px; }
+@media (max-width: 1020px) {
+  .ch-home .ch-viewer { display: flex; grid-row: auto; gap: 12px; }
+  .ch-home .ch-hero-grid > .ch-console { grid-column: 1; grid-row: auto; }
+  .ch-home .ch-guide .sh-how-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .ch-home .ch-guide { margin-block: 48px; padding-block: 24px; }
+  .ch-guide-heading h2 { font-size: 20px; }
+  .ch-home .ch-guide .sh-how-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+  .ch-home .sh-community-grid, .ch-home .sh-genesis { margin-top: 48px; }
+  .ch-home .ch-view-navigation { gap: 12px; }
+  .ch-home .ch-view-navigation > div:first-child { flex-basis: 100%; }
+}
+
+/* Compact reference heading, with status immediately above the trade column. */
+.ch-home .sh-highlight-heading { position: relative; margin-bottom: 4px; align-items: start; }
+.ch-home .sh-highlight-heading > div:first-child > p { display: none; }
+.ch-home .sh-highlight-meta { position: absolute; right: 0; top: 0; width: 360px; height: calc(100% + 48px); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; gap: 8px; padding-bottom: 4px; }
+.ch-home .ch-view-navigation > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.ch-home .ch-detail-button { padding: 0; }
+.ch-home .ch-screen { width: 100%; max-height: none; }
+@media (max-width: 1190px) { .ch-home .sh-highlight-meta { width: 330px; } }
+@media (max-width: 1020px) { .ch-home .sh-highlight-meta { position: static; width: auto; height: auto; padding: 0; } }
+
+/* Shared context controls occupy the row immediately above each trade panel. */
+.ch-trade-context { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; gap: 8px; min-width: 0; padding-bottom: 4px; }
+.ch-trade-context .ch-simulation-toggle { padding: 0; }
+.ch-trade-context .sh-live-count { display: flex; font-size: 9px; }
+.ch-home .ch-hero-grid > .ch-trade-context { grid-column: 2; grid-row: 1; }
+@media (max-width: 1020px) {
+  .ch-home .ch-hero-grid > .ch-trade-context { grid-column: 1; grid-row: 2; }
+  .ch-home .ch-hero-grid > .ch-console { grid-row: 3; }
+}
+
+.ch-network-tabs { display: flex; align-items: stretch; gap: 20px; border-bottom: 1px solid #34373e; }
+.ch-network-tabs button { appearance: none; background: transparent; color: #b5b9c3; border: 0; border-bottom: 2px solid transparent; padding: 9px 2px; font: inherit; font-size: 13px; cursor: pointer; }
+.ch-network-tabs button[aria-selected='true'] { color: var(--sh-lime, #c2f838); border-bottom-color: currentColor; }
+.ch-network-tabs button:hover { color: #fff; }
+.ch-network-tabs button:focus-visible { outline: 2px solid var(--sh-lime, #c2f838); outline-offset: 3px; }
+.ch-network-panel { min-width: 0; grid-column: 1 / -1; grid-row: 2; padding: 20px 0; }
+.ch-network-panel .pt-heading h2 { font-size: 22px; }
+.ch-network-panel .pt-feedback { overflow-wrap: anywhere; }
+.ch-network-panel select { max-width: 100%; }
+.ch-network-panel .pt-toolbar { flex-wrap: wrap; }
+.ch-network-panel .pt-totals div { gap: 12px; }
+.ch-network-panel .pt-totals dd { overflow-wrap: anywhere; }
+@media (max-width: 1020px) { .ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-trade-context { grid-row: 1; } }
+.ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-viewer { grid-column: 1; grid-row: 1; display: block; }
+.ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-trade-context { justify-content: flex-start; padding-top: 12px; }
+@media (max-width: 1020px) {
+  .ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-trade-context { grid-row: 2; }
+  .ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-network-panel { grid-row: 3; }
+}

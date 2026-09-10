@@ -1,0 +1,55 @@
+import { expect, test } from 'bun:test'
+import { createArenaFeed, currentMatchDrafts, matchQuestions, tradingCollateral } from '../src/components/home/arenaFeed'
+import { applyPredictionArena } from '../src/components/home/predictionArena'
+import { createSolzDataSource } from '../src/components/solz/solzDataSource'
+
+const agents = [{agentId:'genesis-01',slot:0,codename:'COKE',archetype:'BREACHER',balanceCentilitres:'100000'}]
+const match = {roomId:'real-match',status:'live' as const,entryFeeL:20,gameMode:'deathmatch',teamFormat:'ffa',participants:[{agentId:'genesis-01',actorId:'server-bot-0-0',teamId:null,kills:null,deaths:null,won:null}]}
+test('homepage reads Neon-backed prediction feed without requesting Elysia or sample data',async()=>{
+  const calls:string[]=[]
+  const read=createArenaFeed('/api/agent-arena', async input=>{calls.push(String(input));return Response.json({ok:true,agents,current:match,matches:[match]})},'https://prediction.test')
+  const feed=await read(new AbortController().signal)
+  expect(calls).toEqual(['https://prediction.test/arena/feed'])
+  expect(feed.current?.roomId).toBe('real-match')
+  expect(matchQuestions(feed.current!,feed.agents)).toEqual([{id:'arena-real-match-winner-genesis-01',subjectId:'server-bot-0-0',agentId:'genesis-01',label:'Will COKE win?',answer:null}])
+})
+test('profiles alone do not invent participants; network collateral stays separate',()=>{
+  expect(matchQuestions({...match,participants:[]},agents)).toEqual([])
+  expect(tradingCollateral('SOLANA','5031')).toBe('SOL')
+  expect(tradingCollateral('SOMNIA','5031')).toBe('USDso')
+  expect(tradingCollateral('SOMNIA','50312')).toBe('tUSDC')
+})
+test('a real reserved Genesis room missing its legacy roster still exposes all twelve recorded channel entrants', async () => {
+  const genesisAgents = Array.from({ length: 12 }, (_, slot) => ({ agentId: `genesis-${String(slot + 1).padStart(2, '0')}`, slot, codename: `AGENT ${slot + 1}`, archetype: 'ARENA', balanceCentilitres: '100000' }))
+  const reserved = { roomId: 'reserved-room', status: 'reserved', entryFeeL: 20, gameMode: 'deathmatch', teamFormat: 'ffa' }
+  const calls: string[] = []
+  const read = createArenaFeed('/api/agent-arena', async input => {
+    const kind = new URL(String(input), 'http://localhost').searchParams.get('kind')
+    calls.push(kind ?? '')
+    if (kind === 'agents') return Response.json({ ok: true, agents: genesisAgents })
+    if (kind === 'current') return Response.json({ ok: true, policy: { participants: 12 }, match: reserved })
+    return new Response('', { status: 502 })
+  }, '', true)
+  const feed = await read(new AbortController().signal)
+  expect(feed.current?.participants).toHaveLength(12)
+  expect(currentMatchDrafts(feed).events[0]?.questions).toHaveLength(12)
+  expect(currentMatchDrafts(feed).events[0]?.questions[0]).toMatchObject({ agentId: 'genesis-01', answer: null })
+  expect(calls).toEqual(['agents', 'current'])
+})
+test('feed errors are surfaced, not replaced with fake markets',async()=>{
+  const read=createArenaFeed('/api/agent-arena',async()=>new Response('',{status:503}),'https://prediction.test')
+  await expect(read(new AbortController().signal)).rejects.toThrow('503')
+})
+test('Neon event drafts replace the homepage match predictions with one YES/NO market per recorded agent', async () => {
+  const base = await createSolzDataSource().load()
+  const feed = { agents, current: match, matches: [match], historyError: null, readAt: 1_700_000_000_000 }
+  const snapshot = applyPredictionArena(base, feed, { events: [{
+    eventId: 'arena-real-match', roomId: 'real-match', status: 'live', questions: [
+      { questionId: 'winner-genesis-01', agentId: 'genesis-01', actorId: 'server-bot-0-0', answer: null },
+    ],
+  }] })
+  expect(snapshot.highlightMatchId).toBe('arena-real-match')
+  expect(snapshot.markets).toHaveLength(1)
+  expect(snapshot.markets[0]).toMatchObject({ matchId: 'arena-real-match', title: 'Will COKE win?', status: 'indicative' })
+  expect(snapshot.markets[0]?.outcomes.map(value => value.label)).toEqual(['YES', 'NO'])
+})

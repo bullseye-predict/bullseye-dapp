@@ -21,9 +21,9 @@ type Props = {
   view: HighlightView; onView: (view: HighlightView) => void; outcome: ArenaMarketOutcome
   onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void; liveHref: string
   onChat: () => void; onPrompt: () => void; season: boolean; pinned: boolean; onPin: () => void
-  detailHref?: string; referenceMarkets?: ArenaMarket[]; simulation?: boolean; answer?: PredictionAnswer
+  broadcastOnly?: boolean; detailHref?: string; referenceMarkets?: ArenaMarket[]; simulation?: boolean; answer?: PredictionAnswer
 }
-export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, simulation = true, answer = 'yes', referenceMarkets }: Props) {
+export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, broadcastOnly = false, simulation = true, answer = 'yes', referenceMarkets }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   const [fullscreenError, setFullscreenError] = useState('')
   const [detail, setDetail] = useState<ArenaMarket | null>(null)
@@ -36,6 +36,8 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   }
   const onOutcome = (item: ArenaMarketOutcome) => onSelect(market, item)
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
+    <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
+    <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
@@ -51,8 +53,9 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
       <TabPanel id="market" idPrefix="highlight-view" active={view === 'market'}><HighlightChart referenceMarket={referenceMarkets?.find((item) => item.id === market.id)} simulation={simulation} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} dates={season ? markets : undefined} onMarket={(item) => onSelect(item, item.outcomes[0])}/></TabPanel>
       <TabPanel id="options" idPrefix="highlight-view" active={view === 'options'}><PredictionOptions answer={answer} key={`${match.id}-${season}`} markets={markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={onSelect} referenceMarkets={referenceMarkets} simulation={simulation}/></TabPanel>
     </div>
-    <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div><Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, ...(!season ? [{ id: 'live' as const, label: <><Radio size={14}/> Livestream</> }] : [])]}/></div>
-    <HeroActivity simulation={true} source={source} snapshot={snapshot} match={match} onChat={onChat} onPrompt={onPrompt}/>
+
+    {!broadcastOnly && <HeroActivity simulation={true} source={source} snapshot={snapshot} match={match} onChat={onChat} onPrompt={onPrompt}/>}
+    </div>
     <dialog ref={dialog} className="ch-event-dialog" onClose={() => setDetail(null)} aria-labelledby="event-overview-title">
       {detail && <><div><span className="ch-simulation">SIMULATION</span><button aria-label="Close event detail" onClick={() => dialog.current?.close()}><X size={20}/></button></div><h2 id="event-overview-title">{detail.title}</h2><p>{detail.description}</p><h3>Resolution</h3><p>{detail.rules}</p><dl><div><dt>Closes</dt><dd>{new Date(detail.closesAt).toLocaleString('en')}</dd></div><div><dt>Trading</dt><dd>Off-chain sample credits</dd></div></dl>{!detail.matchId && <button className="sh-button" onClick={() => { if (!pinned) onPin(); dialog.current?.close() }}>Keep this highlight <Pin size={14}/></button>}<p className="ch-dialog-note">Market overview · off-chain preview credits.</p></>}
     </dialog>

@@ -15,7 +15,7 @@ type Props = {
 }
 export function PredictionOptions(props: Props) {
   return <div className="ch-options" aria-label="Related predictions">
-    <div className="ch-options-heading"><div><h2>Make your call.</h2><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">SAMPLE MARKETS</span></div>
+    <div className="ch-options-heading"><div><h2>Make your call.</h2><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">{props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS'}</span></div>
     <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id}/>)}</div>
   </div>
 }
