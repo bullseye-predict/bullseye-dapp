@@ -80,6 +80,12 @@ body { margin: 0; }
 .sh-broadcast:fullscreen { aspect-ratio: auto; }
 .sh-broadcast-image { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center 60%; display: block; }
 .sh-broadcast video { z-index: 2; }
+.sh-broadcast-frame { border: 0; background: #11161f; z-index: 1; }
+.sh-broadcast-source { position: absolute; z-index: 5; top: 48px; right: 18px; display: flex; border: 1px solid rgb(225 234 250 / 38%); background: rgb(7 11 19 / 78%); }
+.sh-broadcast-source button { appearance: none; border: 0; border-right: 1px solid rgb(225 234 250 / 22%); padding: 5px 8px; background: transparent; color: #dce6fa; font: 700 8px/1 var(--sh-mono); text-transform: uppercase; cursor: pointer; }
+.sh-broadcast-source button:last-child { border-right: 0; }
+.sh-broadcast-source button[aria-pressed="true"] { background: #c7ff00; color: #101510; }
+.sh-broadcast-source button:disabled { opacity: .42; cursor: not-allowed; }
 .sh-broadcast-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(9 15 29 / 68%), transparent 40%, rgb(4 9 22 / 10%) 60%, rgb(7 11 19 / 86%)); pointer-events: none; }
 .sh-broadcast-top { position: absolute; top: 16px; left: 18px; right: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 9px; color: #e5e6ed; }
 .sh-broadcast-top > span:last-child { display: flex; align-items: center; gap: 6px; }

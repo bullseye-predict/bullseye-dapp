@@ -10,11 +10,22 @@ import { HeroActivity } from './HeroActivity'
 import { matchLabel, teamLabel, type HighlightView } from './heroMarket'
 
 // Stable source identity keeps market ticks independent from playback.
-const BroadcastMedia = memo(function BroadcastMedia({ source }: { source?: string }) {
+const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc }: { source?: string; iframeSrc: string }) {
   const [failed, setFailed] = useState(false)
-  if (source && !failed) return <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => setFailed(true)}/>
-  return <img className="sh-broadcast-image" src="/images/solz/arena-preview.jpg" width="1536" height="1024" alt="Coke, Pepsi and Sprite soda-can agents compete in the COOLA arena." fetchPriority="high"/>
+  const [mode, setMode] = useState<'iframe' | 'video'>('iframe')
+  return <>
+    {mode === 'video' && source && !failed ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('iframe') }}/> : <iframe className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/>}
+    <div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button aria-pressed={mode === 'iframe'} onClick={() => setMode('iframe')}>Arena</button><button disabled={!source} aria-pressed={mode === 'video'} onClick={() => setMode('video')}>Video</button></div>
+  </>
 })
+
+function matchWinnerBoard(markets: ArenaMarket[], selected: ArenaMarket): ArenaMarket {
+  const outcomes = markets.map(item => {
+    const yes = item.outcomes.find(outcome => outcome.id === 'yes') ?? item.outcomes[0]!
+    return { ...yes, id: item.id, label: item.title.replace(/^Will (.+) win\?$/, '$1'), detail: `YES on ${item.title}`, priceHistory: yes.priceHistory ?? [] }
+  })
+  return { ...selected, id: `${selected.matchId}:winner-board`, title: 'Match winner · all 12 agents', description: 'Twelve linked YES/NO winner questions for this one match.', outcomes }
+}
 
 type Props = {
   match: SolzMatch; market: ArenaMarket; markets: ArenaMarket[]; snapshot: SolzSnapshot; source: SolzDataSource
@@ -35,13 +46,15 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
     catch { setFullscreenError('Full screen is unavailable in this browser.') }
   }
   const onOutcome = (item: ArenaMarketOutcome) => onSelect(market, item)
+  const board = matchWinnerBoard(markets, market)
+  const boardOutcome = board.outcomes.find(item => item.id === market.id) ?? board.outcomes[0]!
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
     <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
-          <BroadcastMedia key={match.streamUrl ?? 'preview'} source={match.streamUrl}/><div className="sh-broadcast-shade" aria-hidden="true"/>
+          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={liveHref}/><div className="sh-broadcast-shade" aria-hidden="true"/>
           <div className="sh-broadcast-top"><span className="sh-preview-chip">{match.streamUrl ? 'LIVE BROADCAST' : 'BROADCAST PREVIEW'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
           <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
             {match.teams.map((team, index) => <div key={team.teamId} style={{ color: team.color }}><TeamMark id={team.teamId} color={team.color}/><strong>{teamLabel(team.symbol)}</strong><b>{String(team.score).padStart(2, '0')}</b>{index === 0 && match.teams.length === 2 && <span className="ch-score-center"><small>{match.round}</small><strong>{elapsed}</strong><small>{match.mode}</small></span>}</div>)}
@@ -50,7 +63,7 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
           {fullscreenError && <p className="sh-fullscreen-error" role="status">{fullscreenError}</p>}
         </div>
       </TabPanel>
-      <TabPanel id="market" idPrefix="highlight-view" active={view === 'market'}><HighlightChart referenceMarket={referenceMarkets?.find((item) => item.id === market.id)} simulation={simulation} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} dates={season ? markets : undefined} onMarket={(item) => onSelect(item, item.outcomes[0])}/></TabPanel>
+      <TabPanel id="market" idPrefix="highlight-view" active={view === 'market'}><HighlightChart simulation={simulation} key={board.id} market={board} snapshot={snapshot} outcome={boardOutcome} onOutcome={(item) => { const next = markets.find(candidate => candidate.id === item.id); if (next) onSelect(next, next.outcomes.find(candidate => candidate.id === 'yes') ?? next.outcomes[0]!) }} onMarket={() => {}}/></TabPanel>
       <TabPanel id="options" idPrefix="highlight-view" active={view === 'options'}><PredictionOptions answer={answer} key={`${match.id}-${season}`} markets={markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={onSelect} referenceMarkets={referenceMarkets} simulation={simulation}/></TabPanel>
     </div>
 

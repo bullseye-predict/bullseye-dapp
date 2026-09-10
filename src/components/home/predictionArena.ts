@@ -65,8 +65,8 @@ function marketsFor(event: ArenaEvent, agents: GenesisAgent[], now: number): Are
       title: `Will ${agent?.codename ?? question.agentId} win?`, description: 'Resolves from the recorded match result in Neon.',
       status: marketStatus(event), closesAt: settled ? now : Number.MAX_SAFE_INTEGER, volume: { SOL: 0, COOLA: 0 },
       outcomes: [
-        { id: 'yes', label: 'YES', detail: 'This agent wins the recorded match.', probability: yes, participantId: question.agentId, priceHistory: [{ at: now, probability: yes }] },
-        { id: 'no', label: 'NO', detail: 'This agent does not win the recorded match.', probability: 1 - yes, participantId: question.agentId, priceHistory: [{ at: now, probability: 1 - yes }] },
+        { id: 'yes', label: 'YES', detail: 'This agent wins the recorded match.', probability: yes, participantId: question.agentId, priceHistory: settled ? [{ at: now, probability: yes }] : [] },
+        { id: 'no', label: 'NO', detail: 'This agent does not win the recorded match.', probability: 1 - yes, participantId: question.agentId, priceHistory: settled ? [{ at: now, probability: 1 - yes }] : [] },
       ],
       rules: question.answer === 'VOID' ? 'This question was voided because the match was cancelled.' : 'Resolves from the final recorded winner list. Trading is not enabled yet.',
     }

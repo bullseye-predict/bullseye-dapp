@@ -17,6 +17,7 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const displayMarket = !simulation && referenceMarket ? referenceMarket : market
   const focus = resolvePredictionContract(displayMarket, outcome.id) ?? outcome
   const series = focusOnly ? [focus] : displayMarket.outcomes
+  const hasPriceHistory = series.some(item => (item.priceHistory?.length ?? 0) > 0)
   const long = !market.matchId
   const [range, setRange] = useState('ALL')
   const [chartStyle, setChartStyle] = useState<'line' | 'step'>('line')
@@ -57,7 +58,7 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
     {!focusOnly && <h2>{market.title}</h2>}
     {focusOnly && <div className="ch-chart-focus"><strong>{percent(focus.probability)} chance</strong><span>{focus.label}</span></div>}
     {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{percent(item.probability)}</b></button>)}</div>}
-    <div className="ch-chart-controls">
+    {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><strong>No match prices yet.</strong><span>These 12 linked winner questions will share this match view once live quotes or trades exist.</span></div> : <><div className="ch-chart-controls">
       <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
       <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>
       <span className="ch-chart-domain">{scale === 'focus' ? `Focus ${percent(lower)}–${percent(upper)}` : 'Full 0–100%'}</span>
@@ -85,6 +86,6 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
         return <span key={item.id}><i style={{ background: colorFor(item, index) }}/>{item.label}<b>{percent(closest?.probability ?? item.probability)}</b></span>
       })}</div>}
     </div>
-    <div className="ch-chart-footer"><span>{compact(displayMarket.volume.COOLA)} COOLA Vol.</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div>
+    <div className="ch-chart-footer"><span>{compact(displayMarket.volume.COOLA)} COOLA Vol.</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
   </div>
 }
