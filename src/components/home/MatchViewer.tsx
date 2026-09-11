@@ -396,7 +396,7 @@ export function MatchViewer({
   const broadcastContext: BroadcastContext = intermission
     ? {
         state: "BREAK TIME",
-        time: "PREPARING MATCH",
+        time: remaining ? `${remaining} LEFT` : "PREPARING MATCH",
         detail: `NEXT ${matchCode}`,
       }
     : match.phase === "live"
@@ -539,6 +539,13 @@ export function MatchViewer({
                     <h2>
                       Preparing match <b>{matchCode}</b>
                     </h2>
+                    {remaining && (
+                      <div className="ch-intermission-time">
+                        <span>TIME LEFT</span>
+                        <strong>{remaining}</strong>
+                        <small>BREAK WINDOW</small>
+                      </div>
+                    )}
                     <p>
                       The room is reserved and the match system is preparing the
                       next round. Prediction sides remain visible at 50:50 until

@@ -258,7 +258,8 @@ describe("highlight livestream navigation", () => {
     );
     expect(html).toContain("BREAK TIME");
     expect(html).toContain("Preparing match <b>#A-CAB5</b>");
-    expect(html).toContain("PREPARING MATCH");
+    expect(html).toContain("TIME LEFT");
+    expect(html).toContain("LEFT");
     expect(html).not.toContain("STARTS IN");
     expect(html).toContain("12 / 12 AGENTS CONFIRMED");
     expect(html).toContain("Use iframe streaming");
