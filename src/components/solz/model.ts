@@ -131,6 +131,8 @@ export type MatchKind = 'highlight' | 'community'
 
 export type SolzMatch = {
   id: string
+  /** Human-readable match label assigned by the game service, when available. */
+  displayMatchId?: string
   kind: MatchKind
   mode: string
   map: string

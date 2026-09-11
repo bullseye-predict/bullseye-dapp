@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MatchViewer } from '../src/components/home/MatchViewer'
+import { MatchHeading } from '../src/components/home/HomeApp'
 import { TradeContextBar } from '../src/components/home/TradeContextBar'
 import { MarketSourceControls } from '../src/components/home/MarketSourceControls'
 import { unpricedMarkets } from '../src/components/home/useVenueMarketPrices'
@@ -101,12 +102,29 @@ describe('highlight livestream navigation', () => {
     expect(html).toContain('5-MINUTE INTERMISSION')
     expect(html).toContain('Next match <b>#A-CAB5</b>')
     expect(html).toContain('STARTS IN')
-    expect(html).toContain('--:--')
-    expect(html).toContain('SYNCING SERVER CLOCK')
+    expect(html).toContain('SERVER CLOCK')
     expect(html).toContain('12 / 12 AGENTS CONFIRMED')
     expect(html).toContain('Use iframe streaming')
     expect(html).not.toContain('src="https://solz.fun/watch/live/agent-arena?room=current&amp;back=false"')
     for (const agent of snapshot.agents.slice(0, 12)) expect(html).toContain(agent.codename.replace('&', '&amp;'))
+  })
+
+  test('puts match duration and break time in the title area without loading video', async () => {
+    const source = createSolzDataSource()
+    const snapshot = await source.load()
+    const original = snapshot.matches.find((item) => item.id === snapshot.highlightMatchId)!
+    const live = { ...original, displayMatchId: 'MATCH 42', startedAt: 1_000, endsAt: 1_201_000, phase: 'live' as const }
+    const liveHtml = renderToStaticMarkup(<MatchHeading match={live} season={false} initialNow={181_000} copied={false} onCopy={() => {}}/>)
+    expect(liveHtml).toContain('MATCH 42')
+    expect(liveHtml).toContain('03:00 / 20:00')
+    expect(liveHtml).toContain('17:00 LEFT')
+    expect(liveHtml).toContain('BONK TEAM — WIF TEAM')
+
+    const next = { ...live, phase: 'countdown' as const, endsAt: 301_000 }
+    const breakHtml = renderToStaticMarkup(<MatchHeading match={next} season={false} initialNow={181_000} copied={false} onCopy={() => {}}/>)
+    expect(breakHtml).toContain('BREAK')
+    expect(breakHtml).toContain('02:00 LEFT')
+    expect(breakHtml).toContain('05:00 BREAK · NEXT MATCH 42')
   })
 
   test('offers separate simulation, Solana, and Somnia sources with Somnia testnet selected', () => {

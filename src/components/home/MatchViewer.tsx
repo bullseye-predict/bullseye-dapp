@@ -7,7 +7,7 @@ import { AgentPortrait, compact, TeamMark } from './HomePrimitives'
 import { HighlightChart } from './HighlightChart'
 import { PredictionOptions } from './PredictionOptions'
 import { HeroActivity } from './HeroActivity'
-import { matchLabel, teamLabel, type HighlightView } from './heroMarket'
+import { teamLabel, type HighlightView } from './heroMarket'
 
 // Stable source identity keeps market ticks independent from playback.
 type ArenaBroadcastStatus = { state: 'intermission' | 'preparing' | 'live' | 'unavailable'; endsAt: number | null; generatedAt: number; matchId: string | null; receivedAt: number }
@@ -87,7 +87,7 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const [broadcastStatus, setBroadcastStatus] = useState<ArenaBroadcastStatus | null>(null)
   const [clock, setClock] = useState(() => Date.now())
   const dialog = useRef<HTMLDialogElement>(null)
-  const elapsed = formatClock(snapshot.updatedAt - match.startedAt)
+  const elapsed = formatClock(clock - match.startedAt)
   useEffect(() => { if (detail && !dialog.current?.open) dialog.current?.showModal() }, [detail])
   async function fullscreen() {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await frame.current?.requestFullscreen() }
@@ -97,20 +97,22 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const board = matchWinnerBoard(winnerMarkets, winnerMarkets.find(item => item.id === market.id) ?? winnerMarkets[0] ?? market)
   const boardOutcome = board.outcomes.find(item => item.id === market.id) ?? board.outcomes[0]
   const intermission = match.phase === 'countdown'
-  const matchCode = `#A-${match.id.replace(/^arena-/, '').replace(/-/g, '').slice(0, 4).toUpperCase()}`
+  const matchCode = /^MATCH\s*#?\d+$/i.test(match.displayMatchId ?? '')
+    ? match.displayMatchId!
+    : `#A-${match.id.replace(/^arena-/, '').replace(/-/g, '').slice(0, 4).toUpperCase()}`
   useEffect(() => { setBroadcastStatus(null) }, [match.id])
   useEffect(() => {
-    if (!intermission || !broadcastStatus?.endsAt) return
+    if (match.phase === 'settled') return
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
     return () => window.clearInterval(timer)
-  }, [broadcastStatus?.endsAt, intermission])
+  }, [match.id, match.phase])
   const serverDeadline = broadcastStatus?.endsAt
     ? broadcastStatus.receivedAt + Math.max(0, broadcastStatus.endsAt - broadcastStatus.generatedAt)
-    : null
+    : match.endsAt
   const remainingMs = serverDeadline === null ? null : Math.max(0, serverDeadline - clock)
   const remaining = remainingMs === null ? '--:--' : `${String(Math.floor(remainingMs / 60_000)).padStart(2, '0')}:${String(Math.floor(remainingMs % 60_000 / 1_000)).padStart(2, '0')}`
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
-    <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
+    <div className="ch-view-navigation"><div className="ch-match-actions">{detailHref ? <a className="ch-detail-button" href={detailHref}>Match info <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Match info <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>

@@ -33,7 +33,13 @@ function realAgents(feed: ArenaFeed, base: GenesisAgent[]) {
 }
 
 function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], now: number): SolzMatch {
-  const startedAt = timestamp(raw.startedAt ?? raw.createdAt, now)
+  const scheduledStartAt = timestamp(raw.scheduledStartAt, now + 5 * 60_000)
+  const startedAt = timestamp(raw.startedAt ?? raw.scheduledStartAt ?? raw.createdAt, now)
+  const endsAt = raw.status === 'reserved'
+    ? scheduledStartAt
+    : raw.status === 'live'
+      ? startedAt + 20 * 60_000
+      : timestamp(raw.completedAt, startedAt + 20 * 60_000)
   const roster: MatchRosterEntry[] = raw.participants.map((participant, index) => {
     const agent = agents.find(value => value.id === participant.agentId)
     return {
@@ -44,9 +50,9 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
     }
   })
   return {
-    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
+    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, displayMatchId: raw.displayMatchId, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
     round: raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: phase(raw.status), startedAt,
-    endsAt: timestamp(raw.completedAt, startedAt + 60 * 60_000), viewers: 0, marketId: `arena-${raw.roomId}`,
+    endsAt, viewers: 0, marketId: `arena-${raw.roomId}`,
     volume: { SOL: 0, COOLA: 0 }, teams: [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }], roster,
   }
 }

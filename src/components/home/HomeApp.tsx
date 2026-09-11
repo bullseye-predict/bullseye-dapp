@@ -1,7 +1,7 @@
 import '../../styles/home.css'
 import '../../styles/home-hero.css'
-import { ArrowRight, ArrowUpRight, Bot, ChartNoAxesCombined, Crosshair, Radio, Zap } from 'lucide-react'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { ArrowRight, ArrowUpRight, Bot, ChartNoAxesCombined, Check, Copy, Crosshair, Radio, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from '../solz/model'
@@ -15,11 +15,55 @@ import { ArenaEntry, LiveMatches, TeamStandings } from './CommunitySections'
 import { GenesisAgents } from './GenesisAgents'
 import { StatusDot } from './HomePrimitives'
 import type { PredictionAnswer } from '../solz/predictionContracts'
-import { shouldShowSeason, type HighlightView } from './heroMarket'
+import { matchLabel, shouldShowSeason, type HighlightView } from './heroMarket'
 import { MarketSourceControls, type MarketSource, type SolanaCluster, type SomniaChain } from './MarketSourceControls'
 import { unpricedMarkets, useSomniaMarketPrices } from './useVenueMarketPrices'
 
 type Props = { apiUrl?: string; dreamDexApiUrl?: string; environmentId: string; demoHref: string; liveHref: string; eventBasePath: string; tokenConfig: ArenaTokenConfig }
+
+const MATCH_DURATION_MS = 20 * 60_000
+const BREAK_DURATION_MS = 5 * 60_000
+const clockText = (value: number) => {
+  const seconds = Math.max(0, Math.floor(value / 1_000))
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+export function MatchHeading({ match, season, initialNow, copied, onCopy }: { match: SolzMatch; season: boolean; initialNow: number; copied: boolean; onCopy: () => void }) {
+  const [now, setNow] = useState(initialNow)
+  useEffect(() => {
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [match.id])
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('solz:arena:match-clock', JSON.stringify({
+        matchId: match.id, displayMatchId: match.displayMatchId, phase: match.phase,
+        startedAt: match.startedAt, endsAt: match.endsAt, savedAt: Date.now(),
+      }))
+    } catch {
+      // The live feed remains authoritative when storage is unavailable.
+    }
+  }, [match.displayMatchId, match.endsAt, match.id, match.phase, match.startedAt])
+
+  const isBreak = match.phase === 'countdown'
+  const isLive = match.phase === 'live'
+  const elapsed = isLive ? Math.min(MATCH_DURATION_MS, Math.max(0, now - match.startedAt)) : 0
+  const remaining = Math.max(0, match.endsAt - now)
+  const displayId = /^MATCH\s*#?\d+$/i.test(match.displayMatchId ?? '') ? match.displayMatchId! : 'MATCH —'
+  const shortId = match.id.replace(/^arena-/, '')
+
+  return <div className="sh-match-heading">
+    <span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01 / {displayId} <button className="sh-match-id" type="button" title="Copy full match ID" aria-label={`Copy match ID ${shortId}`} onClick={onCopy}>{copied ? <Check size={11} aria-hidden="true"/> : <Copy size={11} aria-hidden="true"/>}<code>{shortId.slice(0, 6)}…{shortId.slice(-6)}</code></button></span></span>
+    <h1>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}<span aria-hidden="true">↗</span></h1>
+    <div className="sh-match-clock" aria-live="polite">
+      <span>{isBreak ? 'BREAK' : isLive ? 'LIVE MATCH' : 'MATCH COMPLETE'}</span>
+      {isBreak ? <><strong>{clockText(remaining)} LEFT</strong><small>{clockText(BREAK_DURATION_MS)} BREAK · NEXT {displayId}</small></>
+        : isLive ? <><strong>{clockText(elapsed)} / {clockText(MATCH_DURATION_MS)}</strong><small>{clockText(Math.max(0, match.endsAt - now))} LEFT · {match.mode} · {match.map}</small></>
+          : <><strong>FINAL</strong><small>AWAITING NEXT MATCH</small></>}
+    </div>
+  </div>
+}
 
 export function HomeApp({ environmentId, apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBasePath, tokenConfig }: Props) {
   return <DynamicSolanaSession environmentId={environmentId}>{(session) => <Home apiUrl={apiUrl} dreamDexApiUrl={dreamDexApiUrl} demoHref={demoHref} liveHref={liveHref} eventBasePath={eventBasePath} tokenConfig={tokenConfig} walletControl={session.walletControl} evmWallet={session.evmWallet}/>}</DynamicSolanaSession>
@@ -40,6 +84,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
   const [section, setSection] = useState<ConsoleSection | null>('trade')
   const [promptAgentId, setPromptAgentId] = useState<string | undefined>()
   const [dreamDexRefresh, setDreamDexRefresh] = useState(0)
+  const [matchIdCopied, setMatchIdCopied] = useState(false)
   const highlight = useRef<HTMLElement>(null)
   const externalFeedPending = Boolean(apiUrl) && !predictionFeed
   const loadedMatch = snapshot?.matches.find((item) => item.id === (matchId || snapshot.highlightMatchId))
@@ -87,6 +132,11 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
     else setSection(feature)
     toHighlight()
   }
+  const matchCode = match?.id.split('-')[1] ?? '07'
+  const copyMatchId = () => void navigator.clipboard.writeText(match?.id ?? matchCode).then(() => {
+    setMatchIdCopied(true)
+    window.setTimeout(() => setMatchIdCopied(false), 1_600)
+  }).catch(() => setMatchIdCopied(false))
 
   return <div className="solz-home ch-home">
     <a className="sh-skip-link" href="#highlight">Skip to the arena</a>
@@ -94,7 +144,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
     <SiteHeader homeHref="/" walletControl={walletControl} active={view === 'market' ? 'markets' : 'arena'} onArena={() => setView('live')} onMarkets={() => setView('market')}/>
     <main className="sh-main">
       <section className="sh-highlight-section" ref={highlight} id="highlight">
-        <div className="sh-highlight-heading"><div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>{season ? 'SEASON 01 / LADDER' : `SEASON 01 / MATCH ${match?.id.split('-')[1] ?? '07'}`}</span></span><h1>{season ? 'SEASON HIGHLIGHT' : match?.kind === 'community' ? 'COMMUNITY MATCH' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1><p>The agents play. You make the call.</p></div></div>
+        <div className="sh-highlight-heading">{match && snapshot ? <MatchHeading match={match} season={season} initialNow={snapshot.updatedAt} copied={matchIdCopied} onCopy={copyMatchId}/> : <div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01</span></span><h1>HIGHLIGHT MATCH<span aria-hidden="true">↗</span></h1></div>}</div>
         {snapshot && match && displayedMarket && displayedOutcome ? <>
           <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole evmWallet={evmWallet} collateralSymbol={collateralSymbol} dreamDexApiUrl={dreamDexApiUrl || apiUrl} onDreamDexOpened={() => setDreamDexRefresh(value => value + 1)} marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
 
