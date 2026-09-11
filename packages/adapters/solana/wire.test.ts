@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { PublicKey, Transaction } from '@solana/web3.js'
 import { createHash } from 'node:crypto'
-import { buildFillOrders, concat, configAddress, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, millisecondsToSeconds, orderDigest, orderStateAddress, u64, vaultAddress, type SolanaOrder } from './wire'
+import { buildFillOrders, concat, configAddress, createQuestionMarket, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, millisecondsToSeconds, orderDigest, orderStateAddress, questionMarketAddress, u64, vaultAddress, type SolanaOrder } from './wire'
 import { requestAuthMessage } from '../../sdk/auth'
 import { decodeVault } from './accounts'
 import { createSolanaOrderSigner, createSolanaRequestSigner, solanaWireOrder, verifySolanaOrder, verifySolanaRequest, type SolanaVenueConfig } from './SolanaPredictionVenue'
@@ -44,6 +44,17 @@ describe('Solana canonical wire format', () => {
     const transaction = new Transaction({ feePayer: key(11), recentBlockhash: key(12).toBase58() }).add(...pair)
     expect(transaction.serialize({ requireAllSignatures: false, verifySignatures: false }).length).toBeLessThanOrEqual(1232)
     await expect(buildFillOrders({ programId, networkDomain: domain, buy: { ...sample, price: 500_000n }, sell: { ...sell, price: 500_000n }, quantity: 1n, executionPrice: 500_000n, buySignature: new Uint8Array(64), sellSignature: new Uint8Array(64) })).rejects.toThrow('rounding')
+  })
+  test('derives one permissionless market PDA per match and question', () => {
+    const matchId = new Uint8Array(32).fill(7)
+    const winner = new Uint8Array(32).fill(8)
+    const kills = new Uint8Array(32).fill(9)
+    const winnerIx = createQuestionMarket(programId, key(1), key(2), matchId, winner)
+    expect(winnerIx.data.length).toBe(65)
+    expect(winnerIx.data[0]).toBe(27)
+    expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, winner))).toBe(true)
+    expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, kills))).toBe(false)
+    expect(winnerIx.keys[0]!.isSigner).toBe(true)
   })
 })
 

@@ -15,6 +15,7 @@ export interface Outcome {
 
 /** All application timestamps are Unix milliseconds. Adapters convert to chain seconds. */
 export interface Market {
+  matchingEngine?: 'CUSTOM' | 'MANIFEST'
   id: string
   matchId: string
   venue: VenueId

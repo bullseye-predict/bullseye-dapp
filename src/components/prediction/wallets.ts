@@ -4,6 +4,7 @@ import { Buffer } from 'buffer'
 import type { Market, Order, TxResult } from '../../../packages/prediction-core/types'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { LiveArenaWalletPort } from '../arena/liveArenaAdapter'
+import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
 import { PredictionTradingClient } from '../../../packages/sdk/PredictionTradingClient'
 import { createEvmOrderSigner } from '../../../packages/adapters/evm/EvmPredictionVenue'
 import { parseEvmConfig } from '../../../packages/adapters/config'
@@ -44,15 +45,16 @@ function ensureOwnerTokenAccount(owner: PublicKey, mint: PublicKey, ata: PublicK
   ] })
 }
 
-export async function connectEvmTradingWallet(config: PublicPredictionVenue, baseUrl: string, audience: string, provider: EIP1193Provider): Promise<TradingWallet> {
+export async function connectEvmTradingWallet(config: PublicPredictionVenue, baseUrl: string, audience: string, source: EIP1193Provider | DynamicEvmWalletPort): Promise<TradingWallet> {
   const lifetime = walletLifetime()
   const deployment = parseEvmConfig({ ...config, rpcUrl: config.publicRpcUrl })
   const chainDefinition = { id: Number(config.chainId), name: config.label, nativeCurrency: { name: 'Native currency', symbol: 'NATIVE', decimals: 18 }, rpcUrls: { default: { http: [deployment.rpcUrl] } } } as const
-  const wallet = createWalletClient({ chain: chainDefinition, transport: custom(provider) })
-  const [selected] = await wallet.requestAddresses()
+  const chain = Number(config.chainId)
+  const dynamicWallet = 'getWalletClient' in source
+  const wallet = dynamicWallet ? await source.getWalletClient(String(chain)) : createWalletClient({ chain: chainDefinition, transport: custom(source) })
+  const [selected] = dynamicWallet ? [source.address] : await wallet.requestAddresses()
   if (!selected) throw new Error('Connect an EVM wallet to trade.')
   const account = selected.toLowerCase() as Address
-  const chain = Number(config.chainId)
   if (await wallet.getChainId() !== chain) await wallet.switchChain({ id: chain })
   const rpc = createPublicClient({ transport: http(deployment.rpcUrl, { timeout: 10_000 }), cacheTime: 0 })
   const check = async () => {
@@ -64,7 +66,7 @@ export async function connectEvmTradingWallet(config: PublicPredictionVenue, bas
   await check()
   const send = async (transaction: { to: Address; data: Hex; value: 0n }): Promise<TxResult> => {
     await check()
-    const txHash = await wallet.sendTransaction({ ...transaction, account, chain: chainDefinition })
+    const txHash = await (wallet as unknown as { sendTransaction(input: { to: Address; data: Hex; value: 0n; account: Address; chain: typeof chainDefinition }): Promise<Hex> }).sendTransaction({ ...transaction, account, chain: chainDefinition })
     const receipt = await rpc.waitForTransactionReceipt({ hash: txHash, confirmations: 1, timeout: 90_000 })
     if (receipt.status !== 'success') throw new Error(`Transaction reverted: ${txHash}`)
     return { id: txHash, txHash, status: 'CONFIRMED' }

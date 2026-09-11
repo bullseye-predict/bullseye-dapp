@@ -4,6 +4,7 @@ import { effectiveMarket, integer, invariant, record, textField, validateMarket 
 import { decodeConfig, decodeMarket, decodeVault } from './accounts'
 import { configAddress, TOKEN_PROGRAM_ID, vaultCollateralAddress } from './wire'
 import { verifySolanaOrder, verifySolanaRequest, type SolanaVenueConfig } from './SolanaPredictionVenue'
+import { predictionCollateralSymbol } from '../config'
 
 export interface SolanaGatewayConfig {
   family: 'SOLANA'
@@ -15,6 +16,7 @@ export interface SolanaGatewayConfig {
   networkDomain: string
   collateralToken: string
   collateralDecimals: number
+  collateralSymbol?: string
   oracleAuthority: string
   /** Trusted label registry; program state commits outcome count, not display names. */
   markets: Record<string, { matchId: string; outcomes: Outcome[] }>
@@ -41,7 +43,7 @@ export function parseSolanaConfig(input: unknown): SolanaGatewayConfig {
     })
     return [id, { matchId, outcomes }]
   }))
-  return { family: 'SOLANA', venue: 'SOLANA', chainId: publicKey('chainId'), rpcUrl: rpcUrl.toString(), programId: publicKey('programId'), networkDomain, collateralToken: publicKey('collateralToken'), collateralDecimals: integer(value.collateralDecimals, 'collateralDecimals', 0, 18), oracleAuthority: publicKey('oracleAuthority'), markets }
+  return { family: 'SOLANA', venue: 'SOLANA', chainId: publicKey('chainId'), rpcUrl: rpcUrl.toString(), programId: publicKey('programId'), networkDomain, collateralToken: publicKey('collateralToken'), collateralDecimals: integer(value.collateralDecimals, 'collateralDecimals', 0, 18), collateralSymbol: predictionCollateralSymbol(value.collateralSymbol), oracleAuthority: publicKey('oracleAuthority'), markets }
 }
 
 /** Pinocchio/SPL RPC boundary. Solana keeps funds in owner-controlled vault PDAs. */
@@ -82,6 +84,7 @@ export class SolanaChainGateway {
     const matchId = `0x${Array.from(value.matchId, value => value.toString(16).padStart(2, '0')).join('')}`
     invariant(matchId === metadata.matchId && value.outcomeCount === metadata.outcomes.length && value.mint.equals(global.mint) && value.oracle.equals(global.oracle) && value.status >= 0 && value.status <= 4, 'WRONG_MARKET', 'Market state does not match registered metadata or collateral/oracle.')
     const market: Market = {
+      matchingEngine: value.manifestGuarded ? 'MANIFEST' : 'CUSTOM',
       id, matchId, venue: 'SOLANA', chainId: this.config.chainId, marketAddress: id,
       collateralToken: this.config.collateralToken, collateralDecimals: this.config.collateralDecimals, outcomes: structuredClone(metadata.outcomes),
       status: (['PENDING', 'TRADING', 'LOCKED', 'RESOLVED', 'VOIDED'] as const)[value.status]!,

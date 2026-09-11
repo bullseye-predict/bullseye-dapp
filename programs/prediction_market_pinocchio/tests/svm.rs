@@ -1107,3 +1107,275 @@ fn policy_cannot_allow_an_order_larger_than_its_capital_budget() {
     assert_eq!(vault.epoch, 0);
     assert_eq!(vault.spent_capital, 0);
 }
+
+#[cfg(feature = "external-venue-comparison")]
+mod external_tokens {
+    use super::*;
+    fn mint(f: &Fixture, outcome: u8) -> Address {
+        derive(
+            f.program.pubkey(),
+            &[b"outcome_mint", f.market.as_ref(), &[outcome]],
+        )
+    }
+    fn initialize(f: &mut Fixture, outcome: u8) {
+        let ix = f.ix(
+            vec![
+                s(f.admin.pubkey()),
+                r(f.config),
+                r(f.market),
+                w(mint(f, outcome)),
+                r(f.mint),
+                r(pinocchio_system::ID),
+                r(pinocchio_token::ID),
+            ],
+            vec![19, outcome],
+        );
+        f.send_admin(vec![ix]).unwrap();
+    }
+    fn holder(f: &mut Fixture, user: &User, outcome: u8, n: u8) -> Address {
+        let address = addr(n);
+        let mut data = vec![0; 165];
+        data[..32].copy_from_slice(mint(f, outcome).as_ref());
+        data[32..64].copy_from_slice(user.owner.pubkey().as_ref());
+        data[108] = 1;
+        f.svm
+            .set_account(
+                address,
+                Account {
+                    lamports: 10_000_000,
+                    data,
+                    owner: pinocchio_token::ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
+        address
+    }
+    fn movement(
+        f: &Fixture,
+        user: &User,
+        holder: Address,
+        outcome: u8,
+        amount: u64,
+        tag: u8,
+    ) -> Instruction {
+        f.ix(
+            vec![
+                s(user.owner.pubkey()),
+                r(f.config),
+                r(f.market),
+                w(user.vault),
+                w(user.position),
+                w(mint(f, outcome)),
+                w(holder),
+                r(pinocchio_token::ID),
+            ],
+            bytes(tag, &[&[outcome], &amount.to_le_bytes()]),
+        )
+    }
+    fn transfer(f: &mut Fixture, owner: &Keypair, from: Address, to: Address, amount: u64) {
+        let ix = Instruction {
+            program_id: pinocchio_token::ID,
+            accounts: vec![w(from), w(to), s(owner.pubkey())],
+            data: bytes(3, &[&amount.to_le_bytes()]),
+        };
+        f.send(vec![ix], owner).unwrap();
+    }
+    #[test]
+    fn exported_claim_transfers_and_new_holder_redeems_without_double_payout() {
+        let mut f = Fixture::new(2);
+        let alice = f.user(10);
+        let bob = f.user(11);
+        initialize(&mut f, 0);
+        let a = holder(&mut f, &alice, 0, 90);
+        let b = holder(&mut f, &bob, 0, 91);
+        f.split(&alice, 100);
+        f.send(vec![movement(&f, &alice, a, 0, 100, 20)], &alice.owner)
+            .unwrap();
+        assert_eq!(f.amount(a), 100);
+        assert_eq!(f.state::<Position>(alice.position).balances[0], 0);
+        assert_eq!(f.state::<Vault>(alice.vault).exposure, 100);
+        assert!(f
+            .send(vec![movement(&f, &alice, a, 0, 1, 20)], &alice.owner)
+            .is_err());
+        assert!(f
+            .send(vec![f.positions_ix(&alice, 7, 1)], &alice.owner)
+            .is_err());
+        transfer(&mut f, &alice.owner, a, b, 100);
+        f.resolve(0);
+        f.send(vec![movement(&f, &bob, b, 0, 100, 21)], &bob.owner)
+            .unwrap();
+        assert_eq!(f.amount(b), 0);
+        assert!(f
+            .send(vec![movement(&f, &bob, b, 0, 100, 21)], &bob.owner)
+            .is_err());
+        f.send(vec![f.positions_ix(&bob, 8, 0)], &bob.owner)
+            .unwrap();
+        f.send(vec![f.positions_ix(&alice, 8, 0)], &alice.owner)
+            .unwrap();
+        assert_eq!(f.amount(f.market_escrow), 0);
+        assert_eq!(f.state::<Market>(f.market).collateral_locked, 0);
+        assert_eq!((f.amount(alice.escrow), f.amount(bob.escrow)), (900, 1100));
+    }
+    #[test]
+    fn imports_work_after_cutoff_but_exports_and_wrong_outcome_are_rejected() {
+        let mut f = Fixture::new(2);
+        let alice = f.user(10);
+        initialize(&mut f, 0);
+        initialize(&mut f, 1);
+        let a = holder(&mut f, &alice, 0, 90);
+        f.split(&alice, 100);
+        f.send(vec![movement(&f, &alice, a, 0, 50, 20)], &alice.owner)
+            .unwrap();
+        assert!(f
+            .send(vec![movement(&f, &alice, a, 1, 50, 21)], &alice.owner)
+            .is_err());
+        let mut clock = f.svm.get_sysvar::<Clock>();
+        clock.unix_timestamp = 2000;
+        f.svm.set_sysvar(&clock);
+        assert!(f
+            .send(vec![movement(&f, &alice, a, 0, 1, 20)], &alice.owner)
+            .is_err());
+        f.send(vec![movement(&f, &alice, a, 0, 50, 21)], &alice.owner)
+            .unwrap();
+        assert_eq!(
+            f.state::<Position>(alice.position).balances[..2],
+            [100, 100]
+        );
+        assert_eq!(f.state::<Market>(f.market).collateral_locked, 100);
+    }
+    #[test]
+    fn odd_void_claims_conserve_collateral_across_external_holders() {
+        let mut f = Fixture::new(2);
+        let alice = f.user(10);
+        let bob = f.user(11);
+        initialize(&mut f, 0);
+        let a = holder(&mut f, &alice, 0, 90);
+        let b = holder(&mut f, &bob, 0, 91);
+        f.split(&alice, 101);
+        f.send(vec![movement(&f, &alice, a, 0, 101, 20)], &alice.owner)
+            .unwrap();
+        transfer(&mut f, &alice.owner, a, b, 101);
+        let mut clock = f.svm.get_sysvar::<Clock>();
+        clock.unix_timestamp = 3000;
+        f.svm.set_sysvar(&clock);
+        let void = f.ix(
+            vec![s(f.admin.pubkey()), r(f.config), w(f.market)],
+            bytes(11, &[&[7; 32]]),
+        );
+        f.send_admin(vec![void]).unwrap();
+        f.send(vec![f.positions_ix(&alice, 8, 0)], &alice.owner)
+            .unwrap();
+        f.send(vec![movement(&f, &bob, b, 0, 101, 21)], &bob.owner)
+            .unwrap();
+        f.send(vec![f.positions_ix(&bob, 8, 0)], &bob.owner)
+            .unwrap();
+        assert_eq!(f.amount(f.market_escrow), 0);
+        assert_eq!(f.amount(alice.escrow) + f.amount(bob.escrow), 2000);
+    }
+}
+
+#[cfg(not(feature = "external-venue-comparison"))]
+#[test]
+fn production_build_does_not_allow_exporting_claims_to_unrestricted_venues() {
+    let mut f = Fixture::new(2);
+    let outcome_mint = derive(
+        f.program.pubkey(),
+        &[b"outcome_mint", f.market.as_ref(), &[0]],
+    );
+    let ix = f.ix(
+        vec![
+            s(f.admin.pubkey()),
+            r(f.config),
+            r(f.market),
+            w(outcome_mint),
+            r(f.mint),
+            r(pinocchio_system::ID),
+            r(pinocchio_token::ID),
+        ],
+        vec![19, 0],
+    );
+    assert!(f.send_admin(vec![ix]).is_err());
+    assert!(f.svm.get_account(&outcome_mint).is_none());
+}
+
+#[test]
+fn manifest_questions_reject_otherwise_valid_internal_fills() {
+    let mut f = Fixture::new(2);
+    let buyer = f.user(10);
+    let seller = f.user(11);
+    f.split(&seller, 100);
+    let nonce = f.nonce(&buyer, 1, false);
+    f.nonce(&seller, 1, false);
+    let buy = f.order(&buyer, 0, 1, 100, 600_000);
+    let sell = f.order(&seller, 1, 1, 100, 500_000);
+    let ixs = f.fill_ixs(&buyer, &seller, &buy, &sell, 40, 500_000, &buyer.owner, &seller.owner);
+    let mut account = f.svm.get_account(&f.market).unwrap();
+    let original = account.clone();
+    let mut market = Market::decode(&account.data).unwrap();
+    market.manifest_guarded = true;
+    market.encode(&mut account.data).unwrap();
+    f.svm.set_account(f.market, account).unwrap();
+    assert!(f.send_admin(ixs.clone()).is_err());
+    assert_eq!(f.state::<OrderState>(nonce).filled, 0);
+    assert_eq!(f.state::<Position>(buyer.position).balances[0], 0);
+    // The same signatures and instructions succeed for the legacy engine.
+    f.svm.set_account(f.market, original).unwrap();
+    f.send_admin(ixs).unwrap();
+    assert_eq!(f.state::<OrderState>(nonce).filled, 40);
+}
+
+#[test]
+fn legacy_market_layout_preserves_existing_positions_and_cannot_hide_guard() {
+    let mut f = Fixture::new(2);
+    let user = f.user(10);
+    let mut account = f.svm.get_account(&f.market).unwrap();
+    let mut market = Market::decode(&account.data).unwrap();
+    account.data.resize(230, 0);
+    market.encode(&mut account.data).unwrap();
+    assert_eq!(&account.data[..8], b"SOLZMKT1");
+    assert!(!Market::decode(&account.data).unwrap().manifest_guarded);
+    market.manifest_guarded = true;
+    assert!(market.encode(&mut account.data).is_err());
+    f.svm.set_account(f.market, account).unwrap();
+    f.split(&user, 100);
+    assert_eq!(f.state::<Market>(f.market).collateral_locked, 100);
+    assert_eq!(f.state::<Position>(user.position).balances[0], 100);
+}
+
+#[test]
+fn first_trader_creates_distinct_canonical_question_markets_without_admin_parameters() {
+    let mut f = Fixture::new(2);
+    let mut match_id = [0; 32];
+    match_id[..4].copy_from_slice(b"SOLZ");
+    match_id[4] = 1;
+    match_id[5] = 2;
+    match_id[6..8].copy_from_slice(&20_u16.to_be_bytes());
+    match_id[8..16].copy_from_slice(&2_000_u64.to_be_bytes());
+    match_id[31] = 77;
+    let mut question_id = [0; 32];
+    question_id[..4].copy_from_slice(b"QUES");
+    question_id[4] = 1;
+    question_id[5] = 1;
+    question_id[31] = 9;
+    let market = derive(f.program.pubkey(), &[b"market", &match_id, &question_id]);
+    let escrow = derive(f.program.pubkey(), &[b"market_collateral", market.as_ref()]);
+    let create = f.ix(
+        vec![s(f.admin.pubkey()), r(f.config), w(market), w(escrow), r(f.mint), r(pinocchio_system::ID), r(pinocchio_token::ID)],
+        bytes(27, &[&match_id, &question_id]),
+    );
+    f.send_admin(vec![create.clone()]).unwrap();
+    let state = Market::decode(&f.svm.get_account(&market).unwrap().data).unwrap();
+    assert_eq!(state.match_id, match_id);
+    assert_eq!(state.question_id, question_id);
+    assert_eq!(state.outcomes, 2);
+    assert_eq!(state.starts_at, 1000);
+    assert_eq!(state.locks_at, 2000);
+    assert_eq!(state.expiry, 6800);
+    assert!(f.send_admin(vec![create]).is_err());
+
+    question_id[5] = 2;
+    let other = derive(f.program.pubkey(), &[b"market", &match_id, &question_id]);
+    assert_ne!(market, other);
+}

@@ -2,6 +2,10 @@ import type { Fill, Market, MatchTelemetry, OrderBook, Position, VenueId } from 
 
 /** Only explicitly public RPC endpoints may be put in this response. */
 export interface PublicPredictionVenue {
+  arenaMarketBindings?: { eventId: string; marketId: string }[]
+  matchingEngine?: 'CUSTOM' | 'MANIFEST'
+  manifestProgramId?: string
+  manifestMarkets?: { address: string; matchId: string; label: string; outcomes: string[] }[]
   family: 'EVM' | 'SOLANA'
   venue: VenueId
   chainId: string
@@ -17,7 +21,15 @@ export interface PublicPredictionVenue {
   networkDomain?: string
   explorerUrl?: string
 }
+export interface DreamDexPublicConfig {
+  chainId: '5031' | '50312'
+  label: string
+  indexerUrl: string
+  wsRpcUrl: string
+  markets: { eventId: string; questionId?: string; subjectId?: string; label: string; marketId: `0x${string}`; oracleQuestionId: string; tradingStartsAt: number; tradingLocksAt: number; voidPolicy: 0 | 2 }[]
+}
 export interface PredictionPublicConfig {
+  dreamdex?: DreamDexPublicConfig[]
   audience: string
   venues: PublicPredictionVenue[]
 }

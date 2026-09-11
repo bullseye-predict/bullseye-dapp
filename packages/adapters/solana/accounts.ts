@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js'
-import { address, configAddress, marketAddress, orderStateAddress, positionAddress, vaultAddress, type AddressInput } from './wire'
+import { address, configAddress, marketAddress, orderStateAddress, positionAddress, questionMarketAddress, vaultAddress, type AddressInput } from './wire'
 
 export interface SolanaAccountRecord { address: AddressInput; owner: AddressInput; data: Uint8Array }
 class Reader {
@@ -36,9 +36,13 @@ export function decodeVault(account: SolanaAccountRecord, programId: AddressInpu
   return value
 }
 export function decodeMarket(account: SolanaAccountRecord, programId: AddressInput) {
-  const r = read(account, programId, 'SOLZMKT1', 230)
-  const value = { matchId: r.take(32), mint: r.key(), oracle: r.key(), escrow: r.key(), startsAtSeconds: r.i64(), locksAtSeconds: r.i64(), expirySeconds: r.i64(), createdAtSeconds: r.i64(), status: r.u8(), outcomeCount: r.u8(), winningOutcome: r.u8(), paused: r.bool(), bump: r.u8(), escrowBump: r.u8(), collateralLocked: r.u64(), resultHash: r.take(32), voidSharesRedeemed: r.u128() }
-  requireAddress(account, marketAddress(programId, value.matchId))
+  const v1 = account.data.length === 230
+  const v2 = account.data.length === 231
+  const r = read(account, programId, v1 ? 'SOLZMKT1' : v2 ? 'SOLZMKT2' : 'SOLZMKT3', v1 ? 230 : v2 ? 231 : 263)
+  const matchId = r.take(32)
+  const questionId = v1 || v2 ? new Uint8Array(32) : r.take(32)
+  const value = { matchId, questionId, mint: r.key(), oracle: r.key(), escrow: r.key(), startsAtSeconds: r.i64(), locksAtSeconds: r.i64(), expirySeconds: r.i64(), createdAtSeconds: r.i64(), status: r.u8(), outcomeCount: r.u8(), winningOutcome: r.u8(), paused: r.bool(), bump: r.u8(), escrowBump: r.u8(), collateralLocked: r.u64(), resultHash: r.take(32), voidSharesRedeemed: r.u128(), manifestGuarded: v1 ? false : r.bool() }
+  requireAddress(account, questionId.some(byte => byte !== 0) ? questionMarketAddress(programId, matchId, questionId) : marketAddress(programId, matchId))
   return value
 }
 export function decodePosition(account: SolanaAccountRecord, programId: AddressInput) {

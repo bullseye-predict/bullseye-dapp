@@ -1,0 +1,28 @@
+[
+  {
+    "family": "SOLANA",
+    "venue": "SOLANA",
+    "matchingEngine": "MANIFEST",
+    "label": "Solana devnet",
+    "chainId": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "rpcUrl": "https://api.devnet.solana.com",
+    "publicRpcUrl": "https://api.devnet.solana.com",
+    "programId": "REPLACE_WITH_DEPLOYED_PREDICTION_PROGRAM",
+    "manifestProgramId": "REPLACE_WITH_DEPLOYED_GUARDED_MANIFEST_PROGRAM",
+    "networkDomain": "REPLACE_WITH_INITIALIZED_CONFIG_DOMAIN_64_LOWERCASE_HEX",
+    "collateralToken": "REPLACE_WITH_INITIALIZED_CONFIG_USDC_MINT",
+    "collateralDecimals": 6,
+    "collateralSymbol": "USDC",
+    "oracleAuthority": "REPLACE_WITH_ORACLE_PUBLIC_KEY",
+    "arenaMarketBindings": [
+      { "eventId": "REPLACE_WITH_ARENA_EVENT_ID", "marketId": "REPLACE_WITH_QUESTION_PDA" }
+    ],
+    "markets": {
+      "REPLACE_WITH_QUESTION_PDA": {
+        "matchId": "REPLACE_WITH_0x_PREFIXED_QUESTION_MATCH_ID",
+        "label": "Match winner",
+        "outcomes": [{ "id": 0, "label": "YES" }, { "id": 1, "label": "NO" }]
+      }
+    }
+  }
+]

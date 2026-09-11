@@ -15,6 +15,7 @@
     "astro": "astro",
     "generate-types": "wrangler types",
     "dev:prediction-api": "bun run apps/api/main.ts",
+    "inspect:dreamdex": "bun run apps/dreamdex/inspect.ts",
     "dev:prediction-worker": "bun run apps/chain-worker/main.ts",
     "dev:prediction-telemetry": "bun run apps/telemetry-worker/main.ts",
     "dev:hermes": "bun run apps/hermes-worker/main.ts",
@@ -24,23 +25,36 @@
     "test:evm": "bun run --cwd contracts/evm test",
     "test:solana": "cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml",
     "build:solana": "cargo build-sbf --manifest-path programs/prediction_market_pinocchio/Cargo.toml",
-    "test:solana:svm": "cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml --features svm-tests"
+    "test:solana:svm": "cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml --features svm-tests",
+    "build:solana:comparison": "cargo build-sbf --manifest-path programs/prediction_market_pinocchio/Cargo.toml --features external-venue-comparison --sbf-out-dir programs/prediction_market_pinocchio/target/comparison",
+    "test:solana:comparison": "bun run build:solana:comparison && SOLZ_SBF_PATH=\"$PWD/programs/prediction_market_pinocchio/target/comparison/prediction_market_pinocchio.so\" cargo test --manifest-path programs/prediction_market_pinocchio/Cargo.toml --features svm-tests,external-venue-comparison",
+    "demo:solana:comparison": "bun run apps/solana/prepare-comparison.ts",
+    "build:solana:manifest": "bun run programs/manifest_guard/build.ts",
+    "test:solana:manifest": "bun run apps/solana/manifest-smoke.ts --local-demo",
+    "preflight:solana:manifest": "bun run apps/solana/manifest-preflight.ts"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.6",
     "@astrojs/react": "^6.0.5",
     "@astrojs/vercel": "^11.0.10",
+    "@bonasa-tech/manifest-sdk": "0.2.46",
+    "@dynamic-labs/ethereum": "5.6.1",
     "@dynamic-labs/sdk-react-core": "5.6.1",
     "@dynamic-labs/solana": "5.6.1",
     "@dynamic-labs/solana-core": "5.6.1",
+    "@meteora-ag/cp-amm-sdk": "1.4.8",
     "@scure/base": "1.2.6",
-    "@solana/web3.js": "1.98.1",
+    "@solana/spl-token": "0.4.14",
+    "@solana/web3.js": "1.98.4",
+    "@somnia-chain/markets-sdk": "0.29.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "astro": "^7.2.10",
+    "bn.js": "5.2.5",
     "buffer": "6.0.3",
     "colyseus.js": "^0.16.22",
     "lucide-react": "1.39.0",
+    "process": "0.11.10",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "viem": "2.46.3",
@@ -51,7 +65,11 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/bn.js": "5.2.0",
     "@types/bun": "^1.4.0",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "@solana/web3.js": "1.98.4"
   }
 }

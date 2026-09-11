@@ -46,6 +46,7 @@ impl State for Config {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Market {
     pub match_id: Key,
+    pub question_id: Key,
     pub mint: Key,
     pub oracle: Key,
     pub escrow: Key,
@@ -62,13 +63,67 @@ pub struct Market {
     pub collateral_locked: u64,
     pub result_hash: Key,
     pub void_shares_redeemed: u128,
+    pub manifest_guarded: bool,
 }
 impl State for Market {
-    const TAG: &'static [u8; 8] = b"SOLZMKT1";
-    const LEN: usize = 230;
+    const TAG: &'static [u8; 8] = b"SOLZMKT3";
+    const LEN: usize = 263;
+    fn decode(data: &[u8]) -> Result<Self> {
+        let legacy_v1 = data.len() == 230 && data.get(..8) == Some(b"SOLZMKT1");
+        let legacy_v2 = data.len() == 231 && data.get(..8) == Some(b"SOLZMKT2");
+        check(
+            legacy_v1 || legacy_v2 || (data.len() == Self::LEN && data.get(..8) == Some(Self::TAG)),
+            Error::InvalidAccount,
+        )?;
+        let bytes = if legacy_v1 || legacy_v2 {
+            let mut expanded = Vec::with_capacity(Self::LEN);
+            expanded.extend_from_slice(Self::TAG);
+            expanded.extend_from_slice(&data[8..40]);
+            expanded.extend_from_slice(&[0; 32]);
+            expanded.extend_from_slice(&data[40..]);
+            if legacy_v1 { expanded.push(0); }
+            expanded
+        } else { data.to_vec() };
+        check(bytes.len() == Self::LEN, Error::InvalidAccount)?;
+        let mut r = Reader::new(&bytes[8..]);
+        let value = Self::read(&mut r)?;
+        r.done()?;
+        Ok(value)
+    }
+    fn encode(&self, data: &mut [u8]) -> Result<()> {
+        let length = data.len();
+        let mut w = Writer::new(data);
+        if length == 230 || length == 231 {
+            check(self.question_id == [0; 32] && (length == 231 || !self.manifest_guarded), Error::InvalidAccount)?;
+            w.bytes(if length == 230 { b"SOLZMKT1" } else { b"SOLZMKT2" })?;
+            w.bytes(&self.match_id)?;
+            w.bytes(&self.mint)?;
+            w.bytes(&self.oracle)?;
+            w.bytes(&self.escrow)?;
+            w.i64(self.starts_at)?;
+            w.i64(self.locks_at)?;
+            w.i64(self.expiry)?;
+            w.i64(self.created_at)?;
+            w.u8(self.status)?;
+            w.u8(self.outcomes)?;
+            w.u8(self.winner)?;
+            w.bool(self.paused)?;
+            w.u8(self.bump)?;
+            w.u8(self.escrow_bump)?;
+            w.u64(self.collateral_locked)?;
+            w.bytes(&self.result_hash)?;
+            w.u128(self.void_shares_redeemed)?;
+            if length == 231 { w.bool(self.manifest_guarded)?; }
+            return Ok(());
+        }
+        check(length == Self::LEN, Error::InvalidAccount)?;
+        w.bytes(Self::TAG)?;
+        self.write(&mut w)
+    }
     fn read(r: &mut Reader) -> Result<Self> {
         Ok(Self {
             match_id: r.bytes()?,
+            question_id: r.bytes()?,
             mint: r.bytes()?,
             oracle: r.bytes()?,
             escrow: r.bytes()?,
@@ -85,10 +140,12 @@ impl State for Market {
             collateral_locked: r.u64()?,
             result_hash: r.bytes()?,
             void_shares_redeemed: r.u128()?,
+            manifest_guarded: r.bool()?,
         })
     }
     fn write(&self, w: &mut Writer) -> Result<()> {
         w.bytes(&self.match_id)?;
+        w.bytes(&self.question_id)?;
         w.bytes(&self.mint)?;
         w.bytes(&self.oracle)?;
         w.bytes(&self.escrow)?;
@@ -104,7 +161,8 @@ impl State for Market {
         w.u8(self.escrow_bump)?;
         w.u64(self.collateral_locked)?;
         w.bytes(&self.result_hash)?;
-        w.u128(self.void_shares_redeemed)
+        w.u128(self.void_shares_redeemed)?;
+        w.bool(self.manifest_guarded)
     }
 }
 impl Market {

@@ -1,7 +1,7 @@
+import '../../styles/home-hero.css'
 import '../../styles/home.css'
 import './prediction.css'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { EIP1193Provider } from 'viem'
 import type { Market, Order } from '../../../packages/prediction-core/types'
 import type { PredictionPublicConfig, PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { MarketExecutionQuote } from '../../../packages/prediction-core/execution'
@@ -12,6 +12,7 @@ import { connectEvmTradingWallet, connectSolanaTradingWallet, maximumOrderCost, 
 import { formatUnitsExact, parseUnitsExact, priceLabel } from './amounts'
 import { ConfirmedPriceChart } from './ConfirmedPriceChart'
 import { HermesControls } from './HermesControls'
+import { NetworkTabs, NetworkTrading, type TradingNetwork } from './NetworkTrading'
 
 export interface PredictionAppProps { environmentId: string; apiUrl: string }
 export function PredictionApp({ environmentId, apiUrl }: PredictionAppProps) {
@@ -21,26 +22,11 @@ const venueKey = (venue: PublicPredictionVenue) => `${venue.venue}:${venue.chain
 const unavailable = async (): Promise<never> => { throw new Error('Connect a trading wallet first.') }
 
 function PredictionHome({ apiUrl, session }: { apiUrl: string; session: DynamicSolanaSessionValue }) {
-  const [config, setConfig] = useState<PredictionPublicConfig | null>(null)
-  const [error, setError] = useState('')
-  const [retry, setRetry] = useState(0)
-  const [selected, setSelected] = useState('')
-  useEffect(() => {
-    const controller = new AbortController()
-    if (!apiUrl) { setError('The prediction service has not been configured for this site.'); return }
-    setError('')
-    void getPredictionConfig(apiUrl, controller.signal).then(value => { if (!controller.signal.aborted) setConfig(value) }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Prediction service is unavailable.') })
-    return () => controller.abort()
-  }, [apiUrl, retry])
-  const venue = config?.venues.find(value => venueKey(value) === selected) ?? config?.venues[0]
-  return <div className="solz-home pt-home"><a className="sh-skip-link" href="#prediction-market">Skip to trading</a><header className="sh-header"><a className="sh-logo" href="/">COOLA<span>®</span><i/></a><nav aria-label="Main navigation"><a href="/">Arena preview</a><a className="is-active" href="/live">Live markets</a><a href="/watch">Watch SOLZ</a></nav><div className="sh-wallet">{session.walletControl}</div></header>
-    <main className="pt-main" id="prediction-market"><div className="pt-heading"><div><h1>Live prediction markets</h1><p>Trade the match. Every fill settles on chain.</p></div>{venue && <label>Trading network<select aria-label="Trading network" value={venueKey(venue)} onChange={event => setSelected(event.target.value)}>{config!.venues.map(value => <option key={venueKey(value)} value={venueKey(value)}>{value.label}</option>)}</select></label>}</div>
-      {error ? <div className="pt-empty" role="alert"><h2>Prediction service unavailable</h2><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>Retry connection</button></div> : !config ? <div className="pt-empty" role="status">Connecting to prediction markets…</div> : !venue ? <div className="pt-empty"><h2>No trading venues configured</h2><p>Markets will appear when a contract deployment is connected to the prediction service.</p></div> : <VenueTerminal key={venueKey(venue)} venue={venue} apiUrl={apiUrl} audience={config.audience} session={session}/>}
-    </main>
-  </div>
+  const [network,setNetwork]=useState<TradingNetwork>('SOLANA')
+  return <div className="solz-home pt-home"><header className="sh-header"><a className="sh-logo" href="/">COOLA®</a><a href="/">Arena</a>{session.walletControl}</header><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main></div>
 }
 
-function VenueTerminal({ venue, apiUrl, audience, session }: { venue: PublicPredictionVenue; apiUrl: string; audience: string; session: DynamicSolanaSessionValue }) {
+export function VenueTerminal({ venue, apiUrl, audience, session, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string; session: DynamicSolanaSessionValue }) {
   const [wallet, setWallet] = useState<TradingWallet | null>(null)
   const currentWallet = useRef<TradingWallet | null>(null)
   currentWallet.current = wallet
@@ -56,18 +42,15 @@ function VenueTerminal({ venue, apiUrl, audience, session }: { venue: PublicPred
   const client = wallet?.client ?? readClient
   useEffect(() => {
     let active = true
-    const load = async () => { try { const next = await readClient.listMarkets(); if (active) { setMarkets(next); setMarketsError('') } } catch (reason) { if (active) setMarketsError(reason instanceof Error ? reason.message : 'Markets could not load.') } }
+    const load = async () => { try { const next = await readClient.listMarkets(); if (active) { setMarkets(allowedMarketIds ? next.filter(m => allowedMarketIds.includes(m.id)) : next); setMarketsError('') } } catch (reason) { if (active) setMarketsError(reason instanceof Error ? reason.message : 'Markets could not load.') } }
     void load(); const timer = setInterval(() => void load(), 5000)
     return () => { active = false; clearInterval(timer) }
-  }, [readClient])
+  }, [readClient, allowedMarketIds])
   useEffect(() => { if (venue.family === 'SOLANA') { connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null) } }, [session.wallet, venue.family])
   useEffect(() => {
     if (venue.family !== 'EVM') return
-    const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum
-    const clear = () => { connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null); setConnectionError('Wallet changed. Connect again to continue.') }
-    provider?.on?.('accountsChanged', clear); provider?.on?.('chainChanged', clear)
-    return () => { provider?.removeListener?.('accountsChanged', clear); provider?.removeListener?.('chainChanged', clear) }
-  }, [venue.family])
+    connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null)
+  }, [session.evmWallet, venue.family])
   const connect = async () => {
     const generation = ++connectionGeneration.current
     setConnecting(true); setConnectionError('')
@@ -77,9 +60,8 @@ function VenueTerminal({ venue, apiUrl, audience, session }: { venue: PublicPred
         const next = await connectSolanaTradingWallet(venue, apiUrl, audience, session.wallet)
         if (generation === connectionGeneration.current) setWallet(next); else next.dispose()
       } else {
-        const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum
-        if (!provider) throw new Error('Open an EVM wallet browser or install an EVM wallet extension.')
-        const next = await connectEvmTradingWallet(venue, apiUrl, audience, provider)
+        if (!session.evmWallet) throw new Error('Use the Dynamic wallet control above to connect an EVM wallet.')
+        const next = await connectEvmTradingWallet(venue, apiUrl, audience, session.evmWallet)
         if (generation === connectionGeneration.current) setWallet(next); else next.dispose()
       }
     } catch (reason) { if (generation === connectionGeneration.current) setConnectionError(reason instanceof Error ? reason.message : 'Wallet connection failed.') }

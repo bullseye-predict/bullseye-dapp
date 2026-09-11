@@ -10,6 +10,7 @@ import { PredictionTradingClient } from '../../packages/sdk/PredictionTradingCli
 import { createEvmOrderSigner } from '../../packages/adapters/evm/EvmPredictionVenue'
 import { evmOrderId, orderTypedData } from '../../packages/adapters/evm/orders'
 import { publicVenueConfig } from '../../apps/api/public-config'
+import { parseEvmConfig } from '../../packages/adapters/config'
 import { tradeCandles } from '../../apps/api/market-data'
 import { parsePredictionResponse } from '../../packages/sdk/wire'
 import { parseUnitsExact, formatUnitsExact } from '../../src/components/prediction/amounts'
@@ -111,10 +112,16 @@ test('public deployment config never exposes private RPC URLs or signer settings
   expect(JSON.stringify(config)).not.toContain('PRIVATE_SIGNER_KEY')
   expect(JSON.stringify(config)).not.toContain('never-public')
 })
+
+test('COOLA is rejected as prediction collateral in both private and public deployment configuration', () => {
+  expect(() => parseEvmConfig({ ...deployment, collateralSymbol: 'COOLA' })).toThrow('$COOLA')
+  expect(() => publicVenueConfig({ ...deployment, collateralSymbol: 'COOLA' })).toThrow('$COOLA')
+  expect(publicVenueConfig({ ...deployment, collateralSymbol: 'WSOL' }).collateralSymbol).toBe('WSOL')
+})
 test('browser collateral input and wire decoding preserve exact atomic values and unknown PnL', () => {
   expect(parseUnitsExact('9007199254.740993', 6)).toBe(9007199254740993n)
   expect(formatUnitsExact(9007199254740993n, 6)).toBe('9007199254.740993')
   expect(() => parseUnitsExact('1e9', 6)).toThrow()
   expect(() => parseUnitsExact('0.0000001', 6)).toThrow()
-  expect(parsePredictionResponse('{"quantity":"9007199254740993","costBasis":null,"chainId":"31337"}')).toEqual({ quantity: 9007199254740993n, costBasis: null, chainId: '31337' })
+  expect(parsePredictionResponse<{ quantity: bigint; costBasis: null; chainId: string }>('{"quantity":"9007199254740993","costBasis":null,"chainId":"31337"}')).toEqual({ quantity: 9007199254740993n, costBasis: null, chainId: '31337' })
 })

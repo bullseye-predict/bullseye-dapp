@@ -31,6 +31,9 @@ export class SolanaSettlementTransport implements SettlementTransport {
   private async fill(plan: Readonly<PlannedSettlement>): Promise<SettlementReceipt> {
     invariant(plan.venue === 'SOLANA' && plan.chainId === this.config.chainId && plan.marketId === plan.buy.marketId && plan.marketId === plan.sell.marketId && plan.price === plan.sell.price && plan.collateral === quoteCeil(plan.quantity, plan.price), 'INVALID_PLAN', 'Solana plan scope or execution price is invalid.')
     await this.checkChain()
+    const address = new PublicKey(plan.marketId)
+    const account = await this.connection.getAccountInfo(address, 'finalized')
+    invariant(account && !decodeMarket({ ...account, address }, this.config.programId).manifestGuarded, 'WRONG_ENGINE', 'Manifest questions cannot use the offchain fill transport.')
     const intent: Intent = { kind: 'FILL', buy: signedOrderIntent(plan.buy), sell: signedOrderIntent(plan.sell), quantity: plan.quantity, price: plan.price, collateral: plan.collateral }
     const existing = this.options.journal.get(this.id(plan.id))
     if (!existing?.prepared) {

@@ -21,6 +21,9 @@ async function fixture() {
   const market = marketAddress(program, matchId)
   const config: SolanaGatewayConfig = { family: 'SOLANA', venue: 'SOLANA', chainId: key(10).toBase58(), rpcUrl: 'http://127.0.0.1:1', programId: program.toBase58(), networkDomain: Buffer.from(networkDomain).toString('hex'), collateralToken: key(11).toBase58(), collateralDecimals: 6, oracleAuthority: key(12).toBase58(), markets: { [market.toBase58()]: { matchId: `0x${Buffer.from(matchId).toString('hex')}`, outcomes: [{ id: 0, label: 'A' }, { id: 1, label: 'B' }] } } }
   const records = new Map<string, { owner: PublicKey; data: Buffer }>()
+  const marketData = Buffer.alloc(231)
+  marketData.write('SOLZMKT2'); marketData.set(matchId, 8)
+  records.set(market.toBase58(), { owner: program, data: marketData })
   async function order(side: 'BUY' | 'SELL'): Promise<SignedOrder> {
     const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']) as CryptoKeyPair
     const owner = new PublicKey(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey)))
@@ -41,6 +44,7 @@ async function fixture() {
   const attach = (transport: SolanaSettlementTransport) => {
     Object.assign(transport.connection, {
       getGenesisHash: async () => config.chainId,
+      getAccountInfo: async (address: PublicKey) => records.get(address.toBase58()) ?? null,
       getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.map(address => records.get(address.toBase58()) ?? null),
       getLatestBlockhash: async () => { blockhashes++; return { blockhash: key(13).toBase58(), lastValidBlockHeight: 100 } },
       getBlockHeight: async () => height,
@@ -65,7 +69,7 @@ async function fixture() {
     })
     return transport
   }
-  return { database, journal, config, plan, relayer, attach, sends: () => sends, blockhashes: () => blockhashes, finalize: () => { finalized = true }, tamper: (value: boolean) => { tamper = value }, expire: () => { height = 101 } }
+  return { database, journal, config, plan, relayer, attach, guard: () => { marketData[230] = 1 }, sends: () => sends, blockhashes: () => blockhashes, finalize: () => { finalized = true }, tamper: (value: boolean) => { tamper = value }, expire: () => { height = 101 } }
 }
 
 test('Solana transport persists before RPC, verifies exact finalized message, and recovers without signer or rebroadcast', async () => {
@@ -111,4 +115,16 @@ test('Solana result attestation binds outcome, chain, program and explicit expir
   expect(await verifySolanaResultAttestation({ ...result, expiresAt: 3000 }, config)).toBe(false)
   expect(await verifySolanaResultAttestation(result, { ...config, programId: key(9).toBase58() })).toBe(false)
   expect(await verifySolanaResultAttestation(result, { ...config, chainId: key(9).toBase58() })).toBe(false)
+})
+
+
+test('Manifest question never reaches the legacy relayer or submission journal', async () => {
+  const f = await fixture()
+  try {
+    f.guard()
+    const transport = f.attach(new SolanaSettlementTransport(f.config, { journal: f.journal, relayer: f.relayer, writesEnabled: true }))
+    await expect(transport.submit(f.plan)).rejects.toThrow('offchain fill transport')
+    expect(f.sends()).toBe(0)
+    expect(f.blockhashes()).toBe(0)
+  } finally { f.database.close() }
 })

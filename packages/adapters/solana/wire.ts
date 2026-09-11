@@ -14,6 +14,7 @@ export const INSTRUCTION = {
   resolveMarket: 10, voidMarket: 11, pauseGlobal: 12, pauseMarket: 13,
   authorizeAgent: 14, revokeAgent: 15, fillOrders: 16, initializeOrCancelNonce: 17,
   cancelAllOrders: 18,
+  createQuestionMarket: 27,
 } as const
 export type AddressInput = PublicKey | string
 export const address = (value: AddressInput): PublicKey => typeof value === 'string' ? new PublicKey(value) : value
@@ -53,6 +54,7 @@ const ix = (programId: AddressInput, keys: AccountMeta[], bytes: Uint8Array): Tr
 const pda = (programId: AddressInput, ...seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, address(programId))[0]
 export const configAddress = (programId: AddressInput) => pda(programId, encoder.encode('prediction_config'))
 export const marketAddress = (programId: AddressInput, matchId: Uint8Array) => pda(programId, encoder.encode('market'), fixedBytes(matchId, 32))
+export const questionMarketAddress = (programId: AddressInput, matchId: Uint8Array, questionId: Uint8Array) => pda(programId, encoder.encode('market'), fixedBytes(matchId, 32), fixedBytes(questionId, 32))
 export const vaultAddress = (programId: AddressInput, owner: AddressInput) => pda(programId, encoder.encode('agent_vault'), keyBytes(owner))
 export const positionAddress = (programId: AddressInput, market: AddressInput, vault: AddressInput) => pda(programId, encoder.encode('position'), keyBytes(market), keyBytes(vault))
 export const orderStateAddress = (programId: AddressInput, vault: AddressInput, nonce: bigint) => pda(programId, encoder.encode('order'), keyBytes(vault), u64(nonce))
@@ -126,6 +128,13 @@ export function createMarket(programId: AddressInput, admin: AddressInput, colla
   if (input.startsAtSeconds >= input.locksAtSeconds || input.locksAtSeconds >= input.expirySeconds) throw new RangeError('Invalid market times')
   const market = marketAddress(programId, input.matchId)
   return ix(programId, [meta(admin, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID)], data(INSTRUCTION.createMarket, fixedBytes(input.matchId, 32), byte(input.outcomeCount), timestampSeconds(input.startsAtSeconds), timestampSeconds(input.locksAtSeconds), timestampSeconds(input.expirySeconds)))
+}
+/** Permissionless lazy creation for one canonical YES/NO question. The payer
+ * funds rent; collateral/oracle come from program config and timing comes from
+ * matchId, so no backend transaction or per-question signature is required. */
+export function createQuestionMarket(programId: AddressInput, payer: AddressInput, collateralMint: AddressInput, matchId: Uint8Array, questionId: Uint8Array): TransactionInstruction {
+  const market = questionMarketAddress(programId, matchId, questionId)
+  return ix(programId, [meta(payer, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID)], data(INSTRUCTION.createQuestionMarket, fixedBytes(matchId, 32), fixedBytes(questionId, 32)))
 }
 export function initializeVault(programId: AddressInput, owner: AddressInput, collateralMint: AddressInput, maxCapital: bigint): TransactionInstruction {
   const vault = vaultAddress(programId, owner)

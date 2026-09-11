@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { PredictionPublicConfig } from "../../../packages/prediction-core/market-data";
+import { useEffect, useState, type ReactNode } from "react";
+import type { PredictionPublicConfig, PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClient";
 import type { DynamicSolanaSessionValue } from "../arena/DynamicSolanaSession";
 import { DreamDexTerminal } from "./DreamDexTerminal";
@@ -59,6 +59,7 @@ export function NetworkTrading({
   subjectId,
   somniaChainId,
   initialOutcome,
+  renderEvmTerminal,
 }: {
   apiUrl: string;
   network: TradingNetwork;
@@ -67,6 +68,7 @@ export function NetworkTrading({
   subjectId?: string;
   somniaChainId?: '5031' | '50312';
   initialOutcome?: 0 | 1;
+  renderEvmTerminal?: (venue: PublicPredictionVenue, audience: string, allowedMarketIds?: string[]) => ReactNode;
 }) {
   const [config, setConfig] = useState<PredictionPublicConfig | null>(null),
     [error, setError] = useState(""),
@@ -94,7 +96,7 @@ export function NetworkTrading({
     void refresh();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [apiUrl, retry]);
-  const venues = config?.venues.filter((v) => v.venue === network) ?? [];
+  const venues = config?.venues.filter((v) => network === 'SOLANA' ? v.family === 'SOLANA' : v.family === 'EVM') ?? [];
   const [selectedChain, setSelectedChain] = useState("");
   const venue = venues.find((v) => v.chainId === selectedChain) ?? venues[0];
   const allowedMarketIds = eventId
@@ -125,10 +127,10 @@ export function NetworkTrading({
           <p>
             {network === "SOLANA"
               ? `${venue?.collateralSymbol ?? 'SOL'} predictions · Manifest order book`
-              : `DreamDEX Event Contracts · ${somniaChainId === '50312' ? 'tUSDC testnet' : 'USDso mainnet'}`}
+              : venue ? `${venue.collateralSymbol} custom SOLZ settlement · chain ${venue.chainId}` : `DreamDEX Event Contracts · ${somniaChainId === '50312' ? 'tUSDC testnet' : 'USDso mainnet'}`}
           </p>
         </div>
-        {network === "SOLANA" && venues.length > 1 && (
+        {venues.length > 1 && (
           <label>
             Deployment
             <select
@@ -158,6 +160,8 @@ export function NetworkTrading({
         <p role="status" className="pt-empty">
           Loading {network === "SOLANA" ? "Solana" : "Somnia"} markets…
         </p>
+      ) : network === "SOMNIA" && venue ? (
+        renderEvmTerminal?.(venue, config.audience, allowedMarketIds)
       ) : network === "SOMNIA" ? (
         <DreamDexTerminal
           deployments={config.dreamdex ?? []}

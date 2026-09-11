@@ -5,6 +5,7 @@ use crate::{
     accounts as a,
     codec::{Reader, State},
     error::{add, check, sub, Error, Result},
+    identity,
     orders::{self, Order},
     state::{self, Config, Market, OrderState, Position, Vault, MAX_OUTCOMES},
 };
@@ -15,6 +16,13 @@ use pinocchio::{
 
 pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> ProgramResult {
     let (&tag, args) = data.split_first().ok_or(Error::InvalidData)?;
+    if (22..=26).contains(&tag) {
+        return crate::manifest_tokens::process(program, accounts, args, tag);
+    }
+    #[cfg(feature = "external-venue-comparison")]
+    if (19..=21).contains(&tag) {
+        return crate::outcome_tokens::process(program, accounts, args, tag);
+    }
     let count = match tag {
         0 => 6,
         1 | 2 => 7,
@@ -25,6 +33,7 @@ pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> 
         12 | 14 | 15 | 18 => 2,
         16 => 12,
         17 => 4,
+        27 => 7,
         _ => return Err(Error::InvalidData.into()),
     };
     check(accounts.len() == count, Error::InvalidAccount)?;
@@ -44,6 +53,7 @@ pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> 
         15 | 18 => revoke_or_cancel_all(program, accounts, args, tag == 15),
         16 => fill(program, accounts, data),
         17 => initialize_nonce(program, accounts, args),
+        27 => create_question_market(program, accounts, args),
         _ => Err(Error::InvalidData.into()),
     }
 }
@@ -139,6 +149,7 @@ fn create_market(program: &Address, accounts: &mut [AccountView], args: &[u8]) -
     )?;
     let state = Market {
         match_id,
+        question_id: [0; 32],
         mint: config.mint,
         oracle: config.oracle,
         escrow: a::key(&accounts[3]),
@@ -159,8 +170,75 @@ fn create_market(program: &Address, accounts: &mut [AccountView], args: &[u8]) -
         collateral_locked: 0,
         result_hash: [0; 32],
         void_shares_redeemed: 0,
+        manifest_guarded: false,
     };
     a::save(&mut accounts[2], &state, program)
+}
+
+// 27: first trader/payer(s,w), config, market(w), market collateral(w), mint, system, token.
+// Venue collateral/oracle are frozen in config. The canonical match identity
+// supplies the lock and expiry, so the payer cannot inject market parameters.
+fn create_question_market(program: &Address, accounts: &mut [AccountView], args: &[u8]) -> Result<()> {
+    let mut r = Reader::new(args);
+    let match_id = r.bytes()?;
+    let question_id = r.bytes()?;
+    r.done()?;
+    let match_config = identity::decode_match(&match_id)?;
+    identity::question_kind(&question_id)?;
+    let config = a::config(&accounts[1], program)?;
+    a::signer(&accounts[0])?;
+    check(!config.paused, Error::Paused)?;
+    let created_at = now()?;
+    check(created_at < match_config.kickoff, Error::InvalidTime)?;
+    let duration = i64::from(match_config.duration_minutes)
+        .checked_mul(60)
+        .ok_or(Error::Arithmetic)?;
+    let expiry = match_config.kickoff
+        .checked_add(duration)
+        .and_then(|value| value.checked_add(identity::LAZY_SETTLEMENT_WINDOW_SECONDS))
+        .ok_or(Error::Arithmetic)?;
+    a::mint(&accounts[4], &config.mint)?;
+    a::program(&accounts[5], &pinocchio_system::ID)?;
+    a::program(&accounts[6], &pinocchio_token::ID)?;
+    let bump = a::create(
+        &accounts[0],
+        &accounts[2],
+        &[b"market", &match_id, &question_id],
+        program,
+        program,
+        Market::LEN,
+    )?;
+    let market_key = a::key(&accounts[2]);
+    let escrow_bump = a::init_escrow(
+        &accounts[0],
+        &accounts[3],
+        &accounts[4],
+        accounts[2].address(),
+        &[b"market_collateral", &market_key],
+        program,
+    )?;
+    let escrow = a::key(&accounts[3]);
+    a::save(&mut accounts[2], &Market {
+        match_id,
+        question_id,
+        mint: config.mint,
+        oracle: config.oracle,
+        escrow,
+        starts_at: created_at,
+        locks_at: match_config.kickoff,
+        expiry,
+        created_at,
+        status: state::TRADING,
+        outcomes: 2,
+        winner: u8::MAX,
+        paused: false,
+        bump,
+        escrow_bump,
+        collateral_locked: 0,
+        result_hash: [0; 32],
+        void_shares_redeemed: 0,
+        manifest_guarded: false,
+    }, program)
 }
 // 2: owner(s,w), config, vault(w), vault collateral(w), mint, system, token.
 fn initialize_vault(program: &Address, accounts: &mut [AccountView], args: &[u8]) -> Result<()> {
@@ -524,6 +602,7 @@ fn fill(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> Result<
         Error::InvalidOrder,
     )?;
     let mut market = a::market(&accounts[1], program)?;
+    check(!market.manifest_guarded, Error::InvalidOrder)?;
     let market_key = a::key(&accounts[1]);
     let mut buyer = a::vault(&accounts[2], program)?;
     let mut seller = a::vault(&accounts[3], program)?;

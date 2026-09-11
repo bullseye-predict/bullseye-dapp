@@ -4,7 +4,11 @@ use pinocchio::{AccountView, Address, ProgramResult};
 pub mod accounts;
 pub mod codec;
 pub mod error;
+pub mod identity;
+pub mod manifest_tokens;
 pub mod orders;
+#[cfg(feature = "external-venue-comparison")]
+pub mod outcome_tokens;
 pub mod processor;
 pub mod state;
 
