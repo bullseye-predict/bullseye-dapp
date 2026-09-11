@@ -140,6 +140,8 @@ export type SolzMatch = {
   phase: MatchPhase
   startedAt: number
   endsAt: number
+  /** True when the client had to derive timing because the feed omitted its clock. */
+  timingEstimated?: boolean
   viewers: number
   streamUrl?: string
   marketId: string

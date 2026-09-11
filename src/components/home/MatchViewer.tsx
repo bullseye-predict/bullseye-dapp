@@ -109,8 +109,8 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const serverDeadline = broadcastStatus?.endsAt
     ? broadcastStatus.receivedAt + Math.max(0, broadcastStatus.endsAt - broadcastStatus.generatedAt)
     : match.endsAt
-  const remainingMs = serverDeadline === null ? null : Math.max(0, serverDeadline - clock)
-  const remaining = remainingMs === null ? '--:--' : `${String(Math.floor(remainingMs / 60_000)).padStart(2, '0')}:${String(Math.floor(remainingMs % 60_000 / 1_000)).padStart(2, '0')}`
+  const remainingMs = Math.max(0, serverDeadline - clock)
+  const remaining = `${String(Math.floor(remainingMs / 60_000)).padStart(2, '0')}:${String(Math.floor(remainingMs % 60_000 / 1_000)).padStart(2, '0')}`
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
     <div className="ch-view-navigation"><div className="ch-match-actions">{detailHref ? <a className="ch-detail-button" href={detailHref}>Match info <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Match info <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">

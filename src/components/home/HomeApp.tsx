@@ -15,7 +15,7 @@ import { ArenaEntry, LiveMatches, TeamStandings } from './CommunitySections'
 import { GenesisAgents } from './GenesisAgents'
 import { StatusDot } from './HomePrimitives'
 import type { PredictionAnswer } from '../solz/predictionContracts'
-import { matchLabel, shouldShowSeason, type HighlightView } from './heroMarket'
+import { shouldShowSeason, type HighlightView } from './heroMarket'
 import { MarketSourceControls, type MarketSource, type SolanaCluster, type SomniaChain } from './MarketSourceControls'
 import { unpricedMarkets, useSomniaMarketPrices } from './useVenueMarketPrices'
 
@@ -30,6 +30,7 @@ const clockText = (value: number) => {
 
 export function MatchHeading({ match, season, initialNow, copied, onCopy }: { match: SolzMatch; season: boolean; initialNow: number; copied: boolean; onCopy: () => void }) {
   const [now, setNow] = useState(initialNow)
+  const [deadline, setDeadline] = useState(match.endsAt)
   useEffect(() => {
     setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -37,29 +38,34 @@ export function MatchHeading({ match, season, initialNow, copied, onCopy }: { ma
   }, [match.id])
   useEffect(() => {
     try {
+      const cached = JSON.parse(window.localStorage.getItem('solz:arena:match-clock') || 'null') as { matchId?: string; phase?: string; endsAt?: number } | null
+      const cachedRemaining = cached?.endsAt ? cached.endsAt - Date.now() : 0
+      const cachedDeadline = cached?.matchId === match.id && cached.phase === match.phase && Number.isFinite(cached.endsAt) && cachedRemaining > 0 && cachedRemaining <= BREAK_DURATION_MS + 15_000 ? cached.endsAt! : null
+      const nextDeadline = match.timingEstimated && cachedDeadline && cachedDeadline > Date.now() ? cachedDeadline : match.endsAt
+      setDeadline(nextDeadline)
       window.localStorage.setItem('solz:arena:match-clock', JSON.stringify({
         matchId: match.id, displayMatchId: match.displayMatchId, phase: match.phase,
-        startedAt: match.startedAt, endsAt: match.endsAt, savedAt: Date.now(),
+        startedAt: match.startedAt, endsAt: nextDeadline, savedAt: Date.now(),
       }))
     } catch {
       // The live feed remains authoritative when storage is unavailable.
     }
-  }, [match.displayMatchId, match.endsAt, match.id, match.phase, match.startedAt])
+  }, [match.displayMatchId, match.endsAt, match.id, match.phase, match.startedAt, match.timingEstimated])
 
   const isBreak = match.phase === 'countdown'
   const isLive = match.phase === 'live'
   const elapsed = isLive ? Math.min(MATCH_DURATION_MS, Math.max(0, now - match.startedAt)) : 0
-  const remaining = Math.max(0, match.endsAt - now)
+  const remaining = Math.max(0, deadline - now)
   const displayId = /^MATCH\s*#?\d+$/i.test(match.displayMatchId ?? '') ? match.displayMatchId! : 'MATCH —'
   const shortId = match.id.replace(/^arena-/, '')
 
   return <div className="sh-match-heading">
     <span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01 / {displayId} <button className="sh-match-id" type="button" title="Copy full match ID" aria-label={`Copy match ID ${shortId}`} onClick={onCopy}>{copied ? <Check size={11} aria-hidden="true"/> : <Copy size={11} aria-hidden="true"/>}<code>{shortId.slice(0, 6)}…{shortId.slice(-6)}</code></button></span></span>
-    <h1>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}<span aria-hidden="true">↗</span></h1>
+    <h1>{season ? 'SEASON HIGHLIGHT' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1>
     <div className="sh-match-clock" aria-live="polite">
       <span>{isBreak ? 'BREAK' : isLive ? 'LIVE MATCH' : 'MATCH COMPLETE'}</span>
       {isBreak ? <><strong>{clockText(remaining)} LEFT</strong><small>{clockText(BREAK_DURATION_MS)} BREAK · NEXT {displayId}</small></>
-        : isLive ? <><strong>{clockText(elapsed)} / {clockText(MATCH_DURATION_MS)}</strong><small>{clockText(Math.max(0, match.endsAt - now))} LEFT · {match.mode} · {match.map}</small></>
+        : isLive ? <><strong>{clockText(elapsed)} / {clockText(MATCH_DURATION_MS)}</strong><small>{clockText(Math.max(0, deadline - now))} LEFT · {match.mode} · {match.map}</small></>
           : <><strong>FINAL</strong><small>AWAITING NEXT MATCH</small></>}
     </div>
   </div>
@@ -90,7 +96,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
   const loadedMatch = snapshot?.matches.find((item) => item.id === (matchId || snapshot.highlightMatchId))
   const match: SolzMatch | undefined = externalFeedPending && snapshot ? {
     id: 'arena-feed-pending', kind: 'highlight', mode: 'ARENA', map: 'GENESIS AGENT ARENA', round: 'AWAITING FEED', phase: 'countdown',
-    startedAt: snapshot.updatedAt, endsAt: snapshot.updatedAt + 60 * 60_000, viewers: 0, marketId: 'arena-feed-pending',
+    startedAt: snapshot.updatedAt, endsAt: snapshot.updatedAt + BREAK_DURATION_MS, timingEstimated: true, viewers: 0, marketId: 'arena-feed-pending',
     volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
   } : loadedMatch
   const season = !!(snapshot && match && shouldShowSeason(match.phase, match.endsAt, snapshot.updatedAt, pinned))

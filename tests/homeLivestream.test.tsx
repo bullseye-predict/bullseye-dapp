@@ -118,7 +118,8 @@ describe('highlight livestream navigation', () => {
     expect(liveHtml).toContain('MATCH 42')
     expect(liveHtml).toContain('03:00 / 20:00')
     expect(liveHtml).toContain('17:00 LEFT')
-    expect(liveHtml).toContain('BONK TEAM — WIF TEAM')
+    expect(liveHtml).toContain('HIGHLIGHT MATCH')
+    expect(liveHtml).not.toContain('BONK TEAM — WIF TEAM')
 
     const next = { ...live, phase: 'countdown' as const, endsAt: 301_000 }
     const breakHtml = renderToStaticMarkup(<MatchHeading match={next} season={false} initialNow={181_000} copied={false} onCopy={() => {}}/>)
