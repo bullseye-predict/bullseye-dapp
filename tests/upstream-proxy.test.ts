@@ -43,3 +43,25 @@ test("prediction proxy rejects an unsafe configured origin", async () => {
   );
   expect(response.status).toBe(503);
 });
+
+test("prediction proxy removes stale compression metadata from decoded upstream bodies", async () => {
+  const response = await proxyPrediction(
+    new Request("https://some-coola.vercel.app/api/prediction/config"),
+    "config",
+    {
+      PUBLIC_PREDICTION_API_URL:
+        "https://coola-backend-production.up.railway.app",
+    },
+    async () =>
+      new Response('{"venues":[]}', {
+        headers: {
+          "content-type": "application/json",
+          "content-encoding": "br",
+          "content-length": "4",
+        },
+      }),
+  );
+  expect(response.headers.get("content-encoding")).toBeNull();
+  expect(response.headers.get("content-length")).toBeNull();
+  expect(await response.json()).toEqual({ venues: [] });
+});

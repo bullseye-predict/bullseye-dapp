@@ -24,12 +24,12 @@ The locked states are deliberate. The app never relabels a simulated fill as a r
 
 Copy `.env.example` and configure:
 
-- `PUBLIC_PREDICTION_API_URL` — the single prediction/DreamDEX backend origin (port `8788` locally; the Railway HTTPS origin in Vercel)
+- `PUBLIC_PREDICTION_API_URL` — the prediction feed/trading backend origin (port `8788` locally; the Railway HTTPS origin in Vercel)
 - `VITE_DYNAMIC_ENVIRONMENT_ID`
 - `SOLZ_COLYSEUS_SERVER_URL` and `SOLZ_GAME_ORIGIN` as Vercel server runtime settings
 - `SOLZ_GAME_API_ORIGIN` for the server-side legacy game API proxy
 
-Do not configure the retired `PUBLIC_DREAMDEX_GAME_API_URL`: prediction reads and DreamDEX demo actions now share `PUBLIC_PREDICTION_API_URL`.
+Prediction reads and sponsored DreamDEX demo actions share `PUBLIC_PREDICTION_API_URL` through the same-origin `/api/prediction` route.
 
 ## Commands
 
