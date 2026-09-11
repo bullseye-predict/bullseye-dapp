@@ -27,6 +27,12 @@ function reservedGenesisRoster(match: ArenaMatch, agents: ArenaAgent[], policy: 
   }
 }
 
+function withMatchPolicy(match: ArenaMatch, policy: unknown): ArenaMatch {
+  const duration = Number((policy as { matchDurationMs?: unknown } | undefined)?.matchDurationMs)
+  if (!Number.isFinite(duration) || duration <= 0) return match
+  return { ...match, matchDurationMs: duration, timingType: 'countdown' }
+}
+
 export function createArenaFeed(endpoint: string, fetcher: (input: string | URL, init?: RequestInit) => Promise<Response> = fetch, predictionApiUrl = '', currentOnly = false) {
   const api = arenaAdapter(endpoint, fetcher)
   return async (signal: AbortSignal): Promise<ArenaFeed> => {
@@ -36,10 +42,12 @@ export function createArenaFeed(endpoint: string, fetcher: (input: string | URL,
       const feed = await response.json()
       const agents = parseAgents(feed)
       if (!Array.isArray(feed.matches)) throw Error('Invalid prediction match feed.')
-      return {agents,current:feed.current ? parseMatch(feed.current,agents) : null,matches:feed.matches.map((m:unknown)=>parseMatch(m,agents)),historyError:null,readAt:Date.now()}
+      const current = feed.current ? withMatchPolicy(parseMatch(feed.current,agents),feed.policy) : null
+      const matches = feed.matches.map((m:unknown)=>parseMatch(m,agents)).map((item: ArenaMatch) => current?.roomId === item.roomId ? { ...item, ...current } : item)
+      return {agents,current,matches,historyError:null,readAt:Date.now()}
     }
     const [agents, current] = await Promise.all([api.agents(signal), api.current(signal)])
-    const match = current.match ? reservedGenesisRoster(parseMatch(current.match, agents), agents, current.policy) : null
+    const match = current.match ? withMatchPolicy(reservedGenesisRoster(parseMatch(current.match, agents), agents, current.policy), current.policy) : null
     if (currentOnly) return { agents, current: match, matches: match ? [match] : [], historyError: null, readAt: Date.now() }
     let matches: ArenaMatch[] = [], historyError: string | null = null
     try { matches = (await api.matches(agents, emptyFilters, signal)).matches }
@@ -47,7 +55,11 @@ export function createArenaFeed(endpoint: string, fetcher: (input: string | URL,
     // A game API may temporarily fail the paginated history route while its
     // current-match route remains healthy. The hero must still show that real
     // reserved/live room instead of dropping back to sample matches.
-    if (!matches.length && match) matches = [match]
+    if (match) {
+      const currentIndex = matches.findIndex((item) => item.roomId === match.roomId)
+      if (currentIndex >= 0) matches[currentIndex] = { ...matches[currentIndex]!, ...match }
+      else matches.unshift(match)
+    }
     return { agents, current: match, matches, historyError, readAt: Date.now() }
   }
 }

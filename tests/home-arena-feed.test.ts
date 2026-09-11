@@ -50,6 +50,18 @@ test('a live Genesis room whose current endpoint omits participants still create
   expect(feed.current?.participants).toHaveLength(12)
   expect(currentMatchDrafts(feed).events[0]?.questions).toHaveLength(12)
 })
+test('the current match policy supplies the authoritative game duration', async () => {
+  const live = { ...match, startedAt: new Date(1_000).toISOString() }
+  const read = createArenaFeed('/api/agent-arena', async input => {
+    const kind = new URL(String(input), 'http://localhost').searchParams.get('kind')
+    if (kind === 'agents') return Response.json({ ok: true, agents: agents.map(agent => ({ ...agent, matchesPlayed: 0 })) })
+    if (kind === 'current') return Response.json({ ok: true, policy: { participants: 1, matchDurationMs: 900_000 }, match: live })
+    return Response.json({ ok: true, matches: [live], nextCursor: null })
+  })
+  const feed = await read(new AbortController().signal)
+  expect(feed.current).toMatchObject({ matchDurationMs: 900_000, timingType: 'countdown' })
+  expect(feed.matches[0]).toMatchObject({ matchDurationMs: 900_000, timingType: 'countdown' })
+})
 test('feed errors are surfaced, not replaced with fake markets',async()=>{
   const read=createArenaFeed('/api/agent-arena',async()=>new Response('',{status:503}),'https://prediction.test')
   await expect(read(new AbortController().signal)).rejects.toThrow('503')

@@ -1,13 +1,36 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { MatchViewer } from '../src/components/home/MatchViewer'
+import { matchClock, MatchViewer } from '../src/components/home/MatchViewer'
 import { MatchHeading } from '../src/components/home/HomeApp'
 import { TradeContextBar } from '../src/components/home/TradeContextBar'
 import { MarketSourceControls } from '../src/components/home/MarketSourceControls'
 import { unpricedMarkets } from '../src/components/home/useVenueMarketPrices'
 import { createSolzDataSource } from '../src/components/solz/solzDataSource'
+import { LiveMatches } from '../src/components/home/CommunitySections'
+import { OpenDreamDexMarket, readMarketCreationResponse } from '../src/components/home/OpenDreamDexMarket'
 
 describe('highlight livestream navigation', () => {
+  test('clamps fixed-duration elapsed time and supports open-ended modes', () => {
+    expect(matchClock({ startedAt: 0, endsAt: 1_200_000, durationMs: 1_200_000, timingType: 'countdown' }, 1_314_000)).toEqual({ elapsedMs: 1_200_000, remainingMs: 0, durationMs: 1_200_000 })
+    expect(matchClock({ startedAt: 0, endsAt: Number.MAX_SAFE_INTEGER, timingType: 'open-ended' }, 1_314_000)).toEqual({ elapsedMs: 1_314_000, remainingMs: null, durationMs: null })
+  })
+
+  test('paginates authoritative live matches after ten rows', () => {
+    const matches = Array.from({ length: 11 }, (_, index) => ({ id: `MATCH ${index + 1}`, region: 'Configured arena', phase: 'live' as const, mode: 'DEATHMATCH', players: 12, capacity: 12, spectators: 0, startedAt: 1, watchUrl: '/watch' }))
+    const html = renderToStaticMarkup(<LiveMatches feed={{ matches, loading: false, error: '' }}/>)
+    expect(html).toContain('MATCH 10')
+    expect(html).not.toContain('MATCH 11')
+    expect(html).toContain('>Next</button>')
+    expect(html).toContain('1 / 2')
+  })
+
+  test('shows a preparation state during breaks and handles an HTML service error clearly', async () => {
+    const html = renderToStaticMarkup(<OpenDreamDexMarket apiUrl="/api/prediction" eventId="match" agentId="genesis-01" preparing onOpened={() => {}}/>)
+    expect(html).toContain('BREAK TIME')
+    expect(html).toContain('PREPARING MATCH SYSTEM')
+    expect(html).not.toContain('Open market')
+    await expect(readMarketCreationResponse(new Response('<!doctype html>', { status: 404, headers: { 'content-type': 'text/html' } }))).rejects.toThrow('Sponsored market creation is unavailable (404).')
+  })
   test('labels real and simulated match counts accurately', () => {
     const live = renderToStaticMarkup(<TradeContextBar
       simulation={false}
@@ -99,10 +122,10 @@ describe('highlight livestream navigation', () => {
       liveHref="https://solz.fun/watch/live/agent-arena?room=current" onChat={() => {}} onPrompt={() => {}}
       season={false} pinned={false} onPin={() => {}} simulation={false}
     />)
-    expect(html).toContain('5-MINUTE INTERMISSION')
-    expect(html).toContain('Next match <b>#A-CAB5</b>')
-    expect(html).toContain('STARTS IN')
-    expect(html).toContain('SERVER CLOCK')
+    expect(html).toContain('BREAK TIME')
+    expect(html).toContain('Preparing match <b>#A-CAB5</b>')
+    expect(html).toContain('PREPARING MATCH')
+    expect(html).not.toContain('STARTS IN')
     expect(html).toContain('12 / 12 AGENTS CONFIRMED')
     expect(html).toContain('Use iframe streaming')
     expect(html).not.toContain('src="https://solz.fun/watch/live/agent-arena?room=current&amp;back=false"')
@@ -113,9 +136,9 @@ describe('highlight livestream navigation', () => {
     const source = createSolzDataSource()
     const snapshot = await source.load()
     const original = snapshot.matches.find((item) => item.id === snapshot.highlightMatchId)!
-    const live = { ...original, displayMatchId: 'MATCH 42', startedAt: 1_000, endsAt: 1_201_000, phase: 'live' as const }
+    const live = { ...original, displayMatchId: 'GM-DM_DR-20_ID-ABC', matchNumber: 42, startedAt: 1_000, endsAt: 1_201_000, phase: 'live' as const }
     const liveHtml = renderToStaticMarkup(<MatchHeading match={live} season={false} copied={false} onCopy={() => {}}/>)
-    expect(liveHtml).toContain('MATCH 42')
+    expect(liveHtml).toContain('MATCH #42')
     expect(liveHtml).toContain('HIGHLIGHT MATCH')
   })
 

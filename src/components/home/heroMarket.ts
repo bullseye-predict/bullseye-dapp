@@ -1,9 +1,14 @@
-import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
+import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
 
 export type HighlightView = 'live' | 'market' | 'options'
 export const INTERMISSION_DELAY = 150_000
 export const teamLabel = (symbol: string) => `${symbol.replace(/^\$/, '')} TEAM`
 export const matchLabel = (teams: Array<{ symbol: string }>) => teams.length > 2 ? `${teams.length}-TEAM FREE FOR ALL` : teams.map((team) => teamLabel(team.symbol)).join(' — ')
+export function matchIdLabel(match: Pick<SolzMatch, 'displayMatchId'|'matchNumber'>) {
+  if (Number.isSafeInteger(match.matchNumber) && match.matchNumber! > 0) return `MATCH #${match.matchNumber}`
+  if (match.displayMatchId?.trim()) return match.displayMatchId.trim().replace(/^MATCH\s+(\d+)$/i, 'MATCH #$1')
+  return 'MATCH —'
+}
 export function outcomeColor(outcome: ArenaMarketOutcome, snapshot: SolzSnapshot, index = 0) {
   return snapshot.agents.find((agent) => agent.id === outcome.participantId)?.color ?? snapshot.teams.find((team) => team.id === outcome.teamId)?.color ?? ['#c7ff00', '#ff579d', '#65cfff', '#ffac57', '#bd9afa', '#f9e071'][index % 6]
 }

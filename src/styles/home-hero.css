@@ -139,6 +139,10 @@
 .ch-options-heading { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-bottom: 16px; }
 .ch-options-heading h2 { font: 600 20px var(--sh-heading); }
 .ch-options-heading p { font-size: 10px; color: #abb5c5; margin-top: 4px; }
+.ch-options-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ch-options-match { display: inline-flex; align-items: center; gap: 6px; min-height: 27px; padding: 4px 8px; color: #c7f487; background: #25321f; border: 1px solid #48613b; font: 700 11px var(--sh-mono); }
+.ch-options-match .pf-match-avatar { width: 22px; height: 22px; flex-shrink: 0; image-rendering: pixelated; }
+.ch-options-match b { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-options-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; padding: 2px 5px 4px 2px; }
 .ch-option { background: #1d2229; border: 1px solid #363f49; margin-bottom: 10px; }
 .ch-option.is-selected { border-color: #7d8b56; }
@@ -167,6 +171,10 @@
 .ch-trade-title > div { min-width: 0; }
 .ch-trade-title span { color: #aeb9c9; font: 400 11px/1.4 var(--sh-heading); display: block; }
 .ch-trade-title strong { display: block; color: var(--team-color); font: 700 15px/1.4 var(--sh-heading); margin-top: 2px; }
+.ch-trade-title .ch-game-time { display: flex; gap: 10px; margin-left: auto; padding-left: 12px; text-align: center; }
+.ch-trade-title .ch-game-time > span { display: grid; gap: 1px; color: #ff7181; }
+.ch-trade-title .ch-game-time b { color: inherit; font: 700 21px/1 var(--sh-mono); }
+.ch-trade-title .ch-game-time small { color: #aeb9c9; font: 600 7px var(--sh-heading); }
 .ch-trade-controls { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #424a55; }
 .ch-trade-controls > div { display: flex; gap: 16px; }
 .ch-trade-controls button { padding: 0 0 8px; background: transparent; border: 0; border-bottom: 2px solid transparent; color: #a7b3c4; font: 600 13px var(--sh-heading); }
@@ -690,10 +698,11 @@
 .ch-home .ch-view-navigation .sh-match-heading { display: grid; gap: 3px; }
 .ch-home .ch-view-navigation .sh-match-heading h1 { margin: 0; font: 700 20px/1 var(--sh-heading); letter-spacing: -.015em; }
 .ch-home .ch-view-navigation .sh-match-heading h1 > span { margin-left: 7px; color: var(--sh-lime); font: 400 18px/1 var(--sh-mono); }
-.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker { margin: 0; gap: 7px; font-size: 6px; line-height: 1; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker { margin: 0; gap: 9px; font-size: 8px; line-height: 1; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker > span:last-child { color: #dfe5ec; font: 700 11px/1 var(--sh-mono); }
 .ch-home .ch-view-navigation .sh-match-heading .sh-status { gap: 4px; font-size: 6px; }
 .ch-home .ch-view-navigation .sh-match-heading .sh-status i { width: 4px; height: 4px; }
-.ch-home .ch-view-navigation .sh-match-heading .sh-match-id { gap: 3px; margin-left: 3px; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-match-id { gap: 4px; max-width: 21ch; margin-left: 5px; font-size: 8px; }
 .ch-home .ch-detail-button { padding: 0; }
 .ch-home .ch-screen { width: 100%; max-height: none; }
 @media (max-width: 720px) { .ch-home .ch-view-navigation .sh-match-heading h1 { font-size: 18px; } }

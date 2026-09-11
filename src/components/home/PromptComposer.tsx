@@ -8,9 +8,10 @@ import { amountLabel } from './HomePrimitives'
 type Props = {
   source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; open: boolean; onToggle: () => void
   promptAgentId?: string; intermission: boolean; simulation: boolean
+  warning?: string
 }
 
-export function PromptComposer({ source, snapshot, match, open, onToggle, promptAgentId, intermission, simulation }: Props) {
+export function PromptComposer({ source, snapshot, match, open, onToggle, promptAgentId, intermission, simulation, warning }: Props) {
   const [prompt, setPrompt] = useState('')
   const [agentId, setAgentId] = useState(promptAgentId ?? '')
   const [pending, setPending] = useState(false)
@@ -53,13 +54,14 @@ export function PromptComposer({ source, snapshot, match, open, onToggle, prompt
     } finally { if (mounted.current) setPending(false) }
   }
 
-  const hint = inactive ? `${inactive.codename} is out of this round.` : unavailable ? 'Agents accept prompts during a live match.' : prompt.trim().length > 0 && prompt.trim().length < 8 ? 'Add a little more detail · at least 8 characters.' : 'Enter to send · Shift + Enter for a new line'
+  const hint = inactive ? `${inactive.codename} is out of this round.` : unavailable ? warning && !simulation ? 'Live prompting is unavailable in this build.' : 'Agents accept prompts during a live match.' : prompt.trim().length > 0 && prompt.trim().length < 8 ? 'Add a little more detail · at least 8 characters.' : 'Enter to send · Shift + Enter for a new line'
   const examples = ['Hold the west relay and protect the team.', 'Coke, take the lead. Pepsi, cover the flank.']
 
   return <section className={`ch-console-accordion ch-prompt-accordion ${open ? 'is-open' : ''} ${fueling ? 'is-fueling' : ''}`}>
     <header className="ch-mini-prompt">
       <h3><button id="console-prompt-button" className="ch-mini-heading" aria-expanded={open} aria-controls="console-prompt-body" onClick={onToggle}><span><Zap size={15}/> PROMPT AGENT</span><span>{quote.cost} <b>$COOLA</b><ChevronDown size={15}/></span></button></h3>
       <form aria-label="Quick agent prompt" onSubmit={(event) => { event.preventDefault(); void sendPrompt() }}>
+        {warning && <p className="ch-integration-warning" role="note">{warning}</p>}
         <label className="ch-prompt-label" htmlFor="mini-prompt">Your directive <span>{prompt.length}/220</span></label>
         <div className="ch-prompt-composer">
         <textarea id="mini-prompt" ref={input} value={prompt} onChange={(event) => { setPrompt(event.target.value); setFeedback(null) }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendPrompt() } }} placeholder="Type a move… e.g. Coke, defend the relay." minLength={8} maxLength={220} required rows={2} aria-describedby="prompt-hint"/>

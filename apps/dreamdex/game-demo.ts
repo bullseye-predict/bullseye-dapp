@@ -22,7 +22,7 @@ const databasePath = process.env.DREAMDEX_GAME_DATABASE ?? '.data/dreamdex-games
 mkdirSync(dirname(databasePath), { recursive: true })
 const service = new GameDemoService(new Database(databasePath), creator, process.env.SOLZ_GAME_API_ORIGIN ?? 'https://solz-elysia-production.up.railway.app')
 const origins = (process.env.DREAMDEX_GAME_ORIGINS ?? 'http://127.0.0.1:4321,http://localhost:4321').split(',')
-const server = Bun.serve({ hostname: '127.0.0.1', port: Number(process.env.DREAMDEX_GAME_PORT ?? 8789), maxRequestBodySize: 2048, idleTimeout: 255,
+const server = Bun.serve({ hostname: '127.0.0.1', port: Number(process.env.DREAMDEX_GAME_PORT ?? 8788), maxRequestBodySize: 2048, idleTimeout: 255,
   async fetch(request) {
     const origin = request.headers.get('origin')
     if (origin && !origins.includes(origin)) return new Response('Origin denied', { status: 403 })

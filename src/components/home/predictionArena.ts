@@ -36,11 +36,13 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
   const fallbackStartAt = timestamp(raw.createdAt, now) + 5 * 60_000
   const scheduledStartAt = timestamp(raw.scheduledStartAt, fallbackStartAt)
   const startedAt = timestamp(raw.startedAt ?? raw.scheduledStartAt ?? raw.createdAt, now)
+  const durationMs = raw.matchDurationMs ?? 20 * 60_000
+  const timingType = raw.timingType ?? 'countdown'
   const endsAt = raw.status === 'reserved'
     ? scheduledStartAt
     : raw.status === 'live'
-      ? startedAt + 20 * 60_000
-      : timestamp(raw.completedAt, startedAt + 20 * 60_000)
+      ? timingType === 'countdown' ? startedAt + durationMs : Number.MAX_SAFE_INTEGER
+      : timestamp(raw.completedAt, startedAt + durationMs)
   const roster: MatchRosterEntry[] = raw.participants.map((participant, index) => {
     const agent = agents.find(value => value.id === participant.agentId)
     return {
@@ -51,9 +53,9 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
     }
   })
   return {
-    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, displayMatchId: raw.displayMatchId, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
+    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, roomId: raw.roomId, displayMatchId: raw.displayMatchId, matchNumber: raw.matchNumber, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
     round: raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: phase(raw.status), startedAt,
-    endsAt, timingEstimated: raw.status === 'reserved' ? !raw.scheduledStartAt : raw.status === 'live' ? !raw.startedAt : !raw.completedAt,
+    endsAt, durationMs, timingType, timingEstimated: raw.status === 'reserved' ? !raw.scheduledStartAt : raw.status === 'live' ? !raw.startedAt : !raw.completedAt,
     viewers: 0, marketId: `arena-${raw.roomId}`,
     volume: { SOL: 0, COOLA: 0 }, teams: [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }], roster,
   }

@@ -9,5 +9,11 @@
 .ch-live-empty { display: grid; gap: 5px; min-height: 100px; align-content: center; padding: 20px 14px; border-bottom: 1px solid var(--sh-line); }
 .ch-live-empty strong { font: 600 14px var(--sh-heading); }
 .ch-live-empty span { color: var(--sh-muted); font-size: 10px; }
+.ch-live-pages { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 12px; }
+.ch-live-pages button { min-height: 32px; padding: 0 12px; border: 1px solid #666974; background: transparent; color: #f0f1f3; font: 600 9px var(--sh-heading); }
+.ch-live-pages button:hover:not(:disabled) { border-color: var(--sh-lime); color: var(--sh-lime); }
+.ch-live-pages button:disabled { opacity: .4; }
+.ch-live-pages span { color: #aeb0ba; font-size: 9px; }
+.ch-standings-note { margin: 10px 14px 0; color: #b8bbc4; font-size: 9px; line-height: 1.6; }
 @media (max-width: 780px) { .ch-live-row { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; } .ch-live-row > span { display: none; } .ch-live-row > b { padding-inline: 9px; } }
 @media (max-width: 470px) { .ch-live-row { grid-template-columns: 1fr auto; } .ch-live-row .sh-status { grid-column: 1 / -1; } }

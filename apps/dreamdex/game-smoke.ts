@@ -4,7 +4,8 @@ import { DreamDexBrowser, DreamDexBrowserWallet } from '../../packages/adapters/
 import { eventBinding } from '../../packages/adapters/dreamdex/config'
 
 if (!Bun.argv.includes('--testnet-demo')) throw Error('Requires --testnet-demo. Uses only Shannon test tokens.')
-const config = (await (await fetch('http://127.0.0.1:8789/config')).json()).dreamdex[0]
+const apiUrl = (process.env.PUBLIC_PREDICTION_API_URL ?? 'http://127.0.0.1:8788').replace(/\/+$/, '')
+const config = (await (await fetch(`${apiUrl}/config`)).json()).dreamdex[0]
 if (config.chainId !== '50312' || !config.markets.length) throw Error('Create a real game question first.')
 const requestedMarket = Bun.argv.find(arg => arg.startsWith('--market='))?.slice(9)
 const market = requestedMarket ? config.markets.find((m: { marketId: string }) => m.marketId === requestedMarket) : config.markets[0]

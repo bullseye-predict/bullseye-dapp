@@ -1,21 +1,24 @@
 import '../../styles/home-markets.css'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
+import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
 import type { PredictionAnswer } from '../solz/predictionContracts'
 import { accentStyle, AgentPortrait, compact, TeamMark } from './HomePrimitives'
-import { outcomeColor } from './heroMarket'
+import { matchIdLabel, outcomeColor } from './heroMarket'
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { PredictionDetail } from './PredictionDetail'
+import { MatchAvatar } from '../portfolio/matchIdentity'
 
 type Props = {
   markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot
   answer?: PredictionAnswer; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void
   simulation: boolean; referenceMarkets?: ArenaMarket[]; sourceLabel?: string
+  match?: SolzMatch
 }
 export function PredictionOptions(props: Props) {
+  const displayId = props.match ? matchIdLabel(props.match) : 'MATCH —'
   return <div className="ch-options" aria-label="Related predictions">
-    <div className="ch-options-heading"><div><h2>Make your call.</h2><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">{props.sourceLabel ?? (props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS')}</span></div>
+    <div className="ch-options-heading"><div><div className="ch-options-title"><h2>Make your call.</h2><span className="ch-options-match">{props.match && <MatchAvatar id={props.match.id}/>}<b>{displayId}</b></span></div><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">{props.sourceLabel ?? (props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS')}</span></div>
     <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id}/>)}</div>
   </div>
 }

@@ -131,8 +131,12 @@ export type MatchKind = 'highlight' | 'community'
 
 export type SolzMatch = {
   id: string
+  /** Game-service room identity used to reconcile public watch listings. */
+  roomId?: string
   /** Human-readable match label assigned by the game service, when available. */
   displayMatchId?: string
+  /** Monotonic public match number assigned by the game service, when available. */
+  matchNumber?: number
   kind: MatchKind
   mode: string
   map: string
@@ -140,6 +144,10 @@ export type SolzMatch = {
   phase: MatchPhase
   startedAt: number
   endsAt: number
+  /** Declared game duration for countdown matches. */
+  durationMs?: number
+  /** Countdown matches expose time left; open-ended modes expose elapsed time only. */
+  timingType?: 'countdown' | 'open-ended'
   /** True when the client had to derive timing because the feed omitted its clock. */
   timingEstimated?: boolean
   viewers: number

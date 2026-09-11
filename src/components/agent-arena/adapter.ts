@@ -17,7 +17,12 @@ export function parseMatch(value: unknown, agents: ArenaAgent[]): ArenaMatch {
   if(typeof m.roomId!=='string'||!['reserved','live','settled','cancelled'].includes(m.status)||!Number.isFinite(m.entryFeeL)) throw Error('Invalid match record.');
   const participants=m.participants??r.participants??[];
   if(!Array.isArray(participants)) throw Error('Invalid participation record.');
-  return {...m,gameMode:m.gameMode??'deathmatch',teamFormat:m.teamFormat??'ffa',participants:participants.map((raw:unknown)=>{
+  const matchDurationMs=Number(m.matchDurationMs??m.policy?.matchDurationMs),matchNumber=Number(m.matchNumber);
+  return {...m,gameMode:m.gameMode??'deathmatch',teamFormat:m.teamFormat??'ffa',
+    matchNumber:Number.isSafeInteger(matchNumber)&&matchNumber>0?matchNumber:undefined,
+    matchDurationMs:Number.isFinite(matchDurationMs)&&matchDurationMs>0?matchDurationMs:undefined,
+    timingType:m.timingType==='open-ended'?'open-ended':Number.isFinite(matchDurationMs)&&matchDurationMs>0?'countdown':undefined,
+    participants:participants.map((raw:unknown)=>{
     const p=object(raw),agentId=p.agentId??agents.find(a=>`server-bot-0-${a.slot}`===p.actorId)?.agentId;
     if(typeof agentId!=='string'||typeof p.actorId!=='string') throw Error('An arena participant has no persistent identity.');
     for(const k of ['kills','deaths']) if(p[k]!=null&&(!Number.isSafeInteger(p[k])||p[k]<0))throw Error('Invalid participant statistics.');

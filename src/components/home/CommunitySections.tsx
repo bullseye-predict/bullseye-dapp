@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, Trophy } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { QueueSlot, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
 import { amountLabel, StatusDot, TeamMark } from './HomePrimitives'
@@ -7,12 +7,18 @@ import type { SolzWatchMatch } from './useSolzWatchMatches'
 import '../../styles/home-community.css'
 
 export function LiveMatches({ feed }: { feed: { matches: SolzWatchMatch[]; loading: boolean; error: string } }) {
+  const [page, setPage] = useState(0)
+  const pageSize = 10
   const liveCount = feed.matches.filter((match) => match.phase === 'live').length
+  const pageCount = Math.max(1, Math.ceil(feed.matches.length / pageSize))
+  const visible = feed.matches.slice(page * pageSize, (page + 1) * pageSize)
+  useEffect(() => { if (page >= pageCount) setPage(pageCount - 1) }, [page, pageCount])
   return <section className="sh-live-section" id="matches">
     <div className="sh-section-heading"><h2>LIVE ARENA<span>{liveCount} LIVE</span></h2><a className="sh-section-meta" href="https://solz.fun/watch/live/" target="_blank" rel="noreferrer">OPEN SOLZ WATCH <ArrowDownRight size={16}/></a></div>
-    <div className="ch-live-list" aria-busy={feed.loading}>{feed.matches.map((match) => <a key={`${match.region}:${match.id}`} href={match.watchUrl} target="_blank" rel="noreferrer" className="ch-live-row" aria-label={`Watch ${match.id} in ${match.region}`}>
+    <div className="ch-live-list" aria-busy={feed.loading}>{visible.map((match) => <a key={`${match.region}:${match.id}`} href={match.watchUrl} target="_blank" rel="noreferrer" className="ch-live-row" aria-label={`Watch ${match.id} in ${match.region}`}>
       <StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot><strong>{match.id}</strong><span>{match.region} · {match.mode}</span><span>{match.players}/{match.capacity} players</span><span><Eye size={13}/>{match.spectators} watching</span><b>WATCH MATCH <ArrowUpRight size={15}/></b>
-    </a>)}{!feed.loading && !feed.matches.length && <div className="ch-live-empty" role={feed.error ? 'alert' : 'status'}><strong>{feed.error ? 'SOLZ match feed is reconnecting.' : 'No watchable SOLZ rooms yet.'}</strong><span>{feed.error || 'The live arena is checked every 10 seconds.'}</span></div>}</div>
+    </a>)}{!feed.loading && !feed.matches.length && <div className="ch-live-empty" role={feed.error ? 'alert' : 'status'}><strong>{feed.error ? 'SOLZ match feed is reconnecting.' : 'No watchable SOLZ rooms yet.'}</strong><span>{feed.error || 'The authoritative arena feed currently has no live room.'}</span></div>}</div>
+    {pageCount > 1 && <nav className="ch-live-pages" aria-label="Live match pages"><button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</button><span>{page + 1} / {pageCount}</span><button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Next</button></nav>}
   </section>
 }
 
@@ -23,7 +29,8 @@ export function TeamStandings({ snapshot, onSelect }: { snapshot: SolzSnapshot; 
   const find = (id: string) => snapshot.teams.find((item) => item.id === id)
   return <section className="sh-standings" id="teams">
     <div className="sh-section-heading"><h2>TEAM STANDINGS</h2><Trophy size={18}/></div>
-    <div className="sh-panel-title"><span>THE COMMUNITIES RUNNING THE ARENA</span><span>SEASON 01</span></div>
+    <div className="sh-panel-title"><span>USED FOR TEAM-MATCH MODE · COMMUNITY RANKINGS</span><span>SEASON 01</span></div>
+    <p className="ch-standings-note">These standings apply to the team-match system. Free-for-all agent matches use individual results instead.</p>
     <Tabs idPrefix="standings" label="Team standings" value={view} onChange={setView} tabs={[{ id: 'top', label: 'Top teams' }, { id: 'queue', label: 'Match queue' }, { id: 'results', label: 'Recent results' }]}/>
     <TabPanel id="top" idPrefix="standings" active={view === 'top'}>
       <table className="sh-team-table"><thead><tr><th scope="col">RANK</th><th scope="col">TEAM</th><th scope="col">W / L</th><th scope="col">RATING</th></tr></thead><tbody>{snapshot.teams.filter((item) => item.rank > 0).slice(0, 6).map((item) => <tr key={item.id} className={item.rank === 1 ? 'sh-top-team' : ''}><td><span>{String(item.rank).padStart(2, '0')}</span></td><th scope="row"><button onClick={() => setSelectedTeam(selectedTeam === item.id ? null : item.id)} aria-expanded={selectedTeam === item.id} aria-label={`View ${item.symbol} team details`}><TeamMark id={item.id} color={item.color}/><span>{item.symbol}<small>{item.name}</small></span></button></th><td>{item.wins}<span> / {item.losses}</span></td><td>{item.rating.toLocaleString('en')}<small className={item.ratingDelta >= 0 ? 'sh-lime' : 'sh-pink'}>{item.ratingDelta >= 0 ? '↗ +' : '↘ '}{item.ratingDelta}</small></td></tr>)}</tbody></table>
