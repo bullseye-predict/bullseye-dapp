@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ganache from 'ganache';
-import { AbiCoder, BrowserProvider, Contract, ContractFactory, MaxUint256, TypedDataEncoder, Wallet, id } from 'ethers';
+import { AbiCoder, BrowserProvider, Contract, ContractFactory, MaxUint256, TypedDataEncoder, Wallet, hexlify, id } from 'ethers';
 import { compile } from '../scripts/compile.mjs';
 import { EvmChainGateway } from '../../../packages/adapters/evm/gateway.ts';
 import { evmOrderId } from '../../../packages/adapters/evm/orders.ts';
@@ -20,6 +20,20 @@ const resultFields = [
 const orderTuple = 'tuple(address maker,bytes32 marketId,uint8 outcomeId,uint8 side,uint64 price,uint128 quantity,uint256 nonce,uint64 expiry)';
 const coder = AbiCoder.defaultAbiCoder();
 const mined = async promise => (await promise).wait();
+const canonicalMatchId = ({ gameMode = 1, durationMinutes = 20, kickoff, nonce = 1n }) => {
+  const bytes = new Uint8Array(32);
+  bytes.set(Buffer.from('SOLZ'), 0); bytes[4] = 1; bytes[5] = gameMode;
+  new DataView(bytes.buffer).setUint16(6, durationMinutes, false);
+  new DataView(bytes.buffer).setBigUint64(8, BigInt(kickoff), false);
+  new DataView(bytes.buffer).setBigUint64(24, nonce, false);
+  return hexlify(bytes);
+};
+const canonicalQuestionId = ({ kind = 1, subject = 1n }) => {
+  const bytes = new Uint8Array(32);
+  bytes.set(Buffer.from('QUES'), 0); bytes[4] = 1; bytes[5] = kind;
+  new DataView(bytes.buffer).setBigUint64(24, subject, false);
+  return hexlify(bytes);
+};
 const reverts = async action => assert.rejects(async () => {
   const response = await action();
   if (response?.wait) await response.wait();
@@ -107,8 +121,40 @@ test('creation validates uniqueness, allowlists, roles, outcomes and timing', as
   await reverts(() => create(id('past'), ['A', 'B'], f.created));
   await reverts(() => create(id('expiry'), ['A', 'B'], f.lockTime, f.lockTime));
   await reverts(() => create(id('asset'), ['A', 'B'], f.lockTime, f.expiry, f.wallets[5].address));
+  await mined(f.factory.blockCollateral(f.collateral.target));
+  assert.equal(await f.factory.allowedCollateral(f.collateral.target), false);
+  assert.equal(await f.factory.blockedCollateral(f.collateral.target), true);
+  await reverts(() => create(id('blocked asset'), ['A', 'B']));
+  await reverts(() => f.factory.setAllowedCollateral(f.collateral.target, true));
+  await reverts(() => f.factory.blockCollateral(f.collateral.target));
   await reverts(() => f.factory.connect(f.signers[5]).setAllowedCollateral(f.wallets[5].address, true));
   await reverts(() => f.market.connect(f.signers[5]).registerMarket(id('fake'), id('fake match'), f.collateral.target, 2, f.lockTime, f.expiry, f.oracle.target));
+});
+
+test('first trader can lazily create independent questions under one canonical match', async t => {
+  const f = await fixture(t);
+  const kickoff = (await f.now()) + 600n;
+  const matchId = canonicalMatchId({ kickoff, durationMinutes: 20, nonce: 77n });
+  const winner = canonicalQuestionId({ kind: 1, subject: 1n });
+  const firstToKills = canonicalQuestionId({ kind: 2, subject: 12n });
+  await mined(f.factory.configureLazyMarkets(f.collateral.target, f.oracle.target, 3_600));
+  await reverts(() => f.factory.configureLazyMarkets(f.collateral.target, f.oracle.target, 7_200));
+
+  await mined(f.factory.connect(f.signers[3]).createQuestionMarket(matchId, winner));
+  await mined(f.factory.connect(f.signers[2]).createQuestionMarket(matchId, firstToKills));
+  const winnerMarket = await f.factory.marketForQuestion(matchId, winner);
+  const killsMarket = await f.factory.marketForQuestion(matchId, firstToKills);
+  assert.notEqual(winnerMarket, killsMarket);
+  assert.deepEqual(Array.from(await f.factory.outcomeLabels(winnerMarket)), ['YES', 'NO']);
+  const config = await f.market.getMarket(winnerMarket);
+  assert.equal(config.matchId, matchId);
+  assert.equal(config.outcomeCount, 2n);
+  assert.equal(config.tradingLockTime, kickoff);
+  assert.equal(config.expiry, kickoff + 20n * 60n + 3_600n);
+
+  await reverts(() => f.factory.createQuestionMarket(matchId, winner));
+  await reverts(() => f.factory.createQuestionMarket(id('not canonical'), canonicalQuestionId({ subject: 2n })));
+  await reverts(() => f.factory.createQuestionMarket(matchId, id('not canonical')));
 });
 
 test('three-outcome split and merge conserve collateral; users cannot mint or burn others', async t => {

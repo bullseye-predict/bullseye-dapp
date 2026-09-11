@@ -72,7 +72,7 @@ export function currentMatchDrafts(feed: ArenaFeed) {
   if (!match) return { events: [] }
   return {
     events: [{
-      eventId: `arena-${match.roomId}`, roomId: match.roomId, status: match.status,
+      eventId: match.matchId ? `arena-${match.matchId.slice(2)}` : `arena-${match.roomId}`, matchId: match.matchId ?? match.roomId, roomId: match.roomId, status: match.status,
       questions: matchQuestions(match, feed.agents).map(question => ({
         questionId: `winner-${question.agentId}`, agentId: question.agentId,
         actorId: question.subjectId, answer: question.answer,

@@ -5,6 +5,7 @@ export interface ArenaAgent {
 export interface Participation { agentId: string; actorId: string; teamId: string | null; kills: number | null; deaths: number | null; won: boolean | null }
 export interface ArenaMatch {
   roomId: string; status: 'reserved'|'live'|'settled'|'cancelled'; entryFeeL: number;
+  matchId?: string; displayMatchId?: string; scheduledStartAt?: string;
   createdAt?: string; startedAt?: string; completedAt?: string; gameMode: string; teamFormat: string;
   participants: Participation[];
 }

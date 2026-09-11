@@ -5,6 +5,8 @@ import { createSolzDataSource } from '../src/components/solz/solzDataSource'
 
 const agents = [{agentId:'genesis-01',slot:0,codename:'COKE',archetype:'BREACHER',balanceCentilitres:'100000'}]
 const match = {roomId:'real-match',status:'live' as const,entryFeeL:20,gameMode:'deathmatch',teamFormat:'ffa',participants:[{agentId:'genesis-01',actorId:'server-bot-0-0',teamId:null,kills:null,deaths:null,won:null}]}
+const canonicalMatchId = `0x534f4c5a01010014${'01'.repeat(24)}`
+const canonicalQuestionId = `0x515545530101${'02'.repeat(26)}`
 test('homepage reads Neon-backed prediction feed without requesting Elysia or sample data',async()=>{
   const calls:string[]=[]
   const read=createArenaFeed('/api/agent-arena', async input=>{calls.push(String(input));return Response.json({ok:true,agents,current:match,matches:[match]})},'https://prediction.test')
@@ -54,14 +56,15 @@ test('feed errors are surfaced, not replaced with fake markets',async()=>{
 })
 test('Neon event drafts replace the homepage match predictions with one YES/NO market per recorded agent', async () => {
   const base = await createSolzDataSource().load()
-  const feed = { agents, current: match, matches: [match], historyError: null, readAt: 1_700_000_000_000 }
+  const canonicalMatch = { ...match, matchId: canonicalMatchId }
+  const feed = { agents, current: canonicalMatch, matches: [canonicalMatch], historyError: null, readAt: 1_700_000_000_000 }
   const snapshot = applyPredictionArena(base, feed, { events: [{
-    eventId: 'arena-real-match', roomId: 'real-match', status: 'live', questions: [
-      { questionId: 'winner-genesis-01', agentId: 'genesis-01', actorId: 'server-bot-0-0', answer: null },
+    eventId: `arena-${canonicalMatchId.slice(2)}`, matchId: canonicalMatchId, roomId: 'real-match', status: 'live', questions: [
+      { questionId: canonicalQuestionId, agentId: 'genesis-01', actorId: 'server-bot-0-0', answer: null },
     ],
   }] })
-  expect(snapshot.highlightMatchId).toBe('arena-real-match')
+  expect(snapshot.highlightMatchId).toBe(`arena-${canonicalMatchId.slice(2)}`)
   expect(snapshot.markets).toHaveLength(1)
-  expect(snapshot.markets[0]).toMatchObject({ matchId: 'arena-real-match', title: 'Will COKE win?', status: 'indicative' })
+  expect(snapshot.markets[0]).toMatchObject({ id: canonicalQuestionId, matchId: `arena-${canonicalMatchId.slice(2)}`, title: 'Will COKE win?', status: 'indicative' })
   expect(snapshot.markets[0]?.outcomes.map(value => value.label)).toEqual(['YES', 'NO'])
 })

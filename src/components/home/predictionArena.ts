@@ -2,7 +2,7 @@ import type { ArenaFeed } from './arenaFeed'
 import type { ArenaMarket, GenesisAgent, MatchRosterEntry, SolzMatch, SolzSnapshot } from '../solz/model'
 
 type ArenaQuestion = { questionId: string; agentId: string; actorId: string; answer: 'YES' | 'NO' | 'VOID' | null }
-type ArenaEvent = { eventId: string; roomId: string; status: 'reserved' | 'live' | 'settled' | 'cancelled'; questions: ArenaQuestion[] }
+type ArenaEvent = { eventId: string; matchId: string; roomId: string; status: 'reserved' | 'live' | 'settled' | 'cancelled'; questions: ArenaQuestion[] }
 
 function timestamp(value: unknown, fallback: number) {
   const parsed = typeof value === 'string' ? Date.parse(value) : NaN
@@ -44,7 +44,7 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
     }
   })
   return {
-    id: `arena-${raw.roomId}`, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
+    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
     round: raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: phase(raw.status), startedAt,
     endsAt: timestamp(raw.completedAt, startedAt + 60 * 60_000), viewers: 0, marketId: `arena-${raw.roomId}`,
     volume: { SOL: 0, COOLA: 0 }, teams: [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }], roster,
@@ -61,7 +61,7 @@ function marketsFor(event: ArenaEvent, agents: GenesisAgent[], now: number): Are
     const settled = question.answer !== null
     const yes = question.answer === 'YES' ? 1 : question.answer === 'NO' || question.answer === 'VOID' ? 0 : .5
     return {
-      id: `${event.eventId}-${question.questionId}`, matchId: event.eventId, kind: 'match-winner',
+      id: question.questionId, matchId: event.eventId, kind: 'match-winner',
       title: `Will ${agent?.codename ?? question.agentId} win?`, description: 'Resolves from the recorded match result in Neon.',
       status: marketStatus(event), closesAt: settled ? now : Number.MAX_SAFE_INTEGER, volume: { SOL: 0, COOLA: 0 },
       outcomes: [
@@ -80,7 +80,7 @@ export function applyPredictionArena(base: SolzSnapshot, feed: ArenaFeed, events
   const matches = feed.matches.map(match => realMatch(match, agents, now))
   const drafts = (events as { events: ArenaEvent[] }).events
   const markets = drafts.flatMap(event => marketsFor(event, agents, now))
-  const currentId = feed.current ? `arena-${feed.current.roomId}` : matches[0]?.id
+  const currentId = feed.current ? (feed.current.matchId ? `arena-${feed.current.matchId.slice(2)}` : `arena-${feed.current.roomId}`) : matches[0]?.id
   return {
     ...base, updatedAt: now, highlightMatchId: currentId ?? base.highlightMatchId, matches, markets, agents,
     capabilities: { ...base.capabilities, orders: { ready: false, reason: 'Prediction questions are imported from Neon; trading is not enabled.' } },
