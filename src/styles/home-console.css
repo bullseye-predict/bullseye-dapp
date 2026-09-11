@@ -11,6 +11,12 @@
 .solz-home .ch-console .sh-console-body :focus-visible { outline-color: currentColor; }
 .solz-home .ch-console :is(.ch-console-trade, .ch-console-chat) { --ch-body: #171d21; --ch-ink: #edf1f4; --ch-muted: #aebcc6; --ch-field: #242e35; --ch-line: #3d4a53; }
 .solz-home .ch-console .ch-trade { color: var(--ch-ink); background: var(--ch-body); border-color: var(--ch-line); }
+.solz-home .ch-open-market { display: grid; gap: 9px; margin: 14px 0; padding: 12px; border: 1px dashed #5f6b7b; color: #dfe7f0; }
+.solz-home .ch-open-market > div { display: grid; gap: 4px; }
+.solz-home .ch-open-market strong { font-size: 12px; }
+.solz-home .ch-open-market :is(span, p) { color: #aeb9c8; font-size: 10px; line-height: 1.5; }
+.solz-home .ch-open-market button { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 11px; border: 1px solid #70a843; background: #1d2920; color: #c9f58b; font-weight: 600; }
+.solz-home .ch-open-market button:hover:not(:disabled) { background: #263c29; }
 .solz-home .ch-console .ch-trade-title span { color: var(--ch-muted); }
 .solz-home .ch-console .ch-trade-title strong { color: var(--ch-ink); }
 .solz-home .ch-console .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }

@@ -3,12 +3,13 @@
 .sz-site-header-inner { display: flex; align-items: center; gap: 40px; height: var(--site-header-height); max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); margin-inline: auto; }
 .sz-site-header .sh-logo { font-size: 49px; }
 .sz-site-header .sh-logo i { height: 30px; }
-.sz-site-header nav { display: flex; align-items: center; gap: 8px; }
+.sz-site-header nav { display: flex; align-items: center; flex: 1; min-width: 0; gap: 8px; }
+.sz-site-links { display: flex; align-items: center; gap: 8px; }
 .sz-site-header nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
 .sz-site-header nav a > span { padding-left: 8px; border-left: 1px solid currentColor; font-size: 9px; }
 .sz-site-header nav a:hover { background: #26282c; }
 .sz-site-header nav a.is-active { background: var(--sh-lime); color: #15180c; }
-.sz-site-header .sh-wallet { margin-left: auto; }
+.sz-site-header nav > .sh-wallet { margin-left: auto; flex-shrink: 0; }
 .sz-site-menu { display: none; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--sh-line); border-radius: 6px; color: var(--sh-text); background: transparent; }
 .solz-home section[id], .solz-home [id='event-title'], .solz-home main[id] { scroll-margin-top: calc(var(--site-header-height) + 24px); }
 @media (max-width: 1190px) {
@@ -17,8 +18,10 @@
   .sz-site-header nav a { font-size: 10px; padding-inline: 8px; }
 }
 @media (max-width: 1020px) {
-  .sz-site-header nav { display: none; position: absolute; top: 100%; inset-inline: 0; background: var(--sh-bg); padding: 16px var(--site-gutter); border-bottom: 1px solid var(--sh-line); }
-  .sz-site-header nav.is-open { display: flex; flex-wrap: wrap; }
+  .sz-site-header nav { display: none; position: absolute; top: 100%; inset-inline: 0; background: var(--sh-bg); padding: 16px var(--site-gutter) 18px; border-bottom: 1px solid var(--sh-line); }
+  .sz-site-header nav.is-open { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+  .sz-site-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .sz-site-header nav > .sh-wallet { margin: 0; padding-top: 16px; border-top: 1px solid var(--sh-line); }
   .sz-site-menu { display: flex; }
 }
 @media (max-width: 720px) {
@@ -26,12 +29,18 @@
   .sz-site-header-inner { gap: 16px; }
   .sz-site-header .sh-logo { font-size: 39px; }
   .sz-site-header .sh-logo i { height: 24px; width: 5px; }
-  .sz-site-header .sh-wallet button { font-size: 9px; padding-inline: 10px; }
+  .sz-site-header nav .sh-wallet .arena-wallet-status { display: grid; grid-template-columns: 1fr; gap: 9px; }
+  .sz-site-header nav .sh-wallet .ch-wallet-overview { width: 100%; }
+  .sz-site-header nav .sh-wallet .ch-wallet-overview > span { flex: 1; min-width: 0; padding: 10px; }
+  .sz-site-header nav .sh-wallet .arena-wallet-menu { width: 100%; }
+  .sz-site-header nav .sh-wallet .arena-wallet-menu summary { justify-content: center; min-height: 42px; }
+  .sz-site-header nav .sh-wallet .arena-wallet-menu > div { position: static; width: 100%; margin-top: 7px; }
+  .sz-site-header nav .sh-wallet .arena-wallet-button { width: 100%; min-height: 42px; }
 }
 @media (max-width: 390px) {
   .solz-home { --site-gutter: 12px; }
   .sz-site-header-inner { gap: 10px; }
-  .sz-site-header .sh-wallet button { font-size: 8px; padding-inline: 7px; }
+  .sz-site-header nav .sh-wallet button { font-size: 9px; padding-inline: 9px; }
 }
 
 .solz-home .sh-utility { padding-inline: max(var(--site-gutter), calc((100% - var(--site-content-width)) / 2)); }

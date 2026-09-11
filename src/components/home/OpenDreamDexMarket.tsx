@@ -1,0 +1,24 @@
+import { ArrowUpRight } from 'lucide-react'
+import { useState } from 'react'
+
+type Props = { apiUrl: string; eventId?: string; agentId?: string; onOpened: () => void }
+
+/** Explicit testnet operator action: market creation spends sponsored native gas. */
+export function OpenDreamDexMarket({ apiUrl, eventId, agentId, onOpened }: Props) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  if (!apiUrl || !eventId || !agentId?.startsWith('genesis-')) return null
+  async function open() {
+    if (busy) return
+    setBusy(true); setMessage('Opening the DreamDEX event contract…')
+    try {
+      const response = await fetch(new URL('/dreamdex/game-markets', apiUrl), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ eventId, agentId }) })
+      const result = await response.json()
+      if (!response.ok || !result.market?.marketId) throw Error(result.error ?? 'Market creation did not complete.')
+      setMessage('Event contract confirmed. Loading the market…')
+      onOpened()
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Market creation did not complete.') }
+    finally { setBusy(false) }
+  }
+  return <div className="ch-open-market"><div><strong>No event contract yet.</strong><span>Open this selected YES/NO question on Shannon with sponsored testnet gas. The first trade stays in this ticket after confirmation.</span></div><button type="button" onClick={() => void open()} disabled={busy}>{busy ? 'Opening market…' : 'Open market · sponsored'}<ArrowUpRight size={14}/></button>{message && <p role="status">{message}</p>}</div>
+}

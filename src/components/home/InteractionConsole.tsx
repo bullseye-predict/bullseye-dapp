@@ -6,6 +6,7 @@ import { predictionContract, type PredictionAnswer } from '../solz/predictionCon
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { PromptComposer } from './PromptComposer'
 import { TradeTicket } from './TradeTicket'
+import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
 
 export type ConsoleSection = 'trade' | 'automate' | 'prompt' | 'chat'
 type Props = {
@@ -15,6 +16,10 @@ type Props = {
   hideChat?: boolean; hidePrompt?: boolean; simulation?: boolean; answer?: PredictionAnswer; onAnswer?: (answer: PredictionAnswer) => void
   marketAvailable?: boolean
   tradingPanel?: ReactNode
+  collateralSymbol?: string
+  dreamDexApiUrl?: string
+  onDreamDexOpened?: () => void
+  evmWallet?: DynamicEvmWalletPort | null
 }
 function ConsolePanel({ name, title, icon, meta, active, onToggle, children }: { name: ConsoleSection; title: string; icon: ReactNode; meta: string; active: boolean; onToggle: () => void; children: ReactNode }) {
   return <section className={`sh-console-panel ch-console-accordion ch-console-${name} ${active ? 'is-open' : ''}`}>
@@ -23,7 +28,7 @@ function ConsolePanel({ name, title, icon, meta, active, onToggle, children }: {
   </section>
 }
 
-export function InteractionConsole({ source, snapshot, match, market, outcome, onOutcome, section, onSection, promptAgentId, intermission, hideChat = false, hidePrompt = false, simulation = true, answer: externalAnswer, onAnswer, marketAvailable = true, tradingPanel }: Props) {
+export function InteractionConsole({ source, snapshot, match, market, outcome, onOutcome, section, onSection, promptAgentId, intermission, hideChat = false, hidePrompt = false, simulation = true, answer: externalAnswer, onAnswer, marketAvailable = true, tradingPanel, collateralSymbol = 'COOLA', dreamDexApiUrl, onDreamDexOpened, evmWallet }: Props) {
   const [localAnswer, setLocalAnswer] = useState<PredictionAnswer>('yes')
   const answer = externalAnswer ?? localAnswer
   const selectAnswer = (next: PredictionAnswer) => { setLocalAnswer(next); onAnswer?.(next) }
@@ -52,7 +57,7 @@ export function InteractionConsole({ source, snapshot, match, market, outcome, o
 
 
   return <aside className="ch-console" aria-label="Match interaction console">
-    <ConsolePanel {...panel('trade')} title="Trade" icon={<ArrowUpRight size={16}/>} meta={tradingPanel ? 'ON-CHAIN' : simulation ? 'SIMULATION' : 'SIMULATION OFF'}>{tradingPanel ?? (marketAvailable ? <TradeTicket source={source} snapshot={snapshot} market={market} outcome={outcome} onOutcome={onOutcome} answer={answer} onAnswer={selectAnswer} simulation={simulation}/> : <div className="ch-console-empty" role="status"><strong>Prediction feed unavailable.</strong><span>The trade ticket will populate when match questions return. Other arena controls remain independent.</span></div>)}</ConsolePanel>
+    <ConsolePanel {...panel('trade')} title="Trade" icon={<ArrowUpRight size={16}/>} meta={tradingPanel ? 'ON-CHAIN' : simulation ? 'SIMULATION' : 'ON-CHAIN'}>{tradingPanel ?? (marketAvailable ? <TradeTicket evmWallet={evmWallet} collateralSymbol={collateralSymbol} dreamDexApiUrl={dreamDexApiUrl} onDreamDexOpened={onDreamDexOpened} source={source} snapshot={snapshot} market={market} outcome={outcome} onOutcome={onOutcome} answer={answer} onAnswer={selectAnswer} simulation={simulation}/> : <div className="ch-console-empty" role="status"><strong>Prediction feed unavailable.</strong><span>The trade ticket will populate when match questions return. Other arena controls remain independent.</span></div>)}</ConsolePanel>
     <ConsolePanel {...panel('automate')} title="Auto trader" icon={<Bot size={16}/>} meta={`${rules.filter((rule) => rule.status === 'armed').length} ARMED`}>
       {!marketAvailable ? <div className="ch-console-empty" role="status"><strong>No market to automate yet.</strong><span>Automation remains idle until a real prediction question is available.</span></div> : <><p className="sh-console-intro">An agent watches your selected prediction.</p>
       <form className="sh-form-stack" onSubmit={(event) => { event.preventDefault(); void perform('automate', async () => {

@@ -27,7 +27,7 @@ export interface DreamDexPublicConfig {
   label: string
   indexerUrl: string
   wsRpcUrl: string
-  markets: { eventId: string; questionId?: string; subjectId?: string; label: string; marketId: `0x${string}`; oracleQuestionId: string; tradingStartsAt: number; tradingLocksAt: number; voidPolicy: 0 | 2 }[]
+  markets: { eventId: string; questionId?: string; subjectId?: string; label: string; marketId: `0x${string}`; oracleQuestionId: string; tradingStartsAt: number; tradingLocksAt: number; voidPolicy: 0 | 2; creationTxHash?: `0x${string}`; sponsoredTransactions?: { label: string; hash: `0x${string}` }[] }[]
 }
 export interface PredictionPublicConfig {
   dreamdex?: DreamDexPublicConfig[]

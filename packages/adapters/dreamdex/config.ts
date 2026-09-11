@@ -46,6 +46,18 @@ export function parseDreamDexPublicConfig(
       "INVALID_CONFIG",
       "Event timing must be ordered whole seconds",
     );
+    const transactionHash = (value: unknown, field: string) => {
+      const hash = textField(value, field)
+      invariant(/^0x[0-9a-fA-F]{64}$/.test(hash), 'INVALID_CONFIG', 'Invalid DreamDEX transaction hash')
+      return hash as `0x${string}`
+    }
+    const sponsoredTransactions = m.sponsoredTransactions === undefined ? undefined : (() => {
+      invariant(Array.isArray(m.sponsoredTransactions), 'INVALID_CONFIG', 'Invalid sponsored transaction list')
+      return m.sponsoredTransactions.map((entry) => {
+        const tx = record(entry)
+        return { label: textField(tx.label, 'transaction label'), hash: transactionHash(tx.hash, 'transaction hash') }
+      })
+    })()
     return {
       eventId: textField(m.eventId, "eventId"),
       ...(m.questionId ? {questionId: textField(m.questionId, 'questionId')} : {}),
@@ -60,6 +72,8 @@ export function parseDreamDexPublicConfig(
       tradingStartsAt,
       tradingLocksAt,
       voidPolicy: voidPolicy as 0 | 2,
+      ...(m.creationTxHash ? { creationTxHash: transactionHash(m.creationTxHash, 'creationTxHash') } : {}),
+      ...(sponsoredTransactions ? { sponsoredTransactions } : {}),
     };
   });
   invariant(

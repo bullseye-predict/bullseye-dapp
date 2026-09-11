@@ -2,7 +2,7 @@ import '../../styles/home.css'
 import '../../styles/home-hero.css'
 import { ArrowRight, ArrowUpRight, Bot, ChartNoAxesCombined, Crosshair, Radio, Zap } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { DynamicSolanaSession, type DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
+import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from '../solz/model'
 import type { ArenaTokenConfig } from '../solz/tokenInfo'
@@ -18,15 +18,14 @@ import type { PredictionAnswer } from '../solz/predictionContracts'
 import { shouldShowSeason, type HighlightView } from './heroMarket'
 import { MarketSourceControls, type MarketSource, type SolanaCluster, type SomniaChain } from './MarketSourceControls'
 import { unpricedMarkets, useSomniaMarketPrices } from './useVenueMarketPrices'
-import { NetworkTrading } from '../prediction/NetworkTrading'
 
 type Props = { apiUrl?: string; dreamDexApiUrl?: string; environmentId: string; demoHref: string; liveHref: string; eventBasePath: string; tokenConfig: ArenaTokenConfig }
 
 export function HomeApp({ environmentId, apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBasePath, tokenConfig }: Props) {
-  return <DynamicSolanaSession environmentId={environmentId}>{(session) => <Home apiUrl={apiUrl} dreamDexApiUrl={dreamDexApiUrl} session={session} demoHref={demoHref} liveHref={liveHref} eventBasePath={eventBasePath} tokenConfig={tokenConfig} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+  return <DynamicSolanaSession environmentId={environmentId}>{(session) => <Home apiUrl={apiUrl} dreamDexApiUrl={dreamDexApiUrl} demoHref={demoHref} liveHref={liveHref} eventBasePath={eventBasePath} tokenConfig={tokenConfig} walletControl={session.walletControl} evmWallet={session.evmWallet}/>}</DynamicSolanaSession>
 }
 
-function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, eventBasePath, tokenConfig, walletControl }: Omit<Props, 'environmentId'> & { walletControl: ReactNode; session: DynamicSolanaSessionValue }) {
+function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBasePath, tokenConfig, walletControl, evmWallet }: Omit<Props, 'environmentId'> & { walletControl: ReactNode; evmWallet: import('../arena/DynamicSolanaSession').DynamicEvmWalletPort | null }) {
   const [marketSource, setMarketSource] = useState<MarketSource>('SOMNIA')
   const [solanaCluster, setSolanaCluster] = useState<SolanaCluster>('devnet')
   const [somniaChain, setSomniaChain] = useState<SomniaChain>('50312')
@@ -40,6 +39,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, e
   const [pinned, setPinned] = useState(false)
   const [section, setSection] = useState<ConsoleSection | null>('trade')
   const [promptAgentId, setPromptAgentId] = useState<string | undefined>()
+  const [dreamDexRefresh, setDreamDexRefresh] = useState(0)
   const highlight = useRef<HTMLElement>(null)
   const externalFeedPending = Boolean(apiUrl) && !predictionFeed
   const loadedMatch = snapshot?.matches.find((item) => item.id === (matchId || snapshot.highlightMatchId))
@@ -51,7 +51,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, e
   const season = !!(snapshot && match && shouldShowSeason(match.phase, match.endsAt, snapshot.updatedAt, pinned))
   const markets = useMemo(() => externalFeedPending ? [] : snapshot?.markets.filter((item) => season ? !item.matchId : item.matchId === match?.id) ?? [], [externalFeedPending, match?.id, season, snapshot?.markets])
   const predictionMarkets = useMemo(() => predictionFeed || !apiUrl ? markets : [], [apiUrl, markets, predictionFeed])
-  const somnia = useSomniaMarketPrices(dreamDexApiUrl || apiUrl, somniaChain, predictionMarkets, marketSource === 'SOMNIA')
+  const somnia = useSomniaMarketPrices(dreamDexApiUrl || apiUrl, somniaChain, predictionMarkets, marketSource === 'SOMNIA', dreamDexRefresh)
   const solanaMarkets = useMemo(() => unpricedMarkets(predictionMarkets), [predictionMarkets])
   const activeMarkets = marketSource === 'SOMNIA' ? somnia.markets : marketSource === 'SOLANA' ? solanaMarkets : predictionMarkets
   const market = activeMarkets.find((item) => item.id === marketId) ?? activeMarkets[0]
@@ -67,6 +67,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, e
     : marketSource === 'SOLANA'
       ? `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
       : somnia.status
+  const collateralSymbol = marketSource === 'SOMNIA' ? somniaChain === '50312' ? 'tUSDC' : 'USDso' : 'COOLA'
   const shellMarket: ArenaMarket | undefined = match ? {
     id: `${match.id}:prediction-feed`, matchId: match.id, kind: 'match-winner', title: 'Prediction questions unavailable',
     description: 'The arena remains available while its independent prediction feed reconnects.', status: 'indicative',
@@ -75,7 +76,6 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, e
   } : undefined
   const displayedMarket = market ?? shellMarket
   const displayedOutcome = outcome ?? shellMarket?.outcomes[0]
-  const gameTradingPanel = match && displayedOutcome && marketSource === 'SOMNIA' ? <NetworkTrading apiUrl={dreamDexApiUrl || apiUrl} network="SOMNIA" session={session} dreamDexOnly somniaChainId={somniaChain} eventId={match.id} subjectId={displayedOutcome.participantId ?? displayedOutcome.id} initialOutcome={displayedOutcome.id === 'no' || answer === 'no' ? 1 : 0}/> : undefined
   const marketAvailable = Boolean(market && outcome && activeMarkets.length)
 
   const toHighlight = () => highlight.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
@@ -96,7 +96,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', session, demoHref, liveHref, e
       <section className="sh-highlight-section" ref={highlight} id="highlight">
         <div className="sh-highlight-heading"><div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>{season ? 'SEASON 01 / LADDER' : `SEASON 01 / MATCH ${match?.id.split('-')[1] ?? '07'}`}</span></span><h1>{season ? 'SEASON HIGHLIGHT' : match?.kind === 'community' ? 'COMMUNITY MATCH' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1><p>The agents play. You make the call.</p></div></div>
         {snapshot && match && displayedMarket && displayedOutcome ? <>
-          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole tradingPanel={gameTradingPanel} marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
+          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole evmWallet={evmWallet} collateralSymbol={collateralSymbol} dreamDexApiUrl={dreamDexApiUrl || apiUrl} onDreamDexOpened={() => setDreamDexRefresh(value => value + 1)} marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
 
         </> : error ? <div className="sh-load-state" role="alert"><h2>The arena couldn’t load.</h2><p>{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="sh-loading" role="status"><div/><div/><span>Loading the arena…</span></div>}
       </section>

@@ -45,7 +45,7 @@ describe('real twelve-agent DreamDEX questions', () => {
     const binding = { eventId: 'arena-1234', subjectId: 'genesis-1' }
     db.query('INSERT INTO dreamdex_game_creations VALUES (?,?,?,?,?)').run(JSON.stringify(['arena-1234', 'genesis-1']), JSON.stringify(game), 'CONFIRMED', '0x123', JSON.stringify(binding))
     expect((await service.create('arena-1234', 'genesis-1')).market).toEqual(binding)
-    expect(new GameDemoService(db, creator, 'https://game.example').publicConfig().markets).toEqual([binding as never])
+    expect(new GameDemoService(db, creator, 'https://game.example').publicConfig().markets).toEqual([{ ...binding, creationTxHash: '0x123' } as never])
     db.query('INSERT INTO dreamdex_game_creations VALUES (?,?,?,?,?)').run(JSON.stringify(['arena-1234', 'genesis-2']), JSON.stringify(game), 'SUBMITTING', null, null)
     expect(service.create('arena-1234', 'genesis-2')).rejects.toThrow('reconciliation')
     db.close()

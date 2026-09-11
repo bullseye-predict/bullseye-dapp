@@ -18,13 +18,15 @@ export function SiteHeader({ homeHref, marketsHref, walletControl, active, onAre
     <div className="sz-site-header-inner">
       <a className="sh-logo" href={homeHref} aria-label="COOLA home">COOLA<span>®</span><i aria-hidden="true"/></a>
       <nav id="site-navigation" aria-label="Main navigation" className={open ? 'is-open' : ''}>
-        <a className={active === 'arena' ? 'is-active' : undefined} href={`${homeHref}#highlight`} onClick={() => { onArena?.(); close() }}>Arena <span>01</span></a>
-        <a className={active === 'markets' ? 'is-active' : undefined} href={marketsHref ?? `${homeHref}#highlight`} onClick={() => { onMarkets?.(); close() }}>Markets</a>
-        <a href={`${homeHref}#teams`} onClick={close}>Teams</a>
-        <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
-        <a href={`${homeHref}#enter-arena`} onClick={close}>Get in the arena <ArrowUpRight size={13}/></a>
+        <div className="sz-site-links">
+          <a className={active === 'arena' ? 'is-active' : undefined} href={`${homeHref}#highlight`} onClick={() => { onArena?.(); close() }}>Arena <span>01</span></a>
+          <a className={active === 'markets' ? 'is-active' : undefined} href={marketsHref ?? `${homeHref}#highlight`} onClick={() => { onMarkets?.(); close() }}>Markets</a>
+          <a href={`${homeHref}#teams`} onClick={close}>Teams</a>
+          <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
+          <a href={`${homeHref}#enter-arena`} onClick={close}>Get in the arena <ArrowUpRight size={13}/></a>
+        </div>
+        <div className="sh-wallet">{walletControl}</div>
       </nav>
-      <div className="sh-wallet">{walletControl}</div>
       <button className="sz-site-menu" aria-expanded={open} aria-controls="site-navigation" aria-label={open ? 'Close navigation' : 'Open navigation'} onClick={() => setOpen(!open)}>{open ? <X size={20}/> : <Menu size={20}/>}</button>
     </div>
   </header>

@@ -28,8 +28,8 @@ export class GameDemoService {
     database.exec('CREATE TABLE IF NOT EXISTS dreamdex_demo_funding (address TEXT PRIMARY KEY, token_hash TEXT, native_hash TEXT)')
   }
   publicConfig(): DreamDexPublicConfig {
-    const rows = this.database.query<{ binding: string }, []>("SELECT binding FROM dreamdex_game_creations WHERE status='CONFIRMED'").all()
-    return { ...this.creator.config, demoCreation: true, markets: rows.map(row => JSON.parse(row.binding)) }
+    const rows = this.database.query<{ binding: string; hash: Hex | null }, []>("SELECT binding, hash FROM dreamdex_game_creations WHERE status='CONFIRMED'").all()
+    return { ...this.creator.config, demoCreation: true, markets: rows.map(row => ({ ...JSON.parse(row.binding), ...(row.hash ? { creationTxHash: row.hash } : {}) })) }
   }
   async fund(address: string) {
     const to = getAddress(address), wallet = this.creator.wallet, rpc = this.creator.resources.client.getViemClient()
@@ -92,9 +92,12 @@ export class GameDemoService {
       this.database.query("UPDATE dreamdex_game_creations SET status='CONFIRMED', binding=? WHERE id=?").run(JSON.stringify(result.market), id)
       // Creation is already durable. Liquidity is a separate sponsored workflow;
       // never repeat market creation if one of these later transactions fails.
-      try { await this.creator.seed(result.market.marketId) }
-      catch (error) { return { ...result, liquidityWarning: error instanceof Error ? error.message : 'Starter liquidity unavailable; limit orders can still be placed.' } }
-      return result
+      try {
+        const sponsoredTransactions = await this.creator.seed(result.market.marketId)
+        const market = { ...result.market, sponsoredTransactions }
+        this.database.query("UPDATE dreamdex_game_creations SET binding=? WHERE id=?").run(JSON.stringify(market), id)
+        return { ...result, market }
+      } catch (error) { return { ...result, liquidityWarning: error instanceof Error ? error.message : 'Starter liquidity unavailable; limit orders can still be placed.' } }
     } finally { this.busy = false }
   }
 }

@@ -25,7 +25,7 @@ function bindingFor(market: ArenaMarket, bindings: ReturnType<typeof parseDreamD
   ))
 }
 
-export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sourceMarkets: ArenaMarket[], enabled: boolean): Result {
+export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sourceMarkets: ArenaMarket[], enabled: boolean, refreshKey = 0): Result {
   const [result, setResult] = useState<Result>({ markets: sourceMarkets, status: 'NOT CONNECTED' })
   const marketKey = useMemo(() => sourceMarkets.map((market) => `${market.id}:${market.matchId}:${market.title}`).join('|'), [sourceMarkets])
 
@@ -42,7 +42,9 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
 
     const load = async () => {
       try {
-        setResult({ markets: emptyMarkets, status: `${label} · CONNECTING` })
+        // Keep confirmed bindings visible while refreshing. Replacing them with
+        // an unbound placeholder every 30 seconds made an open event look closed.
+        setResult((previous) => ({ markets: previous.markets.length ? previous.markets : emptyMarkets, status: `${label} · CONNECTING` }))
         const raw = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]))
         const deployment = raw.dreamdex?.map(parseDreamDexPublicConfig).find((item) => item.chainId === chainId)
         if (!deployment) {
@@ -60,7 +62,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
         try {
           const markets = await Promise.all(linked.map(async ({ market, binding }) => {
             if (!binding) return market
-            const boundMarket: ArenaMarket = { ...market, closesAt: binding.tradingLocksAt, status: Date.now() >= binding.tradingLocksAt ? 'closed' : 'open', rules: 'YES pays if this agent is the recorded final winner; NO pays otherwise. DreamDEX OracleHub resolves from this room’s public final winner log. Uniform void payouts apply if no valid answer is finalized.', description: 'Real DreamDEX game event. Creation and wallet trading are separate transactions.' }
+            const boundMarket: ArenaMarket = { ...market, closesAt: binding.tradingLocksAt, status: Date.now() >= binding.tradingLocksAt ? 'closed' : 'open', rules: 'YES pays if this agent is the recorded final winner; NO pays otherwise. DreamDEX OracleHub resolves from this room’s public final winner log. Uniform void payouts apply if no valid answer is finalized.', description: 'Real DreamDEX game event. Creation and wallet trading are separate transactions.', onchain: { chainId: deployment.chainId, marketId: binding.marketId, oracleQuestionId: binding.oracleQuestionId, tradingStartsAt: binding.tradingStartsAt, tradingLocksAt: binding.tradingLocksAt, voidPolicy: binding.voidPolicy, indexerUrl: deployment.indexerUrl, wsRpcUrl: deployment.wsRpcUrl, creationTxHash: binding.creationTxHash, sponsoredTransactions: binding.sponsoredTransactions } }
             try {
               const candles = await new DreamDexBrowser(deployment, eventBinding(deployment, binding), resources).candles(0)
               if (!candles.length) return boundMarket
@@ -83,7 +85,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
           await resources.close()
         }
       } catch {
-        if (!controller.signal.aborted) setResult({ markets: emptyMarkets, status: `${label} · DATA UNAVAILABLE` })
+        if (!controller.signal.aborted) setResult((previous) => ({ markets: previous.markets.length ? previous.markets : emptyMarkets, status: `${label} · DATA UNAVAILABLE` }))
       } finally {
         if (!controller.signal.aborted) timer = setTimeout(load, 30_000)
       }
@@ -91,7 +93,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
 
     void load()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [apiUrl, chainId, enabled, marketKey])
+  }, [apiUrl, chainId, enabled, marketKey, refreshKey])
 
   return enabled ? result : { markets: sourceMarkets, status: '' }
 }

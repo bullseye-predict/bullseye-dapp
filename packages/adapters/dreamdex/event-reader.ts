@@ -6,6 +6,8 @@ import type { EventMarketScope, EventMarketVolume } from '../../prediction-core/
 
 /** Public Shannon endpoint used by browser-side DreamDEX reads and wallet network setup. */
 export const SOMNIA_SHANNON_PUBLIC_RPC_URL = 'https://dream-rpc.somnia.network'
+/** Shannon testnet collateral for every DreamDEX event market. */
+export const SOMNIA_SHANNON_TUSDC_ADDRESS = '0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E' as const
 
 export interface DreamDexEventBinding extends EventMarketScope {
   venue: 'DREAMDEX'
@@ -29,7 +31,9 @@ export function dreamDexNetwork(chainId: string) {
             default: { ...somniaShannon.rpcUrls.default, http: [SOMNIA_SHANNON_PUBLIC_RPC_URL] },
           },
         },
-        addresses: SOMNIA_TESTNET_ADDRESSES,
+        // Keep the arena's testnet collateral explicit: it is part of the
+        // on-chain market identity, not a presentation-only currency label.
+        addresses: { ...SOMNIA_TESTNET_ADDRESSES, collateral: SOMNIA_SHANNON_TUSDC_ADDRESS, testUsdc: SOMNIA_SHANNON_TUSDC_ADDRESS },
         collateralSymbol: 'tUSDC',
         collateralDecimals: 6,
       }

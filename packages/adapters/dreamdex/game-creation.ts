@@ -95,7 +95,7 @@ export class DreamDexGameCreator {
     if (!account) throw Error('The demo liquidity sponsor must be a server-side signer.')
     const market = await client.getMarketOnchain(marketId)
     if (market.status !== 1 || market.expiry <= (await rpc.getBlock()).timestamp) throw Error('The game is closed to new liquidity.')
-    if ((await client.getOwnOpenOrdersOnchain(market.pool, account.address)).length) return
+    if ((await client.getOwnOpenOrdersOnchain(market.pool, account.address)).length) return []
     const quantity = 10_000_000n
     if (await rpc.readContract({ address: market.collateral, abi: erc20Abi, functionName: 'balanceOf', args: [account.address] }) < quantity) throw Error('The demo sponsor needs tUSDC for starter liquidity.')
     const approval = await this.wallet.writeContract({ address: market.collateral, abi: erc20Abi, functionName: 'approve', args: [market.pool, quantity], account, chain: this.wallet.chain })
@@ -103,10 +103,13 @@ export class DreamDexGameCreator {
     const trader = client.createTrader({ walletClient: this.wallet as never, account: account as never, publicClient: rpc, gas: 50_000_000n })
     const mint = await trader.mintSet({ pool: market.pool, collateral: market.collateral, amount: quantity, autoApprove: false })
     if (mint.receipt.status !== 'success') throw Error('Starter liquidity mint failed.')
+    const transactions: { label: string; hash: Hex }[] = [{ label: 'Approve starter tUSDC', hash: approval }, { label: 'Mint starter outcome set', hash: mint.hash }]
     for (const side of ['SELL_YES', 'SELL_NO'] as const) {
       const order = await trader.placeOrder({ pool: market.pool, side, price: side === 'SELL_YES' ? 550_000n : 450_000n, quantity, expireTimestampNs: market.expiry * 1_000_000_000n, orderType: 0, collateral: market.collateral, outcomeToken: market.outcomeToken, yesId: market.yesId, noId: market.noId })
       if (order.receipt.status !== 'success' || order.orderId === undefined) throw Error('Starter liquidity did not rest on the book.')
+      transactions.push({ label: side === 'SELL_YES' ? 'Place starter YES ask' : 'Place starter NO ask', hash: order.hash })
     }
+    return transactions
   }
   async confirm(game: GameQuestion, hash: Hex): Promise<DreamDexPublicConfig['markets'][number]> {
     const receipt = await this.resources.client.getViemClient().waitForTransactionReceipt({ hash })

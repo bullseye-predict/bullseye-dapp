@@ -54,6 +54,15 @@ body { margin: 0; }
 .sh-wallet .arena-wallet-menu > div { position: absolute; z-index: 2; right: 0; top: calc(100% + 8px); padding: 6px; min-width: 190px; border: 1px solid #626671; background: #24272e; }
 .sh-wallet .arena-wallet-menu :is(button, a) { display: flex; justify-content: flex-start; align-items: center; gap: 8px; border: 0; width: 100%; min-height: 35px; padding: 8px; font-size: 10px; }
 .sh-wallet .arena-wallet-menu :is(button, a):hover { background: #383e47; }
+.sh-wallet .arena-wallet-status { display: flex; align-items: center; gap: 7px; }
+.sh-wallet .ch-wallet-overview { display: flex; align-items: stretch; align-self: stretch; border: 1px solid #42444c; }
+.sh-wallet .ch-wallet-overview > span { display: grid; align-content: center; gap: 3px; min-width: 90px; padding: 7px 11px; border-right: 1px solid #42444c; }
+.sh-wallet .ch-wallet-overview > span:last-child { border-right: 0; }
+.sh-wallet .ch-wallet-overview small { color: #9ca0ab; font-size: 7px; line-height: 1; text-transform: uppercase; }
+.sh-wallet .ch-wallet-overview b { color: #ededf1; font: 500 10px/1.2 var(--sh-mono); white-space: nowrap; }
+.sh-wallet .ch-wallet-network { display: flex !important; grid-template-columns: auto 1fr; align-items: center; gap: 7px; min-width: 122px !important; }
+.sh-wallet .ch-wallet-network > i { width: 6px; height: 6px; background: var(--sh-lime); box-shadow: 0 0 0 2px #20231a; }
+.sh-wallet .ch-wallet-network > span { display: grid; gap: 3px; }
 .sh-menu-button { display: none; background: none; border: 0; color: white; padding: 8px; }
 .sh-main { max-width: 1280px; padding: 34px 44px 0; margin: 0 auto; }
 .sh-highlight-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 23px; }

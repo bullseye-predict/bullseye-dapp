@@ -79,6 +79,8 @@ export type ArenaMarket = {
   volume: Record<SettlementToken, number>
   outcomes: ArenaMarketOutcome[]
   rules: string
+  /** Verified public identity for a venue-backed question; never contains a signer or key. */
+  onchain?: { chainId: '5031' | '50312'; marketId: `0x${string}`; oracleQuestionId: string; tradingStartsAt: number; tradingLocksAt: number; voidPolicy: 0 | 2; indexerUrl: string; wsRpcUrl: string; creationTxHash?: string; sponsoredTransactions?: { label: string; hash: string }[] }
 }
 
 export type ArenaFeedEvent = {

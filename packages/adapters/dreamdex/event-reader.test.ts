@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { DreamDexEventReader, dreamDexNetwork, type DreamDexEventBinding, type DreamDexEventReads } from './event-reader'
+import { DreamDexEventReader, dreamDexNetwork, SOMNIA_SHANNON_TUSDC_ADDRESS, type DreamDexEventBinding, type DreamDexEventReads } from './event-reader'
 import { eventMarketKey } from '../../prediction-core/event-market'
 import { parseDreamDexInspection } from '../../../apps/dreamdex/inspect'
 
@@ -32,6 +32,7 @@ describe('DreamDEX game-event adapter', () => {
     expect(network.collateralSymbol).toBe('USDso')
     expect(network.collateralDecimals).toBe(18)
     expect(dreamDexNetwork('50312').collateralSymbol).toBe('tUSDC')
+    expect(dreamDexNetwork('50312').addresses.collateral).toBe(SOMNIA_SHANNON_TUSDC_ADDRESS)
     expect(() => dreamDexNetwork('1')).toThrow('only for Somnia')
   })
   test('same match has independent market scope on each network', () => {
