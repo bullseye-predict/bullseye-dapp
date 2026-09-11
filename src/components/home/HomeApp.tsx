@@ -128,7 +128,7 @@ export function HomeApp({
   marketSources,
 }: Props) {
   return (
-    <DynamicSolanaSession environmentId={environmentId}>
+    <DynamicSolanaSession environmentId={environmentId} allowEvm={marketSources.includes('SOMNIA')}>
       {(session) => (
         <Home
           apiUrl={apiUrl}
