@@ -76,7 +76,7 @@ function fixture(indexerUrl = config.indexerUrl) {
       createTrader: () => ({
         placeOrder: async (p: any) => {
           orders.push(p);
-          return { hash: "0x01", receipt: { status: "success" } };
+          return { hash: "0x01", receipt: { status: "success" }, orderId: 1n, fills: [] };
         },
       }),
     },
@@ -115,6 +115,17 @@ function fixture(indexerUrl = config.indexerUrl) {
   };
 }
 describe("DreamDEX frontend integration", () => {
+  test("finalized markets retain recoverable expired orders, but never another pool generation", async () => {
+    const f = fixture();
+    f.market.finalized = true; f.market.isResolved = true; f.setStatus(4); f.setNow(70n);
+    const client = f.adapter.resources.client;
+    client.getOwnOpenOrdersOnchain = async () => [];
+    client.listSweepableOrders = async () => [{ market: marketId, orderId: '9' }] as never;
+    client.getOrderOnchain = async () => ({ orderId: 9n, owner, quantityRemaining: 1n }) as never;
+    expect((await f.adapter.snapshot(owner)).orders.map(order => order?.orderId)).toEqual([9n]);
+    f.setNonce(2n);
+    expect((await f.adapter.snapshot(owner)).orders).toEqual([]);
+  });
   test("prices NO orders in YES units at both collateral precisions", () => {
     for (const decimals of [6, 18]) {
       const scale = 10n ** BigInt(decimals),
@@ -291,6 +302,11 @@ test("indexed chart is scoped to the immutable event and inverts NO exactly", as
   } finally {
     server.stop(true);
   }
+});
+test('a mined IOC without fills is not reported as a successful trade', async () => {
+  const f = fixture();
+  f.adapter.client.createTrader = (() => ({ placeOrder: async () => ({ hash: '0x01', receipt: { status: 'success' }, fills: [] }) })) as never;
+  await expect(f.wallet.order({ side: 'BUY_YES', outcomePrice: 500000n, quantity: 1000000n, orderType: 2 })).rejects.toThrow('No order rested');
 });
 test("order approval covers only the selected outcome or exact collateral escrow", async () => {
   const buy = fixture();

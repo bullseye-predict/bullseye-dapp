@@ -26,3 +26,23 @@
 .pt-outcomes button:nth-child(2)[aria-pressed='true'] { color: #ff939e; border-color: #d65b6e; }
 .pt-side button:nth-child(1)[aria-pressed='true'] { color: #b8f773; }
 .pt-side button:nth-child(2)[aria-pressed='true'] { color: #ff939e; }
+.pt-embedded { width: 100%; min-width: 0; padding: 16px; color: #eef0f5; }
+.pt-embedded .pt-heading { margin-bottom: 18px; }
+.pt-embedded :is(.pt-heading,.pt-toolbar,.pt-market-status) { align-items: stretch; flex-direction: column; gap: 10px; }
+.pt-embedded .pt-toolbar > label { max-width: none; }
+.pt-embedded .pt-grid { grid-template-columns: minmax(0,1fr); gap: 20px; }
+.pt-embedded .pt-ticket { grid-row: 1; min-width: 0; padding: 14px; }
+.pt-embedded h2 { font-size: 16px; }
+.pt-embedded h3 { font-size: 13px; margin-top: 18px; }
+.pt-embedded label { display: grid; gap: 7px; color: #c0c3cc; font-size: 11px; }
+.pt-embedded :is(input,select) { width: 100%; min-width: 0; border: 1px solid #60636b; border-radius: 3px; background: #17191e; color: #eef0f5; padding: 10px; min-height: 42px; }
+.pt-embedded button { border: 1px solid #62656f; border-radius: 3px; color: #eef0f5; background: #23262d; padding: 9px 12px; min-height: 40px; }
+.pt-embedded button:hover:not(:disabled) { background: #343840; border-color: #c2c6d0; }
+.pt-embedded button:disabled { opacity: .5; cursor: not-allowed; }
+.pt-embedded :is(button,input,select):focus-visible { outline: 2px solid #b9d8ff; outline-offset: 3px; }
+.pt-embedded .pt-primary { width: 100%; color: #b8f773; border-color: #75b637; font-weight: 600; }
+.pt-embedded .pt-primary.pt-sell { color: #ff939e; border-color: #d65b6e; }
+.pt-embedded .pt-feedback { color: #c2e698; overflow-wrap: anywhere; }
+.pt-embedded .pt-chart-empty { min-height: 120px; }
+.pt-embedded .pt-empty { padding: 20px 12px; }
+.pt-embedded .pt-book :is(th,td) { padding: 10px 8px; }

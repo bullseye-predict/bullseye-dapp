@@ -60,6 +60,7 @@ export function NetworkTrading({
   somniaChainId,
   initialOutcome,
   renderEvmTerminal,
+  dreamDexOnly = false,
 }: {
   apiUrl: string;
   network: TradingNetwork;
@@ -69,6 +70,7 @@ export function NetworkTrading({
   somniaChainId?: '5031' | '50312';
   initialOutcome?: 0 | 1;
   renderEvmTerminal?: (venue: PublicPredictionVenue, audience: string, allowedMarketIds?: string[]) => ReactNode;
+  dreamDexOnly?: boolean;
 }) {
   const [config, setConfig] = useState<PredictionPublicConfig | null>(null),
     [error, setError] = useState(""),
@@ -96,7 +98,7 @@ export function NetworkTrading({
     void refresh();
     return () => { controller.abort(); clearTimeout(timer); };
   }, [apiUrl, retry]);
-  const venues = config?.venues.filter((v) => network === 'SOLANA' ? v.family === 'SOLANA' : v.family === 'EVM') ?? [];
+  const venues = config?.venues.filter((v) => network === 'SOLANA' ? v.family === 'SOLANA' : !dreamDexOnly && v.family === 'EVM' && (!somniaChainId || v.chainId === somniaChainId)) ?? [];
   const [selectedChain, setSelectedChain] = useState("");
   const venue = venues.find((v) => v.chainId === selectedChain) ?? venues[0];
   const allowedMarketIds = eventId
@@ -115,10 +117,11 @@ export function NetworkTrading({
       : venue;
   return (
     <section
-      id="network-trading-panel"
-      role="tabpanel"
-      aria-labelledby={`network-tab-${network}`}
-      className="ch-network-panel"
+      id={dreamDexOnly ? 'dreamdex-trading-panel' : 'network-trading-panel'}
+      role={dreamDexOnly ? 'region' : 'tabpanel'}
+      aria-label={dreamDexOnly ? 'DreamDEX event trading' : undefined}
+      aria-labelledby={dreamDexOnly ? undefined : `network-tab-${network}`}
+      className={dreamDexOnly ? 'ch-network-panel pt-embedded' : 'ch-network-panel'}
       tabIndex={0}
     >
       <header className="pt-heading">
@@ -164,11 +167,13 @@ export function NetworkTrading({
         renderEvmTerminal?.(venue, config.audience, allowedMarketIds)
       ) : network === "SOMNIA" ? (
         <DreamDexTerminal
+          creationApiUrl={apiUrl}
           deployments={config.dreamdex ?? []}
           eventId={eventId}
           subjectId={subjectId}
           chainId={somniaChainId}
           initialOutcome={initialOutcome}
+          evmWallet={session.evmWallet}
         />
       ) : !venue ? (
         <div className="pt-empty">

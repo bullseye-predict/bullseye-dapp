@@ -87,7 +87,9 @@ export function createDreamDexEventReader(config: { chainId: string; indexerUrl:
   invariant(['https:', 'http:'].includes(new URL(config.indexerUrl).protocol) && ['wss:', 'ws:'].includes(new URL(config.wsRpcUrl).protocol), 'INVALID_CONFIG', 'Invalid DreamDEX endpoint protocol.')
   // Copy chain data only: SDK/host viem versions can expose incompatible optional hooks.
   const { id, name, nativeCurrency, rpcUrls, blockExplorers } = network.chain
-  const exchange = new SomniaMarkets({ chain: { id, name, nativeCurrency, rpcUrls, blockExplorers }, addresses: network.addresses, indexerUrl: config.indexerUrl, wsRpcUrl: config.wsRpcUrl })
+  const exchange = new SomniaMarkets({ chain: { id, name, nativeCurrency, rpcUrls, blockExplorers }, addresses: network.addresses, indexerUrl: config.indexerUrl, wsRpcUrl: config.wsRpcUrl,
+    ...(config.chainId === '50312' ? { fees: { maxFeePerGas: 10_000_000_000n, maxPriorityFeePerGas: 2_000_000_000n } } : {}),
+  })
   const client = exchange.client
   const reader = new DreamDexEventReader(config.chainId, {
     getMarketOnchain: id => client.getMarketOnchain(id),

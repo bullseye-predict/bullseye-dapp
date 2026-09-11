@@ -19,7 +19,8 @@ export function PredictionOptions(props: Props) {
     <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id}/>)}</div>
   </div>
 }
-function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets }: Props & { item: ArenaMarket }) {
+function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, sourceLabel }: Props & { item: ArenaMarket }) {
+  const collateral = simulation ? 'COOLA' : sourceLabel === 'SOMNIA TESTNET' ? 'tUSDC' : sourceLabel === 'SOMNIA MAINNET' ? 'USDso' : 'collateral'
   const active = item.id === market.id
   const [open, setOpen] = useState(active)
   const [nestedOpen, setNestedOpen] = useState<string[]>([])
@@ -39,7 +40,7 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   }
   return <section className={`ch-option ${active ? 'is-selected' : ''}`}>
     <div className="ch-option-row">
-      <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{compact(item.volume.COOLA)} COOLA Vol.{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
+      <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{simulation ? `${compact(item.volume.COOLA)} COOLA Vol.` : `${collateral} · on-chain trading`}{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
       {!multiple && <div className="ch-option-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={active && outcome.id === pick.id} onClick={() => choose(pick)}><span>{pick.label}</span><b>{displayedPrice(pick)}</b></button>)}</div>}
     </div>
     <AnimatedCollapse id={`option-${item.id}`} labelledBy={`option-${item.id}-button`} open={open}>
@@ -53,9 +54,9 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
             <b>{displayedPrice(pick)}</b>
             <div>{(['yes', 'no'] as const).map((side) => <button className={`ch-answer is-${side}`} key={side} aria-label={`${side === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`} aria-pressed={active && picked && value === side} onClick={() => choose(pick, side)}><span className="ch-buy-label">Buy </span>{side === 'yes' ? 'Yes' : 'No'} <span>{displayedPrice(pick, side)}</span></button>)}</div>
           </div>
-          <AnimatedCollapse id={`outcome-${pick.id}`} labelledBy={`outcome-${pick.id}-button`} open={expanded}><PredictionDetail market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} nested onSelect={choose}/></AnimatedCollapse>
+          <AnimatedCollapse id={`outcome-${pick.id}`} labelledBy={`outcome-${pick.id}-button`} open={expanded}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} nested onSelect={choose}/></AnimatedCollapse>
         </section>
-      })}</div> : <PredictionDetail market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/>}
+      })}</div> : <PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/>}
     </AnimatedCollapse>
   </section>
 }

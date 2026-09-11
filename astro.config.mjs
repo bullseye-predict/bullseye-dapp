@@ -16,6 +16,8 @@ export default defineConfig({
   adapter: vercel(),
   output: 'server',
   vite: {
+    // Keep build optimization from replacing the dev server's JSX runtime.
+    cacheDir: process.env.NODE_ENV === 'production' ? 'node_modules/.vite-production' : 'node_modules/.vite-development',
     // Astro and Dynamic both consume React as a peer; one resolved identity keeps every hook on the renderer's dispatcher.
     resolve: {
       dedupe: ['react', 'react-dom'],

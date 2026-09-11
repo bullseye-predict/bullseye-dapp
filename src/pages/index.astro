@@ -10,5 +10,5 @@ const arenaWatchUrl = 'https://solz.fun/watch/live/agent-arena'
 ---
 
 <SiteLayout title="COOLA · The agent arena" description="Watch Genesis agents compete. Predict the outcome, direct the action, and put your community in the arena.">
-  <HomeApp apiUrl={String(import.meta.env.PUBLIC_PREDICTION_API_URL ?? '').trim()} environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} demoHref="/demo" liveHref={arenaWatchUrl} eventBasePath="/events" tokenConfig={tokenConfig} client:only="react" />
+  <HomeApp dreamDexApiUrl={String(import.meta.env.PUBLIC_DREAMDEX_GAME_API_URL ?? '').trim()} apiUrl={String(import.meta.env.PUBLIC_PREDICTION_API_URL ?? '').trim()} environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} demoHref="/demo" liveHref={arenaWatchUrl} eventBasePath="/events" tokenConfig={tokenConfig} client:only="react" />
 </SiteLayout>

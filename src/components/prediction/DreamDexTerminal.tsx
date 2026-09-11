@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EIP1193Provider } from "viem";
 import type { BinarySide } from "@somnia-chain/markets-sdk";
 import type {
   Candle,
@@ -14,6 +13,8 @@ import { eventBinding } from "../../../packages/adapters/dreamdex/config";
 import { dreamDexNetwork } from "../../../packages/adapters/dreamdex/event-reader";
 import { ConfirmedPriceChart } from "./ConfirmedPriceChart";
 import { formatUnitsExact, parseUnitsExact, priceLabel } from "./amounts";
+import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession';
+import { dynamicEvmProvider } from './dynamicEvmProvider';
 type Snapshot = Awaited<ReturnType<DreamDexBrowser["snapshot"]>>;
 export function DreamDexTerminal({
   deployments,
@@ -21,21 +22,32 @@ export function DreamDexTerminal({
   subjectId,
   chainId,
   initialOutcome = 0,
+  evmWallet,
+  creationApiUrl,
 }: {
   deployments: DreamDexPublicConfig[];
   eventId?: string;
   subjectId?: string;
   chainId?: '5031' | '50312';
   initialOutcome?: 0 | 1;
+  evmWallet: DynamicEvmWalletPort | null;
+  creationApiUrl?: string;
 }) {
   const [chain, setChain] = useState(deployments[0]?.chainId ?? "50312"),
     [id, setId] = useState("");
   const config = chainId ? deployments.find(c => c.chainId === chainId) : deployments.find((c) => c.chainId === chain) ?? deployments[0];
+  const [created, setCreated] = useState<DreamDexPublicConfig['markets']>([]);
+  const [pastGames, setPastGames] = useState(false);
+  const allMarkets = [...(config?.markets ?? []), ...(config?.chainId === '50312' ? created.filter(m => !config.markets.some(c => c.marketId === m.marketId)) : [])];
+  const pastMarkets = allMarkets.filter(m => m.eventId !== eventId && m.tradingLocksAt <= Date.now() && (!subjectId || m.subjectId === subjectId));
   const markets =
-      config?.markets.filter((m) => (!eventId || m.eventId === eventId) && (!subjectId || m.subjectId === subjectId)) ?? [],
+      pastGames ? pastMarkets : allMarkets.filter((m) => (!eventId || m.eventId === eventId) && (!subjectId || m.subjectId === subjectId)),
     market = markets.find((m) => m.marketId === id) ?? markets[0];
   return (
     <>
+      {eventId && (pastMarkets.length > 0 || pastGames) && <button type="button" aria-pressed={pastGames} onClick={() => { setPastGames(value => !value); setId(''); }}>
+        {pastGames ? 'Return to current game' : 'Past game positions & settlement'}
+      </button>}
       <div className="pt-toolbar">
         {config && !chainId && (
           <label>
@@ -64,7 +76,7 @@ export function DreamDexTerminal({
             >
               {markets.map((m) => (
                 <option key={m.marketId} value={m.marketId}>
-                  {m.label}
+                  {m.label}{pastGames ? ` · ${new Date(m.tradingLocksAt).toLocaleString()}` : ''}
                 </option>
               ))}
             </select>
@@ -85,6 +97,7 @@ export function DreamDexTerminal({
             Create the game’s oracle question and register its confirmed
             event-contract ID.
           </p>
+          {!pastGames && config.chainId === '50312' && config.demoCreation && creationApiUrl && eventId && subjectId?.startsWith('genesis-') && <OpenGameQuestion key={`${eventId}:${subjectId}`} apiUrl={creationApiUrl} eventId={eventId} agentId={subjectId} onCreated={m => setCreated(previous => [...previous.filter(p => p.marketId !== m.marketId), m])}/>}
         </div>
       ) : (
         <DreamEvent
@@ -92,19 +105,43 @@ export function DreamDexTerminal({
           config={config}
           market={market}
           initialOutcome={initialOutcome}
+          evmWallet={evmWallet}
+          creationApiUrl={creationApiUrl}
         />
       )}
     </>
   );
 }
+function OpenGameQuestion({ apiUrl, eventId, agentId, onCreated }: { apiUrl: string; eventId: string; agentId: string; onCreated: (m: DreamDexPublicConfig['markets'][number]) => void }) {
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
+  const pending = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  async function create() {
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setMessage('Opening this game question on Shannon…');
+    try {
+      const response = await fetch(new URL('/dreamdex/game-markets', apiUrl), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ eventId, agentId }) });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.error ?? 'Creation did not complete.');
+      if (result.market?.eventId !== eventId || result.market?.subjectId !== agentId) throw Error('The confirmed question does not match this selection.');
+      if (alive.current) { onCreated(result.market); setMessage(`Event created: ${result.hash}`); }
+    } catch (e) { if (alive.current) setMessage(e instanceof Error ? e.message : 'Creation did not complete. Refresh before retrying.'); }
+    finally { pending.current = false; if (alive.current) setBusy(false); }
+  }
+  return <><p>The demo operator pays to open this agent’s YES/NO game question. Then connect your Dynamic wallet to trade with test tokens in a separate transaction.</p><button className="pt-primary" disabled={busy} onClick={() => void create()}>{busy ? 'Opening game question…' : 'Open this game question · sponsored'}</button>{message && <p role="status">{message}</p>}</>;
+}
 function DreamEvent({
   config,
   market,
   initialOutcome,
+  evmWallet,
+  creationApiUrl,
 }: {
   config: DreamDexPublicConfig;
   market: DreamDexPublicConfig["markets"][number];
   initialOutcome: 0 | 1;
+  evmWallet: DynamicEvmWalletPort | null;
+  creationApiUrl?: string;
 }) {
   const adapter = useMemo(
     () => new DreamDexBrowser(config, eventBinding(config, market)),
@@ -143,25 +180,19 @@ function DreamEvent({
   } | null>(null);
   const alive = useRef(true),
     pending = useRef(false);
+  const connectionGeneration = useRef(0);
   useEffect(() => {
     alive.current = true;
-    const provider = (window as Window & { ethereum?: EIP1193Provider })
-      .ethereum;
-    const changed = () => {
-      walletRef.current?.dispose();
-      setWallet(null);
-      setReview(null);
-      setMessage("Wallet changed. Connect again to continue.");
-    };
-    provider?.on?.("accountsChanged", changed);
-    provider?.on?.("chainChanged", changed);
+    connectionGeneration.current++;
+    walletRef.current?.dispose();
+    setWallet(null);
+    setReview(null);
     return () => {
       alive.current = false;
+      connectionGeneration.current++;
       walletRef.current?.dispose();
-      provider?.removeListener?.("accountsChanged", changed);
-      provider?.removeListener?.("chainChanged", changed);
     };
-  }, []);
+  }, [evmWallet]);
   useEffect(() => {
     let current = true,
       loading = false;
@@ -246,12 +277,11 @@ function DreamEvent({
   };
   const connect = () =>
     void run(async () => {
-      const provider = (window as Window & { ethereum?: EIP1193Provider })
-        .ethereum;
-      if (!provider)
-        throw new Error("Install or open an EVM wallet to connect to Somnia");
+      if (!evmWallet) throw new Error('Use the Dynamic wallet control above to connect an EVM wallet.');
+      const generation = connectionGeneration.current;
+      const provider = await dynamicEvmProvider(evmWallet, config.chainId);
       const next = await adapter.connect(provider);
-      if (!alive.current) {
+      if (!alive.current || generation !== connectionGeneration.current) {
         next.dispose();
         return "";
       }
@@ -297,7 +327,7 @@ function DreamEvent({
             : data.market.isVoided
               ? "Voided"
               : data.market.isResolved
-                ? "Resolved"
+                ? `Resolved · ${data.market.winningOutcome === 0 ? 'YES' : 'NO'} wins`
                 : closed
                   ? "Closed to trading"
                   : "Trading open"}{" "}
@@ -373,7 +403,7 @@ function DreamEvent({
           {data && !bids?.length && !asks?.length && (
             <p className="pt-empty">No available orders for this event.</p>
           )}
-          <h3>Your open orders</h3>
+          <h3>{closed ? 'Your orders to recover' : 'Your open orders'}</h3>
           {!wallet ? (
             <p>Connect a wallet to see orders.</p>
           ) : data?.orders.length ? (
@@ -394,7 +424,7 @@ function DreamEvent({
                         )
                       }
                     >
-                      Cancel
+                      {closed ? 'Recover escrow' : 'Cancel'}
                     </button>
                   </div>
                 ),
@@ -473,6 +503,10 @@ function DreamEvent({
                 onChange={(e) => setPrice(e.target.value)}
               />
             </label>
+            {(side === 'BUY' ? asks?.[0] : bids?.[0]) && <button type="button" onClick={() => {
+              const best = side === 'BUY' ? asks![0]! : bids![0]!;
+              setPrice(formatUnitsExact(best.price * 100n, decimals, 4));
+            }}>Use best {side === 'BUY' ? 'ask' : 'bid'}</button>}
             {data?.pool && (
               <p>
                 Maker fee {fee(data.pool.params.makerFeeBpsTimes1k)} · taker fee{" "}
@@ -481,7 +515,7 @@ function DreamEvent({
               </p>
             )}
             <p>No additional frontend builder fee is configured.</p>
-            <button className="pt-primary" disabled={unavailable || closed}>
+            <button className={`pt-primary ${side === 'SELL' ? 'pt-sell' : ''}`} disabled={unavailable || closed}>
               Review order
             </button>
           </form>
@@ -500,7 +534,7 @@ function DreamEvent({
                 before placing the order.
               </p>
               <button
-                className="pt-primary"
+                className={`pt-primary ${review.side.startsWith('SELL') ? 'pt-sell' : ''}`}
                 disabled={unavailable || closed}
                 onClick={() =>
                   void run(
@@ -520,6 +554,10 @@ function DreamEvent({
             </p>
           )}
           <h3>Wallet balances</h3>
+          {config.chainId === '50312' && config.demoCreation && creationApiUrl && <button disabled={!wallet || busy} onClick={() => void run(async () => {
+            const response = await fetch(new URL('/dreamdex/faucet', creationApiUrl), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ address: wallet!.owner }) });
+            const result = await response.json(); if (!response.ok) throw Error(result.error ?? 'Test funding unavailable.'); return result.message;
+          })}>Get demo test tokens & gas</button>}
           <dl className="pt-totals">
             {[symbol, "YES", "NO"].map((label, i) => (
               <div key={label}>
@@ -578,8 +616,8 @@ function DreamEvent({
             </p>
           </details>
           <p className="pt-muted">
-            Game-result submission and automated trading agents are separate
-            operator integrations.
+            Game outcomes are resolved by the configured oracle. Automated
+            trading agents are a separate integration.
           </p>
         </aside>
       </div>

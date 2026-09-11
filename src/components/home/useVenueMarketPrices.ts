@@ -60,13 +60,14 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
         try {
           const markets = await Promise.all(linked.map(async ({ market, binding }) => {
             if (!binding) return market
+            const boundMarket: ArenaMarket = { ...market, closesAt: binding.tradingLocksAt, status: Date.now() >= binding.tradingLocksAt ? 'closed' : 'open', rules: 'YES pays if this agent is the recorded final winner; NO pays otherwise. DreamDEX OracleHub resolves from this room’s public final winner log. Uniform void payouts apply if no valid answer is finalized.', description: 'Real DreamDEX game event. Creation and wallet trading are separate transactions.' }
             try {
               const candles = await new DreamDexBrowser(deployment, eventBinding(deployment, binding), resources).candles(0)
-              if (!candles.length) return market
+              if (!candles.length) return boundMarket
               const history = candles.map((candle) => ({ at: candle.timestamp, probability: Number(candle.close) / 1_000_000 }))
               const probability = history.at(-1)?.probability ?? .5
               return {
-                ...market,
+                ...boundMarket,
                 outcomes: market.outcomes.map((outcome, index) => ({
                   ...outcome,
                   probability: index === 0 ? probability : 1 - probability,
@@ -74,7 +75,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
                 })),
               }
             } catch {
-              return market
+              return boundMarket
             }
           }))
           if (!controller.signal.aborted) setResult({ markets, status: `${label} · ${bound} / ${sourceMarkets.length} BOUND` })

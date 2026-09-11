@@ -70,6 +70,7 @@ export function parseDreamDexPublicConfig(
   );
   return {
     chainId: chainId as DreamDexPublicConfig["chainId"],
+    ...(chainId === '50312' && c.demoCreation === true ? { demoCreation: true } : {}),
     label: textField(c.label, "label"),
     indexerUrl: url("indexerUrl", ["http:", "https:"]),
     wsRpcUrl: url("wsRpcUrl", ["ws:", "wss:"]),

@@ -22,6 +22,7 @@ export interface PublicPredictionVenue {
   explorerUrl?: string
 }
 export interface DreamDexPublicConfig {
+  demoCreation?: boolean
   chainId: '5031' | '50312'
   label: string
   indexerUrl: string

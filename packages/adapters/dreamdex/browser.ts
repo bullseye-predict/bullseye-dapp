@@ -123,11 +123,23 @@ export class DreamDexBrowser {
         depth: 10,
         decimals: market.decimals,
       });
-      if (owner) {
-        const ids = await this.client.getOwnOpenOrdersOnchain(
+    } else if (owner) {
+      // Finalization moves backing, but resting-order escrow still needs to be
+      // cancelled. Keep those orders visible until this pool is recycled.
+      try { pool = await this.pool(market); }
+      catch (error) {
+        if (!(error instanceof Error) || !error.message.includes('pool has been recycled')) throw error;
+      }
+    }
+      if (owner && pool) {
+        const liveIds = await this.client.getOwnOpenOrdersOnchain(
           market.pool,
           owner,
         );
+        const expired = state.now >= this.binding.tradingLocksAt
+          ? await this.client.listSweepableOrders({ pool: market.pool, owner, asOfSec: Math.floor(state.now / 1000), limit: 101 })
+          : [];
+        const ids = [...new Set([...liveIds, ...expired.filter(order => order.market.toLowerCase() === this.binding.marketId.toLowerCase()).map(order => BigInt(order.orderId))])];
         if (ids.length > 100)
           throw new Error(
             "More than 100 open orders; use the operator tool to manage this account",
@@ -136,7 +148,6 @@ export class DreamDexBrowser {
           ids.map((id) => this.client.getOrderOnchain(market.pool, id)),
         );
       }
-    }
     const balances = owner
       ? await Promise.all([
           rpc.readContract({
@@ -232,7 +243,7 @@ export class DreamDexBrowser {
         };
       });
   }
-  async connect(provider: EIP1193Provider) {
+  async connect(provider: Pick<EIP1193Provider, 'request'>) {
     const [address] = (await provider.request({
       method: "eth_requestAccounts",
     })) as string[];
@@ -277,7 +288,7 @@ export class DreamDexBrowserWallet {
   private active = true;
   constructor(
     readonly adapter: DreamDexBrowser,
-    private provider: EIP1193Provider,
+    private provider: Pick<EIP1193Provider, 'request'>,
     readonly owner: Address,
   ) {}
   dispose() {
@@ -405,6 +416,8 @@ export class DreamDexBrowserWallet {
     } satisfies PlaceOrderParams);
     if (receipt.receipt.status !== "success")
       throw new Error(`Order failed: ${receipt.hash}`);
+    if (receipt.orderId === undefined && !receipt.fills.some(fill => fill.quantityFilled > 0n))
+      throw new Error(`No order rested and no shares filled. Try a limit order or another price. Transaction: ${receipt.hash}`);
     return receipt.hash;
   }
   async cancel(orderId: bigint) {
