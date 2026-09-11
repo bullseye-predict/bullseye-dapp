@@ -19,10 +19,12 @@ export type DynamicSolanaSessionValue = {
 
 type Props = {
   environmentId: string
+  /** Enables the optional Somnia/EVM wallet flow. Solana is always available. */
+  allowEvm?: boolean
   children: (session: DynamicSolanaSessionValue) => ReactNode
 }
 
-export function DynamicSolanaSession({ children, environmentId }: Props) {
+export function DynamicSolanaSession({ children, environmentId, allowEvm = false }: Props) {
   if (!environmentId) {
     return children({
       wallet: null,
@@ -33,5 +35,5 @@ export function DynamicSolanaSession({ children, environmentId }: Props) {
   }
 
   // Both arena routes are client-only because Dynamic owns browser wallet transports; keeping one React island also prevents a second hook dispatcher.
-  return <DynamicSolanaSessionClient environmentId={environmentId}>{children}</DynamicSolanaSessionClient>
+  return <DynamicSolanaSessionClient environmentId={environmentId} allowEvm={allowEvm}>{children}</DynamicSolanaSessionClient>
 }

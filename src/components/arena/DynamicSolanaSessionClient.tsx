@@ -20,6 +20,7 @@ type SessionValue = {
 type Props = {
   children: (session: SessionValue) => ReactNode
   environmentId: string
+  allowEvm: boolean
 }
 
 // Somnia is not yet available in Dynamic's dashboard network catalogue. Keep it
@@ -41,7 +42,7 @@ function compactAddress(address: string) {
   return address.length > 11 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address
 }
 
-function WalletControl() {
+function WalletControl({ allowEvm }: Pick<Props, 'allowEvm'>) {
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, handleLogOut, showAuthFlow, user } = useDynamicContext()
   const [copied, setCopied] = useState(false)
   const { authenticateUser } = useAuthenticateConnectedUser()
@@ -68,13 +69,13 @@ function WalletControl() {
   if (!primaryWallet) {
     return <button className="arena-wallet-button" type="button" onClick={() => setShowAuthFlow(true)} aria-haspopup="dialog"><WalletCards size={15} aria-hidden="true" />{showAuthFlow ? 'Sign-in open' : user ? 'Connect wallet' : 'Log in / Connect'}</button>
   }
-  const evm = isEthereumWallet(primaryWallet)
+  const evm = allowEvm && isEthereumWallet(primaryWallet)
   const evmWallet = evm ? { address: primaryWallet.address, getWalletClient: (chainId?: string) => primaryWallet.getWalletClient(chainId) } : null
   const profile = profileHref(evm ? 'somnia' : 'solana', evm ? 'testnet' : 'devnet', primaryWallet.address)
   return <div className="arena-wallet-status">{evmWallet && <SomniaWalletBalances compact wallet={evmWallet}/>}<details className="arena-wallet-menu"><summary aria-label={`Dynamic account ${compactAddress(primaryWallet.address)}`}><i /><span>Dynamic · {compactAddress(primaryWallet.address)}</span></summary><div><a href={profile}><UserRound size={14} aria-hidden="true" /> Profile</a><button type="button" onClick={() => void navigator.clipboard.writeText(primaryWallet.address).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={evm ? `https://shannon-explorer.somnia.network/address/${primaryWallet.address}` : `https://solscan.io/account/${primaryWallet.address}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> {evm ? 'Somnia explorer' : 'Solscan'}</a><button type="button" onClick={() => void handleLogOut()}><LogOut size={14} aria-hidden="true" /> Log out</button></div></details></div>
 }
 
-function DynamicSessionContent({ children }: Pick<Props, 'children'>) {
+function DynamicSessionContent({ children, allowEvm }: Pick<Props, 'children' | 'allowEvm'>) {
   const { primaryWallet, sdkHasLoaded, user } = useDynamicContext()
   const sessionState = getWalletSessionState(sdkHasLoaded, Boolean(user), Boolean(primaryWallet))
   const wallet = useMemo<LiveArenaWalletPort | null>(() => {
@@ -82,27 +83,27 @@ function DynamicSessionContent({ children }: Pick<Props, 'children'>) {
     return { address: primaryWallet.address, getConnection: () => primaryWallet.getConnection(), getSigner: () => primaryWallet.getSigner() }
   }, [primaryWallet, sessionState])
   const evmWallet = useMemo<DynamicEvmWalletPort | null>(() => {
-    if (sessionState !== 'ready' || !primaryWallet || !isEthereumWallet(primaryWallet)) return null
+    if (!allowEvm || sessionState !== 'ready' || !primaryWallet || !isEthereumWallet(primaryWallet)) return null
     return { address: primaryWallet.address, getWalletClient: chainId => primaryWallet.getWalletClient(chainId) }
-  }, [primaryWallet, sessionState])
-  return children({ wallet, evmWallet, walletAddress: wallet?.address ?? evmWallet?.address, walletReady: sessionState === 'ready' && Boolean(wallet ?? evmWallet), walletControl: <WalletControl /> })
+  }, [allowEvm, primaryWallet, sessionState])
+  return children({ wallet, evmWallet, walletAddress: wallet?.address ?? evmWallet?.address, walletReady: sessionState === 'ready' && Boolean(wallet ?? evmWallet), walletControl: <WalletControl allowEvm={allowEvm} /> })
 }
 
-export default function DynamicSolanaSessionClient({ children, environmentId }: Props) {
+export default function DynamicSolanaSessionClient({ children, environmentId, allowEvm }: Props) {
   return (
     <DynamicContextProvider settings={{
       environmentId,
-      walletConnectors: [SolanaWalletConnectors, EthereumWalletConnectors],
-      overrides: {
+      walletConnectors: allowEvm ? [SolanaWalletConnectors, EthereumWalletConnectors] : [SolanaWalletConnectors],
+      ...(allowEvm ? { overrides: {
         // Preserve dashboard-enabled networks while adding Somnia Testnet.
         evmNetworks: dashboardNetworks => mergeNetworks([somniaTestnet], dashboardNetworks),
-      },
+      } } : {}),
       // Predictions need an authenticated wallet owner, so Dynamic requests a chain-native sign-in proof instead of stopping at a silent connection.
       initialAuthenticationMode: 'connect-and-sign',
       appName: 'SOLZ / ODDS',
       shadowDOMEnabled: true,
     }}>
-      <DynamicSessionContent>{children}</DynamicSessionContent>
+      <DynamicSessionContent allowEvm={allowEvm}>{children}</DynamicSessionContent>
     </DynamicContextProvider>
   )
 }
