@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/Bonasa-Tech/manifest.git",
+  "commit": "d218ba6ee138bfb40867ed9fcff4380d0c42f071",
+  "license": "GPL-3.0",
+  "toolsVersion": "v1.54",
+  "scope": "Customized Manifest core. Upstream audit claims do not cover these changes. Global and reverse orders are disabled."
+}

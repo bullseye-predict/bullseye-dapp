@@ -1,0 +1,78 @@
+{
+  "owner": "0x68AEe9a579A14599A749e81B29C3Ad031F432F0F",
+  "completed": [
+    "operator",
+    "venue",
+    "creator",
+    "enable",
+    "series",
+    "reactivity",
+    "fund",
+    "roll"
+  ],
+  "operatorId": 22,
+  "venueId": "0x6891b01528b646d3d0e273b7a56a751ccd9937f93c4f054a2a00404bb4fe6462",
+  "creator": "0xC9eB52fe60c4a8192DC3cd66262860EAf9801ab9",
+  "policy": "0xffeE00B5FA40E5E3A06A23236DFeD76cA86AB1d5",
+  "transactions": [
+    {
+      "step": "operator",
+      "hash": "0xf99e28caf36d9159571f256399056fe9614a7707e72eb6ec7d8cf4af1a4856e0"
+    },
+    {
+      "step": "venue",
+      "hash": "0x01f69fbf1422c7befedc42f3147765c557abc5e8870dc1da60edf8899e211253"
+    },
+    {
+      "step": "creator",
+      "hash": "0x2676c96535b69ed5a8dc72bb0807df3f10786df85044ef6e0a4417f982f7ffd3"
+    },
+    {
+      "step": "creator",
+      "hash": "0x8506a670f1ed9e9a8d1784060d3eef2b1271eb205957f436ca43242abc19d1e2"
+    },
+    {
+      "step": "enable",
+      "hash": "0x6accb878dee0f111ddb6724e8f3a76452d3b696b501c3f248a890bacd2fa927e"
+    },
+    {
+      "step": "series",
+      "hash": "0xbb1271804034b7fbc54d59cf222bca27c05d636512f4e5708fa392ec3f66f667"
+    },
+    {
+      "step": "reactivity",
+      "hash": "0xe6c6d5ba95477cafe9d4b64011be19a2342f86f891894d4135b192b121b86d70"
+    },
+    {
+      "step": "fund",
+      "hash": "0x4fc6dc9b1ab7a798c8c29e0074fd75b2096870de0491948657c8102cc0a50099"
+    },
+    {
+      "step": "roll",
+      "hash": "0x22316485349e06651ce77091447e3953382e72ebe5f279b2e7a5355ab8c62ddf"
+    },
+    {
+      "step": "reactivity",
+      "hash": "0xb130254868fc721daa1efe25c95a539b9d3ff9d9201ddd59c08383a62a2bafe3"
+    },
+    {
+      "step": "fund",
+      "hash": "0x6e9a5fc61bcda30f37e138f3a5a49e0aca4457159a2500caeb0c277e4cf48b20"
+    },
+    {
+      "step": "roll",
+      "hash": "0xe9ce7423480554c1327d5060b2ea09e7ea22544c735d918347dd9f1e402d1e56"
+    }
+  ],
+  "halted": true,
+  "disableVenueTransaction": "0xd212f0cde979080637a9cbb1ddd1b5fe679bd95c6e578c23050834bcc7848713",
+  "market": {
+    "eventId": "dreamdex-demo:0x0000000000000000000000000000000000000000000000000000000000019cc5",
+    "marketId": "0x0000000000000000000000000000000000000000000000000000000000019cc5",
+    "label": "BTC closes at or above its opening price",
+    "oracleQuestionId": "53920",
+    "tradingStartsAt": 1789100711000,
+    "tradingLocksAt": 1789101000000,
+    "voidPolicy": 0
+  }
+}
