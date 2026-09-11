@@ -29,6 +29,9 @@
 .solz-home .ch-console .ch-trade-action { background: var(--ch-body); bottom: 0; }
 .solz-home .ch-console .ch-trade > .ch-trade-feedback { color: #7ceaab; }
 .solz-home .ch-console .ch-trade > .ch-trade-feedback.is-error { color: #ff9baa; }
+.ch-console-empty { min-height: 260px; display: grid; align-content: center; gap: 8px; padding: 22px; color: var(--ch-ink); }
+.ch-console-empty strong { font-size: 13px; }
+.ch-console-empty span { color: var(--ch-muted); font-size: 10px; line-height: 1.6; }
 .solz-home .ch-console .ch-holdings { border-color: var(--ch-line); }
 .solz-home .ch-console .ch-holdings summary { color: var(--ch-ink); }
 .solz-home .ch-console .ch-holdings :is(small, summary > span) { color: var(--ch-muted); }

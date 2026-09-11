@@ -11,13 +11,13 @@ export interface ArenaFeed {
 
 /**
  * The Genesis arena is a fixed twelve-agent channel. Older game responses for
- * a newly reserved room omit the participant projection even though that
- * reservation already contains every Genesis agent. Keep this reconstruction
- * confined to that documented twelve-agent reservation case.
+ * a reserved or live room omit the participant projection even though that
+ * fixed channel already contains every Genesis agent. Keep this reconstruction
+ * confined to the documented twelve-agent Genesis channel.
  */
 function reservedGenesisRoster(match: ArenaMatch, agents: ArenaAgent[], policy: unknown): ArenaMatch {
   const participantCount = (policy as { participants?: unknown } | undefined)?.participants
-  if (match.status !== 'reserved' || match.participants.length || participantCount !== 12 || agents.length !== 12) return match
+  if (!['reserved', 'live'].includes(match.status) || match.participants.length || participantCount !== 12 || agents.length !== 12) return match
   return {
     ...match,
     participants: agents.map(agent => ({

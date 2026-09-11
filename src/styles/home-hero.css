@@ -14,6 +14,9 @@
 .ch-market-empty strong { font-size: 15px; }
 .ch-market-empty span { max-width: 48ch; color: #9ca8ba; font-size: 11px; line-height: 1.55; }
 .ch-chart-empty { min-height: 340px; margin-top: 14px; }
+.ch-panel-empty { min-height: 100%; border: 0; }
+.ch-options-empty { min-height: 100%; padding: 18px; }
+.ch-options-empty .ch-market-empty { min-height: 280px; margin-top: 14px; }
 .ch-simulation-toggle { display: inline-flex; align-items: center; gap: 9px; padding: 7px 0 7px 10px; background: transparent; border: 0; color: #d8dce5; font-size: 10px !important; }
 .ch-simulation-toggle b { margin-left: 6px; color: #d2ef98; font-size: 8px; }
 .ch-switch-track { width: 30px; height: 17px; padding: 3px; background: #3f454f; border: 1px solid #6f7987; border-radius: 10px; }

@@ -16,7 +16,7 @@ const timeLabel = (at: number, long: boolean) => new Date(at).toLocaleString('en
 export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, referenceMarket, focusOnly = false }: Props) {
   const displayMarket = !simulation && referenceMarket ? referenceMarket : market
   const focus = resolvePredictionContract(displayMarket, outcome.id) ?? outcome
-  const series = focusOnly ? [focus] : displayMarket.outcomes
+  const series = (focusOnly ? [focus] : displayMarket.outcomes).filter((item): item is ArenaMarketOutcome => Boolean(item))
   const hasPriceHistory = series.some(item => (item.priceHistory?.length ?? 0) > 0)
   const long = !market.matchId
   const [range, setRange] = useState('ALL')
@@ -39,11 +39,13 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const plotWidth = Math.max(1, size.width - 44)
   const plotHeight = Math.max(1, size.height - 40)
   const windows: Record<string, number> = { '1M': 60_000, '5M': 300_000, '15M': 900_000, '1D': 86_400_000, '1W': 604_800_000, ALL: Infinity }
-  const end = Math.max(...series.flatMap((item) => item.priceHistory?.map((point) => point.at) ?? [snapshot.updatedAt]))
-  const allStart = Math.min(...series.flatMap((item) => item.priceHistory?.map((point) => point.at) ?? [end - 60_000]))
+  const historyTimes = series.flatMap((item) => item.priceHistory?.map((point) => point.at) ?? [])
+  const end = historyTimes.length ? Math.max(...historyTimes) : snapshot.updatedAt
+  const allStart = historyTimes.length ? Math.min(...historyTimes) : end - 60_000
   const start = Math.max(allStart, end - (windows[range] ?? Infinity))
   const duration = Math.max(1, end - start)
   const visibleProbabilities = series.flatMap((item) => [item.probability, ...(item.priceHistory ?? []).filter((point) => point.at >= start).map((point) => point.probability)])
+  if (!visibleProbabilities.length) visibleProbabilities.push(.5)
   const minimum = Math.min(...visibleProbabilities), maximum = Math.max(...visibleProbabilities)
   const padding = Math.max(.025, (maximum - minimum) * .15)
   const lower = scale === 'focus' ? Math.max(0, Math.floor((minimum - padding) * 20) / 20) : 0
@@ -52,12 +54,13 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const y = (p: number) => 12 + (upper - p) / Math.max(.05, upper - lower) * plotHeight
   const hoverAt = hover === null ? null : start + hover * duration
   const colorFor = (item: ArenaMarketOutcome, index: number) => colors?.[item.id] ?? (focusOnly ? '#51b6ff' : outcomeColor(item, snapshot, index))
-  return <div className="ch-chart" aria-label={`${market.title} ${focusOnly ? focus.label : 'all outcomes'} ${simulation ? 'simulated' : 'reference'} probability chart`}>
-    <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? 'SIMULATION' : 'REFERENCE SAMPLE'}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
+  const hasPrice = (item: ArenaMarketOutcome) => simulation || (item.priceHistory?.length ?? 0) > 0
+  return <div className="ch-chart" aria-label={`${market.title} ${focusOnly ? focus.label : 'all outcomes'} ${simulation ? 'simulated' : 'live'} probability chart`}>
+    <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? 'SIMULATION' : hasPriceHistory ? 'LIVE MARKET' : 'AWAITING PRICES'}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
     {dates && <div className="ch-date-tabs" aria-label="Prediction closing date">{dates.map((item) => <button key={item.id} aria-pressed={market.id === item.id} onClick={() => { setRange('ALL'); onMarket(item) }}>{timeLabel(item.closesAt, true)}</button>)}</div>}
     {!focusOnly && <h2>{market.title}</h2>}
-    {focusOnly && <div className="ch-chart-focus"><strong>{percent(focus.probability)} chance</strong><span>{focus.label}</span></div>}
-    {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{percent(item.probability)}</b></button>)}</div>}
+    {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(focus) ? `${percent(focus.probability)} chance` : 'No price yet'}</strong><span>{focus.label}</span></div>}
+    {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{hasPrice(item) ? percent(item.probability) : '—'}</b></button>)}</div>}
     {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><strong>No match prices yet.</strong><span>These 12 linked winner questions will share this match view once live quotes or trades exist.</span></div> : <><div className="ch-chart-controls">
       <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
       <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>

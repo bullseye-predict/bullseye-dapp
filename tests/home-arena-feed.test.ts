@@ -36,6 +36,18 @@ test('a real reserved Genesis room missing its legacy roster still exposes all t
   expect(currentMatchDrafts(feed).events[0]?.questions[0]).toMatchObject({ agentId: 'genesis-01', answer: null })
   expect(calls).toEqual(['agents', 'current'])
 })
+test('a live Genesis room whose current endpoint omits participants still creates all twelve winner drafts', async () => {
+  const genesisAgents = Array.from({ length: 12 }, (_, slot) => ({ agentId: `genesis-${String(slot + 1).padStart(2, '0')}`, slot, codename: `AGENT ${slot + 1}`, archetype: 'ARENA', balanceCentilitres: '100000' }))
+  const live = { roomId: 'live-room', status: 'live', entryFeeL: 20, gameMode: 'deathmatch', teamFormat: 'ffa' }
+  const read = createArenaFeed('/api/agent-arena', async input => {
+    const kind = new URL(String(input), 'http://localhost').searchParams.get('kind')
+    if (kind === 'agents') return Response.json({ ok: true, agents: genesisAgents })
+    return Response.json({ ok: true, policy: { participants: 12 }, match: live })
+  }, '', true)
+  const feed = await read(new AbortController().signal)
+  expect(feed.current?.participants).toHaveLength(12)
+  expect(currentMatchDrafts(feed).events[0]?.questions).toHaveLength(12)
+})
 test('feed errors are surfaced, not replaced with fake markets',async()=>{
   const read=createArenaFeed('/api/agent-arena',async()=>new Response('',{status:503}),'https://prediction.test')
   await expect(read(new AbortController().signal)).rejects.toThrow('503')

@@ -38,13 +38,28 @@ function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenCo
   const [section, setSection] = useState<ConsoleSection | null>('trade')
   const [promptAgentId, setPromptAgentId] = useState<string | undefined>()
   const highlight = useRef<HTMLElement>(null)
-  const match = snapshot?.matches.find((item) => item.id === (matchId || snapshot.highlightMatchId))
+  const externalFeedPending = Boolean(apiUrl) && !predictionFeed
+  const loadedMatch = snapshot?.matches.find((item) => item.id === (matchId || snapshot.highlightMatchId))
+  const match: SolzMatch | undefined = externalFeedPending && snapshot ? {
+    id: 'arena-feed-pending', kind: 'highlight', mode: 'ARENA', map: 'GENESIS AGENT ARENA', round: 'AWAITING FEED', phase: 'countdown',
+    startedAt: snapshot.updatedAt, endsAt: snapshot.updatedAt + 60 * 60_000, viewers: 0, marketId: 'arena-feed-pending',
+    volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
+  } : loadedMatch
   const season = !!(snapshot && match && shouldShowSeason(match.phase, match.endsAt, snapshot.updatedAt, pinned))
-  const markets = snapshot?.markets.filter((item) => season ? !item.matchId : item.matchId === match?.id) ?? []
+  const markets = externalFeedPending ? [] : snapshot?.markets.filter((item) => season ? !item.matchId : item.matchId === match?.id) ?? []
   const market = markets.find((item) => item.id === marketId) ?? markets[0]
   const outcome = market?.outcomes.find((item) => item.id === outcomeId) ?? market?.outcomes[0]
   const predictionMarkets = predictionFeed || !apiUrl ? markets : []
   const simulationEnabled = simulation && !predictionFeed && !apiUrl
+  const shellMarket: ArenaMarket | undefined = match ? {
+    id: `${match.id}:prediction-feed`, matchId: match.id, kind: 'match-winner', title: 'Prediction questions unavailable',
+    description: 'The arena remains available while its independent prediction feed reconnects.', status: 'indicative',
+    closesAt: match.endsAt, volume: { SOL: 0, COOLA: 0 }, rules: 'No market is available until the prediction feed returns.',
+    outcomes: [{ id: 'unavailable', label: 'AWAITING FEED', detail: 'No prediction price is available.', probability: 0, priceHistory: [] }],
+  } : undefined
+  const displayedMarket = market ?? shellMarket
+  const displayedOutcome = outcome ?? shellMarket?.outcomes[0]
+  const marketAvailable = Boolean(market && outcome && predictionMarkets.length)
 
   const toHighlight = () => highlight.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
   const chooseMatch = (next: SolzMatch) => { setAnswer('yes'); setPinned(false); setMarketId(''); setMatchId(next.id); setOutcomeId(''); setPromptAgentId(undefined); setView('live'); setSection('trade'); toHighlight() }
@@ -63,8 +78,8 @@ function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenCo
     <main className="sh-main">
       <section className="sh-highlight-section" ref={highlight} id="highlight">
         <div className="sh-highlight-heading"><div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>{season ? 'SEASON 01 / LADDER' : `SEASON 01 / MATCH ${match?.id.split('-')[1] ?? '07'}`}</span></span><h1>{season ? 'SEASON HIGHLIGHT' : match?.kind === 'community' ? 'COMMUNITY MATCH' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1><p>The agents play. You make the call.</p></div></div>
-        {snapshot && match && market && outcome ? <>
-          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`network-tab-${network}`}><TradeContextBar networkControls={<NetworkTabs network={network} onChange={setNetwork}/>} simulation={simulationEnabled} onSimulationChange={setSimulation} liveMatchCount={snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer referenceMarkets={referenceSnapshot?.markets} simulation={simulationEnabled} answer={answer} detailHref={season ? undefined : `${eventBasePath}/${encodeURIComponent(match.id)}`} match={match} market={market} markets={predictionMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={outcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole key={match.id} source={source} snapshot={snapshot} match={match} market={market} outcome={outcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
+        {snapshot && match && displayedMarket && displayedOutcome ? <>
+          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`network-tab-${network}`}><TradeContextBar networkControls={<NetworkTabs network={network} onChange={setNetwork}/>} simulation={simulationEnabled} onSimulationChange={setSimulation} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={predictionMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole marketAvailable={marketAvailable} key={match.id} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
 
         </> : error ? <div className="sh-load-state" role="alert"><h2>The arena couldn’t load.</h2><p>{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="sh-loading" role="status"><div/><div/><span>Loading the arena…</span></div>}
       </section>
