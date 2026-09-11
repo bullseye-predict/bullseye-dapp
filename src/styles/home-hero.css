@@ -671,6 +671,9 @@
 .ch-intermission-copy > span { color: var(--sh-lime, #c2f838); font: 700 9px/1 var(--sh-mono); letter-spacing: .1em; }
 .ch-intermission-copy h2 { margin: 12px 0 14px; font-size: clamp(28px, 3.4vw, 46px); line-height: .98; text-transform: uppercase; }
 .ch-intermission-copy h2 b { display: block; color: var(--sh-lime, #c2f838); }
+.ch-intermission-time { display: flex; align-items: baseline; gap: 9px; margin: -2px 0 13px; font-family: var(--sh-mono); }
+.ch-intermission-time > span, .ch-intermission-time > small { color: #858c98; font-size: 7px; font-weight: 700; }
+.ch-intermission-time > strong { color: #eef0f4; font-size: 22px; letter-spacing: -.02em; }
 .ch-intermission-copy p { max-width: 49ch; color: #b8bec8; font-size: 11px; line-height: 1.65; }
 .ch-intermission-copy > strong { display: inline-block; margin-top: 19px; border: 1px solid #59606b; padding: 8px 10px; font: 700 8px/1 var(--sh-mono); }
 .ch-intermission-roster { align-self: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }

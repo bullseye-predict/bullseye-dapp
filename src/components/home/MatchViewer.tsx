@@ -10,11 +10,30 @@ import { HeroActivity } from './HeroActivity'
 import { matchLabel, teamLabel, type HighlightView } from './heroMarket'
 
 // Stable source identity keeps market ticks independent from playback.
-const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc }: { source?: string; iframeSrc: string }) {
+type ArenaBroadcastStatus = { state: 'intermission' | 'preparing' | 'live' | 'unavailable'; endsAt: number | null; generatedAt: number; matchId: string | null; receivedAt: number }
+
+const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArenaStatus }: { source?: string; iframeSrc: string; onArenaStatus?: (status: ArenaBroadcastStatus) => void }) {
   const [failed, setFailed] = useState(false)
   const [mode, setMode] = useState<'iframe' | 'video'>('iframe')
+  const iframe = useRef<HTMLIFrameElement>(null)
+  useEffect(() => {
+    if (!onArenaStatus || typeof window === 'undefined') return
+    let expectedOrigin = ''
+    try { expectedOrigin = new URL(iframeSrc, window.location.href).origin } catch { return }
+    const receive = (event: MessageEvent) => {
+      if (event.source !== iframe.current?.contentWindow || event.origin !== expectedOrigin) return
+      const value = event.data as Partial<ArenaBroadcastStatus> & { type?: string; version?: number }
+      if (value?.type !== 'solz:agent-arena-status' || value.version !== 1 || !['intermission', 'preparing', 'live', 'unavailable'].includes(String(value.state))) return
+      const generatedAt = Number(value.generatedAt)
+      const endsAt = value.endsAt === null ? null : Number(value.endsAt)
+      if (!Number.isFinite(generatedAt) || (endsAt !== null && !Number.isFinite(endsAt))) return
+      onArenaStatus({ state: value.state!, generatedAt, endsAt, matchId: typeof value.matchId === 'string' ? value.matchId : null, receivedAt: Date.now() })
+    }
+    window.addEventListener('message', receive)
+    return () => window.removeEventListener('message', receive)
+  }, [iframeSrc, onArenaStatus])
   return <>
-    {mode === 'video' && source && !failed ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('iframe') }}/> : <iframe className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/>}
+    {mode === 'video' && source && !failed ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('iframe') }}/> : <iframe ref={iframe} className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/>}
     <div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button aria-pressed={mode === 'iframe'} onClick={() => setMode('iframe')}>Arena</button><button disabled={!source} aria-pressed={mode === 'video'} onClick={() => setMode('video')}>Video</button></div>
   </>
 })
@@ -50,6 +69,8 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const frame = useRef<HTMLDivElement>(null)
   const [fullscreenError, setFullscreenError] = useState('')
   const [detail, setDetail] = useState<ArenaMarket | null>(null)
+  const [broadcastStatus, setBroadcastStatus] = useState<ArenaBroadcastStatus | null>(null)
+  const [clock, setClock] = useState(() => Date.now())
   const dialog = useRef<HTMLDialogElement>(null)
   const elapsed = formatClock(snapshot.updatedAt - match.startedAt)
   useEffect(() => { if (detail && !dialog.current?.open) dialog.current?.showModal() }, [detail])
@@ -62,18 +83,29 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const boardOutcome = board.outcomes.find(item => item.id === market.id) ?? board.outcomes[0]
   const intermission = match.phase === 'countdown'
   const matchCode = `#A-${match.id.replace(/^arena-/, '').replace(/-/g, '').slice(0, 4).toUpperCase()}`
+  useEffect(() => { setBroadcastStatus(null) }, [match.id])
+  useEffect(() => {
+    if (!intermission || !broadcastStatus?.endsAt) return
+    const timer = window.setInterval(() => setClock(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [broadcastStatus?.endsAt, intermission])
+  const serverDeadline = broadcastStatus?.endsAt
+    ? broadcastStatus.receivedAt + Math.max(0, broadcastStatus.endsAt - broadcastStatus.generatedAt)
+    : null
+  const remainingMs = serverDeadline === null ? null : Math.max(0, serverDeadline - clock)
+  const remaining = remainingMs === null ? '--:--' : `${String(Math.floor(remainingMs / 60_000)).padStart(2, '0')}:${String(Math.floor(remainingMs % 60_000 / 1_000)).padStart(2, '0')}`
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
     <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
-          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)}/><div className="sh-broadcast-shade" aria-hidden="true"/>
+          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)} onArenaStatus={setBroadcastStatus}/><div className="sh-broadcast-shade" aria-hidden="true"/>
           <div className="sh-broadcast-top"><span className="sh-preview-chip">{intermission ? 'NEXT MATCH RESERVED' : match.streamUrl ? 'LIVE BROADCAST' : 'ARENA EMBED'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
           {!intermission && <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
             {match.teams.map((team, index) => <div key={team.teamId} style={{ color: team.color }}><TeamMark id={team.teamId} color={team.color}/><strong>{teamLabel(team.symbol)}</strong><b>{String(team.score).padStart(2, '0')}</b>{index === 0 && match.teams.length === 2 && <span className="ch-score-center"><small>{match.round}</small><strong>{elapsed}</strong><small>{match.mode}</small></span>}</div>)}
           </div>}
-          {intermission ? <div className="ch-intermission" role="status"><div className="ch-intermission-copy"><span>5-MINUTE INTERMISSION</span><h2>Next match <b>{matchCode}</b></h2><p>The room is reserved and all entrants are prepared. Trading can open before kickoff as soon as this network’s 12 event markets are provisioned.</p><strong>{match.roster.length} / 12 AGENTS CONFIRMED</strong></div><div className="ch-intermission-roster" aria-label="Next match agent roster">{match.roster.map((entry) => { const agent = snapshot.agents.find((item) => item.id === entry.agentId); return <div key={entry.agentId}><AgentPortrait number={agent?.number ?? Number(entry.agentId.split('-')[1])}/><span><strong>{entry.codename}</strong><small>{agent?.archetype ?? 'GENESIS AGENT'}</small></span></div> })}</div><small className="ch-intermission-lock">SERVER TIME LOCKS EACH QUESTION AT MATCH START</small></div> : <div className="sh-broadcast-bottom"><div><span className="sh-map-label"><Crosshair size={14}/> COOLA / GENESIS SERIES</span><h2>{match.phase === 'settled' ? 'MATCH COMPLETE' : match.map}</h2><div className="ch-broadcast-roster">{match.roster.map((entry) => <span title={entry.codename} key={entry.agentId}><AgentPortrait number={Number(entry.agentId.split('-')[1])}/></span>)}<span>{match.roster.length} CAN AGENTS <span>/ {match.phase === 'settled' ? 'INTERMISSION' : match.mode}</span></span></div></div><div className="ch-broadcast-actions"><a href={liveHref}>Live arena <ArrowUpRight size={12}/></a><button className="sh-icon-button" onClick={fullscreen} aria-label="Full screen broadcast"><Maximize size={17}/></button></div></div>}
+          {intermission ? <div className="ch-intermission" role="status"><div className="ch-intermission-copy"><span>5-MINUTE INTERMISSION</span><h2>Next match <b>{matchCode}</b></h2><div className="ch-intermission-time"><span>STARTS IN</span><strong>{remaining}</strong><small>{serverDeadline ? 'SERVER CLOCK' : 'SYNCING SERVER CLOCK'}</small></div><p>The room is reserved and all entrants are prepared. Trading can open before kickoff as soon as this network’s 12 event markets are provisioned.</p><strong>{match.roster.length} / 12 AGENTS CONFIRMED</strong></div><div className="ch-intermission-roster" aria-label="Next match agent roster">{match.roster.map((entry) => { const agent = snapshot.agents.find((item) => item.id === entry.agentId); return <div key={entry.agentId}><AgentPortrait number={agent?.number ?? Number(entry.agentId.split('-')[1])}/><span><strong>{entry.codename}</strong><small>{agent?.archetype ?? 'GENESIS AGENT'}</small></span></div> })}</div><small className="ch-intermission-lock">SERVER TIME LOCKS EACH QUESTION AT MATCH START</small></div> : <div className="sh-broadcast-bottom"><div><span className="sh-map-label"><Crosshair size={14}/> COOLA / GENESIS SERIES</span><h2>{match.phase === 'settled' ? 'MATCH COMPLETE' : match.map}</h2><div className="ch-broadcast-roster">{match.roster.map((entry) => <span title={entry.codename} key={entry.agentId}><AgentPortrait number={Number(entry.agentId.split('-')[1])}/></span>)}<span>{match.roster.length} CAN AGENTS <span>/ {match.phase === 'settled' ? 'INTERMISSION' : match.mode}</span></span></div></div><div className="ch-broadcast-actions"><a href={liveHref}>Live arena <ArrowUpRight size={12}/></a><button className="sh-icon-button" onClick={fullscreen} aria-label="Full screen broadcast"><Maximize size={17}/></button></div></div>}
           {fullscreenError && <p className="sh-fullscreen-error" role="status">{fullscreenError}</p>}
         </div>
       </TabPanel>
