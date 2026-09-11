@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
+import { predictionUrl } from "../../../packages/sdk/prediction-url";
 
 type Props = {
   apiUrl: string;
@@ -42,11 +43,14 @@ export function OpenDreamDexMarket({
     setBusy(true);
     setMessage("Opening the DreamDEX event contract…");
     try {
-      const response = await fetch(new URL("/dreamdex/game-markets", apiUrl), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ eventId, agentId }),
-      });
+      const response = await fetch(
+        predictionUrl("/dreamdex/game-markets", apiUrl),
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ eventId, agentId }),
+        },
+      );
       const result = await readMarketCreationResponse(response);
       if (!response.ok || !result.market?.marketId)
         throw Error(result.error ?? "Market creation did not complete.");
