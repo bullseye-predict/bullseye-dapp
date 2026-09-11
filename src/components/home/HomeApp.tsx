@@ -35,7 +35,6 @@ import {
   type SomniaChain,
 } from "./MarketSourceControls";
 import { unpricedMarkets, useSomniaMarketPrices } from "./useVenueMarketPrices";
-import { useSolzWatchMatches } from "./useSolzWatchMatches";
 
 type Props = {
   apiUrl?: string;
@@ -170,7 +169,6 @@ function Home({
   const source = useMemo(() => createSolzDataSource(), []);
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
     useHomeData(source, apiUrl);
-  const watchMatches = useSolzWatchMatches();
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");
@@ -243,14 +241,8 @@ function Home({
       : marketSource === "SOLANA"
         ? solanaMarkets
         : predictionMarkets;
-  const arenaHasActivePlayers = watchMatches.matches.some(
-    (item) => item.phase === "live" && item.players > 0,
-  );
-  const arenaIsPreparing =
-    !watchMatches.loading && !watchMatches.error && !arenaHasActivePlayers;
   const preparingMatch =
     match?.phase === "countdown" ||
-    arenaIsPreparing ||
     broadcastState === "intermission" ||
     broadcastState === "preparing";
   const activeMarkets = useMemo(
@@ -321,6 +313,34 @@ function Home({
     marketAvailable && !season
       ? `${eventBasePath}/${encodeURIComponent(match?.id ?? "")}`
       : undefined;
+  const watchMatches = useMemo(
+    () => ({
+      matches: (snapshot?.matches ?? [])
+        .filter(
+          (item) =>
+            item.roomId &&
+            (item.phase === "live" || item.phase === "countdown"),
+        )
+        .map((item) => ({
+          id:
+            matchIdLabel(item) === "MATCH —"
+              ? item.roomId!
+              : matchIdLabel(item),
+          region: "Configured arena" as const,
+          phase:
+            item.phase === "live" ? ("live" as const) : ("countdown" as const),
+          mode: item.mode,
+          players: item.roster.length,
+          capacity: Math.max(12, item.roster.length),
+          spectators: item.viewers,
+          startedAt: item.startedAt,
+          watchUrl: liveHref,
+        })),
+      loading: !snapshot,
+      error: "",
+    }),
+    [liveHref, snapshot],
+  );
   const toHighlight = () =>
     highlight.current?.scrollIntoView({
       behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -421,7 +441,6 @@ function Home({
                 />
                 <MatchViewer
                   onBroadcastState={setBroadcastState}
-                  preparing={preparingMatch}
                   heading={
                     <MatchHeading
                       match={match}

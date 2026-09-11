@@ -285,8 +285,28 @@ type Props = {
   marketSourceLabel?: string;
   heading?: ReactNode;
   onBroadcastState?: (state: ArenaBroadcastStatus["state"] | null) => void;
-  preparing?: boolean;
 };
+
+export function broadcastBelongsToMatch(
+  broadcastMatchId: string | null,
+  match: Pick<SolzMatch, "id" | "roomId" | "displayMatchId">,
+) {
+  if (!broadcastMatchId) return false;
+  const normalized = broadcastMatchId
+    .toLowerCase()
+    .replace(/^arena-/, "")
+    .replace(/^0x/, "");
+  return [match.id, match.roomId, match.displayMatchId]
+    .filter((value): value is string => Boolean(value))
+    .some(
+      (value) =>
+        value
+          .toLowerCase()
+          .replace(/^arena-/, "")
+          .replace(/^0x/, "") === normalized,
+    );
+}
+
 export function MatchViewer({
   match,
   market,
@@ -311,7 +331,6 @@ export function MatchViewer({
   marketSourceLabel,
   heading,
   onBroadcastState,
-  preparing = false,
 }: Props) {
   const frame = useRef<HTMLDivElement>(null);
   const [fullscreenError, setFullscreenError] = useState("");
@@ -341,7 +360,6 @@ export function MatchViewer({
   const boardOutcome =
     board.outcomes.find((item) => item.id === market.id) ?? board.outcomes[0];
   const intermission =
-    preparing ||
     match.phase === "countdown" ||
     broadcastStatus?.state === "intermission" ||
     broadcastStatus?.state === "preparing";
@@ -471,7 +489,13 @@ export function MatchViewer({
                 key={`${match.streamUrl ?? "iframe"}:${liveHref}`}
                 source={match.streamUrl}
                 iframeSrc={arenaEmbedUrl(liveHref)}
-                onArenaStatus={setBroadcastStatus}
+                onArenaStatus={(status) =>
+                  setBroadcastStatus(
+                    broadcastBelongsToMatch(status.matchId, match)
+                      ? status
+                      : null,
+                  )
+                }
                 context={broadcastContext}
               />
               <div className="sh-broadcast-shade" aria-hidden="true" />
