@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MatchViewer } from '../src/components/home/MatchViewer'
 import { TradeContextBar } from '../src/components/home/TradeContextBar'
+import { MarketSourceControls } from '../src/components/home/MarketSourceControls'
+import { unpricedMarkets } from '../src/components/home/useVenueMarketPrices'
 import { createSolzDataSource } from '../src/components/solz/solzDataSource'
 
 describe('highlight livestream navigation', () => {
@@ -70,7 +72,54 @@ describe('highlight livestream navigation', () => {
     expect(html).toContain('Predictions <span>0</span>')
     expect(html).toContain('No prediction questions yet.')
     expect(html).toContain('No match market yet.')
-    expect(html).toContain('src="https://solz.fun/watch/live/agent-arena"')
+    expect(html).toContain('src="https://solz.fun/watch/live/agent-arena?back=false"')
+  })
+
+  test('shows the reserved next match and all twelve entrants over the persistent arena iframe', async () => {
+    const source = createSolzDataSource()
+    const snapshot = await source.load()
+    const original = snapshot.matches.find((item) => item.id === snapshot.highlightMatchId)!
+    const match = {
+      ...original,
+      id: 'arena-cab581e3-5e79-4251-9756-b9350ed87e22',
+      phase: 'countdown' as const,
+      roster: snapshot.agents.slice(0, 12).map((agent, index) => ({
+        ...(original.roster[index % original.roster.length]!), agentId: agent.id, codename: agent.codename,
+      })),
+    }
+    const market = snapshot.markets.find((item) => item.matchId === original.id)!
+    const html = renderToStaticMarkup(<MatchViewer
+      match={match} market={market} markets={[market]} snapshot={snapshot} source={source}
+      view="live" onView={() => {}} outcome={market.outcomes[0]} onSelect={() => {}}
+      liveHref="https://solz.fun/watch/live/agent-arena?room=current" onChat={() => {}} onPrompt={() => {}}
+      season={false} pinned={false} onPin={() => {}} simulation={false}
+    />)
+    expect(html).toContain('5-MINUTE INTERMISSION')
+    expect(html).toContain('Next match <b>#A-CAB5</b>')
+    expect(html).toContain('12 / 12 AGENTS CONFIRMED')
+    expect(html).toContain('src="https://solz.fun/watch/live/agent-arena?room=current&amp;back=false"')
+    for (const agent of snapshot.agents.slice(0, 12)) expect(html).toContain(agent.codename.replace('&', '&amp;'))
+  })
+
+  test('offers separate simulation, Solana, and Somnia sources with Somnia testnet selected', () => {
+    const html = renderToStaticMarkup(<MarketSourceControls
+      source="SOMNIA" onSource={() => {}} solana="devnet" onSolana={() => {}}
+      somnia="50312" onSomnia={() => {}} status="TESTNET · 0 / 12 BOUND"
+    />)
+    expect(html).toContain('>Simulation</button>')
+    expect(html).toContain('>Solana</button>')
+    expect(html).toContain('aria-selected="true" tabindex="0">Somnia</button>')
+    expect(html).toContain('aria-pressed="true">Testnet</button>')
+    expect(html).toContain('TESTNET · 0 / 12 BOUND')
+  })
+
+  test('never reuses simulation history for an unbound on-chain source', async () => {
+    const source = createSolzDataSource()
+    const snapshot = await source.load()
+    const priced = snapshot.markets.find((market) => market.outcomes.some((outcome) => outcome.priceHistory?.length))!
+    const [empty] = unpricedMarkets([priced])
+    expect(empty.volume.COOLA).toBe(0)
+    expect(empty.outcomes.every((outcome) => outcome.probability === .5 && outcome.priceHistory?.length === 0)).toBe(true)
   })
 
   test('shows one match market containing all twelve agent winner questions without fake prices', async () => {

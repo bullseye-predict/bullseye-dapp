@@ -9,11 +9,11 @@ type Props = {
   market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome
   onOutcome: (outcome: ArenaMarketOutcome) => void
   colors?: Record<string, string>; referenceMarket?: ArenaMarket; focusOnly?: boolean
-  simulation?: boolean; dates?: ArenaMarket[]; onMarket: (market: ArenaMarket) => void
+  simulation?: boolean; dates?: ArenaMarket[]; onMarket: (market: ArenaMarket) => void; sourceLabel?: string
 }
 const timeLabel = (at: number, long: boolean) => new Date(at).toLocaleString('en', long ? { month: 'short', day: 'numeric' } : { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, referenceMarket, focusOnly = false }: Props) {
+export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, referenceMarket, focusOnly = false, sourceLabel }: Props) {
   const displayMarket = !simulation && referenceMarket ? referenceMarket : market
   const focus = resolvePredictionContract(displayMarket, outcome.id) ?? outcome
   const series = (focusOnly ? [focus] : displayMarket.outcomes).filter((item): item is ArenaMarketOutcome => Boolean(item))
@@ -56,7 +56,7 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const colorFor = (item: ArenaMarketOutcome, index: number) => colors?.[item.id] ?? (focusOnly ? '#51b6ff' : outcomeColor(item, snapshot, index))
   const hasPrice = (item: ArenaMarketOutcome) => simulation || (item.priceHistory?.length ?? 0) > 0
   return <div className="ch-chart" aria-label={`${market.title} ${focusOnly ? focus.label : 'all outcomes'} ${simulation ? 'simulated' : 'live'} probability chart`}>
-    <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? 'SIMULATION' : hasPriceHistory ? 'LIVE MARKET' : 'AWAITING PRICES'}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
+    <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? sourceLabel ?? 'SIMULATION' : hasPriceHistory ? sourceLabel ?? 'LIVE MARKET' : `${sourceLabel ? `${sourceLabel} · ` : ''}AWAITING PRICES`}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
     {dates && <div className="ch-date-tabs" aria-label="Prediction closing date">{dates.map((item) => <button key={item.id} aria-pressed={market.id === item.id} onClick={() => { setRange('ALL'); onMarket(item) }}>{timeLabel(item.closesAt, true)}</button>)}</div>}
     {!focusOnly && <h2>{market.title}</h2>}
     {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(focus) ? `${percent(focus.probability)} chance` : 'No price yet'}</strong><span>{focus.label}</span></div>}

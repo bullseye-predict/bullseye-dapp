@@ -9,7 +9,6 @@ import type { ArenaTokenConfig } from '../solz/tokenInfo'
 import { useHomeData } from './useHomeData'
 import { SiteHeader } from '../solz/SiteHeader'
 import { TradeContextBar } from './TradeContextBar'
-import { NetworkTabs, type TradingNetwork } from '../prediction/NetworkTrading'
 import { MatchViewer } from './MatchViewer'
 import { InteractionConsole, type ConsoleSection } from './InteractionConsole'
 import { ArenaEntry, LiveMatches, TeamStandings } from './CommunitySections'
@@ -17,6 +16,8 @@ import { GenesisAgents } from './GenesisAgents'
 import { StatusDot } from './HomePrimitives'
 import type { PredictionAnswer } from '../solz/predictionContracts'
 import { shouldShowSeason, type HighlightView } from './heroMarket'
+import { MarketSourceControls, type MarketSource, type SolanaCluster, type SomniaChain } from './MarketSourceControls'
+import { unpricedMarkets, useSomniaMarketPrices } from './useVenueMarketPrices'
 
 type Props = { apiUrl?: string; environmentId: string; demoHref: string; liveHref: string; eventBasePath: string; tokenConfig: ArenaTokenConfig }
 
@@ -25,8 +26,9 @@ export function HomeApp({ environmentId, apiUrl = '', demoHref, liveHref, eventB
 }
 
 function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenConfig, walletControl }: Omit<Props, 'environmentId'> & { walletControl: ReactNode; session: DynamicSolanaSessionValue }) {
-  const [simulation, setSimulation] = useState(true)
-  const [network, setNetwork] = useState<TradingNetwork>('SOLANA')
+  const [marketSource, setMarketSource] = useState<MarketSource>('SOMNIA')
+  const [solanaCluster, setSolanaCluster] = useState<SolanaCluster>('devnet')
+  const [somniaChain, setSomniaChain] = useState<SomniaChain>('50312')
   const source = useMemo(() => createSolzDataSource(), [])
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } = useHomeData(source, apiUrl)
   const [matchId, setMatchId] = useState('')
@@ -46,11 +48,24 @@ function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenCo
     volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
   } : loadedMatch
   const season = !!(snapshot && match && shouldShowSeason(match.phase, match.endsAt, snapshot.updatedAt, pinned))
-  const markets = externalFeedPending ? [] : snapshot?.markets.filter((item) => season ? !item.matchId : item.matchId === match?.id) ?? []
-  const market = markets.find((item) => item.id === marketId) ?? markets[0]
+  const markets = useMemo(() => externalFeedPending ? [] : snapshot?.markets.filter((item) => season ? !item.matchId : item.matchId === match?.id) ?? [], [externalFeedPending, match?.id, season, snapshot?.markets])
+  const predictionMarkets = useMemo(() => predictionFeed || !apiUrl ? markets : [], [apiUrl, markets, predictionFeed])
+  const somnia = useSomniaMarketPrices(apiUrl, somniaChain, predictionMarkets, marketSource === 'SOMNIA')
+  const solanaMarkets = useMemo(() => unpricedMarkets(predictionMarkets), [predictionMarkets])
+  const activeMarkets = marketSource === 'SOMNIA' ? somnia.markets : marketSource === 'SOLANA' ? solanaMarkets : predictionMarkets
+  const market = activeMarkets.find((item) => item.id === marketId) ?? activeMarkets[0]
   const outcome = market?.outcomes.find((item) => item.id === outcomeId) ?? market?.outcomes[0]
-  const predictionMarkets = predictionFeed || !apiUrl ? markets : []
-  const simulationEnabled = simulation && !predictionFeed && !apiUrl
+  const simulationEnabled = marketSource === 'SIMULATION'
+  const sourceLabel = marketSource === 'SIMULATION'
+    ? 'LOCAL SIMULATION'
+    : marketSource === 'SOLANA'
+      ? `SOLANA ${solanaCluster.toUpperCase()}`
+      : `SOMNIA ${somniaChain === '50312' ? 'TESTNET' : 'MAINNET'}`
+  const sourceStatus = marketSource === 'SIMULATION'
+    ? 'LOCAL MEMORY · HELD'
+    : marketSource === 'SOLANA'
+      ? `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
+      : somnia.status
   const shellMarket: ArenaMarket | undefined = match ? {
     id: `${match.id}:prediction-feed`, matchId: match.id, kind: 'match-winner', title: 'Prediction questions unavailable',
     description: 'The arena remains available while its independent prediction feed reconnects.', status: 'indicative',
@@ -59,7 +74,7 @@ function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenCo
   } : undefined
   const displayedMarket = market ?? shellMarket
   const displayedOutcome = outcome ?? shellMarket?.outcomes[0]
-  const marketAvailable = Boolean(market && outcome && predictionMarkets.length)
+  const marketAvailable = Boolean(market && outcome && activeMarkets.length)
 
   const toHighlight = () => highlight.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
   const chooseMatch = (next: SolzMatch) => { setAnswer('yes'); setPinned(false); setMarketId(''); setMatchId(next.id); setOutcomeId(''); setPromptAgentId(undefined); setView('live'); setSection('trade'); toHighlight() }
@@ -79,7 +94,7 @@ function Home({ apiUrl = '', session, demoHref, liveHref, eventBasePath, tokenCo
       <section className="sh-highlight-section" ref={highlight} id="highlight">
         <div className="sh-highlight-heading"><div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>{season ? 'SEASON 01 / LADDER' : `SEASON 01 / MATCH ${match?.id.split('-')[1] ?? '07'}`}</span></span><h1>{season ? 'SEASON HIGHLIGHT' : match?.kind === 'community' ? 'COMMUNITY MATCH' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1><p>The agents play. You make the call.</p></div></div>
         {snapshot && match && displayedMarket && displayedOutcome ? <>
-          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`network-tab-${network}`}><TradeContextBar networkControls={<NetworkTabs network={network} onChange={setNetwork}/>} simulation={simulationEnabled} onSimulationChange={setSimulation} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={predictionMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole marketAvailable={marketAvailable} key={match.id} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
+          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
 
         </> : error ? <div className="sh-load-state" role="alert"><h2>The arena couldn’t load.</h2><p>{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="sh-loading" role="status"><div/><div/><span>Loading the arena…</span></div>}
       </section>

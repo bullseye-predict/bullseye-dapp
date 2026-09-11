@@ -658,6 +658,40 @@
 .ch-network-tabs button[aria-selected='true'] { color: var(--sh-lime, #c2f838); border-bottom-color: currentColor; }
 .ch-network-tabs button:hover { color: #fff; }
 .ch-network-tabs button:focus-visible { outline: 2px solid var(--sh-lime, #c2f838); outline-offset: 3px; }
+.ch-market-source { display: grid; justify-items: end; gap: 6px; min-width: min(100%, 360px); }
+.ch-market-source .ch-network-tabs { width: 100%; justify-content: flex-end; gap: 18px; }
+.ch-source-detail { min-height: 23px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: #8e949f; font: 700 8px/1.2 var(--sh-mono); letter-spacing: .05em; }
+.ch-source-detail > div { display: flex; border: 1px solid #3a3f48; }
+.ch-source-detail button { appearance: none; border: 0; border-right: 1px solid #3a3f48; padding: 5px 8px; background: #161b22; color: #9da3ae; font: inherit; cursor: pointer; }
+.ch-source-detail button:last-child { border-right: 0; }
+.ch-source-detail button[aria-pressed='true'] { background: var(--sh-lime, #c2f838); color: #11170b; }
+.ch-source-detail small { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-intermission { position: absolute; z-index: 4; inset: 0; display: grid; grid-template-columns: minmax(250px, .72fr) 1.28fr; align-content: center; gap: 30px; padding: clamp(62px, 8vw, 110px) clamp(24px, 5vw, 70px) 42px; background: linear-gradient(105deg, rgb(7 10 15 / 96%) 0 42%, rgb(7 10 15 / 78%) 65%, rgb(7 10 15 / 88%)); color: #eef0f4; }
+.ch-intermission-copy { align-self: center; }
+.ch-intermission-copy > span { color: var(--sh-lime, #c2f838); font: 700 9px/1 var(--sh-mono); letter-spacing: .1em; }
+.ch-intermission-copy h2 { margin: 12px 0 14px; font-size: clamp(28px, 3.4vw, 46px); line-height: .98; text-transform: uppercase; }
+.ch-intermission-copy h2 b { display: block; color: var(--sh-lime, #c2f838); }
+.ch-intermission-copy p { max-width: 49ch; color: #b8bec8; font-size: 11px; line-height: 1.65; }
+.ch-intermission-copy > strong { display: inline-block; margin-top: 19px; border: 1px solid #59606b; padding: 8px 10px; font: 700 8px/1 var(--sh-mono); }
+.ch-intermission-roster { align-self: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.ch-intermission-roster > div { min-width: 0; display: flex; align-items: center; gap: 8px; border: 1px solid rgb(163 172 186 / 25%); background: rgb(26 31 39 / 86%); padding: 7px; }
+.ch-intermission-roster .sh-portrait { flex: 0 0 30px; width: 30px; height: 30px; }
+.ch-intermission-roster span { min-width: 0; display: grid; gap: 3px; }
+.ch-intermission-roster strong, .ch-intermission-roster small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-intermission-roster strong { font-size: 9px; }
+.ch-intermission-roster small, .ch-intermission-lock { color: #858c98; font: 600 7px/1 var(--sh-mono); }
+.ch-intermission-lock { grid-column: 1 / -1; justify-self: end; align-self: end; }
+@media (max-width: 720px) {
+  .ch-market-source, .ch-market-source .ch-network-tabs { justify-items: stretch; width: 100%; }
+  .ch-market-source .ch-network-tabs { justify-content: space-between; }
+  .ch-source-detail { justify-content: space-between; }
+  .ch-intermission { grid-template-columns: 1fr; align-content: start; gap: 15px; padding: 66px 18px 18px; overflow: auto; }
+  .ch-intermission-copy h2 { margin-block: 7px 9px; }
+  .ch-intermission-copy p { font-size: 9px; }
+  .ch-intermission-copy > strong { margin-top: 10px; }
+  .ch-intermission-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ch-intermission-lock { justify-self: start; }
+}
 .ch-network-panel { min-width: 0; grid-column: 1 / -1; grid-row: 2; padding: 20px 0; }
 .ch-network-panel .pt-heading h2 { font-size: 22px; }
 .ch-network-panel .pt-feedback { overflow-wrap: anywhere; }

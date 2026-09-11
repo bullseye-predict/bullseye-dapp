@@ -19,6 +19,17 @@ const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc }: { sou
   </>
 })
 
+export function arenaEmbedUrl(value: string) {
+  try {
+    const absolute = /^[a-z][a-z\d+.-]*:/i.test(value)
+    const url = new URL(value, 'http://arena.local')
+    url.searchParams.set('back', 'false')
+    return absolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return value
+  }
+}
+
 function matchWinnerBoard(markets: ArenaMarket[], selected: ArenaMarket): ArenaMarket {
   const outcomes = markets.flatMap(item => {
     const yes = item.outcomes.find(outcome => outcome.id === 'yes') ?? item.outcomes[0]
@@ -33,8 +44,9 @@ type Props = {
   onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void; liveHref: string
   onChat: () => void; onPrompt: () => void; season: boolean; pinned: boolean; onPin: () => void
   broadcastOnly?: boolean; detailHref?: string; referenceMarkets?: ArenaMarket[]; simulation?: boolean; answer?: PredictionAnswer
+  marketSourceLabel?: string
 }
-export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, broadcastOnly = false, simulation = true, answer = 'yes', referenceMarkets }: Props) {
+export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, broadcastOnly = false, simulation = true, answer = 'yes', referenceMarkets, marketSourceLabel }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   const [fullscreenError, setFullscreenError] = useState('')
   const [detail, setDetail] = useState<ArenaMarket | null>(null)
@@ -48,23 +60,25 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
   const winnerMarkets = markets.filter(item => item.kind === 'match-winner')
   const board = matchWinnerBoard(winnerMarkets, winnerMarkets.find(item => item.id === market.id) ?? winnerMarkets[0] ?? market)
   const boardOutcome = board.outcomes.find(item => item.id === market.id) ?? board.outcomes[0]
+  const intermission = match.phase === 'countdown'
+  const matchCode = `#A-${match.id.replace(/^arena-/, '').replace(/-/g, '').slice(0, 4).toUpperCase()}`
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
     <div className="ch-view-navigation"><div><h2>{season ? 'GENESIS SEASON LEADER' : matchLabel(match.teams)}</h2>{detailHref ? <a className="ch-detail-button" href={detailHref}>Open detail <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Open detail <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
-          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={liveHref}/><div className="sh-broadcast-shade" aria-hidden="true"/>
-          <div className="sh-broadcast-top"><span className="sh-preview-chip">{match.streamUrl ? 'LIVE BROADCAST' : 'ARENA EMBED'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
-          <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
+          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)}/><div className="sh-broadcast-shade" aria-hidden="true"/>
+          <div className="sh-broadcast-top"><span className="sh-preview-chip">{intermission ? 'NEXT MATCH RESERVED' : match.streamUrl ? 'LIVE BROADCAST' : 'ARENA EMBED'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
+          {!intermission && <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
             {match.teams.map((team, index) => <div key={team.teamId} style={{ color: team.color }}><TeamMark id={team.teamId} color={team.color}/><strong>{teamLabel(team.symbol)}</strong><b>{String(team.score).padStart(2, '0')}</b>{index === 0 && match.teams.length === 2 && <span className="ch-score-center"><small>{match.round}</small><strong>{elapsed}</strong><small>{match.mode}</small></span>}</div>)}
-          </div>
-          <div className="sh-broadcast-bottom"><div><span className="sh-map-label"><Crosshair size={14}/> COOLA / GENESIS SERIES</span><h2>{match.phase === 'settled' ? 'MATCH COMPLETE' : match.map}</h2><div className="ch-broadcast-roster">{match.roster.map((entry) => <span title={entry.codename} key={entry.agentId}><AgentPortrait number={Number(entry.agentId.split('-')[1])}/></span>)}<span>{match.roster.length} CAN AGENTS <span>/ {match.phase === 'settled' ? 'INTERMISSION' : match.mode}</span></span></div></div><div className="ch-broadcast-actions"><a href={liveHref}>Live arena <ArrowUpRight size={12}/></a><button className="sh-icon-button" onClick={fullscreen} aria-label="Full screen broadcast"><Maximize size={17}/></button></div></div>
+          </div>}
+          {intermission ? <div className="ch-intermission" role="status"><div className="ch-intermission-copy"><span>5-MINUTE INTERMISSION</span><h2>Next match <b>{matchCode}</b></h2><p>The room is reserved and all entrants are prepared. Trading can open before kickoff as soon as this network’s 12 event markets are provisioned.</p><strong>{match.roster.length} / 12 AGENTS CONFIRMED</strong></div><div className="ch-intermission-roster" aria-label="Next match agent roster">{match.roster.map((entry) => { const agent = snapshot.agents.find((item) => item.id === entry.agentId); return <div key={entry.agentId}><AgentPortrait number={agent?.number ?? Number(entry.agentId.split('-')[1])}/><span><strong>{entry.codename}</strong><small>{agent?.archetype ?? 'GENESIS AGENT'}</small></span></div> })}</div><small className="ch-intermission-lock">SERVER TIME LOCKS EACH QUESTION AT MATCH START</small></div> : <div className="sh-broadcast-bottom"><div><span className="sh-map-label"><Crosshair size={14}/> COOLA / GENESIS SERIES</span><h2>{match.phase === 'settled' ? 'MATCH COMPLETE' : match.map}</h2><div className="ch-broadcast-roster">{match.roster.map((entry) => <span title={entry.codename} key={entry.agentId}><AgentPortrait number={Number(entry.agentId.split('-')[1])}/></span>)}<span>{match.roster.length} CAN AGENTS <span>/ {match.phase === 'settled' ? 'INTERMISSION' : match.mode}</span></span></div></div><div className="ch-broadcast-actions"><a href={liveHref}>Live arena <ArrowUpRight size={12}/></a><button className="sh-icon-button" onClick={fullscreen} aria-label="Full screen broadcast"><Maximize size={17}/></button></div></div>}
           {fullscreenError && <p className="sh-fullscreen-error" role="status">{fullscreenError}</p>}
         </div>
       </TabPanel>
-      <TabPanel id="market" idPrefix="highlight-view" active={view === 'market'}>{boardOutcome ? <HighlightChart simulation={simulation} key={board.id} market={board} snapshot={snapshot} outcome={boardOutcome} onOutcome={(item) => { const next = winnerMarkets.find(candidate => candidate.id === item.id); const yes = next?.outcomes.find(candidate => candidate.id === 'yes') ?? next?.outcomes[0]; if (next && yes) onSelect(next, yes) }} onMarket={() => {}}/> : <div className="ch-market-empty ch-panel-empty" role="status"><strong>No match market yet.</strong><span>The arena and controls stay available while prediction questions are loading.</span></div>}</TabPanel>
-      <TabPanel id="options" idPrefix="highlight-view" active={view === 'options'}>{markets.length ? <PredictionOptions answer={answer} key={`${match.id}-${season}`} markets={markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={onSelect} referenceMarkets={referenceMarkets} simulation={simulation}/> : <div className="ch-options ch-options-empty" role="status"><div className="ch-options-heading"><div><h2>Make your call.</h2><p>0 predictions · waiting for the prediction feed</p></div><span className="ch-simulation">FEED UNAVAILABLE</span></div><div className="ch-market-empty"><strong>No prediction questions yet.</strong><span>Livestream, chat, and agent controls remain available independently.</span></div></div>}</TabPanel>
+      <TabPanel id="market" idPrefix="highlight-view" active={view === 'market'}>{boardOutcome ? <HighlightChart sourceLabel={marketSourceLabel} simulation={simulation} key={board.id} market={board} snapshot={snapshot} outcome={boardOutcome} onOutcome={(item) => { const next = winnerMarkets.find(candidate => candidate.id === item.id); const yes = next?.outcomes.find(candidate => candidate.id === 'yes') ?? next?.outcomes[0]; if (next && yes) onSelect(next, yes) }} onMarket={() => {}}/> : <div className="ch-market-empty ch-panel-empty" role="status"><strong>No match market yet.</strong><span>The arena and controls stay available while prediction questions are loading.</span></div>}</TabPanel>
+      <TabPanel id="options" idPrefix="highlight-view" active={view === 'options'}>{markets.length ? <PredictionOptions sourceLabel={marketSourceLabel} answer={answer} key={`${match.id}-${season}`} markets={markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={onSelect} referenceMarkets={referenceMarkets} simulation={simulation}/> : <div className="ch-options ch-options-empty" role="status"><div className="ch-options-heading"><div><h2>Make your call.</h2><p>0 predictions · waiting for the prediction feed</p></div><span className="ch-simulation">FEED UNAVAILABLE</span></div><div className="ch-market-empty"><strong>No prediction questions yet.</strong><span>Livestream, chat, and agent controls remain available independently.</span></div></div>}</TabPanel>
     </div>
 
     {!broadcastOnly && <HeroActivity simulation={simulation} source={source} snapshot={snapshot} match={match} onChat={onChat} onPrompt={onPrompt}/>}
