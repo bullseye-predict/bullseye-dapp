@@ -18,10 +18,14 @@ export default defineConfig({
   vite: {
     // Astro and Dynamic both consume React as a peer; one resolved identity keeps every hook on the renderer's dispatcher.
     resolve: {
-      dedupe: ['react', 'react-dom']
+      dedupe: ['react', 'react-dom'],
+      alias: { buffer: 'buffer/' }
     },
     // Cloudflare consumes local .env values as worker bindings before Vite builds the browser island, so explicitly publish only Dynamic's public VITE identifier.
     define: {
+      // Rolldown may optimize React and React DOM in separate passes. Pin both to the
+      // same mode so a development island cannot load a production renderer.
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV === 'production' ? 'production' : 'development'),
       'import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID': JSON.stringify(publicEnvironment.VITE_DYNAMIC_ENVIRONMENT_ID ?? '')
     }
   }

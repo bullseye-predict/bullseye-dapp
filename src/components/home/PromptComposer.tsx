@@ -61,8 +61,10 @@ export function PromptComposer({ source, snapshot, match, open, onToggle, prompt
       <h3><button id="console-prompt-button" className="ch-mini-heading" aria-expanded={open} aria-controls="console-prompt-body" onClick={onToggle}><span><Zap size={15}/> PROMPT AGENT</span><span>{quote.cost} <b>$COOLA</b><ChevronDown size={15}/></span></button></h3>
       <form aria-label="Quick agent prompt" onSubmit={(event) => { event.preventDefault(); void sendPrompt() }}>
         <label className="ch-prompt-label" htmlFor="mini-prompt">Your directive <span>{prompt.length}/220</span></label>
+        <div className="ch-prompt-composer">
         <textarea id="mini-prompt" ref={input} value={prompt} onChange={(event) => { setPrompt(event.target.value); setFeedback(null) }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendPrompt() } }} placeholder="Type a move… e.g. Coke, defend the relay." minLength={8} maxLength={220} required rows={2} aria-describedby="prompt-hint"/>
         <div className="ch-mini-controls"><label className="ch-prompt-target"><span className="sr-only">Prompt recipient</span><select value={agentId} onChange={(event) => { setAgentId(event.target.value); setFeedback(null) }}><option value="">Auto · from prompt</option>{match.roster.map((entry) => <option key={entry.agentId} value={entry.agentId} disabled={entry.status !== 'active'}>{entry.codename}{entry.status !== 'active' ? ' · out of round' : ''}</option>)}</select></label><button type="submit" aria-label={`Send prompt for ${quote.cost} COOLA`} disabled={!canSend}><span>{fueling ? 'FUELED' : pending ? 'SENDING' : 'FUEL'}</span>{fueling ? <Check size={16}/> : <ArrowRight size={16}/>}<i className="ch-button-soda" aria-hidden="true"/></button></div>
+        </div>
         <p id="prompt-hint" className={`ch-prompt-hint ${feedback?.error ? 'is-error' : feedback ? 'is-success' : ''}`} role={feedback?.error ? 'alert' : 'status'}>{feedback?.text ?? hint}</p>
       </form>
       <div className="ch-soda-flow" aria-hidden="true"><i/><i/><i/></div>

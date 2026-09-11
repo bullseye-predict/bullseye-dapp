@@ -1,8 +1,5 @@
 /* Event detail reuses the homepage's Marathon tokens and interaction surfaces. */
 .ev-app { --ev-sticky-top: 96px; --ev-positive: #8bdfa9; --ev-negative: #ff859b; color-scheme: dark; }
-.ev-header { position: sticky; top: 0; z-index: 20; min-height: 80px; background: var(--sh-bg); padding: 12px 32px; gap: 44px; }
-.ev-header .sh-logo { font-size: 49px; }
-.ev-header .sh-logo i { height: 30px; }
 .ev-main { max-width: 1660px; margin: auto; padding: 0 32px 52px; }
 .ev-app--community .ev-main { max-width: 1920px; }
 .ev-app--agents .ev-main { max-width: 1800px; }
@@ -354,8 +351,6 @@
   .ev-mobile-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 17px; }
   .ev-mobile-actions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #242931; color: #cbd3df; border: 1px solid #444e5e; padding: 10px 12px; font-size: 10px; }
   .ev-mobile-actions button:last-child { display: none; }
-  .ev-header { gap: 30px; padding-left: 22px; padding-right: 22px; }
-  .ev-header nav a { padding: 0 9px; font-size: 10px; }
   .ev-title-row h1 { font-size: 27px; }
   .ev-comments-toolbar > span { display: none; }
   .ev-screen { height: 320px; }
@@ -363,16 +358,6 @@
 }
 @media (max-width: 760px) {
   .ev-app { --ev-sticky-top: 75px; }
-  .ev-header { min-height: 67px; padding: 10px 17px; }
-  .ev-header .sh-logo { font-size: 39px; }
-  .ev-header .sh-logo i { height: 24px; width: 5px; }
-  .ev-header nav { display: none; position: absolute; top: 100%; left: 0; right: 0; padding: 12px 17px; background: #1b1e24; border-bottom: 1px solid #505561; }
-  .ev-header nav.is-open { display: flex; flex-wrap: wrap; }
-  .ev-header nav a:last-child { display: flex; }
-  .ev-header .sh-wallet { margin-left: auto; }
-  .ev-header .sh-wallet button { font-size: 9px; min-height: 34px; padding: 0 10px; }
-  .ev-header .sh-menu-button { display: flex; padding: 6px; }
-  .ev-header { gap: 15px; }
   .ev-main { padding: 0 16px 36px; }
   .ev-layout-bar { min-height: 60px; gap: 8px; margin-bottom: 15px; }
   .ev-layout-bar > a { font-size: 8px; gap: 5px; }
@@ -463,8 +448,6 @@
   .ev-footer { padding: 22px 17px; }
 }
 @media (max-width: 400px) {
-  .ev-header .sh-wallet button { font-size: 8px; padding: 0 7px; }
-  .ev-header { gap: 10px; }
   .ev-layout-bar > a { font-size: 7px; }
   .ev-layout-bar nav a { font-size: 7px; padding: 6px; }
   .ev-main { padding-left: 12px; padding-right: 12px; }
@@ -554,4 +537,62 @@
 .ev-right-rail .ch-mini-heading { width: 100%; background: transparent; border: 0; color: #d5dec9; padding: 0; }
 
 .ev-right-rail { scroll-margin-top: 122px; }
-.ev-header nav { gap: 8px; }
+
+/* Heading occupies its own row; both stage and sticky ticket start below it. */
+.ev-app { --ev-sticky-top: calc(var(--site-header-height) + 16px); }
+.ev-app .ev-main { max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); }
+.ev-layout { row-gap: 16px; }
+.ev-layout > .ev-event-heading { grid-column: 2; grid-row: 1; min-width: 0; padding-bottom: 0; }
+.ev-left-rail { grid-column: 1; grid-row: 1 / span 2; }
+.ev-center { grid-column: 2; grid-row: 2; }
+.ev-right-rail { grid-column: 3; grid-row: 2; }
+.ev-view-controls { padding: 12px 0 0; border: 0; flex-wrap: wrap; }
+.ev-app .ev-view-controls .mx-tabs { margin-left: auto; }
+.ev-app section[id], .ev-app [id='event-title'] { scroll-margin-top: calc(var(--site-header-height) + 24px); }
+@media (max-width: 1120px) {
+  .ev-layout > .ev-event-heading { grid-column: 1; grid-row: 1; }
+  .ev-left-rail { grid-column: 1 / -1; grid-row: 1; }
+  .ev-center { grid-column: 1; grid-row: 2; }
+  .ev-right-rail { grid-column: 2; grid-row: 2; }
+  .ev-layout:has(> .ev-left-rail.is-mobile-open) > .ev-event-heading { grid-row: 2; }
+  .ev-layout:has(> .ev-left-rail.is-mobile-open) > :is(.ev-center, .ev-right-rail) { grid-row: 3; }
+}
+@media (max-width: 760px) {
+  .ev-app .ev-layout { display: flex; flex-direction: column; }
+  .ev-left-rail { order: 0; }
+  .ev-right-rail { order: 1; }
+  .ev-layout > .ev-event-heading { order: 2; }
+  .ev-center { order: 3; }
+  .ev-mobile-actions { top: var(--site-header-height); }
+  .ev-app section[id], .ev-app [id='event-title'], .ev-right-rail { scroll-margin-top: calc(var(--site-header-height) + 76px); }
+}
+
+.ev-event-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; align-items: end; }
+.ev-breadcrumb, .ev-title-row { grid-column: 1 / -1; }
+.ev-event-heading .ev-view-controls { padding: 8px 0 0; }
+@media (max-width: 1350px) {
+  .ev-event-heading .ev-view-controls { grid-column: 1 / -1; }
+}
+
+/* Trade semantics are independent of team identity colors. */
+.ev-market-picks button.is-yes { color: #87dfb4; border-color: #36594b; background: #243c33; }
+.ev-market-picks button.is-no { color: #f793a3; border-color: #65404a; background: #3e2930; }
+.ev-market-picks button.is-yes[aria-pressed='true'] { color: #092217; background: #86d9af; border-color: #a2ebc6; }
+.ev-market-picks button.is-no[aria-pressed='true'] { color: #310e17; background: #f08b9d; border-color: #f7aebe; }
+.ev-market-picks button:hover { filter: brightness(1.15); }
+.ev-market-actions { display: flex; gap: 8px; }
+.ev-market-actions button { display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; color: #b5b7c1; border: 0; background: transparent; }
+.ev-market-actions button:hover, .ev-market-actions button[aria-pressed='true'] { color: var(--sh-lime); }
+
+.ev-layout > .ch-trade-context { grid-column: 3; grid-row: 1; align-self: end; }
+@media (max-width: 1120px) {
+  .ev-layout > .ch-trade-context { grid-column: 2; }
+  .ev-layout:has(> .ev-left-rail.is-mobile-open) > .ch-trade-context { grid-row: 2; }
+}
+@media (max-width: 760px) {
+  .ev-layout > .ch-trade-context { order: 0; align-self: stretch; }
+}
+.ev-network-terminal { grid-column: 2 / -1; min-width: 0; }
+.ev-network-terminal .pt-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
+@media (max-width: 1100px) { .ev-network-terminal { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .ev-network-terminal .pt-grid { grid-template-columns: minmax(0, 1fr); } }

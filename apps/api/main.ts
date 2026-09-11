@@ -12,6 +12,7 @@ import { createPredictionApi, gatewayKey } from './server'
 import { marketKey, venueId, textField, integer, record } from '../../packages/prediction-core/validation'
 import { stringify } from '../../packages/prediction-core/serialization'
 import { publicVenueConfig } from './public-config'
+import { parseDreamDexPublicConfig } from '../../packages/adapters/dreamdex/config'
 import { createChainRuntime, parseChainRuntimeConfig } from '../chain-worker/runtime'
 import { DurableHermesControl } from '../hermes-worker/control'
 import { createHermesVaultReader, loadHermesRuntimeConfig } from '../hermes-worker/runtime'
@@ -25,6 +26,11 @@ export function startPredictionApi(environment: Record<string, string | undefine
   const configFile = environment.PREDICTION_VENUES_FILE
   const raw: unknown = configFile ? JSON.parse(readFileSync(configFile, 'utf8')) : []
   if (!Array.isArray(raw)) throw new Error('PREDICTION_VENUES_FILE must contain an array of explicit venue configurations.')
+  const dreamdexFile = environment.PREDICTION_DREAMDEX_FILE
+  const dreamdexRaw: unknown = dreamdexFile ? JSON.parse(readFileSync(dreamdexFile, 'utf8')) : []
+  if (!Array.isArray(dreamdexRaw)) throw new Error('PREDICTION_DREAMDEX_FILE must contain an array.')
+  const dreamdex = dreamdexRaw.map(parseDreamDexPublicConfig)
+  if (new Set(dreamdex.map(v => v.chainId)).size !== dreamdex.length) throw new Error('Duplicate DreamDEX network.')
   const gateways = raw.map(value => record(value).family === 'SOLANA' ? new SolanaChainGateway(parseSolanaConfig(value)) : new EvmChainGateway(parseEvmConfig(value)))
   const gatewayMap = new Map(gateways.map(gateway => [gatewayKey(gateway.config.venue, gateway.config.chainId), gateway]))
   if (gatewayMap.size !== gateways.length) throw new Error('Duplicate venue/chain configuration.')
@@ -42,7 +48,7 @@ export function startPredictionApi(environment: Record<string, string | undefine
   }) : undefined
   const allowedOrigins = (environment.PREDICTION_ALLOWED_ORIGINS ?? 'http://localhost:4321,http://127.0.0.1:4321').split(',').map(value => value.trim()).filter(Boolean).map(value => new URL(value).origin)
   const handler = createPredictionApi({ database, matcher, matcherStore: store, gateways, authenticator, telemetry, controlToken: environment.PREDICTION_CONTROL_TOKEN,
-    publicConfig: { audience, venues: raw.map(publicVenueConfig) }, allowedOrigins, enforceFunding: true, requireOrderProof: true,
+    publicConfig: { audience, venues: raw.map(publicVenueConfig), dreamdex }, allowedOrigins, enforceFunding: true, requireOrderProof: true,
     portfolio: chain?.portfolio, acceptResult: chain?.acceptResult, marketForTrading: chain?.marketForTrading, hermes,
   })
 

@@ -1,0 +1,9 @@
+[
+  {
+    "chainId": "50312",
+    "label": "Somnia Shannon testnet",
+    "indexerUrl": "https://dev.smk.somnia.host/v1/graphql",
+    "wsRpcUrl": "wss://api.infra.testnet.somnia.network/ws",
+    "markets": []
+  }
+]

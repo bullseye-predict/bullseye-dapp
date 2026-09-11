@@ -173,13 +173,13 @@ describe('generic HTTPS reasoning and session authentication', () => {
       return Response.json({ action: 'HOLD', reason: 'Wait' })
     }) as typeof fetch })
     expect(await reasoner.decide(context())).toEqual({ action: 'HOLD', reason: 'Wait' })
-    expect(authorization).toBe('Bearer provider-secret')
+    expect<string | null>(authorization).toBe('Bearer provider-secret')
     expect(body).not.toContain('provider-secret')
     expect(Object.keys(JSON.parse(body)).sort()).toEqual(Object.keys(context()).sort())
     expect(JSON.parse(body).limits.orderMustExpireBy).toBe(NOW + 30_000)
     expect(() => new HttpHermesReasoner({ url: 'http://plain.example' })).toThrow()
-    await expect(new HttpHermesReasoner({ url: 'https://reasoner.example', fetch: (async () => Response.json({ ...tradeAction(), amount: '10', limitPrice: '500000', walletKey: 'steal' })) as typeof fetch }).decide(context())).rejects.toThrow()
-    await expect(new HttpHermesReasoner({ url: 'https://reasoner.example', fetch: (async () => new Response(' '.repeat(65_537))) as typeof fetch }).decide(context())).rejects.toThrow('exceeds')
+    await expect(new HttpHermesReasoner({ url: 'https://reasoner.example', fetch: (async () => Response.json({ ...tradeAction(), amount: '10', limitPrice: '500000', walletKey: 'steal' })) as unknown as typeof fetch }).decide(context())).rejects.toThrow()
+    await expect(new HttpHermesReasoner({ url: 'https://reasoner.example', fetch: (async () => new Response(' '.repeat(65_537))) as unknown as typeof fetch }).decide(context())).rejects.toThrow('exceeds')
   })
   test('EVM session proof permits order placement and cancellation only, never Hermes controls', async () => {
     const epoch = 7n; const message = 'Exact authenticated HTTP request'

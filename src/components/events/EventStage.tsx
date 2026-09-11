@@ -3,7 +3,7 @@ import { memo, useRef, useState } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
 import { HighlightChart } from '../home/HighlightChart'
-import { AgentPortrait, compact, StatusDot, TeamMark } from '../home/HomePrimitives'
+import { AgentPortrait, compact, TeamMark } from '../home/HomePrimitives'
 
 const EventMedia = memo(function EventMedia({ source }: { source?: string }) {
   const [failed, setFailed] = useState(false)
@@ -12,10 +12,11 @@ const EventMedia = memo(function EventMedia({ source }: { source?: string }) {
     : <img className="sh-broadcast-image" src="/images/solz/arena-preview.jpg" width="1536" height="1024" alt="Soda-can agents competing in the Genesis arena" fetchPriority="high"/>
 })
 
-type Props = { match: SolzMatch; market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome; onOutcome: (outcome: ArenaMarketOutcome) => void; prediction?: boolean }
+export type EventView = 'live' | 'market'
 
-export function EventStage({ match, market, snapshot, outcome, onOutcome, prediction = false }: Props) {
-  const [view, setView] = useState<'live' | 'market'>(prediction ? 'market' : 'live')
+type Props = { simulation?: boolean; referenceMarket?: ArenaMarket; view: EventView; match: SolzMatch; market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome; onOutcome: (outcome: ArenaMarketOutcome) => void; prediction?: boolean }
+
+export function EventStage({ simulation = true, referenceMarket, view, match, market, snapshot, outcome, onOutcome, prediction = false }: Props) {
   const [message, setMessage] = useState('')
   const screen = useRef<HTMLDivElement>(null)
   async function fullscreen() {
@@ -36,8 +37,12 @@ export function EventStage({ match, market, snapshot, outcome, onOutcome, predic
           {message && <p className="sh-fullscreen-error" role="status">{message}</p>}
         </div>
       </TabPanel>
-      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}}/></TabPanel>
+      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}}/></TabPanel>
     </div>
-    <div className="ev-view-controls"><span><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot><span>{compact(market.volume.COOLA)} COOLA VOL.</span></span><Tabs idPrefix="event-view" label="Event view" value={view} onChange={setView} tabs={[{ id: 'market', label: <><ChartNoAxesCombined size={14}/>Market</> }, { id: 'live', label: <><Radio size={14}/>Livestream</> }]}/></div>
+
   </section>
+}
+
+export function EventViewControls({ view, onView }: { view: EventView; onView: (view: EventView) => void }) {
+  return <div className="ev-view-controls"><Tabs idPrefix="event-view" label="Event view" value={view} onChange={onView} tabs={[{ id: 'market', label: <><ChartNoAxesCombined size={14}/>Market</> }, { id: 'live', label: <><Radio size={14}/>Livestream</> }]}/></div>
 }

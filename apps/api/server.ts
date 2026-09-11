@@ -13,6 +13,7 @@ import { PredictionDatabase } from './storage/database'
 import { tradeCandles } from './market-data'
 import { buildOrderBook } from '../matcher/orderbook'
 import { HermesControlError } from '../hermes-worker/control'
+import { readDreamDexOracleResult } from './oracle-result'
 
 export interface ChainGateway {
   config: { venue: VenueId; chainId: string }
@@ -179,6 +180,10 @@ export function createPredictionApi(options: ApiOptions): (request: Request) => 
       const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
       if (request.method === 'GET' && url.pathname === '/config') return response(options.publicConfig ?? { audience: '', venues: [] })
       if (request.method === 'GET' && url.pathname === '/health') return response({ service: 'solz-prediction-api', status: 'ok', storage: 'sqlite', configuredVenues: options.gateways.map(gateway => ({ venue: gateway.config.venue, chainId: gateway.config.chainId })), telemetryConfigured: !!options.telemetry, hermesConfigured: !!options.hermes, portfolioConfigured: !!options.portfolio, settlement: 'separate-worker' })
+      const oracleResultPath = /^\/oracle\/dreamdex\/(5031|50312)\/matches\/([^/]+)\/result$/.exec(url.pathname)
+      if (request.method === 'GET' && oracleResultPath) {
+        return response(readDreamDexOracleResult(database, oracleResultPath[1]!, textField(decodeURIComponent(oracleResultPath[2]!), 'matchId'), now()))
+      }
       if (request.method === 'POST' && url.pathname === '/internal/telemetry') {
         if (!options.telemetry) throw new PredictionError('TELEMETRY_UNAVAILABLE', 'Telemetry bridge is not configured.', 503)
         const raw = await bodyText(request)

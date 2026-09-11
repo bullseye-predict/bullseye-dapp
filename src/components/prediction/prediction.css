@@ -22,3 +22,7 @@
 @media(max-width: 900px) { .pt-main { padding: 24px 20px; }.pt-grid { grid-template-columns: minmax(0,1fr) 300px; gap: 16px; }.pt-home .sh-header { gap: 20px; }.pt-home .sh-header nav { gap: 0; }.pt-home .sh-header nav a { padding: 8px; font-size: 10px; } }
 @media(max-width: 700px) { .pt-grid,.pt-bottom { grid-template-columns: 1fr; }.pt-heading,.pt-toolbar { align-items: stretch; flex-direction: column; }.pt-toolbar > label { max-width: none; }.pt-main { padding: 22px 16px; }.pt-heading h1 { font-size: 23px; }.pt-heading > label { width: 100%; }.pt-home .sh-header { flex-wrap: wrap; gap: 18px; padding: 18px 16px; }.pt-home .sh-header nav { display: flex; order: 3; width: 100%; }.pt-home .sh-wallet { margin-left: auto; }.pt-market-status { align-items: flex-start; flex-direction: column; gap: 6px; }.pt-ticket { padding: 18px; }.pt-book-heading { flex-wrap: wrap; }.pt-home .sh-logo { font-size: 43px; } }
 @media(prefers-reduced-motion: reduce) { .pt-home *, .pt-home *::before, .pt-home *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+.pt-outcomes button:nth-child(1)[aria-pressed='true'] { color: #b8f773; border-color: #75b637; }
+.pt-outcomes button:nth-child(2)[aria-pressed='true'] { color: #ff939e; border-color: #d65b6e; }
+.pt-side button:nth-child(1)[aria-pressed='true'] { color: #b8f773; }
+.pt-side button:nth-child(2)[aria-pressed='true'] { color: #ff939e; }

@@ -290,6 +290,7 @@ export class MatchingEngine {
   }
 
   async registerMarket(market: Market): Promise<void> {
+    if (market.matchingEngine === 'MANIFEST') throw new Error('Manifest markets must execute onchain through the guarded adapter')
     const copy = structuredClone(market)
     validateMarket(copy)
     if (!copy.id || !copy.chainId || copy.outcomes.length < 2 || copy.outcomes.length > MAX_OUTCOMES ||
@@ -308,6 +309,7 @@ export class MatchingEngine {
   }
 
   async updateMarket(market: Market): Promise<void> {
+    if (market.matchingEngine === 'MANIFEST') throw new Error('Manifest markets must execute onchain through the guarded adapter')
     const next = structuredClone(market)
     validateMarket(next)
     await this.store.transaction({ ...next, marketId: next.id }, (current) => {

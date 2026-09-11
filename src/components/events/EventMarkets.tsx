@@ -1,14 +1,14 @@
 import { ArrowUpRight, ChevronDown, FileText, Layers } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel } from '../solz/ui'
-import { accentStyle, AgentPortrait, amountLabel, compact, percent, TeamMark } from '../home/HomePrimitives'
+import { AgentPortrait, amountLabel, compact, percent, TeamMark } from '../home/HomePrimitives'
 import { outcomeColor } from '../home/heroMarket'
 import { HighlightChart } from '../home/HighlightChart'
 import { eventAnswerMarket, sampleOrderBook } from './eventModel'
 import { baseOutcomeId } from '../solz/predictionContracts'
 
-type Props = { markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string }
+type Props = { actions?: ReactNode; markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string }
 
 function MarketDetail({ market, selected, snapshot, onSelect }: { market: ArenaMarket; selected: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (outcome: ArenaMarketOutcome) => void }) {
   const [tab, setTab] = useState<'book' | 'graph' | 'about'>('book')
@@ -26,11 +26,11 @@ function MarketDetail({ market, selected, snapshot, onSelect }: { market: ArenaM
   </div>
 }
 
-export function EventMarkets({ markets, market, outcome, snapshot, onSelect, prediction, predictionHref }: Props) {
+export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref }: Props) {
   const [expanded, setExpanded] = useState<string[]>(prediction || market.outcomes.length > 2 ? [] : [market.id])
   const toggle = (id: string) => setExpanded((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id])
   return <section className={`ev-markets ${prediction ? 'ev-prediction-answers' : ''}`} id="event-markets" aria-labelledby="event-markets-title">
-    <div className="ev-section-title"><h2 id="event-markets-title">{prediction ? 'Choose your answer' : 'Series markets'} <span>{prediction ? prediction.outcomes.length : markets.length}</span></h2><span>{prediction ? 'TRADE YES OR NO' : 'MAKE YOUR CALL'} <span aria-hidden="true">↙</span></span></div>
+    <div className="ev-section-title"><h2 id="event-markets-title">{prediction ? 'Choose your answer' : 'Series markets'} <span>{prediction ? prediction.outcomes.length : markets.length}</span></h2>{actions}</div>
     {prediction ? <>
       <div className="ev-answer-columns"><span>ANSWER</span><span>CHANCE</span><span>YOUR CALL</span></div>
       {prediction.outcomes.map((answer, index) => {
@@ -61,7 +61,7 @@ export function EventMarkets({ markets, market, outcome, snapshot, onSelect, pre
       const open = expanded.includes(item.id)
       const selected = item.id === market.id ? outcome : item.outcomes[0]
       return <section key={item.id} id={`event-${item.id}`} className={`ev-market ${item.id === market.id ? 'is-selected' : ''}`}>
-        <div className="ev-market-summary"><h3><button aria-expanded={open} aria-controls={`event-market-${item.id}`} onClick={() => toggle(item.id)}><span>{item.title}<small>{compact(item.volume.COOLA)} COOLA VOL.</small></span><ChevronDown size={16}/></button></h3><div className="ev-market-picks">{item.outcomes.map((pick, index) => <button key={pick.id} style={accentStyle(outcomeColor(pick, snapshot, index))} aria-pressed={item.id === market.id && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{percent(pick.probability)}</b></button>)}</div></div>
+        <div className="ev-market-summary"><h3><button aria-expanded={open} aria-controls={`event-market-${item.id}`} onClick={() => toggle(item.id)}><span>{item.title}<small>{compact(item.volume.COOLA)} COOLA VOL.</small></span><ChevronDown size={16}/></button></h3><div className="ev-market-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={item.id === market.id && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{percent(pick.probability)}</b></button>)}</div></div>
         <div id={`event-market-${item.id}`} hidden={!open}><MarketDetail market={item} selected={selected} snapshot={snapshot} onSelect={(pick) => onSelect(item, pick, false)}/></div>
       </section>
     })}

@@ -1,7 +1,8 @@
+@import '../fonts.css';
 /*
  * SOLZ design system.
  * Taken from the shipped SOLZ game info site: near-black canvas, hairline-separated regions,
- * DM Mono everywhere, sentence-case display type, 4px radius, one lime accent and one coral
+ * Geist Mono everywhere, sentence-case display type, 4px radius, one lime accent and one coral
  * alert. There is no magenta and no cyan in this product. Marathon texture (hazard stripes,
  * barcode strips, tick rules, registration marks) is applied as seasoning, never as fill.
  */
@@ -29,7 +30,7 @@
   --sz-light-line: #d2d2cf;
   --sz-up: #d7f84b;
   --sz-down: #f87b6e;
-  --sz-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sz-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --sz-r: 4px;
   --sz-gap: 16px;
 
