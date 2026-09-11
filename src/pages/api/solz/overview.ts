@@ -27,6 +27,12 @@ function configuredGameOrigin(runtimeEnv: Record<string, unknown> = {}) {
     .replace(/\/+$/, '')
 }
 
+const publicRegions = [
+  { label: 'North America', url: 'https://us-lax-ffc03a4f.colyseus.cloud' },
+  { label: 'Asia', url: 'https://sg-sgp-577148dd.colyseus.cloud' },
+  { label: 'Europe', url: 'https://de-fra-bb2d679b.colyseus.cloud' },
+] as const
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -47,34 +53,68 @@ async function readJson(url: string) {
   return payload
 }
 
+type ActivityMatch = {
+  roomId?: unknown
+  id?: unknown
+  phase?: unknown
+  mode?: unknown
+  kind?: unknown
+  currentPlayers?: unknown
+  configuredPlayers?: unknown
+  spectators?: unknown
+  startedAt?: unknown
+  createdAt?: unknown
+  watchable?: unknown
+}
+
+function activityMatches(activity: unknown) {
+  if (!activity || typeof activity !== 'object') return []
+  const root = activity as { tokens?: Array<{ matches?: ActivityMatch[] }>; casual?: { unlimited?: { matches?: ActivityMatch[] }; survival?: { matches?: ActivityMatch[] } } }
+  return [
+    ...(root.tokens ?? []).flatMap((token) => token.matches ?? []),
+    ...(root.casual?.unlimited?.matches ?? []),
+    ...(root.casual?.survival?.matches ?? []),
+  ]
+}
+
+function publicMatch(match: ActivityMatch, region: string) {
+  const id = typeof match.roomId === 'string' ? match.roomId : typeof match.id === 'string' ? match.id : ''
+  if (!id || match.watchable === false) return null
+  const rawPhase = String(match.phase ?? '').toLowerCase()
+  if (rawPhase === 'finished' || rawPhase === 'settled') return null
+  return {
+    id,
+    region,
+    phase: rawPhase === 'countdown' ? 'countdown' : rawPhase === 'waiting' ? 'waiting' : 'live',
+    mode: String(match.mode ?? match.kind ?? 'Arena match'),
+    players: Math.max(0, Number(match.currentPlayers) || 0),
+    capacity: Math.max(1, Number(match.configuredPlayers) || 1),
+    spectators: Math.max(0, Number(match.spectators) || 0),
+    startedAt: Number(match.startedAt) || Number(match.createdAt) || null,
+    watchUrl: 'https://solz.fun/watch/live/',
+  }
+}
+
 export const GET: APIRoute = async ({ locals }) => {
   const runtimeEnv = (locals as { runtime?: { env?: Record<string, unknown> } }).runtime?.env ?? {}
-  const colyseusUrl = configuredColyseusUrl(runtimeEnv)
-  if (!colyseusUrl) {
-    return json({
-      code: 'solz_live_source_not_configured',
-      message: 'The SOLZ live match source is not configured on this server.',
-    }, 503)
-  }
-
-  const baseUrl = httpOrigin(colyseusUrl)
+  const configuredUrl = configuredColyseusUrl(runtimeEnv)
+  const sources = configuredUrl ? [{ label: 'Configured arena', url: httpOrigin(configuredUrl) }] : publicRegions
   try {
-    const [activityResult, killsResult, winsResult] = await Promise.allSettled([
-      readJson(`${baseUrl}/activity`),
-      readJson(`${baseUrl}/leaderboard/users?sort=kills&limit=12`),
-      readJson(`${baseUrl}/leaderboard/users?sort=wins&limit=12`),
-    ])
-    if (activityResult.status === 'rejected') throw activityResult.reason
+    const results = await Promise.allSettled(sources.map(async (source) => ({ source, activity: await readJson(`${source.url}/activity`) })))
+    const available = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    if (!available.length) throw new Error('No SOLZ regional activity feed responded.')
+    const primary = available.find((entry) => activityMatches(entry.activity).some((match) => publicMatch(match, entry.source.label))) ?? available[0]!
 
     return json({
       generatedAt: Date.now(),
-      colyseusUrl,
-      gameOrigin: configuredGameOrigin(runtimeEnv) || null,
-      activity: activityResult.value,
-      leaderboard: {
-        kills: killsResult.status === 'fulfilled' ? killsResult.value : null,
-        wins: winsResult.status === 'fulfilled' ? winsResult.value : null,
-      },
+      colyseusUrl: primary.source.url,
+      gameOrigin: configuredGameOrigin(runtimeEnv) || 'https://solz.fun',
+      activity: primary.activity,
+      matches: available.flatMap(({ source, activity }) => activityMatches(activity).flatMap((match) => {
+        const result = publicMatch(match, source.label)
+        return result ? [result] : []
+      })),
+      leaderboard: { kills: null, wins: null },
       // Match observation is already public in SOLZ. Custody and paid agent control remain off until their own authorities ship.
       capabilities: {
         orders: {

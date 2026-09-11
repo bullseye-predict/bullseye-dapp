@@ -1,31 +1,18 @@
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, ChevronRight, Eye, Trophy } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, Trophy } from 'lucide-react'
 import { useState } from 'react'
 import type { QueueSlot, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
-import { matchLabel } from './heroMarket'
-import { amountLabel, compact, percent, StatusDot, TeamMark } from './HomePrimitives'
-import type { ArenaTokenConfig } from '../solz/tokenInfo'
-import { TokenDirectory } from './TokenDirectory'
+import { amountLabel, StatusDot, TeamMark } from './HomePrimitives'
+import type { SolzWatchMatch } from './useSolzWatchMatches'
 import '../../styles/home-community.css'
 
-export function LiveMatches({ snapshot, selectedId, eventBasePath, tokenConfig }: { snapshot: SolzSnapshot; selectedId: string; eventBasePath: string; tokenConfig: ArenaTokenConfig }) {
-  const matches = snapshot.matches.filter((match) => match.id !== selectedId)
+export function LiveMatches({ feed }: { feed: { matches: SolzWatchMatch[]; loading: boolean; error: string } }) {
+  const liveCount = feed.matches.filter((match) => match.phase === 'live').length
   return <section className="sh-live-section" id="matches">
-    <div className="sh-section-heading"><h2>ELSEWHERE IN THE ARENA<span>{matches.filter((match) => match.phase === 'live').length} LIVE</span></h2><span className="sh-section-meta">FIND YOUR NEXT MATCH <ArrowDownRight size={16}/></span></div>
-    <div className="ch-arena-discovery"><div className="sh-live-matches">{matches.map((match) => {
-      const market = snapshot.markets.find((item) => item.id === match.marketId)
-      const [home, away] = match.teams
-      const probability = market?.outcomes[0]?.probability ?? 0.5
-      return <a key={match.id} className="sh-match-card" href={`${eventBasePath}/${encodeURIComponent(match.id)}`} aria-label={`Open ${matchLabel(match.teams)} event`}>
-        <div className="sh-match-card-top"><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : 'UP NEXT'}</StatusDot><span>{match.mode} <span>/</span> {match.phase === 'live' ? formatClock(snapshot.updatedAt - match.startedAt) : formatClock(match.startedAt - snapshot.updatedAt)}</span><ArrowUpRight size={16}/></div>
-        {match.teams.length > 2 ? <div className="ch-ffa-match-teams">{match.teams.map((team) => <span key={team.teamId}><TeamMark id={team.teamId} color={team.color}/><b>{team.symbol.replace(/^\$/, '')}</b><small>{percent(market?.outcomes.find((outcome) => outcome.teamId === team.teamId)?.probability ?? 0)}</small></span>)}</div> : <>
-        <div className="sh-match-pair"><div><TeamMark id={home.teamId} color={home.color}/><strong>{home.symbol}</strong></div><span>{match.phase === 'live' ? `${home.score} : ${away.score}` : 'VS'}</span><div><TeamMark id={away.teamId} color={away.color}/><strong>{away.symbol}</strong></div></div>
-        <div className="sh-match-odds"><span style={{ color: home.color }}>{percent(probability)}</span><span style={{ color: away.color }}>{percent(1 - probability)}</span></div>
-        <div className="sh-odds-bar" style={{ background: away.color }}><i style={{ width: percent(probability), background: home.color }}/></div>
-        </>}
-        <div className="sh-match-card-bottom"><span>{compact(market?.volume.COOLA ?? 0)} COOLA VOL.</span><span><Eye size={12}/>{compact(match.viewers)}<ChevronRight size={14}/></span></div>
-      </a>
-    })}</div><TokenDirectory config={tokenConfig}/></div>
+    <div className="sh-section-heading"><h2>LIVE ARENA<span>{liveCount} LIVE</span></h2><a className="sh-section-meta" href="https://solz.fun/watch/live/" target="_blank" rel="noreferrer">OPEN SOLZ WATCH <ArrowDownRight size={16}/></a></div>
+    <div className="ch-live-list" aria-busy={feed.loading}>{feed.matches.map((match) => <a key={`${match.region}:${match.id}`} href={match.watchUrl} target="_blank" rel="noreferrer" className="ch-live-row" aria-label={`Watch ${match.id} in ${match.region}`}>
+      <StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot><strong>{match.id}</strong><span>{match.region} · {match.mode}</span><span>{match.players}/{match.capacity} players</span><span><Eye size={13}/>{match.spectators} watching</span><b>WATCH MATCH <ArrowUpRight size={15}/></b>
+    </a>)}{!feed.loading && !feed.matches.length && <div className="ch-live-empty" role={feed.error ? 'alert' : 'status'}><strong>{feed.error ? 'SOLZ match feed is reconnecting.' : 'No watchable SOLZ rooms yet.'}</strong><span>{feed.error || 'The live arena is checked every 10 seconds.'}</span></div>}</div>
   </section>
 }
 

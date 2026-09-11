@@ -23,7 +23,7 @@ export function PortfolioChart({ markets, loading, connected, symbol, unavailabl
   const low = Math.min(0, ...amounts), high = Math.max(0, ...amounts), spread = high - low || 1
   const x = (at: number) => 28 + (at - start) / Math.max(end - start, 1) * 644
   const y = (n: number) => 160 - (n - low) / spread * 135
-  const path = chart.map((p, i) => `${i ? 'L' : 'M'}${x(p.at)},${y(amounts[i])}`).join(' ')
+  const path = chart.map((p, i) => i ? `H${x(p.at)}V${y(amounts[i])}` : `M${x(p.at)},${y(amounts[i])}`).join(' ')
   const selected = hover === null ? chart.at(-1)! : chart[Math.min(hover, chart.length - 1)]
   const available = connected && !loading && !incomplete && points.length > 0
   return <section className="pf-chart" aria-label="Net trade flow chart">
