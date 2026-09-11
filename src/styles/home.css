@@ -81,11 +81,23 @@ body { margin: 0; }
 .sh-broadcast-image { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center 60%; display: block; }
 .sh-broadcast video { z-index: 2; }
 .sh-broadcast-frame { border: 0; background: #11161f; z-index: 1; }
-.sh-broadcast-source { position: absolute; z-index: 5; top: 48px; right: 18px; display: flex; border: 1px solid rgb(225 234 250 / 38%); background: rgb(7 11 19 / 78%); }
+.sh-broadcast-source { position: absolute; z-index: 6; top: 48px; right: 18px; display: flex; border: 1px solid rgb(225 234 250 / 38%); background: rgb(7 11 19 / 78%); }
 .sh-broadcast-source button { appearance: none; border: 0; border-right: 1px solid rgb(225 234 250 / 22%); padding: 5px 8px; background: transparent; color: #dce6fa; font: 700 8px/1 var(--sh-mono); text-transform: uppercase; cursor: pointer; }
 .sh-broadcast-source button:last-child { border-right: 0; }
 .sh-broadcast-source button[aria-pressed="true"] { background: #c7ff00; color: #101510; }
-.sh-broadcast-source button:disabled { opacity: .42; cursor: not-allowed; }
+.sh-broadcast-fallback { position: absolute; z-index: 5; inset: 0; display: grid; place-items: center; overflow: hidden; padding: 58px 24px 24px; background: #080b10; color: #eaf0fa; }
+.sh-broadcast-fallback::before { position: absolute; inset: 0; background: url('/images/solz/arena-preview.jpg') center / cover no-repeat; content: ''; opacity: .24; }
+.sh-broadcast-fallback::after { position: absolute; inset: 0; background: rgb(1 4 8 / 70%); content: ''; }
+.sh-broadcast-fallback > div { position: relative; z-index: 1; display: grid; justify-items: center; width: min(100%, 570px); text-align: center; }
+.sh-broadcast-fallback-play { display: grid; width: 46px; height: 46px; place-items: center; margin-bottom: 13px; border: 1px solid #c7ff00; background: rgb(12 20 8 / 88%); color: #c7ff00; }
+.sh-broadcast-fallback strong { display: block; font: 700 18px var(--sh-heading); }
+.sh-broadcast-fallback p { max-width: 62ch; margin: 9px 0 16px; color: #c2ccdc; font-size: 11px; line-height: 1.55; }
+.sh-broadcast-fallback div > div { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
+.sh-broadcast-fallback button, .sh-broadcast-fallback a { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border: 1px solid #a8d922; background: #c7ff00; color: #101510; font: 700 9px var(--sh-mono); text-transform: uppercase; }
+.sh-broadcast-fallback a { border-color: #7a899e; background: transparent; color: #dce6fa; }
+.sh-broadcast-fallback :is(button, a):hover { border-color: #e7f7b3; background: #ddff68; color: #101510; }
+.sh-broadcast-fallback a:hover { background: #2c3a4e; color: #fff; }
+.sh-broadcast-fallback :is(button, a):focus-visible, .sh-broadcast-source button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .sh-broadcast-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(9 15 29 / 68%), transparent 40%, rgb(4 9 22 / 10%) 60%, rgb(7 11 19 / 86%)); pointer-events: none; }
 .sh-broadcast-top { position: absolute; top: 16px; left: 18px; right: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 9px; color: #e5e6ed; }
 .sh-broadcast-top > span:last-child { display: flex; align-items: center; gap: 6px; }

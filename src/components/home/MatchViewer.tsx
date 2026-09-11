@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChartNoAxesCombined, Crosshair, Eye, ListFilter, Maximize, Pin, Radio, X } from 'lucide-react'
+import { ArrowUpRight, ChartNoAxesCombined, Crosshair, Eye, ExternalLink, ListFilter, Maximize, Pin, Play, Radio, X } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import type { PredictionAnswer } from '../solz/predictionContracts'
@@ -14,8 +14,21 @@ type ArenaBroadcastStatus = { state: 'intermission' | 'preparing' | 'live' | 'un
 
 const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArenaStatus }: { source?: string; iframeSrc: string; onArenaStatus?: (status: ArenaBroadcastStatus) => void }) {
   const [failed, setFailed] = useState(false)
-  const [mode, setMode] = useState<'iframe' | 'video'>('iframe')
+  const [mode, setMode] = useState<'iframe' | 'video'>('video')
   const iframe = useRef<HTMLIFrameElement>(null)
+  const iframePreference = 'solz:agent-arena:iframe-enabled'
+
+  useEffect(() => {
+    if (source || typeof window === 'undefined') return
+    if (window.localStorage.getItem(iframePreference) === 'true') setMode('iframe')
+  }, [source])
+
+  const chooseMode = (next: 'iframe' | 'video') => {
+    setMode(next)
+    setFailed(false)
+    if (typeof window !== 'undefined') window.localStorage.setItem(iframePreference, String(next === 'iframe'))
+  }
+
   useEffect(() => {
     if (!onArenaStatus || typeof window === 'undefined') return
     let expectedOrigin = ''
@@ -32,9 +45,11 @@ const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArena
     window.addEventListener('message', receive)
     return () => window.removeEventListener('message', receive)
   }, [iframeSrc, onArenaStatus])
+  const videoAvailable = Boolean(source) && !failed
+  const iframeActive = mode === 'iframe'
   return <>
-    {mode === 'video' && source && !failed ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('iframe') }}/> : <iframe ref={iframe} className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/>}
-    <div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button aria-pressed={mode === 'iframe'} onClick={() => setMode('iframe')}>Arena</button><button disabled={!source} aria-pressed={mode === 'video'} onClick={() => setMode('video')}>Video</button></div>
+    {iframeActive ? <iframe ref={iframe} className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/> : videoAvailable ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('video'); if (typeof window !== 'undefined') window.localStorage.setItem(iframePreference, 'false') }} /> : <div className="sh-broadcast-fallback" role="status"><div><span className="sh-broadcast-fallback-play" aria-hidden="true"><Play size={21} fill="currentColor"/></span><strong>Video stream is unavailable.</strong><p>Do you want to proceed with iframe streaming? It opens the game stream directly and can use more device performance. Only continue if your device can handle the load.</p><div><button type="button" onClick={() => chooseMode('iframe')}><Play size={13} fill="currentColor" aria-hidden="true"/>Use iframe streaming</button><a href="https://solz.fun/watch/live/agent-arena" target="_blank" rel="noreferrer">Open the game <ExternalLink size={13} aria-hidden="true"/></a></div></div></div>}
+    <div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button type="button" aria-pressed={iframeActive} onClick={() => chooseMode('iframe')}>Iframe</button><button type="button" aria-pressed={!iframeActive} onClick={() => chooseMode('video')}>Video</button></div>
   </>
 })
 
@@ -101,7 +116,7 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
           <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)} onArenaStatus={setBroadcastStatus}/><div className="sh-broadcast-shade" aria-hidden="true"/>
-          <div className="sh-broadcast-top"><span className="sh-preview-chip">{intermission ? 'NEXT MATCH RESERVED' : match.streamUrl ? 'LIVE BROADCAST' : 'ARENA EMBED'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
+          <div className="sh-broadcast-top"><span className="sh-preview-chip">{intermission ? 'NEXT MATCH RESERVED' : match.streamUrl ? 'LIVE BROADCAST' : 'VIDEO UNAVAILABLE'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
           {!intermission && <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
             {match.teams.map((team, index) => <div key={team.teamId} style={{ color: team.color }}><TeamMark id={team.teamId} color={team.color}/><strong>{teamLabel(team.symbol)}</strong><b>{String(team.score).padStart(2, '0')}</b>{index === 0 && match.teams.length === 2 && <span className="ch-score-center"><small>{match.round}</small><strong>{elapsed}</strong><small>{match.mode}</small></span>}</div>)}
           </div>}

@@ -49,10 +49,13 @@ describe('highlight livestream navigation', () => {
         const panel = html.match(/<div[^>]*id="highlight-view-live-panel"[^>]*>/)?.[0]
         expect(panel).toBeDefined()
         expect(panel?.includes('hidden')).toBe(view !== 'live')
-        expect(html).toContain('ARENA EMBED')
-        expect(html).toContain('title="SOLZ agent arena livestream"')
-        expect(html).toContain('>Arena</button>')
-        expect(html).toContain('disabled="" aria-pressed="false">Video</button>')
+        expect(html).toContain('VIDEO UNAVAILABLE')
+        expect(html).toContain('Video stream is unavailable.')
+        expect(html).toContain('Use iframe streaming')
+        expect(html).toContain('href="https://solz.fun/watch/live/agent-arena"')
+        expect(html).not.toContain('title="SOLZ agent arena livestream"')
+        expect(html).toContain('aria-pressed="false">Iframe</button>')
+        expect(html).toContain('aria-pressed="true">Video</button>')
         if (state === 'intermission') expect(html).toContain('MATCH COMPLETE')
       }
     })
@@ -72,10 +75,11 @@ describe('highlight livestream navigation', () => {
     expect(html).toContain('Predictions <span>0</span>')
     expect(html).toContain('No prediction questions yet.')
     expect(html).toContain('No match market yet.')
-    expect(html).toContain('src="https://solz.fun/watch/live/agent-arena?back=false"')
+    expect(html).toContain('Use iframe streaming')
+    expect(html).not.toContain('src="https://solz.fun/watch/live/agent-arena?back=false"')
   })
 
-  test('shows the reserved next match and all twelve entrants over the persistent arena iframe', async () => {
+  test('shows the reserved next match and all twelve entrants without starting the arena iframe', async () => {
     const source = createSolzDataSource()
     const snapshot = await source.load()
     const original = snapshot.matches.find((item) => item.id === snapshot.highlightMatchId)!
@@ -100,7 +104,8 @@ describe('highlight livestream navigation', () => {
     expect(html).toContain('--:--')
     expect(html).toContain('SYNCING SERVER CLOCK')
     expect(html).toContain('12 / 12 AGENTS CONFIRMED')
-    expect(html).toContain('src="https://solz.fun/watch/live/agent-arena?room=current&amp;back=false"')
+    expect(html).toContain('Use iframe streaming')
+    expect(html).not.toContain('src="https://solz.fun/watch/live/agent-arena?room=current&amp;back=false"')
     for (const agent of snapshot.agents.slice(0, 12)) expect(html).toContain(agent.codename.replace('&', '&amp;'))
   })
 
