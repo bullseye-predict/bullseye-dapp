@@ -16,3 +16,6 @@ For larger refactors, split components along feature responsibilities and extrac
 For future TanStack integration, put router-specific hooks and links in host wrappers and pass navigation callbacks and route state into features. Do not add TanStack dependencies until migration is requested.
 Keep video playback lifecycle independent of odds updates. Dispose player instances, subscriptions, timers, and connections on unmount. Use authoritative server timing for prediction cutoffs.
 Validate changes with bun run check and relevant bun tests. Report limitations honestly; do not claim a framework migration or end-to-end wallet test was completed without performing it.
+
+## Trading colors
+Use green for Buy/Yes and red for Sell/No consistently across trade tickets, market lists, and selected/hover states. Two-outcome team markets must use the same green/red mapping in every trading control. Keep team identity colors on logos, scores, and charts; never let team colors override trading semantics.

@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChartNoAxesCombined, Crosshair, Eye, ExternalLink, ListFilter, Maximize, Pin, Play, Radio, X } from 'lucide-react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import type { PredictionAnswer } from '../solz/predictionContracts'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
@@ -12,7 +12,9 @@ import { teamLabel, type HighlightView } from './heroMarket'
 // Stable source identity keeps market ticks independent from playback.
 type ArenaBroadcastStatus = { state: 'intermission' | 'preparing' | 'live' | 'unavailable'; endsAt: number | null; generatedAt: number; matchId: string | null; receivedAt: number }
 
-const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArenaStatus }: { source?: string; iframeSrc: string; onArenaStatus?: (status: ArenaBroadcastStatus) => void }) {
+type BroadcastContext = { state: string; time: string; detail: string }
+
+const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArenaStatus, context }: { source?: string; iframeSrc: string; onArenaStatus?: (status: ArenaBroadcastStatus) => void; context: BroadcastContext }) {
   const [failed, setFailed] = useState(false)
   const [mode, setMode] = useState<'iframe' | 'video'>('video')
   const iframe = useRef<HTMLIFrameElement>(null)
@@ -49,7 +51,7 @@ const BroadcastMedia = memo(function BroadcastMedia({ source, iframeSrc, onArena
   const iframeActive = mode === 'iframe'
   return <>
     {iframeActive ? <iframe ref={iframe} className="sh-broadcast-image sh-broadcast-frame" src={iframeSrc} title="SOLZ agent arena livestream" allow="autoplay; fullscreen"/> : videoAvailable ? <video className="sh-broadcast-image" src={source} controls playsInline autoPlay muted onError={() => { setFailed(true); setMode('video'); if (typeof window !== 'undefined') window.localStorage.setItem(iframePreference, 'false') }} /> : <div className="sh-broadcast-fallback" role="status"><div><span className="sh-broadcast-fallback-play" aria-hidden="true"><Play size={21} fill="currentColor"/></span><strong>Video stream is unavailable.</strong><p>Do you want to proceed with iframe streaming? It opens the game stream directly and can use more device performance. Only continue if your device can handle the load.</p><div><button type="button" onClick={() => chooseMode('iframe')}><Play size={13} fill="currentColor" aria-hidden="true"/>Use iframe streaming</button><a href="https://solz.fun/watch/live/agent-arena" target="_blank" rel="noreferrer">Open the game <ExternalLink size={13} aria-hidden="true"/></a></div></div></div>}
-    <div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button type="button" aria-pressed={iframeActive} onClick={() => chooseMode('iframe')}>Iframe</button><button type="button" aria-pressed={!iframeActive} onClick={() => chooseMode('video')}>Video</button></div>
+    <div className="sh-broadcast-context" aria-live="polite"><span>{context.state}</span><strong>{context.time}</strong><small>{context.detail}</small></div><div className="sh-broadcast-source" role="group" aria-label="Broadcast source"><button type="button" aria-pressed={iframeActive} onClick={() => chooseMode('iframe')}>Iframe</button><button type="button" aria-pressed={!iframeActive} onClick={() => chooseMode('video')}>Video</button></div>
   </>
 })
 
@@ -78,9 +80,9 @@ type Props = {
   onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void; liveHref: string
   onChat: () => void; onPrompt: () => void; season: boolean; pinned: boolean; onPin: () => void
   broadcastOnly?: boolean; detailHref?: string; referenceMarkets?: ArenaMarket[]; simulation?: boolean; answer?: PredictionAnswer
-  marketSourceLabel?: string
+  marketSourceLabel?: string; heading?: ReactNode
 }
-export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, broadcastOnly = false, simulation = true, answer = 'yes', referenceMarkets, marketSourceLabel }: Props) {
+export function MatchViewer({ match, market, markets, snapshot, source, view, onView, outcome, onSelect, liveHref, onChat, onPrompt, season, pinned, onPin, detailHref, broadcastOnly = false, simulation = true, answer = 'yes', referenceMarkets, marketSourceLabel, heading }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   const [fullscreenError, setFullscreenError] = useState('')
   const [detail, setDetail] = useState<ArenaMarket | null>(null)
@@ -111,13 +113,18 @@ export function MatchViewer({ match, market, markets, snapshot, source, view, on
     : match.endsAt
   const remainingMs = Math.max(0, serverDeadline - clock)
   const remaining = `${String(Math.floor(remainingMs / 60_000)).padStart(2, '0')}:${String(Math.floor(remainingMs % 60_000 / 1_000)).padStart(2, '0')}`
+  const broadcastContext: BroadcastContext = intermission
+    ? { state: 'BREAK', time: `${remaining} LEFT`, detail: `05:00 BREAK · NEXT ${matchCode}` }
+    : match.phase === 'live'
+      ? { state: 'LIVE MATCH', time: `${elapsed} / 20:00`, detail: `${remaining} LEFT · ${match.mode}` }
+      : { state: 'MATCH COMPLETE', time: 'FINAL', detail: 'AWAITING NEXT MATCH' }
   return <section className="ch-viewer" aria-label="Highlighted event viewer">
-    <div className="ch-view-navigation"><div className="ch-match-actions">{detailHref ? <a className="ch-detail-button" href={detailHref}>Match info <ArrowUpRight size={12}/></a> : <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Match info <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
+    <div className="ch-view-navigation"><div className="ch-match-actions">{heading ?? <>{!detailHref && <button className="ch-detail-button" onClick={() => setDetail(structuredClone(market))}>Match info <ArrowUpRight size={12}/></button>}{season && <button className="ch-pinned" onClick={onPin}><Pin size={11}/>{pinned ? 'Pinned · release' : 'Keep highlight'}</button>}</>}</div>{!broadcastOnly && <Tabs label="Highlight view" idPrefix="highlight-view" value={view} onChange={onView} tabs={[{ id: 'options', label: <><ListFilter size={14}/> Predictions <span>{markets.length}</span></> }, { id: 'market', label: <><ChartNoAxesCombined size={14}/> Market</> }, { id: 'live', label: <><Radio size={14}/> Livestream</> }]}/>}</div>
     <div className="ch-viewer-body">
     <div className={`ch-screen ${season ? 'is-season' : ''}`}>
       <TabPanel id="live" idPrefix="highlight-view" active={view === 'live'}>
         <div className="sh-broadcast" ref={frame}>
-          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)} onArenaStatus={setBroadcastStatus}/><div className="sh-broadcast-shade" aria-hidden="true"/>
+          <BroadcastMedia key={`${match.streamUrl ?? 'iframe'}:${liveHref}`} source={match.streamUrl} iframeSrc={arenaEmbedUrl(liveHref)} onArenaStatus={setBroadcastStatus} context={broadcastContext}/><div className="sh-broadcast-shade" aria-hidden="true"/>
           <div className="sh-broadcast-top"><span className="sh-preview-chip">{intermission ? 'NEXT MATCH RESERVED' : match.streamUrl ? 'LIVE BROADCAST' : 'VIDEO UNAVAILABLE'}</span><span><Eye size={13}/>{compact(match.viewers)} watching</span></div>
           {!intermission && <div className={`ch-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
             {match.teams.map((team, index) => <div key={team.teamId} style={{ color: team.color }}><TeamMark id={team.teamId} color={team.color}/><strong>{teamLabel(team.symbol)}</strong><b>{String(team.score).padStart(2, '0')}</b>{index === 0 && match.teams.length === 2 && <span className="ch-score-center"><small>{match.round}</small><strong>{elapsed}</strong><small>{match.mode}</small></span>}</div>)}

@@ -20,5 +20,5 @@ export function OpenDreamDexMarket({ apiUrl, eventId, agentId, onOpened }: Props
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Market creation did not complete.') }
     finally { setBusy(false) }
   }
-  return <div className="ch-open-market"><div><strong>No event contract yet.</strong><span>Open this selected YES/NO question on Shannon with sponsored testnet gas. The first trade stays in this ticket after confirmation.</span></div><button type="button" onClick={() => void open()} disabled={busy}>{busy ? 'Opening market…' : 'Open market · sponsored'}<ArrowUpRight size={14}/></button>{message && <p role="status">{message}</p>}</div>
+  return <div className="ch-open-market"><div><strong>No market opened for this match.</strong><span>Each match needs its own YES/NO question market. Open this one on Shannon with sponsored testnet gas, then place your trade here.</span></div><button type="button" onClick={() => void open()} disabled={busy}>{busy ? 'Opening market…' : 'Open market · sponsored'}<ArrowUpRight size={14}/></button>{message && <p role="status">{message}</p>}</div>
 }

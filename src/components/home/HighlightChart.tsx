@@ -9,14 +9,19 @@ type Props = {
   market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome
   onOutcome: (outcome: ArenaMarketOutcome) => void
   colors?: Record<string, string>; referenceMarket?: ArenaMarket; focusOnly?: boolean
-  simulation?: boolean; dates?: ArenaMarket[]; onMarket: (market: ArenaMarket) => void; sourceLabel?: string
+  collateral?: string; simulation?: boolean; dates?: ArenaMarket[]; onMarket: (market: ArenaMarket) => void; sourceLabel?: string
 }
 const timeLabel = (at: number, long: boolean) => new Date(at).toLocaleString('en', long ? { month: 'short', day: 'numeric' } : { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, referenceMarket, focusOnly = false, sourceLabel }: Props) {
-  const displayMarket = !simulation && referenceMarket ? referenceMarket : market
+export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, focusOnly = false, sourceLabel, collateral = 'COOLA' }: Props) {
+  const displayMarket = market
   const focus = resolvePredictionContract(displayMarket, outcome.id) ?? outcome
-  const series = (focusOnly ? [focus] : displayMarket.outcomes).filter((item): item is ArenaMarketOutcome => Boolean(item))
+  const [historyMode, setHistoryMode] = useState<'quotes' | 'trades'>(focusOnly ? 'trades' : 'quotes')
+  const rawSeries = (focusOnly ? [focus] : displayMarket.outcomes).filter((item): item is ArenaMarketOutcome => Boolean(item))
+  const series = rawSeries.map(item => {
+    const history = !simulation && historyMode === 'quotes' ? item.quoteHistory ?? [] : item.priceHistory ?? []
+    return { ...item, probability: history.at(-1)?.probability ?? item.probability, priceHistory: history }
+  })
   const hasPriceHistory = series.some(item => (item.priceHistory?.length ?? 0) > 0)
   const long = !market.matchId
   const [range, setRange] = useState('ALL')
@@ -35,16 +40,16 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [simulation])
+  }, [simulation, hasPriceHistory])
   const plotWidth = Math.max(1, size.width - 44)
   const plotHeight = Math.max(1, size.height - 40)
   const windows: Record<string, number> = { '1M': 60_000, '5M': 300_000, '15M': 900_000, '1D': 86_400_000, '1W': 604_800_000, ALL: Infinity }
   const historyTimes = series.flatMap((item) => item.priceHistory?.map((point) => point.at) ?? [])
   const end = historyTimes.length ? Math.max(...historyTimes) : snapshot.updatedAt
-  const allStart = historyTimes.length ? Math.min(...historyTimes) : end - 60_000
+  const allStart = historyTimes.length ? Math.min(Math.min(...historyTimes), end - 60_000) : end - 60_000
   const start = Math.max(allStart, end - (windows[range] ?? Infinity))
   const duration = Math.max(1, end - start)
-  const visibleProbabilities = series.flatMap((item) => [item.probability, ...(item.priceHistory ?? []).filter((point) => point.at >= start).map((point) => point.probability)])
+  const visibleProbabilities = series.filter(item => simulation || item.priceHistory.length > 0).flatMap((item) => [item.probability, ...(item.priceHistory ?? []).filter((point) => point.at >= start).map((point) => point.probability)])
   if (!visibleProbabilities.length) visibleProbabilities.push(.5)
   const minimum = Math.min(...visibleProbabilities), maximum = Math.max(...visibleProbabilities)
   const padding = Math.max(.025, (maximum - minimum) * .15)
@@ -59,9 +64,10 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
     <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? sourceLabel ?? 'SIMULATION' : hasPriceHistory ? sourceLabel ?? 'LIVE MARKET' : `${sourceLabel ? `${sourceLabel} · ` : ''}AWAITING PRICES`}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
     {dates && <div className="ch-date-tabs" aria-label="Prediction closing date">{dates.map((item) => <button key={item.id} aria-pressed={market.id === item.id} onClick={() => { setRange('ALL'); onMarket(item) }}>{timeLabel(item.closesAt, true)}</button>)}</div>}
     {!focusOnly && <h2>{market.title}</h2>}
-    {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(focus) ? `${percent(focus.probability)} chance` : 'No price yet'}</strong><span>{focus.label}</span></div>}
+    {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(series[0]) ? `${percent(series[0].probability)} market price` : 'No price yet'}</strong><span>{focus.label}</span></div>}
     {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{hasPrice(item) ? percent(item.probability) : '—'}</b></button>)}</div>}
-    {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><div className="ch-empty-chart-grid" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><strong>No match prices yet.</strong><span>These 12 linked winner questions will share this match view once live quotes or trades exist.</span></div> : <><div className="ch-chart-controls">
+    {!simulation && <div className="ch-history-source" role="group" aria-label="Price history source"><button type="button" aria-pressed={historyMode === 'quotes'} onClick={() => setHistoryMode('quotes')}>Quotes</button><button type="button" aria-pressed={historyMode === 'trades'} onClick={() => setHistoryMode('trades')}>Trades</button><span>{historyMode === 'quotes' ? 'Observed exchange quotes · markets at the same price overlap' : 'Executed exchange trades · opening a market is not a trade'}</span></div>}
+    {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><div className="ch-empty-chart-grid" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><strong>{historyMode === 'quotes' ? 'No quotes recorded yet.' : rawSeries.some(item => item.historyStatus === 'unavailable') ? 'Trade history unavailable.' : 'No trades recorded yet.'}</strong><span>{historyMode === 'quotes' ? 'Quotes are recorded while this page is open. Open markets need resting orders to produce a quote.' : 'Choose Quotes to see resting market prices. Trades appear here after actual fills are indexed.'}</span></div> : <>{!simulation && historyMode === 'trades' && historyTimes.length === 1 && <p className="ch-sample-note">One trade recorded. More trades will build the price history.</p>}<div className="ch-chart-controls">
       <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
       <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>
       <span className="ch-chart-domain">{scale === 'focus' ? `Focus ${percent(lower)}–${percent(upper)}` : 'Full 0–100%'}</span>
@@ -71,17 +77,18 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
         <defs><clipPath id={clipId}><rect x="5" y="8" width={plotWidth + 6} height={plotHeight + 8}/></clipPath></defs>
         {(size.height < 130 ? [1, .5, 0] : [1, .75, .5, .25, 0]).map((part) => { const p = lower + part * (upper - lower); return <g key={part}><line className="ch-grid-line" x1="8" x2={8 + plotWidth} y1={y(p)} y2={y(p)}/><text x={size.width - 27} y={y(p) + 4}>{Math.round(p * 100)}%</text></g> })}
         <g clipPath={`url(#${clipId})`}>{series.map((item, index) => {
-          const history = item.priceHistory ?? [{ at: start, probability: item.probability }, { at: end, probability: item.probability }]
+          const history = item.priceHistory
+          if (!history.length) return null
           const color = colorFor(item, index)
           const path = history.map((point, i) => i && chartStyle === 'step'
             ? `H${x(point.at).toFixed(2)} V${y(point.probability).toFixed(2)}`
             : `${i ? 'L' : 'M'}${x(point.at).toFixed(2)},${y(point.probability).toFixed(2)}`).join(' ')
-          return <g key={item.id}>{chartStyle === 'step' && outcome.id === item.id && history.length > 0 && <path d={`${path} L${x(history[history.length - 1].at)},${y(lower)} L${x(history[0].at)},${y(lower)} Z`} fill={color} opacity="0.08"/>}<path d={path} fill="none" stroke={color} strokeWidth={outcome.id === item.id ? 2.4 : 1.7} vectorEffect="non-scaling-stroke"/><circle cx={x(end)} cy={y(item.probability)} r="3.3" fill={color}/></g>
+          return <g key={item.id}>{chartStyle === 'step' && outcome.id === item.id && history.length > 0 && <path d={`${path} L${x(history[history.length - 1].at)},${y(lower)} L${x(history[0].at)},${y(lower)} Z`} fill={color} opacity="0.08"/>}<path d={path} fill="none" stroke={color} strokeWidth={outcome.id === item.id ? 2.8 : 1.7} opacity={focusOnly || outcome.id === item.id ? 1 : .7} strokeDasharray={!focusOnly && historyMode === 'quotes' ? [undefined, '8 4', '3 4', '12 4 3 4'][index % 4] : undefined} vectorEffect="non-scaling-stroke"/><circle cx={x(history.at(-1)!.at)} cy={y(history.at(-1)!.probability)} r="3.3" fill={color}/></g>
         })}</g>
         {hoverAt !== null && <line x1={x(hoverAt)} x2={x(hoverAt)} y1="12" y2={12 + plotHeight} stroke="#878b96" strokeDasharray="3 4"/>}
         {(size.width < 500 ? [0, .5, 1] : [0, .25, .5, .75, 1]).map((part) => <text key={part} x={8 + part * plotWidth} y={size.height - 7} textAnchor={part === 0 ? 'start' : part === 1 ? 'end' : 'middle'}>{timeLabel(start + part * duration, long)}</text>)}
       </svg>
-      {hoverAt !== null && <div className="ch-chart-tooltip"><span>{timeLabel(hoverAt, long)}</span>{series.map((item, index) => {
+      {hoverAt !== null && <div className="ch-chart-tooltip"><span>{timeLabel(hoverAt, long)}</span>{series.filter(item => item.priceHistory.length).map((item, index) => {
         const inspectedHistory = item.priceHistory ?? []
         const closest = chartStyle === 'step'
           ? inspectedHistory.filter((point) => point.at <= hoverAt).at(-1)
@@ -89,6 +96,6 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
         return <span key={item.id}><i style={{ background: colorFor(item, index) }}/>{item.label}<b>{percent(closest?.probability ?? item.probability)}</b></span>
       })}</div>}
     </div>
-    <div className="ch-chart-footer"><span>{compact(displayMarket.volume.COOLA)} COOLA Vol.</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
+    <div className="ch-chart-footer"><span>{simulation ? `${compact(displayMarket.volume.COOLA)} COOLA Vol.` : `${collateral === 'COOLA' ? market.onchain?.chainId === '50312' ? 'tUSDC' : 'Collateral' : collateral} ${historyMode === 'quotes' ? 'quote observations' : 'trade history'}`}</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
   </div>
 }

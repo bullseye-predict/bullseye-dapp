@@ -13,6 +13,7 @@ export function predictionContract(outcome: ArenaMarketOutcome, answer: Predicti
     id: `${NO_PREFIX}${outcome.id}`,
     label: `NO · ${outcome.label}`,
     probability: 1 - outcome.probability,
+    quoteHistory: outcome.quoteHistory?.map(point => ({ ...point, probability: 1 - point.probability })),
     priceHistory: outcome.priceHistory?.map((point) => ({ ...point, probability: 1 - point.probability })),
   }
 }

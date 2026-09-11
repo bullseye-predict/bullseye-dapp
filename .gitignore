@@ -35,3 +35,6 @@ pnpm-debug.log*
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+AGENTS.md
+ARCHITECTURE.md

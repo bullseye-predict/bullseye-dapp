@@ -59,6 +59,9 @@ export type ArenaMarketOutcome = {
   detail: string
   probability: number
   priceHistory?: ArenaPricePoint[]
+  /** Observed exchange quotes, kept distinct from executed trade prices. */
+  quoteHistory?: ArenaPricePoint[]
+  historyStatus?: 'ready' | 'unavailable'
   participantId?: string
   teamId?: string
 }

@@ -171,32 +171,54 @@
 .ch-trade-controls > div { display: flex; gap: 16px; }
 .ch-trade-controls button { padding: 0 0 8px; background: transparent; border: 0; border-bottom: 2px solid transparent; color: #a7b3c4; font: 600 13px var(--sh-heading); }
 .ch-trade-controls button[aria-pressed='true'] { color: #f2f4f7; border-color: #e5e9ef; }
-.ch-trade-controls > label { display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
-.ch-trade-controls select { appearance: none; background: #1b2026; border: 0; color: #e2e7ee; font-size: 11px; padding: 3px; }
+.ch-order-type { position: relative; }
+.ch-trade-order-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; padding-bottom: 6px; }
+.ch-trade-order-actions > * { height: 28px; }
+.ch-order-type-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 7px !important; color: #e2e7ee !important; border: 1px solid transparent !important; border-bottom: 1px solid transparent !important; }
+.ch-order-type-trigger:hover, .ch-order-type-trigger[aria-expanded='true'] { border-color: #536170 !important; background: #222b34 !important; }
+.ch-order-type-trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
+.ch-order-type-menu { position: absolute; z-index: 4; top: calc(100% + 5px); right: 0; display: grid; width: 190px; padding: 5px; background: #1e252c; border: 1px solid #536170; box-shadow: 0 6px 8px rgb(0 0 0 / .28); }
+.ch-trade-controls .ch-order-type-menu button { display: grid; gap: 3px; width: 100%; padding: 8px; color: #dce4ec; border: 1px solid transparent; text-align: left; }
+.ch-trade-controls .ch-order-type-menu button:hover, .ch-trade-controls .ch-order-type-menu button[aria-checked='true'] { border-color: #7097b4; background: #2a3640; }
+.ch-order-type-menu b { font: 600 11px var(--sh-heading); }
+.ch-order-type-menu span { color: #afbbc7; font-size: 8px; line-height: 1.45; }
 .ch-trade-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 19px; }
-.ch-trade-outcomes > button { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px; min-width: 0; min-height: 44px; padding: 9px 8px; border: 1px solid transparent; background: #2d3540; color: #b6c0cf; font: 500 10px var(--sh-heading); }
-.ch-trade-outcomes b { font-weight: 600; }
+.ch-trade-outcomes > button { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 7px; min-width: 0; min-height: 58px; padding: 12px 14px; border: 1px solid transparent; background: #2d3540; color: #b6c0cf; font: 600 16px var(--sh-heading); }
+.ch-trade-outcomes b { font-size: 18px; font-weight: 700; }
 .ch-trade-outcomes > .is-yes { color: #78e6bc; background: #193c33; border-color: #285e4c; }
 .ch-trade-outcomes > .is-no { color: #ff99af; background: #442832; border-color: #71404e; }
 .ch-trade-outcomes > .is-yes[aria-pressed='true'] { background: #49dda5; border-color: #49dda5; color: #09291d; }
 .ch-trade-outcomes > .is-no[aria-pressed='true'] { background: #f17c9a; border-color: #f17c9a; color: #37101b; }
 .ch-trade > form { display: flex; flex: 1; flex-direction: column; }
 .ch-limit-price { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 17px; font-size: 11px; }
+.ch-limit-price > label { font: 500 14px var(--sh-heading); }
+.ch-price-format { position: relative; }
+.ch-price-format > button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0 !important; color: #b8c6d6; border: 1px solid #4d5b6b !important; border-bottom: 1px solid #4d5b6b !important; background: #222b34; }
+.ch-price-format > button:hover, .ch-price-format > button[aria-expanded='true'] { color: #eff6fc; border-color: #82a9c8; background: #2e3b47; }
+.ch-price-format-menu { position: absolute; z-index: 4; top: calc(100% + 5px); right: 0; display: grid; width: 142px; padding: 5px; background: #1e252c; border: 1px solid #536170; box-shadow: 0 6px 8px rgb(0 0 0 / .28); }
+.ch-price-format-menu > strong { padding: 5px 7px 6px; color: #aebdca; font: 700 8px var(--sh-mono); letter-spacing: .05em; }
+.ch-price-format-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 7px; color: #dce4ec; border: 1px solid transparent; background: transparent; text-align: left; }
+.ch-price-format-menu button:hover, .ch-price-format-menu button[aria-checked='true'] { border-color: #7097b4; background: #2a3640; }
+.ch-price-format-menu b { font: 600 10px var(--sh-heading); }
+.ch-price-format-menu span { color: #afbbc7; font-size: 9px; }
 .ch-limit-price > div { display: flex; align-items: center; background: #222b34; border: 1px solid #414c5b; }
 .ch-limit-price button { color: #bfc7d4; border: 0; background: transparent; padding: 6px 10px; }
 .ch-limit-price input { width: 40px; appearance: textfield; background: transparent; color: #f3f5f8; border: 0; text-align: right; font-size: 12px; padding: 5px 2px; }
 .ch-limit-price span { font-size: 12px; }
 .ch-trade-amount { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
-.ch-trade-amount > div:first-child { flex-shrink: 0; }
 .ch-trade-amount label { font: 500 14px var(--sh-heading); }
-.ch-trade-amount small { display: block; color: #a1afc1; font-size: 8px; margin-top: 4px; }
-.ch-trade-amount > div:last-child { min-width: 0; text-align: right; }
+.ch-trade-amount > div { min-width: 0; text-align: right; }
 .ch-trade-amount input { width: 100%; max-width: 145px; min-width: 0; appearance: textfield; background: transparent; color: #e4eaf2; border: 0; border-bottom: 1px solid #4b5b70; border-radius: 0; font: 600 29px/1.2 var(--sh-heading); text-align: right; padding: 0 0 1px; }
 .ch-trade-amount input::-webkit-inner-spin-button, .ch-limit-price input::-webkit-inner-spin-button { appearance: none; }
 .ch-trade-amount > div:last-child > span { display: block; color: #a7b5c9; font-size: 8px; margin-top: 3px; }
 .ch-trade-presets { display: flex; justify-content: flex-end; gap: 5px; padding: 12px 0 17px; }
 .ch-trade-presets button { color: #c0cad8; background: #2c3744; padding: 4px 9px; border: 0; font-size: 9px; }
 .ch-trade-presets button:hover { background: #455266; color: #fff; }
+.ch-ticket-summary { display: grid; gap: 8px; padding: 13px 0 12px; margin-top: auto; border-top: 1px solid #424a55; }
+.ch-ticket-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; font-size: 11px; }
+.ch-ticket-summary span { color: #b6c0cf; }
+.ch-ticket-summary strong { color: #edf2f7; font: 600 13px var(--sh-heading); text-align: right; }
+.ch-ticket-summary .is-win strong { color: #78e6bc; }
 .ch-submit-trade { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; min-height: 42px; border: 0; border-radius: 0; color: #071b2d; background: #51b6ff; font: 700 13px var(--sh-heading) !important; }
 .ch-submit-trade:hover { background: #7ecbff; }
 .ch-sample-note { text-align: center; font-size: 8px; color: #aab7c9; margin-top: 9px !important; }
@@ -368,7 +390,8 @@
   .ch-trade { min-height: 0; }
   .ch-trade-title span { font-size: 12px; }
   .ch-trade-title strong { font-size: 17px; }
-  .ch-trade-outcomes > button { font-size: 12px; }
+  .ch-trade-outcomes > button { min-height: 54px; font-size: 15px; }
+  .ch-trade-outcomes b { font-size: 17px; }
   .ch-trade-amount input { max-width: 195px; }
   .ch-trade-amount small { font-size: 9px; }
   .ch-console-accordion.is-open { flex: 1 1 0; }
@@ -386,7 +409,8 @@
   .ch-options-heading h2 { font-size: 17px; }
   .ch-options-heading p { font-size: 8px; }
   .ch-option-row { padding: 10px; }
-  .ch-option-picks button { font-size: 9px; padding: 8px; }
+  .ch-option-picks button { min-height: 42px; padding: 9px 10px; font-size: 12px; }
+  .ch-option-picks button > b { font-size: 13px; }
   .ch-option-expanded p { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .ch-hero-grid *, .ch-hero-grid *::before { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
@@ -522,7 +546,8 @@
 .ch-nested-outcome > .ch-collapse { margin-inline: -14px; }
 .ch-option-row h3 button { font-size: 14px; }
 .ch-option-row h3 small { font-size: 10px; }
-.ch-option-picks button { min-height: 40px; font-size: 10px; }
+.ch-option-picks button { min-height: 46px; padding: 11px 13px; font-size: 13px; font-weight: 600; }
+.ch-option-picks button > b { font-size: 15px; font-weight: 700; }
 
 /* Shared header and hero edges use the full desktop canvas. */
 .ch-home { --ch-content: 1600px; --ch-gutter: 32px; }
@@ -660,14 +685,18 @@
   .ch-home .ch-view-navigation > div:first-child { flex-basis: 100%; }
 }
 
-/* Compact reference heading, with status immediately above the trade column. */
-.ch-home .sh-highlight-heading { position: relative; margin-bottom: 4px; align-items: start; }
-.ch-home .sh-highlight-heading > div:first-child > p { display: none; }
-.ch-home .sh-highlight-meta { position: absolute; right: 0; top: 0; width: 360px; height: calc(100% + 48px); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; gap: 8px; padding-bottom: 4px; }
+/* The heading shares the viewer's first row, immediately above the video frame. */
 .ch-home .ch-view-navigation > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.ch-home .ch-view-navigation .sh-match-heading { display: grid; gap: 3px; }
+.ch-home .ch-view-navigation .sh-match-heading h1 { margin: 0; font: 700 20px/1 var(--sh-heading); letter-spacing: -.015em; }
+.ch-home .ch-view-navigation .sh-match-heading h1 > span { margin-left: 7px; color: var(--sh-lime); font: 400 18px/1 var(--sh-mono); }
+.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker { margin: 0; gap: 7px; font-size: 6px; line-height: 1; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-status { gap: 4px; font-size: 6px; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-status i { width: 4px; height: 4px; }
+.ch-home .ch-view-navigation .sh-match-heading .sh-match-id { gap: 3px; margin-left: 3px; }
 .ch-home .ch-detail-button { padding: 0; }
 .ch-home .ch-screen { width: 100%; max-height: none; }
-@media (max-width: 1190px) { .ch-home .sh-highlight-meta { width: 330px; } }
+@media (max-width: 720px) { .ch-home .ch-view-navigation .sh-match-heading h1 { font-size: 18px; } }
 @media (max-width: 1020px) { .ch-home .sh-highlight-meta { position: static; width: auto; height: auto; padding: 0; } }
 
 /* Shared context controls occupy the row immediately above each trade panel. */

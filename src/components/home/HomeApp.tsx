@@ -21,53 +21,26 @@ import { unpricedMarkets, useSomniaMarketPrices } from './useVenueMarketPrices'
 
 type Props = { apiUrl?: string; dreamDexApiUrl?: string; environmentId: string; demoHref: string; liveHref: string; eventBasePath: string; tokenConfig: ArenaTokenConfig }
 
-const MATCH_DURATION_MS = 20 * 60_000
 const BREAK_DURATION_MS = 5 * 60_000
-const clockText = (value: number) => {
-  const seconds = Math.max(0, Math.floor(value / 1_000))
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-}
 
-export function MatchHeading({ match, season, initialNow, copied, onCopy }: { match: SolzMatch; season: boolean; initialNow: number; copied: boolean; onCopy: () => void }) {
-  const [now, setNow] = useState(initialNow)
-  const [deadline, setDeadline] = useState(match.endsAt)
-  useEffect(() => {
-    setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [match.id])
+export function MatchHeading({ match, season, copied, onCopy }: { match: SolzMatch; season: boolean; copied: boolean; onCopy: () => void }) {
   useEffect(() => {
     try {
-      const cached = JSON.parse(window.localStorage.getItem('solz:arena:match-clock') || 'null') as { matchId?: string; phase?: string; endsAt?: number } | null
-      const cachedRemaining = cached?.endsAt ? cached.endsAt - Date.now() : 0
-      const cachedDeadline = cached?.matchId === match.id && cached.phase === match.phase && Number.isFinite(cached.endsAt) && cachedRemaining > 0 && cachedRemaining <= BREAK_DURATION_MS + 15_000 ? cached.endsAt! : null
-      const nextDeadline = match.timingEstimated && cachedDeadline && cachedDeadline > Date.now() ? cachedDeadline : match.endsAt
-      setDeadline(nextDeadline)
       window.localStorage.setItem('solz:arena:match-clock', JSON.stringify({
         matchId: match.id, displayMatchId: match.displayMatchId, phase: match.phase,
-        startedAt: match.startedAt, endsAt: nextDeadline, savedAt: Date.now(),
+        startedAt: match.startedAt, endsAt: match.endsAt, savedAt: Date.now(),
       }))
     } catch {
       // The live feed remains authoritative when storage is unavailable.
     }
-  }, [match.displayMatchId, match.endsAt, match.id, match.phase, match.startedAt, match.timingEstimated])
+  }, [match.displayMatchId, match.endsAt, match.id, match.phase, match.startedAt])
 
-  const isBreak = match.phase === 'countdown'
-  const isLive = match.phase === 'live'
-  const elapsed = isLive ? Math.min(MATCH_DURATION_MS, Math.max(0, now - match.startedAt)) : 0
-  const remaining = Math.max(0, deadline - now)
   const displayId = /^MATCH\s*#?\d+$/i.test(match.displayMatchId ?? '') ? match.displayMatchId! : 'MATCH —'
   const shortId = match.id.replace(/^arena-/, '')
 
   return <div className="sh-match-heading">
-    <span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01 / {displayId} <button className="sh-match-id" type="button" title="Copy full match ID" aria-label={`Copy match ID ${shortId}`} onClick={onCopy}>{copied ? <Check size={11} aria-hidden="true"/> : <Copy size={11} aria-hidden="true"/>}<code>{shortId.slice(0, 6)}…{shortId.slice(-6)}</code></button></span></span>
     <h1>{season ? 'SEASON HIGHLIGHT' : 'HIGHLIGHT MATCH'}<span aria-hidden="true">↗</span></h1>
-    <div className="sh-match-clock" aria-live="polite">
-      <span>{isBreak ? 'BREAK' : isLive ? 'LIVE MATCH' : 'MATCH COMPLETE'}</span>
-      {isBreak ? <><strong>{clockText(remaining)} LEFT</strong><small>{clockText(BREAK_DURATION_MS)} BREAK · NEXT {displayId}</small></>
-        : isLive ? <><strong>{clockText(elapsed)} / {clockText(MATCH_DURATION_MS)}</strong><small>{clockText(Math.max(0, deadline - now))} LEFT · {match.mode} · {match.map}</small></>
-          : <><strong>FINAL</strong><small>AWAITING NEXT MATCH</small></>}
-    </div>
+    <span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01 / {displayId} <button className="sh-match-id" type="button" title="Copy full match ID" aria-label={`Copy match ID ${shortId}`} onClick={onCopy}>{copied ? <Check size={11} aria-hidden="true"/> : <Copy size={11} aria-hidden="true"/>}<code>{shortId.slice(0, 6)}…{shortId.slice(-6)}</code></button></span></span>
   </div>
 }
 
@@ -128,6 +101,7 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
   const displayedMarket = market ?? shellMarket
   const displayedOutcome = outcome ?? shellMarket?.outcomes[0]
   const marketAvailable = Boolean(market && outcome && activeMarkets.length)
+  const detailHref = marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match?.id ?? '')}` : undefined
 
   const toHighlight = () => highlight.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
   const chooseMatch = (next: SolzMatch) => { setAnswer('yes'); setPinned(false); setMarketId(''); setMatchId(next.id); setOutcomeId(''); setPromptAgentId(undefined); setView('live'); setSection('trade'); toHighlight() }
@@ -150,11 +124,10 @@ function Home({ apiUrl = '', dreamDexApiUrl = '', demoHref, liveHref, eventBaseP
     <SiteHeader homeHref="/" walletControl={walletControl} active={view === 'market' ? 'markets' : 'arena'} onArena={() => setView('live')} onMarkets={() => setView('market')}/>
     <main className="sh-main">
       <section className="sh-highlight-section" ref={highlight} id="highlight">
-        <div className="sh-highlight-heading">{match && snapshot ? <MatchHeading match={match} season={season} initialNow={snapshot.updatedAt} copied={matchIdCopied} onCopy={copyMatchId}/> : <div><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01</span></span><h1>HIGHLIGHT MATCH<span aria-hidden="true">↗</span></h1></div>}</div>
         {snapshot && match && displayedMarket && displayedOutcome ? <>
-          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={marketAvailable && !season ? `${eventBasePath}/${encodeURIComponent(match.id)}` : undefined} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole evmWallet={evmWallet} collateralSymbol={collateralSymbol} dreamDexApiUrl={dreamDexApiUrl || apiUrl} onDreamDexOpened={() => setDreamDexRefresh(value => value + 1)} marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
+          <div className="ch-hero-grid" id="network-trading-panel" role="tabpanel" aria-labelledby={`market-source-${marketSource}`}><TradeContextBar networkControls={<MarketSourceControls source={marketSource} onSource={setMarketSource} solana={solanaCluster} onSolana={setSolanaCluster} somnia={somniaChain} onSomnia={setSomniaChain} status={sourceStatus}/>} simulation={simulationEnabled} onSimulationChange={() => {}} showSimulationToggle={false} liveMatchCount={externalFeedPending ? 0 : snapshot.matches.filter((item) => item.phase === 'live').length}/><MatchViewer heading={<MatchHeading match={match} season={season} copied={matchIdCopied} onCopy={copyMatchId}/>} marketSourceLabel={sourceLabel} referenceMarkets={marketAvailable ? referenceSnapshot?.markets : undefined} simulation={simulationEnabled} answer={answer} detailHref={detailHref} match={match} market={displayedMarket} markets={activeMarkets} snapshot={snapshot} source={source} view={view} onView={setView} outcome={displayedOutcome} onSelect={selectPrediction} liveHref={liveHref} onChat={() => setSection('chat')} onPrompt={() => setSection('prompt')} season={season} pinned={pinned} onPin={() => setPinned(!pinned)}/><InteractionConsole evmWallet={evmWallet} collateralSymbol={collateralSymbol} dreamDexApiUrl={dreamDexApiUrl || apiUrl} onDreamDexOpened={() => setDreamDexRefresh(value => value + 1)} marketAvailable={marketAvailable} key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`} source={source} snapshot={snapshot} match={match} market={displayedMarket} outcome={displayedOutcome} onOutcome={(next) => { setOutcomeId(next.id); setAnswer('yes') }} answer={answer} onAnswer={setAnswer} simulation={simulationEnabled} section={section} onSection={setSection} promptAgentId={promptAgentId} intermission={season}/></div>
 
-        </> : error ? <div className="sh-load-state" role="alert"><h2>The arena couldn’t load.</h2><p>{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="sh-loading" role="status"><div/><div/><span>Loading the arena…</span></div>}
+        </> : error ? <><div className="sh-highlight-heading"><div><h1>HIGHLIGHT MATCH<span aria-hidden="true">↗</span></h1><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01</span></span></div></div><div className="sh-load-state" role="alert"><h2>The arena couldn’t load.</h2><p>{error}</p><button className="sh-button" onClick={retry}>Try again</button></div></> : <><div className="sh-highlight-heading"><div><h1>HIGHLIGHT MATCH<span aria-hidden="true">↗</span></h1><span className="sh-highlight-kicker"><StatusDot>GENESIS SERIES</StatusDot><span>SEASON 01</span></span></div></div><div className="sh-loading" role="status"><div/><div/><span>Loading the arena…</span></div></>}
       </section>
       {snapshot && <section className="ch-guide" aria-labelledby="arena-guide-title"><div className="ch-guide-heading"><h2 id="arena-guide-title">Find your way in the arena.</h2><p>Watch the action. Choose how you take part.</p></div>
           <div className="sh-how-strip">{([

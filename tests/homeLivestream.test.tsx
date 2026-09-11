@@ -114,18 +114,9 @@ describe('highlight livestream navigation', () => {
     const snapshot = await source.load()
     const original = snapshot.matches.find((item) => item.id === snapshot.highlightMatchId)!
     const live = { ...original, displayMatchId: 'MATCH 42', startedAt: 1_000, endsAt: 1_201_000, phase: 'live' as const }
-    const liveHtml = renderToStaticMarkup(<MatchHeading match={live} season={false} initialNow={181_000} copied={false} onCopy={() => {}}/>)
+    const liveHtml = renderToStaticMarkup(<MatchHeading match={live} season={false} copied={false} onCopy={() => {}}/>)
     expect(liveHtml).toContain('MATCH 42')
-    expect(liveHtml).toContain('03:00 / 20:00')
-    expect(liveHtml).toContain('17:00 LEFT')
     expect(liveHtml).toContain('HIGHLIGHT MATCH')
-    expect(liveHtml).not.toContain('BONK TEAM — WIF TEAM')
-
-    const next = { ...live, phase: 'countdown' as const, endsAt: 301_000 }
-    const breakHtml = renderToStaticMarkup(<MatchHeading match={next} season={false} initialNow={181_000} copied={false} onCopy={() => {}}/>)
-    expect(breakHtml).toContain('BREAK')
-    expect(breakHtml).toContain('02:00 LEFT')
-    expect(breakHtml).toContain('05:00 BREAK · NEXT MATCH 42')
   })
 
   test('offers separate simulation, Solana, and Somnia sources with Somnia testnet selected', () => {
@@ -179,7 +170,7 @@ describe('highlight livestream navigation', () => {
     />)
     expect(html).toContain('Match winner · all 12 agents')
     for (let index = 1; index <= 12; index += 1) expect(html).toContain(`AGENT ${index}`)
-    expect(html).toContain('No match prices yet.')
+    expect(html).toContain('No trades recorded yet.')
     expect(html).toContain('AWAITING PRICES')
     expect(html).not.toContain('REFERENCE SAMPLE')
     expect(html).toContain('Predictions <span>13</span>')

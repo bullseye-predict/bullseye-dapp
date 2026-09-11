@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
 import type { PredictionAnswer } from '../solz/predictionContracts'
-import { accentStyle, AgentPortrait, compact, percent, TeamMark } from './HomePrimitives'
+import { accentStyle, AgentPortrait, compact, TeamMark } from './HomePrimitives'
 import { outcomeColor } from './heroMarket'
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { PredictionDetail } from './PredictionDetail'
@@ -35,12 +35,12 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   const choose = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => { setLastOutcome(pick.id); setAnswers((previous) => ({ ...previous, [pick.id]: value })); onSelect(item, pick, value) }
   const selectedAnswer = active ? answer : answers[selected.id] ?? 'yes'
   const displayedPrice = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => {
-    if (!simulation && !(pick.priceHistory?.length ?? 0)) return '—'
-    return value === 'yes' ? percent(pick.probability) : percent(1 - pick.probability)
+    const probability = value === 'yes' ? pick.probability : 1 - pick.probability
+    return `${Math.round(probability * 100)}¢`
   }
   return <section className={`ch-option ${active ? 'is-selected' : ''}`}>
     <div className="ch-option-row">
-      <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{simulation ? `${compact(item.volume.COOLA)} COOLA Vol.` : `${collateral} · on-chain trading`}{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
+      <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{simulation ? `${compact(item.volume.COOLA)} COOLA Vol.` : `${collateral} · ${item.onchain ? 'on-chain trading' : 'not opened for this match'}`}{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
       {!multiple && <div className="ch-option-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={active && outcome.id === pick.id} onClick={() => choose(pick)}><span>{pick.label}</span><b>{displayedPrice(pick)}</b></button>)}</div>}
     </div>
     <AnimatedCollapse id={`option-${item.id}`} labelledBy={`option-${item.id}-button`} open={open}>

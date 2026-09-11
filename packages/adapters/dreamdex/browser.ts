@@ -1,3 +1,4 @@
+import { executionSummary, type OrderInput, type OrderProgress } from './trading'
 import {
   binaryModuleWriteAbi,
   erc6909Abi,
@@ -148,6 +149,20 @@ export class DreamDexBrowser {
           ids.map((id) => this.client.getOrderOnchain(market.pool, id)),
         );
       }
+    let orderSides: Record<string, BinarySide> = {};
+    let orderMetadataUnavailable = false;
+    if (owner && orders.length) {
+      try {
+        const ids = orders.filter(o => o !== null).map(o => o!.orderId.toString());
+        const response = await fetch(this.config.indexerUrl, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({ query: 'query OrderSides($market:String!,$owner:String!,$ids:[String!]!){Order(where:{market_id:{_eq:$market},owner:{_eq:$owner},orderId:{_in:$ids}}){orderId side}}', variables: { market: this.binding.marketId.toLowerCase(), owner: owner.toLowerCase(), ids } }),
+        });
+        const result = await response.json();
+        if (!response.ok || result.errors || !Array.isArray(result.data?.Order)) throw Error('Order details unavailable');
+        orderSides = Object.fromEntries(result.data.Order.filter((o: { side: string }) => ['BUY_YES', 'BUY_NO', 'SELL_YES', 'SELL_NO'].includes(o.side)).map((o: { orderId: string; side: BinarySide }) => [o.orderId, o.side]));
+      } catch { orderMetadataUnavailable = true; }
+    }
     const balances = owner
       ? await Promise.all([
           rpc.readContract({
@@ -180,6 +195,8 @@ export class DreamDexBrowser {
           (!owner || o.owner.toLowerCase() === owner.toLowerCase()),
       ),
       balances,
+      orderSides,
+      orderMetadataUnavailable,
     };
   }
   async candles(outcome: 0 | 1): Promise<Candle[]> {
@@ -329,12 +346,10 @@ export class DreamDexBrowserWallet {
       transport: custom(guarded),
     });
   }
-  async order(input: {
-    side: BinarySide;
-    outcomePrice: bigint;
-    quantity: bigint;
-    orderType: 0 | 2 | 3;
-  }) {
+  async order(input: OrderInput) {
+    return (await this.orderDetailed(input)).hash;
+  }
+  async orderDetailed(input: OrderInput, onProgress?: (progress: OrderProgress) => void) {
     const market = await this.check(true),
       { grid } = await this.adapter.pool(market);
     const terms = orderTerms(
@@ -359,6 +374,7 @@ export class DreamDexBrowserWallet {
         args: [this.owner, market.pool],
       });
       if (allowance < amount) {
+        onProgress?.({ stage: 'approval' });
         const hash = await walletClient.writeContract({
           address: market.collateral,
           abi: erc20Abi,
@@ -371,6 +387,7 @@ export class DreamDexBrowserWallet {
         });
         if (receipt.status !== "success")
           throw new Error(`Approval reverted: ${hash}`);
+        onProgress?.({ stage: 'approval-confirmed', hash });
       }
     } else {
       const id = input.side.endsWith("YES") ? market.yesId : market.noId;
@@ -381,6 +398,7 @@ export class DreamDexBrowserWallet {
         args: [this.owner, market.pool, id],
       });
       if (allowance < input.quantity) {
+        onProgress?.({ stage: 'approval' });
         const hash = await walletClient.writeContract({
           address: market.outcomeToken,
           abi: erc6909Abi,
@@ -393,6 +411,7 @@ export class DreamDexBrowserWallet {
         });
         if (receipt.status !== "success")
           throw new Error(`Approval reverted: ${hash}`);
+        onProgress?.({ stage: 'approval-confirmed', hash });
       }
     }
     await this.check(true);
@@ -403,6 +422,7 @@ export class DreamDexBrowserWallet {
       decimals: market.decimals,
     });
     // Explicit old expiry cannot authorize an order on a later recycled market.
+    onProgress?.({ stage: 'order' });
     const receipt = await trader.placeOrder({
       ...terms,
       pool: market.pool,
@@ -418,7 +438,7 @@ export class DreamDexBrowserWallet {
       throw new Error(`Order failed: ${receipt.hash}`);
     if (receipt.orderId === undefined && !receipt.fills.some(fill => fill.quantityFilled > 0n))
       throw new Error(`No order rested and no shares filled. Try a limit order or another price. Transaction: ${receipt.hash}`);
-    return receipt.hash;
+    return executionSummary(input, receipt.hash, receipt.fills, market.decimals);
   }
   async cancel(orderId: bigint) {
     const market = await this.check(false);

@@ -332,3 +332,20 @@ test("order approval covers only the selected outcome or exact collateral escrow
       .args,
   ).toEqual([owner, 4n, 1000000n]);
 });
+
+test('approval and a filled trade are distinct stages with actual receipt quantities', async () => {
+  const f = fixture();
+  f.adapter.client.createTrader = (() => ({ placeOrder: async () => ({ hash: '0x01', receipt: { status: 'success' }, orderId: 2n, fills: [{ quantityFilled: 3000000n, fillPrice: 550000n }] }) })) as never;
+  const stages: string[] = [];
+  const result = await f.wallet.orderDetailed({ side: 'BUY_YES', outcomePrice: 550000n, quantity: 5000000n, orderType: 2 }, event => stages.push(event.stage));
+  expect(stages).toEqual(['approval', 'approval-confirmed', 'order']);
+  expect(result).toMatchObject({ filled: 3000000n, resting: 0n, cancelled: 2000000n, collateral: 1650000n });
+});
+
+test('a confirmed approval does not turn a rejected trade into a purchase', async () => {
+  const f = fixture();
+  f.adapter.client.createTrader = (() => ({ placeOrder: async () => { throw Error('SelfMatchCancelTaker'); } })) as never;
+  const stages: string[] = [];
+  await expect(f.wallet.orderDetailed({ side: 'BUY_YES', outcomePrice: 550000n, quantity: 3000000n, orderType: 2 }, event => stages.push(event.stage))).rejects.toThrow('SelfMatchCancelTaker');
+  expect(stages).toEqual(['approval', 'approval-confirmed', 'order']);
+});

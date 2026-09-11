@@ -1,6 +1,7 @@
 import { erc20Abi, encodeFunctionData, formatUnits } from 'viem'
 import { useEffect, useState } from 'react'
 import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
+import { useDreamDexRevision } from './dreamDexRefresh'
 import { dreamDexNetwork } from '../../../packages/adapters/dreamdex/event-reader'
 
 type Props = { wallet: DynamicEvmWalletPort | null; chainId?: '5031' | '50312'; compact?: boolean }
@@ -11,6 +12,8 @@ const compact = (amount: bigint, decimals: number) => Number(formatUnits(amount,
 
 /** Read-only Somnia wallet overview. It never asks the wallet to sign. */
 export function SomniaWalletBalances({ wallet, chainId, compact: compactMode = false }: Props) {
+  const testnetRevision = useDreamDexRevision('50312')
+  const mainnetRevision = useDreamDexRevision('5031')
   const expectedNetwork = dreamDexNetwork(chainId ?? '50312')
   const [state, setState] = useState<BalanceState>({ status: 'disconnected' })
 
@@ -18,7 +21,8 @@ export function SomniaWalletBalances({ wallet, chainId, compact: compactMode = f
     if (!wallet) { setState({ status: 'disconnected' }); return }
     let alive = true
     setState({ status: 'loading' })
-    void (async () => {
+    let timer: ReturnType<typeof setTimeout>
+    const load = async () => {
       try {
         const client = await wallet.getWalletClient()
         const connectedChainId = Number(BigInt(await client.request({ method: 'eth_chainId' } as never) as string))
@@ -39,10 +43,11 @@ export function SomniaWalletBalances({ wallet, chainId, compact: compactMode = f
         if (alive) setState({ status: 'ready', connectedChainId, native: BigInt(native), collateral: BigInt(collateral) })
       } catch {
         if (alive) setState({ status: 'error' })
-      }
-    })()
-    return () => { alive = false }
-  }, [chainId, wallet])
+      } finally { if (alive) timer = setTimeout(load, 15_000) }
+    }
+    void load()
+    return () => { alive = false; clearTimeout(timer) }
+  }, [chainId, wallet, testnetRevision, mainnetRevision])
 
   const network = state.connectedChainId === 5031 || state.connectedChainId === 50312 ? dreamDexNetwork(String(state.connectedChainId)) : expectedNetwork
   const contents = <>
