@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer'
+import { fixEncoderSize, getBytesEncoder, getI64Encoder, getStructEncoder, getU8Encoder } from '@solana/kit'
 import { PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstruction, type AccountMeta } from '@solana/web3.js'
 
 export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
@@ -8,6 +9,8 @@ export const SOLANA_PRICE_SCALE = 1_000_000n
 export const ORDER_BODY_LENGTH = 138
 export const FILL_DATA_LENGTH = 485
 export const ORDER_DOMAIN = new TextEncoder().encode('SOLZ_PREDICTION_ORDER_V1')
+export const CREATE_QUESTION_DOMAIN = new TextEncoder().encode('SOLZ_CREATE_QUESTION_V1')
+export const CREATE_QUESTION_DATA_LENGTH = 201
 export const INSTRUCTION = {
   initializeConfig: 0, createMarket: 1, initializeVault: 2, initializePosition: 3,
   deposit: 4, withdraw: 5, split: 6, merge: 7, redeem: 8, lockMarket: 9,
@@ -88,6 +91,17 @@ export async function orderDigest(programId: AddressInput, networkDomain: Uint8A
   const message = encodeOrderMessage(programId, networkDomain, order)
   return new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(message).buffer))
 }
+export async function questionCreationDigest(input: { programId: AddressInput; networkDomain: Uint8Array; payer: AddressInput; matchId: Uint8Array; questionId: Uint8Array; expirySeconds: bigint }): Promise<Uint8Array> {
+  const message = concat(CREATE_QUESTION_DOMAIN, keyBytes(input.programId), fixedBytes(input.networkDomain, 32), keyBytes(input.payer), fixedBytes(input.matchId, 32), fixedBytes(input.questionId, 32), timestampSeconds(input.expirySeconds))
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(message).buffer))
+}
+export function encodeQuestionCreationEd25519Descriptor(createInstructionIndex: number): Uint8Array {
+  if (!Number.isInteger(createInstructionIndex) || createInstructionIndex < 1 || createInstructionIndex > 65534) throw new RangeError('Invalid create instruction index')
+  const result = new Uint8Array(16); result[0] = 1
+  const view = new DataView(result.buffer)
+  ;[137, createInstructionIndex, 65, createInstructionIndex, 105, 32, createInstructionIndex].forEach((field, index) => view.setUint16(2 + index * 2, field, true))
+  return result
+}
 export function encodeEd25519Descriptors(fillInstructionIndex: number): Uint8Array {
   if (!Number.isInteger(fillInstructionIndex) || fillInstructionIndex < 1 || fillInstructionIndex > 65534) throw new RangeError('Invalid fill instruction index')
   const result = new Uint8Array(30); result[0] = 2
@@ -129,12 +143,35 @@ export function createMarket(programId: AddressInput, admin: AddressInput, colla
   const market = marketAddress(programId, input.matchId)
   return ix(programId, [meta(admin, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID)], data(INSTRUCTION.createMarket, fixedBytes(input.matchId, 32), byte(input.outcomeCount), timestampSeconds(input.startsAtSeconds), timestampSeconds(input.locksAtSeconds), timestampSeconds(input.expirySeconds)))
 }
-/** Permissionless lazy creation for one canonical YES/NO question. The payer
- * funds rent; collateral/oracle come from program config and timing comes from
- * matchId, so no backend transaction or per-question signature is required. */
-export function createQuestionMarket(programId: AddressInput, payer: AddressInput, collateralMint: AddressInput, matchId: Uint8Array, questionId: Uint8Array): TransactionInstruction {
+export interface QuestionCreationPermit {
+  authority: AddressInput
+  expirySeconds: bigint
+  digest: Uint8Array
+  signature: Uint8Array
+}
+const questionCreationEncoder = getStructEncoder([
+  ['tag', getU8Encoder()],
+  ['matchId', fixEncoderSize(getBytesEncoder(), 32)],
+  ['questionId', fixEncoderSize(getBytesEncoder(), 32)],
+  ['authority', fixEncoderSize(getBytesEncoder(), 32)],
+  ['expirySeconds', getI64Encoder()],
+  ['digest', fixEncoderSize(getBytesEncoder(), 32)],
+  ['signature', fixEncoderSize(getBytesEncoder(), 64)],
+])
+export function encodeQuestionCreationInstructionData(matchId: Uint8Array, questionId: Uint8Array, permit: QuestionCreationPermit): Uint8Array {
+  const payload = questionCreationEncoder.encode({ tag:INSTRUCTION.createQuestionMarket, matchId:fixedBytes(matchId,32), questionId:fixedBytes(questionId,32), authority:keyBytes(permit.authority), expirySeconds:permit.expirySeconds, digest:fixedBytes(permit.digest,32), signature:fixedBytes(permit.signature,64) })
+  if (payload.length !== CREATE_QUESTION_DATA_LENGTH) throw new Error('Invalid question creation payload')
+  return Uint8Array.from(payload)
+}
+/** The first trader funds rent and submits both instructions. The backend only
+ * signs the short-lived canonical question digest and never sends a transaction. */
+export function buildCreateQuestionMarket(programId: AddressInput, payer: AddressInput, collateralMint: AddressInput, matchId: Uint8Array, questionId: Uint8Array, permit: QuestionCreationPermit, createInstructionIndex = 1): [TransactionInstruction, TransactionInstruction] {
   const market = questionMarketAddress(programId, matchId, questionId)
-  return ix(programId, [meta(payer, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID)], data(INSTRUCTION.createQuestionMarket, fixedBytes(matchId, 32), fixedBytes(questionId, 32)))
+  const payload = encodeQuestionCreationInstructionData(matchId, questionId, permit)
+  return [
+    ix(ED25519_PROGRAM_ID, [], encodeQuestionCreationEd25519Descriptor(createInstructionIndex)),
+    ix(programId, [meta(payer, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID), meta(SYSVAR_INSTRUCTIONS_PUBKEY)], payload),
+  ]
 }
 export function initializeVault(programId: AddressInput, owner: AddressInput, collateralMint: AddressInput, maxCapital: bigint): TransactionInstruction {
   const vault = vaultAddress(programId, owner)

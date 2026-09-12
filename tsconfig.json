@@ -7,9 +7,8 @@
   ],
   "exclude": [
     "dist",
-    "contracts/evm/test",
-    "contracts/evm/scripts",
-    "programs/**/target"
+    "packages/adapters/evm/transport.ts",
+    "packages/adapters/solana/transport.ts"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",

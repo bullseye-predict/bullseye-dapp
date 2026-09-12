@@ -50,6 +50,7 @@ type Props = {
   dreamDexApiUrl?: string;
   onDreamDexOpened?: () => void;
   evmWallet?: DynamicEvmWalletPort | null;
+  solana?: boolean;
   automationWarning?: string;
   promptWarning?: string;
 };
@@ -121,6 +122,7 @@ export function InteractionConsole({
   dreamDexApiUrl,
   onDreamDexOpened,
   evmWallet,
+  solana = false,
   automationWarning,
   promptWarning,
 }: Props) {
@@ -204,6 +206,7 @@ export function InteractionConsole({
               buyAmount={budget}
               onBuyAmountChange={setBudget}
               evmWallet={evmWallet}
+              solana={solana}
               collateralSymbol={collateralSymbol}
               dreamDexApiUrl={dreamDexApiUrl}
               onDreamDexOpened={onDreamDexOpened}

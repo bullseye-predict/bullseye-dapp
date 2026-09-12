@@ -8,6 +8,7 @@ const pda = (program: PublicKey, seed: string, question: PublicKey, outcome: Out
   return PublicKey.findProgramAddressSync([Buffer.from(seed), question.toBuffer(), Buffer.from([outcome])], program)[0]
 }
 export const bindingAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_binding', question, outcome)
+export const manifestConfigAddress = (program: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('manifest_config')], program)[0]
 export const bookAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_book', question, outcome)
 export const claimMintAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_outcome', question, outcome)
 export const freezeAuthority = (program: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('claims_authority')], program)[0]
@@ -21,16 +22,19 @@ export function decodeBinding(program: PublicKey, key: PublicKey, owner: PublicK
   if (!bindingAddress(program, result.question, result.outcome).equals(key) || !bookAddress(program, result.question, result.outcome).equals(result.venue) || !claimMintAddress(program, result.question, result.outcome).equals(result.mint) || result.bps < 1 || result.bps > 10000) throw new Error('Noncanonical Manifest binding')
   return result
 }
-export function registerBinding(program: PublicKey, admin: PublicKey, question: PublicKey, manifest: PublicKey, outcome: Outcome, recipient: PublicKey, takerFeeBps: number) {
+export function configureManifest(program: PublicKey, admin: PublicKey, manifest: PublicKey, recipient: PublicKey, takerFeeBps: number) {
   if (!Number.isInteger(takerFeeBps) || takerFeeBps < 1 || takerFeeBps > 10000) throw new RangeError('Explicit taker fee from 1 to 10000 bps required')
   const bps = Buffer.alloc(2); bps.writeUInt16LE(takerFeeBps)
-  return new TransactionInstruction({ programId: program, keys: [meta(admin, true, true), meta(configAddress(program)), meta(question, true), meta(bindingAddress(program, question, outcome), true), meta(SystemProgram.programId), meta(manifest), meta(bookAddress(program, question, outcome))], data: Buffer.from(concat(Uint8Array.of(22, outcome), recipient.toBytes(), bps)) })
+  return new TransactionInstruction({ programId: program, keys: [meta(admin, true, true), meta(configAddress(program)), meta(manifestConfigAddress(program), true), meta(manifest), meta(SystemProgram.programId)], data: Buffer.from(concat(Uint8Array.of(28), recipient.toBytes(), bps)) })
 }
-export function initializeClaimMint(program: PublicKey, admin: PublicKey, b: ManifestBinding) {
-  return new TransactionInstruction({ programId: program, keys: [meta(admin,true,true),meta(configAddress(program)),meta(b.question),meta(bindingAddress(program,b.question,b.outcome)),meta(b.mint,true),meta(b.collateral),meta(SystemProgram.programId),meta(TOKEN_PROGRAM_ID),meta(b.program),meta(freezeAuthority(b.program))], data: Buffer.from([23]) })
+export function registerBinding(program: PublicKey, payer: PublicKey, question: PublicKey, manifest: PublicKey, outcome: Outcome) {
+  return new TransactionInstruction({ programId: program, keys: [meta(payer, true, true), meta(configAddress(program)), meta(question, true), meta(bindingAddress(program, question, outcome), true), meta(manifestConfigAddress(program)), meta(SystemProgram.programId), meta(manifest), meta(bookAddress(program, question, outcome))], data: Buffer.from([22, outcome]) })
 }
-export function activateBook(program: PublicKey, admin: PublicKey, b: ManifestBinding) {
-  return new TransactionInstruction({ programId: program, keys: [meta(admin,true,true),meta(configAddress(program)),meta(b.question),meta(bindingAddress(program,b.question,b.outcome)),meta(b.venue,true),meta(b.mint),meta(b.collateral),meta(venueVault(b.program,b.venue,b.mint),true),meta(venueVault(b.program,b.venue,b.collateral),true),meta(b.program),meta(SystemProgram.programId),meta(TOKEN_PROGRAM_ID),meta(TOKEN_2022_PROGRAM_ID),meta(freezeAuthority(b.program))], data: Buffer.from([26]) })
+export function initializeClaimMint(program: PublicKey, payer: PublicKey, b: ManifestBinding) {
+  return new TransactionInstruction({ programId: program, keys: [meta(payer,true,true),meta(configAddress(program)),meta(b.question),meta(bindingAddress(program,b.question,b.outcome)),meta(b.mint,true),meta(b.collateral),meta(SystemProgram.programId),meta(TOKEN_PROGRAM_ID),meta(b.program),meta(freezeAuthority(b.program))], data: Buffer.from([23]) })
+}
+export function activateBook(program: PublicKey, payer: PublicKey, b: ManifestBinding) {
+  return new TransactionInstruction({ programId: program, keys: [meta(payer,true,true),meta(configAddress(program)),meta(b.question),meta(bindingAddress(program,b.question,b.outcome)),meta(b.venue,true),meta(b.mint),meta(b.collateral),meta(venueVault(b.program,b.venue,b.mint),true),meta(venueVault(b.program,b.venue,b.collateral),true),meta(b.program),meta(SystemProgram.programId),meta(TOKEN_PROGRAM_ID),meta(TOKEN_2022_PROGRAM_ID),meta(freezeAuthority(b.program))], data: Buffer.from([26]) })
 }
 export function prepareClaimAccount(payer: PublicKey, owner: PublicKey, mint: PublicKey) {
   return createAssociatedTokenAccountIdempotentInstruction(payer,getAssociatedTokenAddressSync(mint,owner),owner,mint)

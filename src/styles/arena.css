@@ -126,6 +126,10 @@
 
 .arena-wallet-button:disabled { color: var(--arena-muted) !important; background: var(--arena-panel); border-color: var(--arena-border); }
 
+.arena-wallet-recovery { max-width: 270px; display: grid; justify-items: end; gap: 4px; }
+.arena-wallet-recovery > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.arena-wallet-recovery > span { color: var(--arena-coral); font-size: 9px; line-height: 1.35; text-align: right; text-wrap: pretty; }
+
 .arena-wallet-menu { position: relative; justify-self: end; }
 .arena-wallet-menu summary { min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--arena-border); border-radius: 7px; background: var(--arena-panel); cursor: pointer; font: 500 12px/1 'Geist Mono', monospace; list-style: none; }
 .arena-wallet-menu summary::-webkit-details-marker { display: none; }

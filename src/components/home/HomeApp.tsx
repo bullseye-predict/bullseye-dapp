@@ -35,6 +35,7 @@ import {
   type SomniaChain,
 } from "./MarketSourceControls";
 import { unpricedMarkets, useSomniaMarketPrices } from "./useVenueMarketPrices";
+import { useReservedSolanaQuestions } from "./solanaQuestionMarkets";
 
 type Props = {
   apiUrl?: string;
@@ -169,6 +170,7 @@ function Home({
   const source = useMemo(() => createSolzDataSource(), []);
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
     useHomeData(source, apiUrl);
+  const reservedSolana = useReservedSolanaQuestions(apiUrl);
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");
@@ -184,11 +186,12 @@ function Home({
   >(null);
   const highlight = useRef<HTMLElement>(null);
   const externalFeedPending = Boolean(apiUrl) && !predictionFeed;
+  const reservedSolanaMatch = marketSource === "SOLANA" ? reservedSolana[0] : undefined;
   const loadedMatch = snapshot?.matches.find(
     (item) => item.id === (matchId || snapshot.highlightMatchId),
   );
-  const match: SolzMatch | undefined =
-    externalFeedPending && snapshot
+  const match: SolzMatch | undefined = reservedSolanaMatch?.match ??
+    (externalFeedPending && snapshot
       ? {
           id: "arena-feed-pending",
           kind: "highlight",
@@ -205,7 +208,7 @@ function Home({
           teams: [],
           roster: [],
         }
-      : loadedMatch;
+      : loadedMatch);
   const season = !!(
     snapshot &&
     match &&
@@ -213,16 +216,18 @@ function Home({
   );
   const markets = useMemo(
     () =>
-      externalFeedPending
-        ? []
+      reservedSolanaMatch
+        ? reservedSolana.filter(item => item.match.id === reservedSolanaMatch.match.id).map(item => item.market)
+        : externalFeedPending
+          ? []
         : (snapshot?.markets.filter((item) =>
             season ? !item.matchId : item.matchId === match?.id,
           ) ?? []),
-    [externalFeedPending, match?.id, season, snapshot?.markets],
+    [externalFeedPending, match?.id, reservedSolana, reservedSolanaMatch, season, snapshot?.markets],
   );
   const predictionMarkets = useMemo(
-    () => (predictionFeed || !apiUrl ? markets : []),
-    [apiUrl, markets, predictionFeed],
+    () => (predictionFeed || !apiUrl || reservedSolanaMatch ? markets : []),
+    [apiUrl, markets, predictionFeed, reservedSolanaMatch],
   );
   const somnia = useSomniaMarketPrices(
     dreamDexApiUrl || apiUrl,
@@ -275,14 +280,18 @@ function Home({
     marketSource === "SIMULATION"
       ? "LOCAL MEMORY · HELD"
       : marketSource === "SOLANA"
-        ? `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
+        ? reservedSolanaMatch
+          ? `${solanaCluster.toUpperCase()} · RESERVED · 50/50 INDICATIVE`
+          : `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
         : somnia.status;
   const collateralSymbol =
     marketSource === "SOMNIA"
       ? somniaChain === "50312"
         ? "tUSDC"
         : "USDso"
-      : "COOLA";
+      : marketSource === "SOLANA"
+        ? "tUSDC"
+        : "COOLA";
   const shellMarket: ArenaMarket | undefined = match
     ? {
         id: `${match.id}:prediction-feed`,
@@ -488,6 +497,7 @@ function Home({
                       : undefined
                   }
                   evmWallet={evmWallet}
+                  solana={marketSource === "SOLANA"}
                   collateralSymbol={collateralSymbol}
                   dreamDexApiUrl={dreamDexApiUrl || apiUrl}
                   onDreamDexOpened={() =>

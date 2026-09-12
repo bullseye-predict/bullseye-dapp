@@ -27,8 +27,11 @@ export function manifestCandles(logs: string[], binding: ManifestBinding, timest
 }
 /** Recent finalized history only. No fabricated points or claim of complete P&L. */
 export async function recentManifestCandles(connection: Connection, binding: ManifestBinding): Promise<Candle[]> {
-  const signatures = await connection.getSignaturesForAddress(binding.venue, { limit: 40 }, 'finalized')
-  const transactions = await connection.getTransactions(signatures.filter(s => !s.err).map(s => s.signature), { commitment: 'finalized', maxSupportedTransactionVersion: 0 })
+  const signatures = await connection.getSignaturesForAddress(binding.venue, { limit: 4 }, 'finalized')
+  const transactions = []
+  for (const signature of signatures.filter(s => !s.err)) {
+    transactions.push(await connection.getTransaction(signature.signature, { commitment: 'finalized', maxSupportedTransactionVersion: 0 }))
+  }
   const rows: Candle[] = []
   for (const tx of transactions.reverse()) {
     if (!tx?.meta || tx.blockTime == null) throw new Error('Finalized trade history is temporarily unavailable')

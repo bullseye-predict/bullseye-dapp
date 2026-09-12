@@ -201,6 +201,7 @@ export function NetworkTrading({
             key={`${venue.chainId}:${venue.programId}`}
             venue={scopedVenue!}
             session={session}
+            apiUrl={apiUrl}
           />
         ) : (
           <div className="pt-empty">

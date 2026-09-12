@@ -60,6 +60,7 @@ type Props = {
   buyAmount?: string;
   onBuyAmountChange?: (value: string) => void;
   preparing?: boolean;
+  solana?: boolean;
 };
 export function TradeTicket({
   source,
@@ -78,6 +79,7 @@ export function TradeTicket({
   buyAmount,
   onBuyAmountChange,
   preparing = false,
+  solana = false,
 }: Props) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [type, setType] = useState<"market" | "limit">("market");
@@ -176,21 +178,22 @@ export function TradeTicket({
       return null;
     }
   })();
-  const price = simulation
+  const indicativeOnly = !simulation && !market.onchain;
+  const price = simulation || indicativeOnly
     ? type === "limit"
       ? Number(limitPrice) / 100
       : Math.max(0.01, contract.probability)
     : livePreview && account.data
       ? Number(livePreview.avgPrice) / 10 ** account.data.market.decimals
       : 0;
-  const quantity = simulation
+  const quantity = simulation || indicativeOnly
     ? side === "buy" && type === "market"
       ? Number(amount) / price
       : Number(shares)
     : livePreview
       ? Number(livePreview.filled) / 1_000_000
       : 0;
-  const gross = simulation
+  const gross = simulation || indicativeOnly
     ? quantity * price
     : livePreview && account.data
       ? Number(livePreview.cost) / 10 ** account.data.market.decimals
@@ -237,6 +240,7 @@ export function TradeTicket({
         : Number(livePreview?.input.quantity ?? 0n) / 1_000_000) <= available);
   const liveDreamDex =
     !simulation &&
+    !solana &&
     collateralSymbol === "tUSDC" &&
     market.onchain?.chainId === "50312";
   const unavailable =
@@ -637,15 +641,13 @@ export function TradeTicket({
               >
                 <span>{item.label}</span>
                 <b>
-                  {!simulation && !market.onchain
-                    ? "—"
-                    : formatOutcomePrice(item.probability)}
+                  {formatOutcomePrice(item.probability)}
                 </b>
                 {item.id === outcome.id && <Check size={12} />}
               </button>
             ))}
       </div>
-      {!simulation && collateralSymbol === "tUSDC" && !market.onchain && (
+      {!simulation && !solana && collateralSymbol === "tUSDC" && !market.onchain && (
         <OpenDreamDexMarket
           preparing={preparing}
           apiUrl={dreamDexApiUrl}
@@ -794,7 +796,7 @@ export function TradeTicket({
                 </button>
               ))}
         </div>
-        {liveDreamDex && (
+        {(liveDreamDex || indicativeOnly) && (
           <div
             className="ch-ticket-summary"
             aria-label="Position and order summary"
@@ -816,7 +818,7 @@ export function TradeTicket({
                 </strong>
               </div>
             )}
-            {balances && (
+            {liveDreamDex && balances && (
               <div>
                 <span>Available funds</span>
                 <strong>
@@ -858,12 +860,18 @@ export function TradeTicket({
           </div>
         )}
         <div className="ch-trade-action">
-          <button
-            className="ch-submit-trade"
-            disabled={pending || unavailable || !valid}
-          >
-            Trade <ArrowUpRight size={17} />
-          </button>
+          {solana && indicativeOnly ? (
+            <a className="ch-submit-trade" href="/live">
+              Open Solana terminal <ArrowUpRight size={17} />
+            </a>
+          ) : (
+            <button
+              className="ch-submit-trade"
+              disabled={pending || unavailable || !valid}
+            >
+              Trade <ArrowUpRight size={17} />
+            </button>
+          )}
           <p className="ch-sample-note">
             {!simulation
               ? liveDreamDex
@@ -876,7 +884,9 @@ export function TradeTicket({
                         ? "Your own order is at a crossing price. Cancel it below before trading."
                         : "Market orders fill immediately against available orders. Any unfilled remainder is cancelled."
                       : "Limit orders can wait for a match. Unfilled buys reserve funds; unfilled sells reserve shares."
-                : `On-chain ${collateralSymbol} trading opens when this question has a confirmed DreamDEX event contract.`
+                : solana
+                  ? "Indicative 50/50 only. Open the Solana terminal to activate the market and get executable Manifest quotes."
+                  : `On-chain ${collateralSymbol} trading opens when this question has a confirmed DreamDEX event contract.`
               : closed
                 ? "This market is closed."
                 : side === "sell" && available < 0.01

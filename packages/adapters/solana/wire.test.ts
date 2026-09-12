@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { PublicKey, Transaction } from '@solana/web3.js'
 import { createHash } from 'node:crypto'
-import { buildFillOrders, concat, configAddress, createQuestionMarket, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, millisecondsToSeconds, orderDigest, orderStateAddress, questionMarketAddress, u64, vaultAddress, type SolanaOrder } from './wire'
+import { buildCreateQuestionMarket, buildFillOrders, concat, configAddress, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, encodeQuestionCreationEd25519Descriptor, millisecondsToSeconds, orderDigest, orderStateAddress, questionCreationDigest, questionMarketAddress, u64, vaultAddress, type SolanaOrder } from './wire'
 import { requestAuthMessage } from '../../sdk/auth'
 import { decodeVault } from './accounts'
 import { createSolanaOrderSigner, createSolanaRequestSigner, solanaWireOrder, verifySolanaOrder, verifySolanaRequest, type SolanaVenueConfig } from './SolanaPredictionVenue'
@@ -45,12 +45,14 @@ describe('Solana canonical wire format', () => {
     expect(transaction.serialize({ requireAllSignatures: false, verifySignatures: false }).length).toBeLessThanOrEqual(1232)
     await expect(buildFillOrders({ programId, networkDomain: domain, buy: { ...sample, price: 500_000n }, sell: { ...sell, price: 500_000n }, quantity: 1n, executionPrice: 500_000n, buySignature: new Uint8Array(64), sellSignature: new Uint8Array(64) })).rejects.toThrow('rounding')
   })
-  test('derives one permissionless market PDA per match and question', () => {
+  test('derives one backend-permitted market PDA per match and question', async () => {
     const matchId = new Uint8Array(32).fill(7)
     const winner = new Uint8Array(32).fill(8)
     const kills = new Uint8Array(32).fill(9)
-    const winnerIx = createQuestionMarket(programId, key(1), key(2), matchId, winner)
-    expect(winnerIx.data.length).toBe(65)
+    const permit = { authority:key(3), expirySeconds:1_800_000_000n, digest:await questionCreationDigest({ programId,networkDomain:domain,payer:key(1),matchId,questionId:winner,expirySeconds:1_800_000_000n }), signature:new Uint8Array(64) }
+    const [ed,winnerIx] = buildCreateQuestionMarket(programId, key(1), key(2), matchId, winner, permit)
+    expect(ed.data).toEqual(Buffer.from(encodeQuestionCreationEd25519Descriptor(1)))
+    expect(winnerIx.data.length).toBe(201)
     expect(winnerIx.data[0]).toBe(27)
     expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, winner))).toBe(true)
     expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, kills))).toBe(false)

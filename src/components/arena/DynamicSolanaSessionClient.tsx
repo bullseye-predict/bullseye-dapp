@@ -1,13 +1,16 @@
 import { isSolanaWallet, SolanaWalletConnectors } from '@dynamic-labs/solana'
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
-import { DynamicContextProvider, mergeNetworks, useAuthenticateConnectedUser, useDynamicContext, type EvmNetwork } from '@dynamic-labs/sdk-react-core'
+import { DynamicContextProvider, mergeNetworks, useAuthenticateConnectedUser, useDynamicContext, useReinitialize, type EvmNetwork } from '@dynamic-labs/sdk-react-core'
 import { Check, Copy, ExternalLink, LoaderCircle, LogOut, UserRound, WalletCards } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getWalletSessionState } from './walletSessionState'
 import type { LiveArenaWalletPort } from './liveArenaAdapter'
 import type { DynamicEvmWalletPort } from './DynamicSolanaSession'
 import { SomniaWalletBalances } from '../home/SomniaWalletBalances'
 import { profileHref } from '../portfolio/profileRoute'
+import { getWallets } from '@wallet-standard/app'
+import type { Wallet } from '@wallet-standard/base'
+import { compatibleSolanaWallets, connectStandardSolanaWallet, type DirectSolanaSession } from './walletStandardSolana'
 
 type SessionValue = {
   wallet: LiveArenaWalletPort | null
@@ -38,17 +41,60 @@ const somniaTestnet: EvmNetwork = {
   vanityName: 'Somnia Testnet',
 }
 
+const DYNAMIC_LOAD_TIMEOUT_MS = 10_000
+
 function compactAddress(address: string) {
   return address.length > 11 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address
 }
 
-function WalletControl({ allowEvm }: Pick<Props, 'allowEvm'>) {
+function WalletControl({ allowEvm, directSession, onDirectSession }: Pick<Props, 'allowEvm'> & { directSession: DirectSolanaSession | null; onDirectSession: (session: DirectSolanaSession | null) => void }) {
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, handleLogOut, showAuthFlow, user } = useDynamicContext()
+  const reinitialize = useReinitialize()
   const [copied, setCopied] = useState(false)
   const { authenticateUser } = useAuthenticateConnectedUser()
   const [signingIn, setSigningIn] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [loadTimedOut, setLoadTimedOut] = useState(false)
+  const [detectedWallets, setDetectedWallets] = useState<Wallet[]>([])
+  const [directBusy, setDirectBusy] = useState('')
   const sessionState = getWalletSessionState(sdkHasLoaded, Boolean(user), Boolean(primaryWallet))
+
+  useEffect(() => {
+    if (sdkHasLoaded) {
+      setLoadTimedOut(false)
+      return
+    }
+    setLoadTimedOut(false)
+    const timeout = window.setTimeout(() => setLoadTimedOut(true), DYNAMIC_LOAD_TIMEOUT_MS)
+    return () => window.clearTimeout(timeout)
+  }, [loadAttempt, sdkHasLoaded])
+
+  useEffect(() => {
+    const registry = getWallets()
+    const refresh = () => setDetectedWallets([...compatibleSolanaWallets(registry.get())])
+    refresh()
+    const offRegister = registry.on('register', refresh)
+    const offUnregister = registry.on('unregister', refresh)
+    return () => { offRegister(); offUnregister() }
+  }, [])
+
+  function retryInitialization() {
+    setLoadAttempt(attempt => attempt + 1)
+    reinitialize()
+  }
+
+  async function connectDirect(wallet: Wallet) {
+    setDirectBusy(wallet.name)
+    setError(null)
+    try {
+      onDirectSession(await connectStandardSolanaWallet(wallet as ReturnType<typeof compatibleSolanaWallets>[number]))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : `${wallet.name} did not connect.`)
+    } finally {
+      setDirectBusy('')
+    }
+  }
 
   async function completeSignIn() {
     setSigningIn(true)
@@ -62,6 +108,8 @@ function WalletControl({ allowEvm }: Pick<Props, 'allowEvm'>) {
     }
   }
 
+  if (directSession && !(sessionState === 'ready' && primaryWallet)) return <div className="arena-wallet-status"><details className="arena-wallet-menu"><summary aria-label={`${directSession.name} account ${compactAddress(directSession.port.address)}`}><i /><span>{directSession.name} · {compactAddress(directSession.port.address)}</span></summary><div><button type="button" onClick={() => void navigator.clipboard.writeText(directSession.port.address).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={`https://solscan.io/account/${directSession.port.address}?cluster=devnet`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Solscan</a><button type="button" onClick={() => void directSession.disconnect().finally(() => onDirectSession(null))}><LogOut size={14} aria-hidden="true" /> Disconnect</button></div></details></div>
+  if (!sdkHasLoaded && loadTimedOut) return <div className="arena-wallet-recovery"><div><button className="arena-wallet-button" type="button" onClick={retryInitialization}><WalletCards size={15} aria-hidden="true" /> Retry login</button>{detectedWallets.slice(0, 4).map(wallet => <button className="arena-wallet-button" type="button" key={wallet.name} disabled={Boolean(directBusy)} onClick={() => void connectDirect(wallet)}><WalletCards size={15} aria-hidden="true" />{directBusy === wallet.name ? `Connecting ${wallet.name}…` : `Use ${wallet.name} directly`}</button>)}</div><span role="alert">Dynamic login was blocked. You can still connect a detected Solana wallet directly.</span>{error && <span role="alert">{error}</span>}</div>
   if (!sdkHasLoaded) return <button className="arena-wallet-button" type="button" disabled><LoaderCircle className="spin" size={15} aria-hidden="true" /> Loading login…</button>
   if (sessionState === 'needs-signature') {
     return <div><button className="arena-wallet-button" type="button" disabled={signingIn} onClick={() => void completeSignIn()}>{signingIn ? <LoaderCircle className="spin" size={15} aria-hidden="true" /> : <WalletCards size={15} aria-hidden="true" />}{signingIn ? 'Confirm in wallet…' : 'Complete sign-in'}</button>{error && <span role="alert">{error}</span>}</div>
@@ -77,16 +125,18 @@ function WalletControl({ allowEvm }: Pick<Props, 'allowEvm'>) {
 
 function DynamicSessionContent({ children, allowEvm }: Pick<Props, 'children' | 'allowEvm'>) {
   const { primaryWallet, sdkHasLoaded, user } = useDynamicContext()
+  const [directSession, setDirectSession] = useState<DirectSolanaSession | null>(null)
   const sessionState = getWalletSessionState(sdkHasLoaded, Boolean(user), Boolean(primaryWallet))
-  const wallet = useMemo<LiveArenaWalletPort | null>(() => {
+  const dynamicWallet = useMemo<LiveArenaWalletPort | null>(() => {
     if (sessionState !== 'ready' || !primaryWallet || !isSolanaWallet(primaryWallet)) return null
     return { address: primaryWallet.address, getConnection: () => primaryWallet.getConnection(), getSigner: () => primaryWallet.getSigner() }
   }, [primaryWallet, sessionState])
+  const wallet = dynamicWallet ?? directSession?.port ?? null
   const evmWallet = useMemo<DynamicEvmWalletPort | null>(() => {
     if (!allowEvm || sessionState !== 'ready' || !primaryWallet || !isEthereumWallet(primaryWallet)) return null
     return { address: primaryWallet.address, getWalletClient: chainId => primaryWallet.getWalletClient(chainId) }
   }, [allowEvm, primaryWallet, sessionState])
-  return children({ wallet, evmWallet, walletAddress: wallet?.address ?? evmWallet?.address, walletReady: sessionState === 'ready' && Boolean(wallet ?? evmWallet), walletControl: <WalletControl allowEvm={allowEvm} /> })
+  return children({ wallet, evmWallet, walletAddress: wallet?.address ?? evmWallet?.address, walletReady: Boolean(wallet ?? evmWallet), walletControl: <WalletControl allowEvm={allowEvm} directSession={directSession} onDirectSession={setDirectSession} /> })
 }
 
 export default function DynamicSolanaSessionClient({ children, environmentId, allowEvm }: Props) {

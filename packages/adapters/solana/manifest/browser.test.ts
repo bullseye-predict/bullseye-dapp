@@ -8,7 +8,7 @@ function setup() {
   const adapter = new ManifestAdapter(new Connection('http://127.0.0.1:1'), { genesisHash:'local-fixture',predictionProgram:keys[0]!,manifestProgram:keys[1]!,collateralMint:keys[2]! })
   adapter.verifyDeployment = async () => ({}) as never
   let sends = 0, commitment = '', mutate = false, afterSign = () => {}
-  Object.assign(adapter.connection, { getLatestBlockhash: async () => ({ blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100 }),sendRawTransaction: async () => { sends++; return 'fixture-signature' },confirmTransaction: async (_:unknown, c:string) => { commitment=c; return {value:{err:null}} } })
+  Object.assign(adapter.connection, { getLatestBlockhash: async () => ({ blockhash:Keypair.generate().publicKey.toBase58(),lastValidBlockHeight:100 }),simulateTransaction:async()=>({value:{err:null,unitsConsumed:10_000}}),sendRawTransaction: async () => { sends++; return 'fixture-signature' },confirmTransaction: async (_:unknown, c:string) => { commitment=c; return {value:{err:null}} } })
   const wallet = new ManifestBrowserWallet(adapter,{ address:user.publicKey.toBase58(),getSigner:async () => ({isConnected:true,publicKey:user.publicKey,signTransaction:async (tx:Transaction) => { if(mutate) tx.instructions[1]!.data[0]=255; tx.sign(user);afterSign();return tx }}) as unknown as ISolana })
   const transaction = () => new Transaction().add(SystemProgram.transfer({fromPubkey:user.publicKey,toPubkey:keys[0]!,lamports:1}))
   return { wallet,transaction,sends:()=>sends,commitment:()=>commitment,tamper:()=>{mutate=true},leaveDuringSigning:()=>{afterSign=()=>wallet.dispose()} }

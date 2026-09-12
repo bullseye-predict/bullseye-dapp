@@ -55,6 +55,8 @@ body { margin: 0; }
 .sh-wallet .arena-wallet-menu :is(button, a) { display: flex; justify-content: flex-start; align-items: center; gap: 8px; border: 0; width: 100%; min-height: 35px; padding: 8px; font-size: 10px; }
 .sh-wallet .arena-wallet-menu :is(button, a):hover { background: #383e47; }
 .sh-wallet .arena-wallet-status { display: flex; align-items: center; gap: 7px; }
+.sh-wallet .arena-wallet-recovery { max-width: 260px; }
+.sh-wallet .arena-wallet-recovery > span { color: #ff9a87; font: 500 9px/1.35 var(--sh-mono); }
 .sh-wallet .ch-wallet-overview { display: flex; align-items: stretch; align-self: stretch; border: 1px solid #42444c; }
 .sh-wallet .ch-wallet-overview > span { display: grid; align-content: center; gap: 3px; min-width: 90px; padding: 7px 11px; border-right: 1px solid #42444c; }
 .sh-wallet .ch-wallet-overview > span:last-child { border-right: 0; }

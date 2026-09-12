@@ -1,0 +1,63 @@
+import { useEffect, useMemo, useState } from 'react'
+import { predictionUrl } from '../../../packages/sdk/prediction-url'
+import type { ArenaMarket, SolzMatch } from '../solz/model'
+
+export type ReservedSolanaQuestion = {
+  eventId: string
+  matchId: string
+  questionId: string
+  marketId: string
+  label: string
+  outcomes: [string, string]
+  scheduledStartAt: string
+  status: 'reserved'
+}
+
+export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQuestion[] {
+  const rows = value && typeof value === 'object' && Array.isArray((value as { questions?: unknown }).questions)
+    ? (value as { questions: unknown[] }).questions
+    : []
+  return rows.filter((row): row is ReservedSolanaQuestion => {
+    if (!row || typeof row !== 'object') return false
+    const item = row as Record<string, unknown>
+    return typeof item.eventId === 'string' && /^0x[0-9a-f]{64}$/i.test(String(item.matchId)) &&
+      /^0x[0-9a-f]{64}$/i.test(String(item.questionId)) && typeof item.marketId === 'string' &&
+      typeof item.label === 'string' && Array.isArray(item.outcomes) && item.outcomes.length === 2 &&
+      item.outcomes.every(outcome => typeof outcome === 'string') && typeof item.scheduledStartAt === 'string' &&
+      Number.isFinite(Date.parse(item.scheduledStartAt)) && item.status === 'reserved'
+  })
+}
+
+export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now()): { match: SolzMatch; market: ArenaMarket } {
+  const closesAt = Date.parse(question.scheduledStartAt)
+  return {
+    match: {
+      id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: 'PREDICTION', map: 'MANIFEST DEVNET',
+      round: 'MARKET RESERVED', phase: 'countdown', startedAt: now, endsAt: closesAt, timingType: 'countdown', timingEstimated: false,
+      viewers: 0, marketId: question.marketId, volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
+    },
+    market: {
+      id: question.questionId, matchId: question.eventId, kind: 'match-winner', title: question.label,
+      description: 'Canonical Solana question reserved for first-trader activation on Manifest.', status: 'indicative', closesAt,
+      volume: { SOL: 0, COOLA: 0 }, outcomes: question.outcomes.map((label, index) => ({ id: index === 0 ? 'yes' : 'no', label, detail: index === 0 ? 'Pays if the recorded answer is YES.' : 'Pays if the recorded answer is NO.', probability: .5, priceHistory: [] })),
+      rules: 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
+    },
+  }
+}
+
+export function useReservedSolanaQuestions(apiUrl: string) {
+  const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
+  useEffect(() => {
+    if (!apiUrl) return
+    const controller = new AbortController()
+    void fetch(predictionUrl('/solana/questions', apiUrl), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), headers: { accept: 'application/json' } })
+      .then(async response => {
+        const value = await response.json().catch(() => null)
+        if (!response.ok) throw new Error('Solana question catalogue unavailable.')
+        if (!controller.signal.aborted) setQuestions(parseReservedSolanaQuestions(value))
+      })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [apiUrl])
+  return useMemo(() => questions.map(question => reservedSolanaView(question)), [questions])
+}
