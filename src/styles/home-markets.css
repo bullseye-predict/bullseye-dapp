@@ -108,21 +108,45 @@
 .mk-group-heading h2 { font-size: 22px; line-height: 1.1; }
 .mk-group-heading p { margin-top: 4px; color: var(--sh-muted); font-size: 10px; }
 .mk-group-heading > span { display: grid; min-width: 28px; height: 28px; place-items: center; border: 1px solid var(--sh-line); color: var(--sh-lime); font: 600 10px var(--sh-mono); }
-.mk-market-list { display: grid; border-top: 1px solid var(--sh-line); }
-.mk-market-row { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(180px, 1.2fr) minmax(180px, 1fr) minmax(110px, .55fr) auto; align-items: center; gap: 20px; min-height: 88px; padding: 13px 14px; border-bottom: 1px solid var(--sh-line); }
-.mk-market-row:hover { background: #1d2019; }
-.mk-market-status { display: grid; gap: 7px; }
-.mk-market-status > span, .mk-market-title small { color: var(--sh-muted); font-size: 8px; }
-.mk-market-title { display: grid; gap: 6px; min-width: 0; }
-.mk-market-title strong { overflow: hidden; font: 600 16px/1.1 var(--sh-heading); text-overflow: ellipsis; white-space: nowrap; }
-.mk-market-sides { display: flex; gap: 14px; min-width: 0; }
-.mk-market-sides > span { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 10px; }
-.mk-market-sides .sh-team-mark { width: 20px; height: 22px; }
-.mk-market-sides b { margin-left: 2px; font-family: var(--sh-heading); font-size: 17px; }
-.mk-market-meta { display: flex; align-items: center; gap: 10px; color: var(--sh-muted); font-size: 9px; }
-.mk-market-meta span { display: inline-flex; align-items: center; gap: 5px; }
-.mk-market-open { color: var(--sh-muted); }
-.mk-market-row:hover .mk-market-open { color: var(--sh-lime); }
+.mk-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; padding-top: 4px; }
+.mk-card { display: flex; flex-direction: column; gap: 10px; min-height: 178px; padding: 15px; border: 1px solid var(--sh-line); background: var(--sh-panel); transition: border-color .18s ease-out, background .18s ease-out; }
+.mk-card:hover { border-color: var(--sh-lime); background: #1d2019; }
+.mk-card-top { display: flex; align-items: center; gap: 10px; }
+.mk-card-mode { margin-left: auto; color: var(--sh-muted); font-size: 8px; letter-spacing: .08em; }
+.mk-card-open { flex-shrink: 0; color: var(--sh-muted); }
+.mk-card:hover .mk-card-open { color: var(--sh-lime); }
+.mk-card-title { overflow: hidden; margin: 0; font: 600 17px/1.2 var(--sh-heading); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mk-card-detail { margin: -4px 0 0; color: var(--sh-muted); font-size: 8px; letter-spacing: .06em; }
+.mk-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--sh-line); color: var(--sh-muted); font-size: 9px; }
+.mk-card-bottom span { display: inline-flex; align-items: center; gap: 5px; }
+.mk-card-note { display: flex; align-items: center; gap: 6px; color: var(--sh-muted); font-size: 8px; }
+
+/* Two teams: one shared bar carries both sides of the head-to-head. */
+.mk-versus { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mk-versus-side { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; }
+.mk-versus-side:last-child { flex-direction: row-reverse; }
+.mk-versus-side .sh-team-mark { width: 20px; height: 22px; flex-shrink: 0; }
+.mk-versus-side strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-versus-side b { font: 600 15px var(--sh-heading); }
+.mk-split { display: flex; width: 100%; height: 5px; overflow: hidden; }
+.mk-split i { display: block; height: 100%; border-right: 3px solid var(--sh-panel); transition: width .25s ease-out; }
+
+/* More than two teams: one ranked row per contender, tail collapsed to a count. */
+.mk-ffa { display: grid; gap: 7px; }
+.mk-ffa-row { display: grid; grid-template-columns: 20px minmax(42px, auto) 1fr auto; align-items: center; gap: 8px; font-size: 10px; }
+.mk-ffa-row .sh-team-mark { width: 20px; height: 22px; }
+.mk-ffa-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-ffa-bar { display: block; height: 4px; background: #2a2c31; }
+.mk-ffa-bar i { display: block; height: 100%; transition: width .25s ease-out; }
+.mk-ffa-row b { font: 600 11px var(--sh-mono); }
+
+/* No teams at all: a standalone question trades as a plain YES/NO pair. */
+.mk-binary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mk-binary-side { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 8px; border: 1px solid var(--sh-line); font-size: 10px; letter-spacing: .07em; }
+.mk-binary-side b { font: 600 13px var(--sh-heading); }
+.mk-binary-side.is-yes { border-color: #2f5d1f; background: #1a2413; color: #b6f36a; }
+.mk-binary-side.is-no { border-color: #6d2233; background: #261319; color: #ff8fae; }
+.mk-card--question .mk-card-title { -webkit-line-clamp: 3; font-size: 15px; }
 .mk-empty, .mk-state { display: grid; gap: 12px; place-items: start; padding: 22px 14px; border-bottom: 1px solid var(--sh-line); color: var(--sh-muted); }
 .mk-state { min-height: 150px; align-content: center; border: 1px solid var(--sh-line); }
 .mk-state strong { color: var(--sh-text); }
@@ -132,11 +156,6 @@
   .sh-next-match-rail { margin-right: calc(var(--site-gutter) * -1); padding-right: var(--site-gutter); }
   .mk-main { padding-top: 32px; }
   .mk-heading { margin-bottom: 30px; }
-  .mk-market-row { grid-template-columns: 1fr auto; gap: 12px; min-height: 0; }
-  .mk-market-title { grid-column: 1; }
-  .mk-market-status { grid-column: 1; grid-row: 1; }
-  .mk-market-title { grid-row: 2; }
-  .mk-market-sides, .mk-market-meta { grid-column: 1; grid-row: 3; }
-  .mk-market-row > .mk-market-meta { display: none; }
-  .mk-market-row > .mk-market-meta + .mk-market-open { grid-column: 2; grid-row: 1 / span 3; }
+  .mk-card-grid { grid-template-columns: 1fr; }
+  .mk-card { min-height: 0; }
 }
