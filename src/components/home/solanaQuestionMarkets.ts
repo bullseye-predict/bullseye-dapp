@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
 import type { ArenaMarket, SolzMatch } from '../solz/model'
+import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
+import type { SolanaBinding } from './venue/types'
 
 export type ReservedSolanaQuestion = {
   eventId: string
@@ -37,7 +39,27 @@ export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQues
   })
 }
 
-export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now()): { match: SolzMatch; market: ArenaMarket } {
+/** Builds the venue binding for a Solana question so the shared venue hook can
+ *  read its Manifest books. Without a venue the market renders as an unopened
+ *  question, exactly as before. */
+export function solanaBinding(question: ReservedSolanaQuestion, venue: PublicPredictionVenue | null | undefined): SolanaBinding | undefined {
+  if (!venue?.programId || !venue.manifestProgramId || !venue.publicRpcUrl) return undefined
+  return {
+    family: 'SOLANA',
+    marketId: question.marketId,
+    tradingStartsAt: Date.parse(question.scheduledStartAt),
+    tradingLocksAt: solanaQuestionLocksAt(question),
+    rpcUrl: venue.publicRpcUrl,
+    genesisHash: venue.chainId,
+    predictionProgram: venue.programId,
+    manifestProgram: venue.manifestProgramId,
+    collateralMint: venue.collateralToken,
+    collateralDecimals: venue.collateralDecimals,
+    explorer: { family: 'SOLANA', chainId: venue.chainId, explorerUrl: venue.explorerUrl },
+  }
+}
+
+export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now(), venue?: PublicPredictionVenue | null): { match: SolzMatch; market: ArenaMarket } {
   const kickoff = Date.parse(question.scheduledStartAt)
   const closesAt = solanaQuestionLocksAt(question)
   return {
@@ -54,6 +76,7 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
       description: 'Canonical Solana question reserved for first-trader activation on Manifest.', status: 'indicative', closesAt,
       volume: { SOL: 0, COOLA: 0 }, outcomes: question.outcomes.map((label, index) => ({ id: index === 0 ? 'yes' : 'no', label, detail: index === 0 ? 'Pays if the recorded answer is YES.' : 'Pays if the recorded answer is NO.', probability: .5, priceHistory: [] })),
       rules: 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
+      onchain: solanaBinding(question, venue) as ArenaMarket['onchain'],
     },
   }
 }

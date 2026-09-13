@@ -48,6 +48,7 @@ import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { toast } from "sonner";
+import { dreamDexBinding } from "./venue/useVenueMarket";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
@@ -195,6 +196,8 @@ export function TradeTicket({
       return null;
     }
   })();
+  // The EVM path needs DreamDEX-specific fields; narrow once, explicitly.
+  const evmBinding = dreamDexBinding(market);
   const indicativeOnly = !simulation && !market.onchain;
   const price = simulation || indicativeOnly
     ? type === "limit"
@@ -259,7 +262,7 @@ export function TradeTicket({
     !simulation &&
     !solana &&
     collateralSymbol === "tUSDC" &&
-    market.onchain?.chainId === "50312";
+    evmBinding?.chainId === "50312";
   const liveSolana = !simulation && solana && Boolean(solanaVenue?.programId && solanaVenue.manifestProgramId && solanaVenue.publicRpcUrl && solanaQuestion && predictionApiUrl);
   const unavailable =
     (!simulation && !liveDreamDex && !liveSolana) ||
@@ -308,7 +311,7 @@ export function TradeTicket({
     market.matchId,
     market.id,
     market.onchain?.marketId,
-    market.onchain?.chainId,
+    evmBinding?.chainId,
     contract.id,
   ]);
   useEffect(() => {
@@ -356,7 +359,7 @@ export function TradeTicket({
     setProgress("Checking your order…");
     try {
       if (liveDreamDex) {
-        const binding = market.onchain!;
+        const binding = evmBinding!;
         const adapter = createMarketBrowser(market);
         try {
           const provider = await dynamicEvmProvider(
@@ -520,7 +523,7 @@ export function TradeTicket({
       });
       setOrdersExpanded(true);
       setReview(false);
-      if (market.onchain) refreshDreamDex(market.onchain.chainId);
+      if (evmBinding) refreshDreamDex(evmBinding.chainId);
     } finally {
       setPending(false);
       setProgress("");
@@ -528,17 +531,17 @@ export function TradeTicket({
   }
 
   async function cancelOrder(orderId: bigint) {
-    if (pending || !evmWallet || !market.onchain) return;
+    if (pending || !evmWallet || !evmBinding) return;
     setPending(true);
     setFeedback(null);
     const adapter = createMarketBrowser(market);
     try {
       const wallet = await adapter.connect(
-        await dynamicEvmProvider(evmWallet, market.onchain.chainId),
+        await dynamicEvmProvider(evmWallet, evmBinding.chainId),
       );
       try {
         await wallet.cancel(orderId);
-        refreshDreamDex(market.onchain.chainId);
+        refreshDreamDex(evmBinding.chainId);
         setFeedback({ text: "Order cancelled. Refreshing funds and shares." });
       } finally {
         wallet.dispose();
