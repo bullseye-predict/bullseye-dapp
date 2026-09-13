@@ -4,7 +4,7 @@ import { DreamDexBrowser } from '../../../packages/adapters/dreamdex/browser'
 import { eventBinding } from '../../../packages/adapters/dreamdex/config'
 import type { DreamDexPublicConfig } from '../../../packages/prediction-core/market-data'
 import type { ArenaMarket } from '../solz/model'
-import { useDreamDexRevision } from './dreamDexRefresh'
+import { useDreamDexRevision } from './venue/revision'
 
 export function createMarketBrowser(market: ArenaMarket) {
   const binding = market.onchain!

@@ -35,7 +35,7 @@ import {
 } from "../../../packages/adapters/dreamdex/trading";
 import { sideLabel } from "../../../packages/adapters/dreamdex/activity";
 import { dynamicEvmProvider } from "../prediction/dynamicEvmProvider";
-import { refreshDreamDex } from "./dreamDexRefresh";
+import { refreshDreamDex } from "./venue/revision";
 import {
   createMarketBrowser,
   useDreamDexSnapshot,
@@ -49,6 +49,7 @@ import { createManifestHybridClient } from "../../../packages/adapters/solana/ma
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { toast } from "sonner";
 import { pushAlert } from "./alerts/store";
+import { createToastIds } from "./alerts/toastIds";
 import { dreamDexBinding } from "./venue/useVenueMarket";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
@@ -425,20 +426,22 @@ export function TradeTicket({
         // Each wallet prompt names the transaction it is asking for, so a first
         // trade (question creation, two book activations, funding, order) is not
         // four anonymous approvals in a row.
+        const toasts = createToastIds("solana-tx");
         const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client, (stage) => {
-          const id = `solana-tx:${stage.step}`;
-          // The toast is updated in place by its id; the log takes a line per
-          // stage, so the request for a signature stays on the record next to
-          // whatever came of it.
+          const id = toasts.idFor(stage.step);
           if (stage.status === "signing") {
             toast.loading(stage.step, { id, description: "Approve in your wallet" });
             pushAlert({ level: "info", title: stage.step, detail: "Waiting for your wallet signature" });
           }
           else if (stage.status === "failed") {
-            toast.error(stage.step, { id, description: stage.error });
+            toasts.settle(stage.step);
+            // A failure stays until it is dismissed by hand. Everything else here
+            // is worth glancing at; this is worth reading.
+            toast.error(stage.step, { id, description: stage.error, duration: Infinity });
             pushAlert({ level: "error", title: stage.step, detail: stage.error });
           }
           else {
+            toasts.settle(stage.step);
             const href = stage.signature ? explorerTxUrl(solanaVenue, stage.signature) : undefined;
             pushAlert({ level: "success", title: stage.step, detail: "Confirmed on Solana", href });
             toast.success(stage.step, {
@@ -538,7 +541,9 @@ export function TradeTicket({
         ? "Trade not completed: your own opposing order blocks this trade. Cancel or change that open order below. Token approval alone does not buy shares."
         : `Trade not completed: ${reason instanceof Error ? reason.message : "Please check your wallet and try again."}`;
       setFeedback({ text, error: true });
-      pushAlert({ level: "error", title: "Trade not completed", detail: text.replace("Trade not completed: ", "") });
+      const detail = text.replace("Trade not completed: ", "");
+      toast.error("Trade not completed", { description: detail, duration: Infinity });
+      pushAlert({ level: "error", title: "Trade not completed", detail });
       setOrdersExpanded(true);
       setReview(false);
       if (evmBinding) refreshDreamDex(evmBinding.chainId);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { readMarketActivity, type MarketActivity } from '../../../packages/adapters/dreamdex/activity'
 import type { ArenaMarket } from '../solz/model'
-import { useDreamDexRevision } from './dreamDexRefresh'
+import { useDreamDexRevision } from './venue/revision'
 
 export function useDreamDexActivity(market: ArenaMarket, enabled: boolean) {
   const binding = market.onchain

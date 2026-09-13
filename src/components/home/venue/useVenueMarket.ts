@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ArenaMarket } from '../../solz/model'
 import { useDreamDexSnapshot } from '../useDreamDexSnapshot'
-import { refreshDreamDex } from '../dreamDexRefresh'
+import { refreshDreamDex } from './revision'
 import { useSolanaMarket } from './useSolanaMarket'
 import { EMPTY_VIEW, type DreamDexBinding, type SolanaBinding, type VenueBinding, type VenueMarketView } from './types'
 

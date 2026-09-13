@@ -90,7 +90,10 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
     let timer: number | undefined
     const load = async () => {
       try {
-        const response = await fetch(predictionUrl('/solana/questions', apiUrl), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), headers: { accept: 'application/json' } })
+        // Generous: a cold cross-region Neon can take seconds, and a timeout that
+        // straddles the backend means the catalogue arrives only intermittently and
+        // no market can carry a venue binding on the passes where it does not.
+        const response = await fetch(predictionUrl('/solana/questions', apiUrl), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)]), headers: { accept: 'application/json' } })
         const value = await response.json().catch(() => null)
         if (!response.ok) throw new Error('Solana question catalogue unavailable.')
         if (!controller.signal.aborted) setQuestions(parseReservedSolanaQuestions(value))

@@ -35,11 +35,13 @@ export function OverlayLayer() {
       if (element.parentElement !== target) target.appendChild(element)
       removal?.disconnect()
       removal = null
-      // React can unmount a dialog without closing it first, which would carry
-      // the layer out of the document with it and silently kill every toast.
-      if (target !== document.body && target.parentNode) {
+      // React can unmount a dialog, or anything above it, without closing it
+      // first, which would carry the layer out of the document with it and
+      // silently kill every toast. Watching the tree costs two boolean reads per
+      // batch and only runs while a dialog is actually holding the layer.
+      if (target !== document.body) {
         removal = new MutationObserver(() => { if (!element.isConnected || !target.isConnected) anchor() })
-        removal.observe(target.parentNode, { childList: true })
+        removal.observe(document.body, { childList: true, subtree: true })
       }
     }
     anchor()
@@ -58,7 +60,17 @@ export function OverlayLayer() {
   // prompts. The z-index still matters whenever no dialog is open.
   return createPortal(
     <>
-      <Toaster position="bottom-center" richColors closeButton theme="dark" style={{ zIndex: 2147483000 }} />
+      <Toaster
+        position="bottom-center"
+        richColors
+        closeButton
+        theme="dark"
+        // sonner shows three at a time by default and hides the rest, so a first
+        // trade — activation, two book activations, funding, the order — pushed
+        // its own earlier steps out of sight.
+        visibleToasts={6}
+        style={{ zIndex: 2147483000 }}
+      />
       <AlertsDock />
     </>,
     host,

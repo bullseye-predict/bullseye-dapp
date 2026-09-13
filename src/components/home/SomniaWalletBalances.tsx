@@ -1,7 +1,7 @@
 import { erc20Abi, encodeFunctionData, formatUnits } from 'viem'
 import { useEffect, useState } from 'react'
 import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
-import { useDreamDexRevision } from './dreamDexRefresh'
+import { useDreamDexRevision } from './venue/revision'
 import { dreamDexNetwork } from '../../../packages/adapters/dreamdex/event-reader'
 
 type Props = { wallet: DynamicEvmWalletPort | null; chainId?: '5031' | '50312'; compact?: boolean }

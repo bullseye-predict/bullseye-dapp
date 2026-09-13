@@ -4,7 +4,7 @@ import { eventBinding, parseDreamDexPublicConfig } from '../../../packages/adapt
 import { createDreamDexEventReader } from '../../../packages/adapters/dreamdex/event-reader'
 import { getPredictionConfig } from '../../../packages/sdk/PredictionTradingClient'
 import type { ArenaMarket } from '../solz/model'
-import { useDreamDexRevision } from './dreamDexRefresh'
+import { useDreamDexRevision } from './venue/revision'
 import type { SomniaChain } from './MarketSourceControls'
 
 type Result = { markets: ArenaMarket[]; status: string }

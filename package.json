@@ -56,7 +56,8 @@
     "sonner": "^2.0.8",
     "viem": "2.46.3",
     "wrangler": "^4.128.0",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "zustand": "^5.0.15"
   },
   "allowScripts": {
     "esbuild": true

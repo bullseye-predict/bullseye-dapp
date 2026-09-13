@@ -17,7 +17,7 @@ const levels = (orders: { price: unknown; numBaseAtoms: unknown }[]): DepthLevel
  *  Mirrors useDreamDexSnapshot: poll, scope by binding, never show another
  *  market's data, and re-read on a confirmed transaction. */
 export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean): VenueMarketView {
-  const key = binding ? `${binding.rpcUrl}:${binding.marketId}` : ''
+  const key = binding ? `solana:${binding.rpcUrl}:${binding.marketId}` : ''
   const revision = useVenueRevision(key)
   const [state, setState] = useState<{ key: string; book: VenueBook | null; error: string | null; now: number }>({ key: '', book: null, error: null, now: 0 })
   const [refreshing, setRefreshing] = useState(false)

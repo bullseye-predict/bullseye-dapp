@@ -6,7 +6,7 @@ import { marketOrderQuote, selfMatchingOrders } from '../../../packages/adapters
 import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
 import { dynamicEvmProvider } from '../prediction/dynamicEvmProvider'
 import { formatUnitsExact, parseUnitsExact } from '../prediction/amounts'
-import { refreshDreamDex } from '../home/dreamDexRefresh'
+import { refreshDreamDex } from '../home/venue/revision'
 import type { PortfolioMarket } from './usePortfolio'
 import { positionState } from './model'
 

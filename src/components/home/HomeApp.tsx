@@ -192,7 +192,7 @@ function Home({
     let timer: number | undefined;
     const load = async () => {
       try {
-        const config = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
+        const config = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)]));
         if (!controller.signal.aborted)
           setSolanaVenue(config.venues.find((venue) => venue.family === "SOLANA" && venue.matchingEngine === "MANIFEST") ?? null);
       } catch {
@@ -266,9 +266,38 @@ function Home({
           ) ?? []),
     [externalFeedPending, match?.id, reservedSolana, reservedSolanaMatch, season, snapshot?.markets],
   );
+  // The arena feed builds its markets in predictionArena.marketsFor(), which has
+  // no onchain field at all, and the Solana-bound markets from reservedSolanaView
+  // were only ever used when NO match was loaded. So whenever the arena feed was
+  // healthy every rendered market carried no venue binding: venueBinding() returned
+  // null, the order book showed nothing and the ticket said "Market not created
+  // yet" however many trades had settled on chain.
+  //
+  // loadedSolanaQuestions already resolves the right questions for the loaded
+  // match - it drives the trade ticket and the status line - so merge its binding
+  // onto whatever markets are being rendered. Matching mirrors selectedSolanaQuestion
+  // exactly (canonical questionId first, then the "will <agent> win?" label) so the
+  // book, the ticket and the status can never disagree about which question a market is.
+  const solanaBoundMarkets = useMemo(() => {
+    if (marketSource !== "SOLANA" || !loadedSolanaQuestions.length) return markets;
+    return markets.map((item) => {
+      const bound =
+        loadedSolanaQuestions.find(
+          (entry) => entry.question.questionId.toLowerCase() === item.id.toLowerCase(),
+        ) ??
+        loadedSolanaQuestions.find((entry) => {
+          const participantId = item.outcomes[0]?.participantId;
+          return (
+            Boolean(participantId) &&
+            entry.question.label.toLowerCase() === `will ${participantId!.toLowerCase()} win?`
+          );
+        });
+      return bound?.market.onchain ? { ...item, onchain: bound.market.onchain } : item;
+    });
+  }, [markets, loadedSolanaQuestions, marketSource]);
   const predictionMarkets = useMemo(
-    () => (predictionFeed || !apiUrl || reservedSolanaMatch ? markets : []),
-    [apiUrl, markets, predictionFeed, reservedSolanaMatch],
+    () => (predictionFeed || !apiUrl || reservedSolanaMatch ? solanaBoundMarkets : []),
+    [apiUrl, solanaBoundMarkets, predictionFeed, reservedSolanaMatch],
   );
   const somnia = useSomniaMarketPrices(
     dreamDexApiUrl || apiUrl,

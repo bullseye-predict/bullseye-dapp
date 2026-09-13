@@ -75,6 +75,7 @@ if (typeof window !== 'undefined') window.addEventListener('storage', event => {
 })
 
 const EMPTY: AlertRecord[] = []
+export const getAlerts = () => records
 export function useAlerts() {
-  return useSyncExternalStore(subscribe, () => records, () => EMPTY)
+  return useSyncExternalStore(subscribe, getAlerts, () => EMPTY)
 }

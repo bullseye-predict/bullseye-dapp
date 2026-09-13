@@ -6,7 +6,7 @@ import { DreamDexBrowser } from '../../../packages/adapters/dreamdex/browser'
 import { eventBinding, parseDreamDexPublicConfig } from '../../../packages/adapters/dreamdex/config'
 import type { DreamDexPublicConfig } from '../../../packages/prediction-core/market-data'
 import { getPredictionConfig } from '../../../packages/sdk/PredictionTradingClient'
-import { useDreamDexRevision } from '../home/dreamDexRefresh'
+import { useDreamDexRevision } from '../home/venue/revision'
 
 export type PortfolioMarket = {
   config: DreamDexPublicConfig
