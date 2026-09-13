@@ -46,7 +46,7 @@ function ConfiguredManifest({ venue, session, apiUrl }: Props) {
   return <><div className="pt-toolbar"><label>Solana market<select aria-label="Solana market" value={address} onChange={e => setAddress(e.target.value)}>{markets.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></label><span>{venue.label} · {venue.collateralSymbol} · Manifest + Solana Kit</span>{session.walletControl}</div>
     {draftError && <p className="pt-error" role="status">New question catalogue: {draftError}</p>}
     {selectedLive ? <QuestionTerminal key={`${address}:${session.walletAddress ?? ''}`} client={client} adapter={adapter} wallet={wallet} labels={selectedLive.outcomes} address={address} matchId={selectedLive.matchId} apiUrl={apiUrl}/>
-      : selectedDraft ? <LazyQuestionActivation draft={selectedDraft} wallet={wallet} apiUrl={apiUrl} onReady={() => setActivated(current => [...current.filter(market => market.address !== selectedDraft.marketId), { address:selectedDraft.marketId, matchId:selectedDraft.matchId, label:selectedDraft.label, outcomes:selectedDraft.outcomes }])}/>
+      : selectedDraft ? <LazyQuestionActivation draft={selectedDraft} wallet={wallet} apiUrl={apiUrl} collateralSymbol={venue.collateralSymbol} onReady={() => setActivated(current => [...current.filter(market => market.address !== selectedDraft.marketId), { address:selectedDraft.marketId, matchId:selectedDraft.matchId, label:selectedDraft.label, outcomes:selectedDraft.outcomes }])}/>
       : <div className="pt-empty"><h3>No Solana markets configured</h3><p>There are no active or reserved devnet questions right now.</p></div>}</>
 }
 type LiveQuestion = { address:string; matchId:string; label:string; outcomes:string[] }
@@ -56,12 +56,12 @@ function isLazyQuestion(value: unknown): value is LazyQuestion {
   const question = value as Record<string, unknown>
   return typeof question.eventId === 'string' && typeof question.marketId === 'string' && /^0x[0-9a-f]{64}$/.test(String(question.matchId)) && /^0x[0-9a-f]{64}$/.test(String(question.questionId)) && typeof question.label === 'string' && Array.isArray(question.outcomes) && question.outcomes.length === 2 && question.outcomes.every(outcome => typeof outcome === 'string') && typeof question.scheduledStartAt === 'string' && question.status === 'reserved'
 }
-function LazyQuestionActivation({ draft, wallet, apiUrl, onReady }: { draft:LazyQuestion; wallet:ManifestBrowserWallet|null; apiUrl:string; onReady:()=>void }) {
+function LazyQuestionActivation({ draft, wallet, apiUrl, collateralSymbol, onReady }: { draft:LazyQuestion; wallet:ManifestBrowserWallet|null; apiUrl:string; collateralSymbol:string; onReady:()=>void }) {
   const [busy,setBusy]=useState(false),[funding,setFunding]=useState(false),[feedback,setFeedback]=useState('')
   const faucet = async () => {
     if (!wallet) return
     setFunding(true); setFeedback('')
-    try { const response=await fetch(`${apiUrl.replace(/\/+$/,'')}/solana/faucet`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:wallet.owner.toBase58()})}); const value=await response.json() as {funded?:boolean;message?:string;error?:string}; if(!response.ok)throw new Error(value.message??value.error??'Devnet funding unavailable'); setFeedback(value.funded?'Devnet SOL and 100 test USDC sent. You can activate the market now.':'This wallet already received its devnet funds.') }
+    try { const response=await fetch(`${apiUrl.replace(/\/+$/,'')}/solana/faucet`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:wallet.owner.toBase58()})}); const value=await response.json() as {funded?:boolean;message?:string;error?:string}; if(!response.ok)throw new Error(value.message??value.error??'Devnet funding unavailable'); setFeedback(value.funded?`Devnet SOL and 100 ${collateralSymbol} sent. You can activate the market now.`:'This wallet already received its devnet funds.') }
     catch(error){setFeedback(error instanceof Error?error.message:'Devnet funding unavailable')} finally{setFunding(false)}
   }
   const activate = async () => {

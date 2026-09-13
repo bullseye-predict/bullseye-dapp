@@ -1,8 +1,8 @@
 .solz-home { --site-content-width: 1600px; --site-gutter: 32px; --site-header-height: 80px; --z-site-header: 20; }
 .sz-site-header { position: sticky; top: 0; z-index: var(--z-site-header); background: var(--sh-bg); border-bottom: 1px solid var(--sh-line); }
 .sz-site-header-inner { display: flex; align-items: center; gap: 40px; height: var(--site-header-height); max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); margin-inline: auto; }
-.sz-site-header .sh-logo { font-size: 49px; }
-.sz-site-header .sh-logo i { height: 30px; }
+.sz-site-header .sh-logo-colacat { display: block; width: 150px; color: var(--sh-text) !important; text-decoration: none; }
+.sz-site-header .sh-logo-colacat img { display: block; width: 144px; height: auto; }
 .sz-site-header nav { display: flex; align-items: center; flex: 1; min-width: 0; gap: 8px; }
 .sz-site-links { display: flex; align-items: center; gap: 8px; }
 .sz-site-header nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
@@ -18,17 +18,23 @@
   .sz-site-header nav a { font-size: 10px; padding-inline: 8px; }
 }
 @media (max-width: 1020px) {
-  .sz-site-header nav { display: none; position: absolute; top: 100%; inset-inline: 0; background: var(--sh-bg); padding: 16px var(--site-gutter) 18px; border-bottom: 1px solid var(--sh-line); }
-  .sz-site-header nav.is-open { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+  .sz-site-header-inner { height: auto; min-height: var(--site-header-height); flex-wrap: wrap; padding-block: 10px; }
+  .sz-site-header nav { display: none; position: static; order: 3; width: 100%; flex: 0 0 100%; background: transparent; padding: 8px 0 2px; border: 0; }
+  .sz-site-header nav.is-open { display: block; }
   .sz-site-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-  .sz-site-header nav > .sh-wallet { margin: 0; padding-top: 16px; border-top: 1px solid var(--sh-line); }
+  .sz-site-header nav a { min-height: 44px; justify-content: flex-start; padding-inline: 12px; border: 1px solid transparent; }
+  .sz-site-header nav a.is-active { border-color: var(--sh-lime); }
+  .sz-site-header nav > .sh-wallet { display: none; }
   .sz-site-menu { display: flex; }
+}
+@media (min-width: 600px) and (max-width: 1020px) {
+  .sz-site-links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .solz-home { --site-gutter: 18px; --site-header-height: 68px; }
   .sz-site-header-inner { gap: 16px; }
-  .sz-site-header .sh-logo { font-size: 39px; }
-  .sz-site-header .sh-logo i { height: 24px; width: 5px; }
+  .sz-site-header .sh-logo-colacat { width: 132px; }
+  .sz-site-header .sh-logo-colacat img { width: 128px; }
   .sz-site-header nav .sh-wallet .arena-wallet-status { display: grid; grid-template-columns: 1fr; gap: 9px; }
   .sz-site-header nav .sh-wallet .ch-wallet-overview { width: 100%; }
   .sz-site-header nav .sh-wallet .ch-wallet-overview > span { flex: 1; min-width: 0; padding: 10px; }
@@ -40,6 +46,8 @@
 @media (max-width: 390px) {
   .solz-home { --site-gutter: 12px; }
   .sz-site-header-inner { gap: 10px; }
+  .sz-site-header .sh-logo-colacat { width: 112px; }
+  .sz-site-header .sh-logo-colacat img { width: 108px; }
   .sz-site-header nav .sh-wallet button { font-size: 9px; padding-inline: 9px; }
 }
 

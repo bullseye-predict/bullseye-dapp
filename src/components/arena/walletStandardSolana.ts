@@ -36,7 +36,8 @@ function unsignedBytes(transaction: Transaction | VersionedTransaction) {
 }
 
 export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcUrl = 'https://api.devnet.solana.com/'): Promise<DirectSolanaSession> {
-  const connected = await wallet.features[StandardConnect].connect()
+  const connect = wallet.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect]
+  const connected = await connect.connect()
   const account = solanaAccount(connected.accounts.length ? connected.accounts : wallet.accounts)
   const owner = new PublicKey(account.publicKey)
   if (owner.toBase58() !== account.address) throw new Error('Wallet account address does not match its public key.')
@@ -44,12 +45,14 @@ export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcU
     isConnected: true,
     publicKey: owner,
     async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
-      const [result] = await wallet.features[SolanaSignTransaction].signTransaction({ account, transaction: unsignedBytes(transaction), chain: 'solana:devnet' })
+      const feature = wallet.features[SolanaSignTransaction] as SolanaSignTransactionFeature[typeof SolanaSignTransaction]
+      const [result] = await feature.signTransaction({ account, transaction: unsignedBytes(transaction), chain: 'solana:devnet' })
       if (!result) throw new Error('The wallet did not return a signed transaction.')
       return (transaction instanceof Transaction ? Transaction.from(result.signedTransaction) : VersionedTransaction.deserialize(result.signedTransaction)) as T
     },
     async signMessage(message: Uint8Array) {
-      const [result] = await wallet.features[SolanaSignMessage].signMessage({ account, message })
+      const feature = wallet.features[SolanaSignMessage] as SolanaSignMessageFeature[typeof SolanaSignMessage]
+      const [result] = await feature.signMessage({ account, message })
       if (!result) throw new Error('The wallet did not return a message signature.')
       return { signature: result.signature }
     },

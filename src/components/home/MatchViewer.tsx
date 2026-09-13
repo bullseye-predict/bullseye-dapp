@@ -11,6 +11,7 @@ import {
   Radio,
   X,
 } from "lucide-react";
+import { animate } from "animejs";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   ArenaMarket,
@@ -333,6 +334,8 @@ export function MatchViewer({
   onBroadcastState,
 }: Props) {
   const frame = useRef<HTMLDivElement>(null);
+  const livestreamChip = useRef<HTMLSpanElement>(null);
+  const livestreamTab = useRef<HTMLSpanElement>(null);
   const [fullscreenError, setFullscreenError] = useState("");
   const [detail, setDetail] = useState<ArenaMarket | null>(null);
   const [broadcastStatus, setBroadcastStatus] =
@@ -418,6 +421,20 @@ export function MatchViewer({
           time: "FINAL",
           detail: "AWAITING NEXT MATCH",
         };
+  const isLiveBroadcast = match.phase === "live" && !intermission;
+  useEffect(() => {
+    if (!isLiveBroadcast || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const targets = [livestreamChip.current, livestreamTab.current].filter((element): element is HTMLSpanElement => Boolean(element));
+    if (!targets.length) return;
+    const pulse = animate(targets, {
+      scale: [1, 1.055, 1],
+      opacity: [1, 0.72, 1],
+      duration: 1200,
+      ease: "inOutSine",
+      loop: true,
+    });
+    return () => pulse.cancel();
+  }, [isLiveBroadcast]);
   return (
     <section className="ch-viewer" aria-label="Highlighted event viewer">
       <div className="ch-view-navigation">
@@ -468,9 +485,9 @@ export function MatchViewer({
               {
                 id: "live",
                 label: (
-                  <>
+                  <span ref={livestreamTab} className={`ch-livestream-tab ${isLiveBroadcast ? "is-live" : ""}`}>
                     <Radio size={14} /> Livestream
-                  </>
+                  </span>
                 ),
               },
             ]}
@@ -500,10 +517,11 @@ export function MatchViewer({
               />
               <div className="sh-broadcast-shade" aria-hidden="true" />
               <div className="sh-broadcast-top">
-                <span className="sh-preview-chip">
+                <span ref={livestreamChip} className={`sh-preview-chip ${isLiveBroadcast ? "is-live" : ""}`}>
+                  {isLiveBroadcast && <i aria-hidden="true" />}
                   {intermission
                     ? "NEXT MATCH RESERVED"
-                    : match.streamUrl
+                    : isLiveBroadcast
                       ? "LIVE BROADCAST"
                       : "VIDEO UNAVAILABLE"}
                 </span>

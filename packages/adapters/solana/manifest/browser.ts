@@ -5,7 +5,7 @@ import type { ISolana } from '@dynamic-labs/solana-core'
 export interface ManifestWalletPort { address: string; getSigner(): Promise<ISolana> }
 export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; latestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight: number }> }
 import { ManifestAdapter } from './adapter'
-import { activateBook, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
+import { activateBook, bindingAddress, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
 import { buildCreateQuestionMarket, changePosition, initializePosition, initializeVault, moveVaultCollateral, positionAddress, questionCreationDigest, questionMarketAddress, vaultAddress } from '../wire'
 
 export class ManifestBrowserWallet {
@@ -16,7 +16,11 @@ export class ManifestBrowserWallet {
   private async signer() {
     if (!this.active) throw new Error('Network or wallet selection changed. Reconnect before signing.')
     const signer = await this.port.getSigner()
-    if (!this.active || !signer.isConnected || !signer.publicKey || !new PublicKey(signer.publicKey.toBytes()).equals(this.owner)) throw new Error('Wallet account changed')
+    const signerKey = signer.publicKey ? new PublicKey(signer.publicKey.toBytes()) : null
+    if (!this.active || !signer.isConnected || !signerKey || !signerKey.equals(this.owner)) {
+      const actual = signerKey ? `${signerKey.toBase58().slice(0, 4)}…${signerKey.toBase58().slice(-4)}` : 'disconnected'
+      throw new Error(`Wallet account changed to ${actual}. Reconnect this account before trading.`)
+    }
     await this.adapter.verifyDeployment()
     return signer
   }
@@ -76,21 +80,25 @@ export class ManifestBrowserWallet {
       signatures.push(await this.send(new Transaction().add(...create)))
     }
     for (const outcome of [0, 1] as const) {
-      const binding: ManifestBinding = {
+      const bindingKey = bindingAddress(deployment.predictionProgram, question, outcome)
+      const venue = bookAddress(deployment.predictionProgram, question, outcome)
+      const mint = claimMintAddress(deployment.predictionProgram, question, outcome)
+      const [bindingRecord, mintRecord, venueRecord] = await this.adapter.connection.getMultipleAccountsInfo([bindingKey, mint, venue], 'confirmed')
+      const binding: ManifestBinding = bindingRecord ? await this.adapter.binding(question, outcome) : {
         question,
         program: deployment.manifestProgram,
-        venue: bookAddress(deployment.predictionProgram, question, outcome),
-        mint: claimMintAddress(deployment.predictionProgram, question, outcome),
+        venue,
+        mint,
         collateral: deployment.collateralMint,
         recipient: PublicKey.default,
         bps: 1,
         outcome,
       }
-      signatures.push(await this.send(new Transaction().add(
-        registerBinding(deployment.predictionProgram, this.owner, question, deployment.manifestProgram, outcome),
-        initializeClaimMint(deployment.predictionProgram, this.owner, binding),
-        activateBook(deployment.predictionProgram, this.owner, binding),
-      )))
+      const transaction = new Transaction()
+      if (!bindingRecord) transaction.add(registerBinding(deployment.predictionProgram, this.owner, question, deployment.manifestProgram, outcome))
+      if (!mintRecord) transaction.add(initializeClaimMint(deployment.predictionProgram, this.owner, binding))
+      if (!venueRecord) transaction.add(activateBook(deployment.predictionProgram, this.owner, binding))
+      if (transaction.instructions.length) signatures.push(await this.send(transaction))
     }
     for (const outcome of [0, 1] as const) await this.adapter.readBook(await this.adapter.binding(question, outcome))
     return signatures

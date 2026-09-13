@@ -10,7 +10,16 @@ export type ReservedSolanaQuestion = {
   label: string
   outcomes: [string, string]
   scheduledStartAt: string
-  status: 'reserved'
+  status: 'reserved' | 'live'
+}
+
+export function solanaQuestionLocksAt(question: Pick<ReservedSolanaQuestion, 'matchId'>) {
+  const encoded = question.matchId.slice(2)
+  const durationMinutes = Number.parseInt(encoded.slice(12, 16), 16)
+  const kickoffSeconds = Number.parseInt(encoded.slice(16, 32), 16)
+  if (!Number.isSafeInteger(durationMinutes) || durationMinutes <= 0 || !Number.isSafeInteger(kickoffSeconds))
+    throw new Error('Invalid canonical Solana match timing.')
+  return (kickoffSeconds + durationMinutes * 60) * 1_000
 }
 
 export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQuestion[] {
@@ -24,16 +33,20 @@ export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQues
       /^0x[0-9a-f]{64}$/i.test(String(item.questionId)) && typeof item.marketId === 'string' &&
       typeof item.label === 'string' && Array.isArray(item.outcomes) && item.outcomes.length === 2 &&
       item.outcomes.every(outcome => typeof outcome === 'string') && typeof item.scheduledStartAt === 'string' &&
-      Number.isFinite(Date.parse(item.scheduledStartAt)) && item.status === 'reserved'
+      Number.isFinite(Date.parse(item.scheduledStartAt)) && (item.status === 'reserved' || item.status === 'live')
   })
 }
 
 export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now()): { match: SolzMatch; market: ArenaMarket } {
-  const closesAt = Date.parse(question.scheduledStartAt)
+  const kickoff = Date.parse(question.scheduledStartAt)
+  const closesAt = solanaQuestionLocksAt(question)
   return {
     match: {
       id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: 'PREDICTION', map: 'MANIFEST DEVNET',
-      round: 'MARKET RESERVED', phase: 'countdown', startedAt: now, endsAt: closesAt, timingType: 'countdown', timingEstimated: false,
+      // A reserved market has a real settlement cutoff, but it is not a
+      // running match or a five-minute break. Treat its clock as open-ended
+      // so a future scheduled start is never rendered as a multi-day timer.
+      round: question.status === 'live' ? 'LIVE LAZY MARKET' : 'MARKET RESERVED', phase: question.status === 'live' ? 'live' : 'countdown', startedAt: question.status === 'live' ? kickoff : now, endsAt: closesAt, timingType: question.status === 'live' ? 'countdown' : 'open-ended', timingEstimated: false,
       viewers: 0, marketId: question.marketId, volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
     },
     market: {
@@ -48,16 +61,25 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
 export function useReservedSolanaQuestions(apiUrl: string) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
   useEffect(() => {
+    setQuestions([])
     if (!apiUrl) return
     const controller = new AbortController()
-    void fetch(predictionUrl('/solana/questions', apiUrl), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), headers: { accept: 'application/json' } })
-      .then(async response => {
+    let timer: number | undefined
+    const load = async () => {
+      try {
+        const response = await fetch(predictionUrl('/solana/questions', apiUrl), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]), headers: { accept: 'application/json' } })
         const value = await response.json().catch(() => null)
         if (!response.ok) throw new Error('Solana question catalogue unavailable.')
         if (!controller.signal.aborted) setQuestions(parseReservedSolanaQuestions(value))
-      })
-      .catch(() => undefined)
-    return () => controller.abort()
+      } catch {
+        // Preserve the last verified catalogue through a transient local-backend
+        // outage. The next poll will replace it with the current match.
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), 10_000)
+      }
+    }
+    void load()
+    return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
   }, [apiUrl])
-  return useMemo(() => questions.map(question => reservedSolanaView(question)), [questions])
+  return useMemo(() => questions.map(question => ({ ...reservedSolanaView(question), question })), [questions])
 }

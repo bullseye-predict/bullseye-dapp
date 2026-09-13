@@ -17,7 +17,7 @@ test('homepage reads Neon-backed prediction feed without requesting Elysia or sa
 })
 test('profiles alone do not invent participants; network collateral stays separate',()=>{
   expect(matchQuestions({...match,participants:[]},agents)).toEqual([])
-  expect(tradingCollateral('SOLANA','5031')).toBe('SOL')
+  expect(tradingCollateral('SOLANA','5031')).toBe('fUSDC')
   expect(tradingCollateral('SOMNIA','5031')).toBe('USDso')
   expect(tradingCollateral('SOMNIA','50312')).toBe('tUSDC')
 })

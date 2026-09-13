@@ -26,6 +26,44 @@ pub struct Binding {
     pub outcome: u8,
     pub bump: u8,
 }
+
+pub struct ManifestConfig {
+    pub program: Key,
+    pub recipient: Key,
+    pub bps: u16,
+    pub bump: u8,
+}
+impl State for ManifestConfig {
+    const LEN: usize = 75;
+    const TAG: &'static [u8; 8] = b"SOLZMCF1";
+    fn read(r: &mut Reader) -> Result<Self> {
+        Ok(Self {
+            program: r.bytes()?,
+            recipient: r.bytes()?,
+            bps: u16::from_le_bytes(r.bytes()?),
+            bump: r.u8()?,
+        })
+    }
+    fn write(&self, w: &mut Writer) -> Result<()> {
+        w.bytes(&self.program)?;
+        w.bytes(&self.recipient)?;
+        w.bytes(&self.bps.to_le_bytes())?;
+        w.u8(self.bump)
+    }
+}
+
+fn load_manifest_config(account: &AccountView, program: &Address) -> Result<ManifestConfig> {
+    let config: ManifestConfig = a::load(account, program)?;
+    check(
+        config.program != [0; 32]
+            && config.recipient != [0; 32]
+            && config.bps > 0
+            && config.bps <= 10_000
+            && a::pda(account, &[b"manifest_config"], program)? == config.bump,
+        Error::InvalidAccount,
+    )?;
+    Ok(config)
+}
 impl State for Binding {
     const LEN: usize = 204;
     const TAG: &'static [u8; 8] = b"SOLZMAN1";
@@ -79,6 +117,7 @@ fn seal(
     b: &Binding,
     market_bump: u8,
     match_id: &Key,
+    question_id: &Key,
     frozen: bool,
 ) -> Result<()> {
     // owner,config,question,vault,position,binding,mint,user token,venue program,freeze authority,token program
@@ -99,21 +138,28 @@ fn seal(
         &accounts[10],
     ];
     let bump = [market_bump];
-    let seeds = [
-        Seed::from(b"market".as_slice()),
-        Seed::from(match_id.as_slice()),
-        Seed::from(bump.as_slice()),
-    ];
     let target = Address::new_from_array(b.program);
-    invoke_signed(
-        &InstructionView {
-            program_id: &target,
-            accounts: &metas,
-            data: &[250, u8::from(frozen)],
-        },
-        &views,
-        &[Signer::from(seeds.as_slice())],
-    )
+    let instruction = InstructionView {
+        program_id: &target,
+        accounts: &metas,
+        data: &[250, u8::from(frozen)],
+    };
+    if *question_id == [0; 32] {
+        let seeds = [
+            Seed::from(b"market".as_slice()),
+            Seed::from(match_id.as_slice()),
+            Seed::from(bump.as_slice()),
+        ];
+        invoke_signed(&instruction, &views, &[Signer::from(seeds.as_slice())])
+    } else {
+        let seeds = [
+            Seed::from(b"market".as_slice()),
+            Seed::from(match_id.as_slice()),
+            Seed::from(question_id.as_slice()),
+            Seed::from(bump.as_slice()),
+        ];
+        invoke_signed(&instruction, &views, &[Signer::from(seeds.as_slice())])
+    }
 }
 pub fn process(
     program: &Address,
@@ -124,9 +170,10 @@ pub fn process(
     check(
         accounts.len()
             == match tag {
-                22 => 7,
+                22 => 8,
                 23 => 10,
                 26 => 14,
+                28 => 5,
                 _ => 11,
             },
         Error::InvalidAccount,
@@ -134,6 +181,52 @@ pub fn process(
     a::distinct(accounts, &(0..accounts.len()).collect::<Vec<_>>())?;
     a::signer(&accounts[0])?;
     let config = a::config(&accounts[1], program)?;
+    if tag == 28 {
+        check(
+            a::key(&accounts[0]) == config.authority,
+            Error::Unauthorized,
+        )?;
+        let mut r = Reader::new(args);
+        let recipient = r.bytes()?;
+        let bps = u16::from_le_bytes(r.bytes()?);
+        r.done()?;
+        check(
+            recipient != [0; 32] && bps > 0 && bps <= 10_000,
+            Error::InvalidData,
+        )?;
+        check(
+            accounts[3].executable() && accounts[3].address() != program,
+            Error::InvalidAccount,
+        )?;
+        a::program(&accounts[4], &pinocchio_system::ID)?;
+        if accounts[2].owner() == program {
+            let old = load_manifest_config(&accounts[2], program)?;
+            check(
+                old.program == a::key(&accounts[3]) && old.recipient == recipient && old.bps == bps,
+                Error::InvalidAccount,
+            )?;
+            return Ok(());
+        }
+        let manifest_program = a::key(&accounts[3]);
+        let bump = a::create(
+            &accounts[0],
+            &accounts[2],
+            &[b"manifest_config"],
+            program,
+            program,
+            ManifestConfig::LEN,
+        )?;
+        return a::save(
+            &mut accounts[2],
+            &ManifestConfig {
+                program: manifest_program,
+                recipient,
+                bps,
+                bump,
+            },
+            program,
+        );
+    }
     let mut market = a::market(&accounts[2], program)?;
     check(
         market.outcomes == 2 && market.mint == config.mint,
@@ -141,10 +234,6 @@ pub fn process(
     )?;
     let question = a::key(&accounts[2]);
     if tag == 22 {
-        check(
-            a::key(&accounts[0]) == config.authority,
-            Error::Unauthorized,
-        )?;
         check(
             !config.paused
                 && !market.paused
@@ -154,20 +243,18 @@ pub fn process(
         )?;
         let mut r = Reader::new(args);
         let outcome = r.u8()?;
-        let recipient = r.bytes()?;
-        let bps = u16::from_le_bytes(r.bytes()?);
         r.done()?;
+        check(outcome <= 1, Error::InvalidData)?;
+        let manifest_config = load_manifest_config(&accounts[4], program)?;
+        a::program(&accounts[5], &pinocchio_system::ID)?;
         check(
-            outcome <= 1 && bps > 0 && bps <= 10_000 && recipient != [0; 32],
-            Error::InvalidData,
-        )?;
-        a::program(&accounts[4], &pinocchio_system::ID)?;
-        check(
-            accounts[5].executable() && accounts[5].address() != program,
+            accounts[6].executable()
+                && a::key(&accounts[6]) == manifest_config.program
+                && accounts[6].address() != program,
             Error::InvalidAccount,
         )?;
         a::pda(
-            &accounts[6],
+            &accounts[7],
             &[b"manifest_book", &question, &[outcome]],
             program,
         )?;
@@ -178,12 +265,12 @@ pub fn process(
         if accounts[3].owner() == program {
             let old = load(&accounts[3], program, &question)?;
             check(
-                old.program == a::key(&accounts[5])
-                    && old.venue == a::key(&accounts[6])
+                old.program == manifest_config.program
+                    && old.venue == a::key(&accounts[7])
                     && old.mint == mint
                     && old.collateral == config.mint
-                    && old.recipient == recipient
-                    && old.bps == bps
+                    && old.recipient == manifest_config.recipient
+                    && old.bps == manifest_config.bps
                     && old.outcome == outcome,
                 Error::InvalidAccount,
             )?;
@@ -209,12 +296,12 @@ pub fn process(
         )?;
         let binding = Binding {
             question,
-            program: a::key(&accounts[5]),
-            venue: a::key(&accounts[6]),
+            program: manifest_config.program,
+            venue: a::key(&accounts[7]),
             mint,
             collateral: config.mint,
-            recipient,
-            bps,
+            recipient: manifest_config.recipient,
+            bps: manifest_config.bps,
             outcome,
             bump,
         };
@@ -226,10 +313,7 @@ pub fn process(
     let venue_program = Address::new_from_array(b.program);
     let authority = Address::find_program_address(&[b"claims_authority"], &venue_program).0;
     if tag == 26 {
-        check(
-            args.is_empty() && a::key(&accounts[0]) == config.authority,
-            Error::Unauthorized,
-        )?;
+        check(args.is_empty(), Error::InvalidData)?;
         a::require_key(&accounts[4], &b.venue)?;
         a::mint(&accounts[5], &b.mint)?;
         a::mint(&accounts[6], &b.collateral)?;
@@ -274,10 +358,7 @@ pub fn process(
         return Ok(());
     }
     if tag == 23 {
-        check(
-            args.is_empty() && a::key(&accounts[0]) == config.authority,
-            Error::Unauthorized,
-        )?;
+        check(args.is_empty(), Error::InvalidData)?;
         a::mint(&accounts[5], &config.mint)?;
         a::program(&accounts[6], &pinocchio_system::ID)?;
         a::program(&accounts[7], &pinocchio_token::ID)?;
@@ -341,24 +422,49 @@ pub fn process(
     if tag == 24 {
         market.require_trading(&config, Clock::get()?.unix_timestamp)?;
     }
-    seal(accounts, &b, market.bump, &market.match_id, false)?;
+    seal(
+        accounts,
+        &b,
+        market.bump,
+        &market.match_id,
+        &market.question_id,
+        false,
+    )?;
     if tag == 24 {
         position.balances[b.outcome as usize] = sub(position.balances[b.outcome as usize], amount)?;
         vault.exposure = sub(vault.exposure, amount)?;
         let bump = [market.bump];
-        let seeds = [
-            Seed::from(b"market".as_slice()),
-            Seed::from(market.match_id.as_slice()),
-            Seed::from(bump.as_slice()),
-        ];
-        MintTo::new(&accounts[6], &accounts[7], &accounts[2], amount)
-            .invoke_signed(&[Signer::from(seeds.as_slice())])?;
+        if market.question_id == [0; 32] {
+            let seeds = [
+                Seed::from(b"market".as_slice()),
+                Seed::from(market.match_id.as_slice()),
+                Seed::from(bump.as_slice()),
+            ];
+            MintTo::new(&accounts[6], &accounts[7], &accounts[2], amount)
+                .invoke_signed(&[Signer::from(seeds.as_slice())])?;
+        } else {
+            let seeds = [
+                Seed::from(b"market".as_slice()),
+                Seed::from(market.match_id.as_slice()),
+                Seed::from(market.question_id.as_slice()),
+                Seed::from(bump.as_slice()),
+            ];
+            MintTo::new(&accounts[6], &accounts[7], &accounts[2], amount)
+                .invoke_signed(&[Signer::from(seeds.as_slice())])?;
+        }
     } else {
         position.balances[b.outcome as usize] = add(position.balances[b.outcome as usize], amount)?;
         vault.exposure = add(vault.exposure, amount)?;
         Burn::new(&accounts[7], &accounts[6], &accounts[0], amount).invoke()?;
     }
-    seal(accounts, &b, market.bump, &market.match_id, true)?;
+    seal(
+        accounts,
+        &b,
+        market.bump,
+        &market.match_id,
+        &market.question_id,
+        true,
+    )?;
     a::save(&mut accounts[3], &vault, program)?;
     a::save(&mut accounts[4], &position, program)
 }

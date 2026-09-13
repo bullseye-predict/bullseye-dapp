@@ -1,4 +1,4 @@
-import { ArrowUpRight, Menu, X } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import '../../styles/site-header.css'
 
@@ -6,7 +6,7 @@ type Props = {
   homeHref: string
   marketsHref?: string
   walletControl: ReactNode
-  active: 'arena' | 'markets' | 'agents' | 'profile'
+  active: 'highlight' | 'markets' | 'agents' | 'teams' | 'docs' | 'leaderboard' | 'profile'
   onArena?: () => void
   onMarkets?: () => void
 }
@@ -16,14 +16,17 @@ export function SiteHeader({ homeHref, marketsHref, walletControl, active, onAre
   const close = () => setOpen(false)
   return <header className="sz-site-header" onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
     <div className="sz-site-header-inner">
-      <a className="sh-logo" href={homeHref} aria-label="COOLA home">COOLA<span>®</span><i aria-hidden="true"/></a>
+      <a className="sh-logo sh-logo-colacat" href={homeHref} aria-label="ColaCat home">
+        <img src="/images/brand/colacat-logo.png" alt="ColaCat" />
+      </a>
       <nav id="site-navigation" aria-label="Main navigation" className={open ? 'is-open' : ''}>
         <div className="sz-site-links">
-          <a className={active === 'arena' ? 'is-active' : undefined} href={`${homeHref}#highlight`} onClick={() => { onArena?.(); close() }}>Arena <span>01</span></a>
-          <a className={active === 'markets' ? 'is-active' : undefined} href={marketsHref ?? `${homeHref}#highlight`} onClick={() => { onMarkets?.(); close() }}>Markets</a>
-          <a href={`${homeHref}#teams`} onClick={close}>Teams</a>
+          <a className={active === 'highlight' ? 'is-active' : undefined} href={`${homeHref}#highlight`} onClick={() => { onArena?.(); close() }}>Highlight <span>01</span></a>
+          <a className={active === 'markets' ? 'is-active' : undefined} href={marketsHref ?? `${homeHref}#matches`} onClick={() => { onMarkets?.(); close() }}>Markets</a>
           <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
-          <a href={`${homeHref}#enter-arena`} onClick={close}>Get in the arena <ArrowUpRight size={13}/></a>
+          <a className={active === 'teams' ? 'is-active' : undefined} href={`${homeHref}#teams`} onClick={close}>Teams</a>
+          <a className={active === 'docs' ? 'is-active' : undefined} href={`${homeHref}#enter-arena`} onClick={close}>Docs</a>
+          <a className={active === 'leaderboard' ? 'is-active' : undefined} href={`${homeHref}#teams`} onClick={close}>Leaderboard</a>
         </div>
         <div className="sh-wallet">{walletControl}</div>
       </nav>

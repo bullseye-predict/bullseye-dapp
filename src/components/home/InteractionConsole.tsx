@@ -26,6 +26,9 @@ import { AnimatedCollapse } from "./AnimatedCollapse";
 import { PromptComposer } from "./PromptComposer";
 import { TradeTicket } from "./TradeTicket";
 import type { DynamicEvmWalletPort } from "../arena/DynamicSolanaSession";
+import type { LiveArenaWalletPort } from "../arena/liveArenaAdapter";
+import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
+import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 
 export type ConsoleSection = "trade" | "automate" | "prompt" | "chat";
 type Props = {
@@ -51,6 +54,10 @@ type Props = {
   onDreamDexOpened?: () => void;
   evmWallet?: DynamicEvmWalletPort | null;
   solana?: boolean;
+  solanaWallet?: LiveArenaWalletPort | null;
+  solanaVenue?: PublicPredictionVenue | null;
+  solanaQuestion?: ReservedSolanaQuestion;
+  predictionApiUrl?: string;
   automationWarning?: string;
   promptWarning?: string;
 };
@@ -123,6 +130,10 @@ export function InteractionConsole({
   onDreamDexOpened,
   evmWallet,
   solana = false,
+  solanaWallet = null,
+  solanaVenue = null,
+  solanaQuestion,
+  predictionApiUrl = "",
   automationWarning,
   promptWarning,
 }: Props) {
@@ -207,6 +218,10 @@ export function InteractionConsole({
               onBuyAmountChange={setBudget}
               evmWallet={evmWallet}
               solana={solana}
+              solanaWallet={solanaWallet}
+              solanaVenue={solanaVenue}
+              solanaQuestion={solanaQuestion}
+              predictionApiUrl={predictionApiUrl}
               collateralSymbol={collateralSymbol}
               dreamDexApiUrl={dreamDexApiUrl}
               onDreamDexOpened={onDreamDexOpened}

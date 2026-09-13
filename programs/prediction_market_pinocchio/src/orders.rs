@@ -15,6 +15,14 @@ pub const BUY_SIGNATURE_OFFSET: usize = 357;
 pub const SELL_SIGNATURE_OFFSET: usize = 421;
 pub const ED25519_ID: Address =
     Address::from_str_const("Ed25519SigVerify111111111111111111111111111");
+pub const CREATION_DOMAIN: &[u8] = b"SOLZ_CREATE_QUESTION_V1";
+pub const CREATE_QUESTION_TAG: u8 = 27;
+pub const CREATE_QUESTION_LEN: usize = 201;
+pub const CREATE_AUTHORITY_OFFSET: usize = 65;
+pub const CREATE_EXPIRY_OFFSET: usize = 97;
+pub const CREATE_DIGEST_OFFSET: usize = 105;
+pub const CREATE_SIGNATURE_OFFSET: usize = 137;
+pub const CREATE_PERMIT_MAX_SECONDS: i64 = 600;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Order {
@@ -132,6 +140,47 @@ pub fn ed25519_descriptors(fill_index: u16) -> [u8; 30] {
     }
     data
 }
+pub fn creation_digest(
+    program: &Address,
+    domain: &Key,
+    payer: &Key,
+    match_id: &Key,
+    question_id: &Key,
+    expiry: i64,
+) -> Key {
+    solana_sha256_hasher::hashv(&[
+        CREATION_DOMAIN,
+        program.as_ref(),
+        domain,
+        payer,
+        match_id,
+        question_id,
+        &expiry.to_le_bytes(),
+    ])
+    .to_bytes()
+}
+
+/// Canonical one-signature precompile referencing the following lazy-create
+/// instruction. Authority, digest, and signature all live in that instruction.
+pub fn creation_ed25519_descriptor(create_index: u16) -> [u8; 16] {
+    let mut data = [0; 16];
+    data[0] = 1;
+    for (index, value) in [
+        CREATE_SIGNATURE_OFFSET as u16,
+        create_index,
+        CREATE_AUTHORITY_OFFSET as u16,
+        create_index,
+        CREATE_DIGEST_OFFSET as u16,
+        32,
+        create_index,
+    ]
+    .iter()
+    .enumerate()
+    {
+        data[2 + index * 2..4 + index * 2].copy_from_slice(&value.to_le_bytes());
+    }
+    data
+}
 fn u16_at(data: &[u8], at: usize) -> Result<u16> {
     Ok(u16::from_le_bytes(
         data.get(at..at + 2)
@@ -177,6 +226,29 @@ pub fn verify_precompile(sysvar: &[u8], program: &Address, fill: &[u8]) -> Resul
         ed_program == ED25519_ID.as_ref()
             && accounts == 0
             && ed_data == ed25519_descriptors(current),
+        Error::InvalidSignatureInstruction,
+    )
+}
+/// Caller MUST verify the account address equals the instructions sysvar.
+pub fn verify_creation_precompile(sysvar: &[u8], program: &Address, create: &[u8]) -> Result<()> {
+    check(
+        create.len() == CREATE_QUESTION_LEN
+            && create[0] == CREATE_QUESTION_TAG
+            && sysvar.len() >= 2,
+        Error::InvalidSignatureInstruction,
+    )?;
+    let current = u16_at(sysvar, sysvar.len() - 2)?;
+    check(current > 0, Error::InvalidSignatureInstruction)?;
+    let (current_program, current_data, _) = instruction_at(sysvar, current as usize)?;
+    check(
+        current_program == program.as_ref() && current_data == create,
+        Error::InvalidSignatureInstruction,
+    )?;
+    let (ed_program, ed_data, accounts) = instruction_at(sysvar, current as usize - 1)?;
+    check(
+        ed_program == ED25519_ID.as_ref()
+            && accounts == 0
+            && ed_data == creation_ed25519_descriptor(current),
         Error::InvalidSignatureInstruction,
     )
 }

@@ -6,7 +6,7 @@ import { predictionContract, type PredictionAnswer } from '../solz/predictionCon
 import { Tabs, TabPanel } from '../solz/ui'
 import { amountLabel } from './HomePrimitives'
 import { HighlightChart } from './HighlightChart'
-import { LiveOrderBook } from './LiveOrderBook'
+import { LiveOrderBook, OrderBookTable } from './LiveOrderBook'
 import { useDreamDexActivity } from './useDreamDexActivity'
 
 type Props = {
@@ -24,7 +24,7 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
     <div className="ch-topic-tabs"><Tabs idPrefix={prefix} label={`${nested ? outcome.label : market.title} details`} value={tab} onChange={(value) => { setTab(value as typeof tab); onSelect(outcome, answer) }} tabs={[{ id: 'book', label: 'Order Book' }, { id: 'graph', label: 'Graph' }, { id: 'activity', label: 'Activity' }, { id: 'info', label: 'Info' }]}/>{simulation && <span>SAMPLE DATA</span>}</div>
     <TabPanel id="book" idPrefix={prefix} active={tab === 'book'}>
 
-      {!book ? !simulation && market.onchain ? tab === 'book' ? <LiveOrderBook market={market} isNo={nested ? answer === 'no' : outcome.id === 'no'} label={contract.label} collateral={collateral}/> : null : <div className="ch-empty-book" role="status"><table className="ch-order-book" aria-label={`Empty order book for ${contract.label}`}><caption className="sr-only">No confirmed orders yet.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col">SIDE</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>{['ask', 'ask', 'bid', 'bid'].map((side, index) => <tr key={`${side}-${index}`} className={`is-${side}`}><td>{index === 0 ? 'Asks' : index === 2 ? 'Bids' : ''}</td><td>—</td><td>—</td><td>—</td></tr>)}</tbody></table><div className="ch-market-empty"><strong>No market opened for this match.</strong><span>Open this question from the trade ticket to start a separate {collateral} market for this match.</span></div></div> :
+      {!book ? !simulation && market.onchain ? tab === 'book' ? <LiveOrderBook market={market} isNo={nested ? answer === 'no' : outcome.id === 'no'} label={contract.label} collateral={collateral}/> : null : <div className="ch-empty-book" role="status"><OrderBookTable asks={[]} bids={[]} decimals={6} label={contract.label}/><div className="ch-market-empty"><strong>No market opened for this match.</strong><span>Open this question from the trade ticket to start a separate {collateral} market for this match.</span></div></div> :
       <table className="ch-order-book"><caption className="sr-only">Sample order book for {contract.label} · {market.title}. Shading shows cumulative share depth; totals are cumulative COOLA.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col">SIDE</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>
         {book.asks.map((row, index) => <tr className="is-ask" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === book.asks.length - 1 && <span>Asks</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)}</td></tr>)}
         <tr className="ch-book-spread"><td colSpan={2}>Last: {Math.round(contract.probability * 100)}¢</td><td colSpan={2}>Spread: {Math.round(book.spread * 100)}¢</td></tr>

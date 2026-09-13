@@ -16,6 +16,7 @@ import { createSolzDataSource } from "../solz/solzDataSource";
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from "../solz/model";
 import { useHomeData } from "./useHomeData";
 import { SiteHeader } from "../solz/SiteHeader";
+import { SiteFooter } from "../solz/SiteFooter";
 import { TradeContextBar } from "./TradeContextBar";
 import { MatchViewer } from "./MatchViewer";
 import { InteractionConsole, type ConsoleSection } from "./InteractionConsole";
@@ -36,6 +37,8 @@ import {
 } from "./MarketSourceControls";
 import { unpricedMarkets, useSomniaMarketPrices } from "./useVenueMarketPrices";
 import { useReservedSolanaQuestions } from "./solanaQuestionMarkets";
+import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClient";
+import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 
 type Props = {
   apiUrl?: string;
@@ -129,7 +132,7 @@ export function HomeApp({
   marketSources,
 }: Props) {
   return (
-    <DynamicSolanaSession environmentId={environmentId} allowEvm={marketSources.includes('SOMNIA')}>
+    <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={marketSources.includes('SOMNIA')}>
       {(session) => (
         <Home
           apiUrl={apiUrl}
@@ -140,6 +143,7 @@ export function HomeApp({
           marketSources={marketSources}
           walletControl={session.walletControl}
           evmWallet={session.evmWallet}
+          solanaWallet={session.wallet}
         />
       )}
     </DynamicSolanaSession>
@@ -155,10 +159,12 @@ function Home({
   marketSources,
   walletControl,
   evmWallet,
+  solanaWallet,
 }: Omit<Props, "environmentId"> & {
   walletControl: ReactNode;
   evmWallet:
     import("../arena/DynamicSolanaSession").DynamicEvmWalletPort | null;
+  solanaWallet: import("../arena/liveArenaAdapter").LiveArenaWalletPort | null;
 }) {
   const [marketSource, setMarketSource] = useState<MarketSource>(() =>
     marketSources.includes("SOMNIA")
@@ -171,6 +177,27 @@ function Home({
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
     useHomeData(source, apiUrl);
   const reservedSolana = useReservedSolanaQuestions(apiUrl);
+  const [solanaVenue, setSolanaVenue] = useState<PublicPredictionVenue | null>(null);
+  useEffect(() => {
+    setSolanaVenue(null);
+    if (!apiUrl || !marketSources.includes("SOLANA")) return;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    const load = async () => {
+      try {
+        const config = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
+        if (!controller.signal.aborted)
+          setSolanaVenue(config.venues.find((venue) => venue.family === "SOLANA" && venue.matchingEngine === "MANIFEST") ?? null);
+      } catch {
+        // A local backend may be restarted independently from Astro. Keep
+        // retrying so wallet balances and trading recover without a page reload.
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), 10_000);
+      }
+    };
+    void load();
+    return () => { controller.abort(); if (timer) window.clearTimeout(timer); };
+  }, [apiUrl, marketSources]);
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");
@@ -186,11 +213,18 @@ function Home({
   >(null);
   const highlight = useRef<HTMLElement>(null);
   const externalFeedPending = Boolean(apiUrl) && !predictionFeed;
-  const reservedSolanaMatch = marketSource === "SOLANA" ? reservedSolana[0] : undefined;
-  const loadedMatch = snapshot?.matches.find(
+  const selectedMatch = snapshot?.matches.find(
     (item) => item.id === (matchId || snapshot.highlightMatchId),
   );
-  const match: SolzMatch | undefined = reservedSolanaMatch?.match ??
+  // A trade reservation is independent from the actual game feed. Never let a
+  // stale reservation replace a game the arena is already reporting as live.
+  const liveMatch = snapshot?.matches.find((item) => item.phase === "live");
+  const loadedMatch = selectedMatch?.phase === "live" ? selectedMatch : liveMatch ?? selectedMatch;
+  const loadedSolanaQuestions = marketSource === "SOLANA" && loadedMatch
+    ? reservedSolana.filter((item) => item.question.eventId === loadedMatch.id)
+    : [];
+  const reservedSolanaMatch = marketSource === "SOLANA" && !loadedMatch ? reservedSolana[0] : undefined;
+  const match: SolzMatch | undefined = loadedMatch ?? reservedSolanaMatch?.match ??
     (externalFeedPending && snapshot
       ? {
           id: "arena-feed-pending",
@@ -266,6 +300,15 @@ function Home({
   );
   const market =
     activeMarkets.find((item) => item.id === marketId) ?? activeMarkets[0];
+  const selectedSolanaQuestion = marketSource === "SOLANA" && market
+    ? loadedSolanaQuestions.find(
+        (item) =>
+          item.question.questionId.toLowerCase() === market.id.toLowerCase(),
+      )?.question ?? loadedSolanaQuestions.find((item) => {
+        const participantId = market.outcomes[0]?.participantId;
+        return Boolean(participantId) && item.question.label.toLowerCase() === `will ${participantId!.toLowerCase()} win?`;
+      })?.question
+    : undefined;
   const outcome =
     market?.outcomes.find((item) => item.id === outcomeId) ??
     market?.outcomes[0];
@@ -280,8 +323,12 @@ function Home({
     marketSource === "SIMULATION"
       ? "LOCAL MEMORY · HELD"
       : marketSource === "SOLANA"
-        ? reservedSolanaMatch
-          ? `${solanaCluster.toUpperCase()} · RESERVED · 50/50 INDICATIVE`
+        ? loadedSolanaQuestions.length > 0
+          ? `${solanaCluster.toUpperCase()} · LIVE · ${loadedSolanaQuestions.length} LAZY QUESTIONS`
+          : reservedSolanaMatch
+            ? reservedSolanaMatch.question.status === "live"
+              ? `${solanaCluster.toUpperCase()} · LIVE · ${reservedSolana.filter(item => item.match.id === reservedSolanaMatch.match.id).length} LAZY QUESTIONS`
+            : `${solanaCluster.toUpperCase()} · RESERVED · 50/50 INDICATIVE`
           : `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
         : somnia.status;
   const collateralSymbol =
@@ -290,7 +337,7 @@ function Home({
         ? "tUSDC"
         : "USDso"
       : marketSource === "SOLANA"
-        ? "tUSDC"
+        ? "fUSDC"
         : "COOLA";
   const shellMarket: ArenaMarket | undefined = match
     ? {
@@ -409,7 +456,7 @@ function Home({
       <SiteHeader
         homeHref="/"
         walletControl={walletControl}
-        active={view === "market" ? "markets" : "arena"}
+        active={view === "market" ? "markets" : "highlight"}
         onArena={() => setView("live")}
         onMarkets={() => setView("market")}
       />
@@ -498,6 +545,10 @@ function Home({
                   }
                   evmWallet={evmWallet}
                   solana={marketSource === "SOLANA"}
+                  solanaWallet={solanaWallet}
+                  solanaVenue={solanaVenue}
+                  solanaQuestion={selectedSolanaQuestion}
+                  predictionApiUrl={apiUrl}
                   collateralSymbol={collateralSymbol}
                   dreamDexApiUrl={dreamDexApiUrl || apiUrl}
                   onDreamDexOpened={() =>
@@ -659,22 +710,7 @@ function Home({
           </a>
         </div>
       </main>
-      <footer className="sh-footer">
-        <a href="/" className="sh-footer-logo">
-          COOLA®
-        </a>
-        <span>AGENTS COMPETE. COMMUNITIES RISE.</span>
-        <div>
-          <a href={demoHref}>
-            Demo <ArrowUpRight size={12} />
-          </a>
-          <a href={liveHref}>
-            Live arena <ArrowUpRight size={12} />
-          </a>
-          <a href="#highlight">Back to top ↑</a>
-        </div>
-        <small>GENESIS / SEASON 01</small>
-      </footer>
+      <SiteFooter homeHref="/" />
     </div>
   );
 }

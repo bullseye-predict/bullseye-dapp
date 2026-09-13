@@ -54,14 +54,27 @@ body { margin: 0; }
 .sh-wallet .arena-wallet-menu > div { position: absolute; z-index: 2; right: 0; top: calc(100% + 8px); padding: 6px; min-width: 190px; border: 1px solid #626671; background: #24272e; }
 .sh-wallet .arena-wallet-menu :is(button, a) { display: flex; justify-content: flex-start; align-items: center; gap: 8px; border: 0; width: 100%; min-height: 35px; padding: 8px; font-size: 10px; }
 .sh-wallet .arena-wallet-menu :is(button, a):hover { background: #383e47; }
+.sh-wallet .arena-wallet-menu > div { min-width: 244px; }
+.sh-wallet .arena-wallet-account-switcher { display: grid; gap: 2px; margin: 0 0 5px; padding-bottom: 6px; border-bottom: 1px solid #444852; }
+.sh-wallet .arena-wallet-account-switcher > small { padding: 3px 8px 6px; color: #9ca0ab; font-size: 8px; letter-spacing: .1em; }
+.sh-wallet .arena-wallet-account-switcher button[aria-pressed="true"] { color: var(--sh-lime); background: rgba(216, 255, 128, .08); }
+.sh-wallet .arena-wallet-account-switcher button > span { display: grid; gap: 3px; text-align: left; }
+.sh-wallet .arena-wallet-account-switcher button b { font: 600 10px/1 var(--sh-mono); }
+.sh-wallet .arena-wallet-account-switcher button small { color: #9ca0ab; font: 500 8px/1 var(--sh-mono); }
+.sh-wallet .arena-wallet-account-switcher p { margin: 5px 8px 1px; color: #9ca0ab; font: 500 8px/1.4 var(--sh-mono); }
 .sh-wallet .arena-wallet-status { display: flex; align-items: center; gap: 7px; }
 .sh-wallet .arena-wallet-recovery { max-width: 260px; }
 .sh-wallet .arena-wallet-recovery > span { color: #ff9a87; font: 500 9px/1.35 var(--sh-mono); }
+.sh-wallet .arena-wallet-login-options { position: absolute; z-index: 50; right: 0; top: calc(100% + 8px); display: grid; min-width: 230px; padding: 6px; border: 1px solid #626671; background: #24272e; }
+.sh-wallet .arena-wallet-login-options button { justify-content: flex-start; width: 100%; min-height: 38px; border: 0; padding-inline: 10px; }
+.sh-wallet .arena-wallet-login-options button:hover:not(:disabled) { background: #383e47; }
 .sh-wallet .ch-wallet-overview { display: flex; align-items: stretch; align-self: stretch; border: 1px solid #42444c; }
-.sh-wallet .ch-wallet-overview > span { display: grid; align-content: center; gap: 3px; min-width: 90px; padding: 7px 11px; border-right: 1px solid #42444c; }
+.sh-wallet .ch-wallet-overview > span { display: grid; align-content: center; gap: 3px; min-width: 148px; padding: 7px 14px; border-right: 1px solid #42444c; }
+.sh-wallet .ch-wallet-overview > span:first-child { min-width: 118px; }
 .sh-wallet .ch-wallet-overview > span:last-child { border-right: 0; }
 .sh-wallet .ch-wallet-overview small { color: #9ca0ab; font-size: 7px; line-height: 1; text-transform: uppercase; }
-.sh-wallet .ch-wallet-overview b { color: #ededf1; font: 500 10px/1.2 var(--sh-mono); white-space: nowrap; }
+.sh-wallet .ch-wallet-overview b { color: #ededf1; font: 500 10px/1.2 var(--sh-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sh-wallet .ch-wallet-overview[data-state="retrying"] b { color: #ffb09f; }
 .sh-wallet .ch-wallet-network { display: flex !important; grid-template-columns: auto 1fr; align-items: center; gap: 7px; min-width: 122px !important; }
 .sh-wallet .ch-wallet-network > i { width: 6px; height: 6px; background: var(--sh-lime); box-shadow: 0 0 0 2px #20231a; }
 .sh-wallet .ch-wallet-network > span { display: grid; gap: 3px; }
@@ -121,7 +134,11 @@ body { margin: 0; }
 .sh-broadcast-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(9 15 29 / 68%), transparent 40%, rgb(4 9 22 / 10%) 60%, rgb(7 11 19 / 86%)); pointer-events: none; }
 .sh-broadcast-top { position: absolute; top: 16px; left: 18px; right: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 9px; color: #e5e6ed; }
 .sh-broadcast-top > span:last-child { display: flex; align-items: center; gap: 6px; }
-.sh-preview-chip { padding: 4px 7px; font-size: 8px; border: 1px solid #c4c8d2; color: #fff; background: #202738c9; }
+.sh-preview-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 7px; font-size: 8px; border: 1px solid #c4c8d2; color: #fff; background: #202738c9; transform-origin: left center; }
+.sh-preview-chip.is-live { border-color: var(--sh-lime); color: var(--sh-lime); }
+.sh-preview-chip.is-live i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.ch-livestream-tab { display: inline-flex; align-items: center; gap: 8px; transform-origin: center; }
+.ch-livestream-tab.is-live svg { color: var(--sh-lime); filter: drop-shadow(0 0 4px rgb(199 255 0 / 72%)); }
 .sh-scoreboard { position: absolute; top: 64px; left: 18px; right: 18px; display: flex; justify-content: center; align-items: center; gap: 15px; }
 .sh-scoreboard > div { display: flex; align-items: center; gap: 11px; }
 .sh-scoreboard .sh-team-mark { width: 30px; height: 32px; }
@@ -386,7 +403,8 @@ body { margin: 0; }
 .sh-bottom-callout a { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; min-width: 220px; font-size: 11px; font-weight: 500; color: #15190a; background: var(--sh-lime); text-transform: uppercase; }
 .sh-bottom-callout a:hover { background: #d9ff59; }
 .sh-footer { display: flex; align-items: center; gap: 28px; padding: 26px 3.6%; background: #0a0b0e; border-top: 1px solid #36383f; }
-.sh-footer-logo { font: 900 30px/1 'Archivo', sans-serif; color: #bdc1cc !important; }
+.sh-footer-logo { display: block; flex: 0 0 auto; width: 118px; }
+.sh-footer-logo img { display: block; width: 100%; height: auto; }
 .sh-footer > span { font-size: 8px; color: #a1a5b2; }
 .sh-footer > div { display: flex; gap: 22px; margin-left: auto; }
 .sh-footer > div a { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #d0d2da; }

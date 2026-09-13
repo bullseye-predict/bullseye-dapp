@@ -13,17 +13,22 @@ import { formatUnitsExact, parseUnitsExact, priceLabel } from './amounts'
 import { ConfirmedPriceChart } from './ConfirmedPriceChart'
 import { HermesControls } from './HermesControls'
 import { NetworkTabs, NetworkTrading, type TradingNetwork } from './NetworkTrading'
+import type { MarketSource } from '../home/MarketSourceControls'
+import { SiteFooter } from '../solz/SiteFooter'
+import { SiteHeader } from '../solz/SiteHeader'
 
-export interface PredictionAppProps { environmentId: string; apiUrl: string }
-export function PredictionApp({ environmentId, apiUrl }: PredictionAppProps) {
-  return <DynamicSolanaSession environmentId={environmentId}>{session => <PredictionHome apiUrl={apiUrl} session={session}/>}</DynamicSolanaSession>
+export interface PredictionAppProps { environmentId: string; apiUrl: string; marketSources?: readonly MarketSource[] }
+export function PredictionApp({ environmentId, apiUrl, marketSources = ['SOLANA'] }: PredictionAppProps) {
+  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl}>{session => <PredictionHome apiUrl={apiUrl} session={session} marketSources={marketSources}/>}</DynamicSolanaSession>
 }
 const venueKey = (venue: PublicPredictionVenue) => `${venue.venue}:${venue.chainId}`
 const unavailable = async (): Promise<never> => { throw new Error('Connect a trading wallet first.') }
 
-function PredictionHome({ apiUrl, session }: { apiUrl: string; session: DynamicSolanaSessionValue }) {
-  const [network,setNetwork]=useState<TradingNetwork>('SOLANA')
-  return <div className="solz-home pt-home"><header className="sh-header"><a className="sh-logo" href="/">COOLA®</a><a href="/">Arena</a>{session.walletControl}</header><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main></div>
+function PredictionHome({ apiUrl, session, marketSources }: { apiUrl: string; session: DynamicSolanaSessionValue; marketSources: readonly MarketSource[] }) {
+  const networks: TradingNetwork[] = marketSources.includes('SOMNIA') ? ['SOLANA', 'SOMNIA'] : ['SOLANA']
+  const [network,setNetwork]=useState<TradingNetwork>(networks[0] ?? 'SOLANA')
+  useEffect(() => { if (!networks.includes(network)) setNetwork(networks[0] ?? 'SOLANA') }, [marketSources, network, networks.join(',')])
+  return <div className="solz-home pt-home" id="top"><SiteHeader homeHref="/" active="markets" walletControl={session.walletControl}/><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main><SiteFooter homeHref="/" backToTopHref="#top"/></div>
 }
 
 export function VenueTerminal({ venue, apiUrl, audience, session, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string; session: DynamicSolanaSessionValue }) {

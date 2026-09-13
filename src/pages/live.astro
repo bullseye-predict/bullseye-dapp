@@ -1,9 +1,16 @@
 ---
 import { PredictionApp } from '../components/prediction/TradingEntrypoints'
+import type { MarketSource } from '../components/home/MarketSourceControls'
 import SiteLayout from '../layouts/SiteLayout.astro'
 const apiUrl = new URL('/api/prediction', Astro.url).toString()
+const validSources = new Set(['SOLANA', 'SOMNIA'])
+const configuredSources = String(import.meta.env.PUBLIC_ARENA_MARKET_SOURCES ?? 'SOLANA')
+  .split(',')
+  .map((value) => value.trim().toUpperCase())
+  .filter((value): value is 'SOLANA' | 'SOMNIA' => validSources.has(value))
+const marketSources: MarketSource[] = configuredSources.length ? configuredSources : ['SOLANA']
 ---
 
 <SiteLayout title="Live Arena · SOLZ / ODDS" description="Trade match outcomes on Solana with Manifest or Somnia with DreamDEX Event Contracts.">
-  <PredictionApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} apiUrl={apiUrl} client:only="react" />
+  <PredictionApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} apiUrl={apiUrl} marketSources={marketSources} client:only="react" />
 </SiteLayout>

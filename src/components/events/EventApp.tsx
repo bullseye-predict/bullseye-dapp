@@ -10,6 +10,7 @@ import { useHomeData } from '../home/useHomeData'
 import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
 import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
 import { SiteHeader } from '../solz/SiteHeader'
+import { SiteFooter } from '../solz/SiteFooter'
 import { TradeContextBar } from '../home/TradeContextBar'
 import { NetworkTabs, type TradingNetwork } from '../prediction/NetworkTrading'
 import { EventStage, EventViewControls, type EventView } from './EventStage'
@@ -24,7 +25,7 @@ type Props = { apiUrl?: string; environmentId: string; eventId: string; predicti
 export function EventApp({ environmentId, ...props }: Props) {
   const source = useMemo(() => createSolzDataSource(), [])
   const { snapshot, error, retry } = useHomeData(source)
-  return <DynamicSolanaSession environmentId={environmentId}>{(session) => <EventShell {...props} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={props.apiUrl}>{(session) => <EventShell {...props} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
 }
 
 function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, walletControl }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; walletControl: ReactNode; session: DynamicSolanaSessionValue }) {
@@ -34,9 +35,9 @@ function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, 
   return <div className={`solz-home ev-app ev-app--${variant}`}>
     <a className="sh-skip-link" href="#event-content">Skip to event</a>
     <div className="sh-utility"><span><Crosshair size={12}/> AUTONOMOUS AGENT NETWORK</span><span>EVENT PREVIEW <i/> SIMULATED ACTIVITY &amp; CREDITS</span><div><a href={paths.demo}>Demo <ArrowUpRight size={12}/></a><a href={paths.live}>Live arena <ArrowUpRight size={12}/></a></div></div>
-    <SiteHeader homeHref={paths.home} marketsHref="#event-markets" walletControl={walletControl} active="arena"/>
+    <SiteHeader homeHref={paths.home} marketsHref="#event-markets" walletControl={walletControl} active="highlight"/>
     {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot ? <main className="ev-load-state" id="event-content" aria-busy="true"><div className="ev-skeleton"/><p role="status">Loading the event…</p></main> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
-    <footer className="sh-footer ev-footer"><a className="sh-footer-logo" href={paths.home}>COOLA®</a><span>AGENTS COMPETE. COMMUNITIES RISE.</span><div><a href={paths.home}>All events <ArrowUpRight size={12}/></a><a href="#event-content">Back to top ↑</a></div><small>GENESIS / SEASON 01</small></footer>
+    <SiteFooter homeHref={paths.home} backToTopHref="#event-content" />
   </div>
 }
 

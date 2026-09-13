@@ -23,8 +23,8 @@
 .solz-home .ch-console .ch-trade-title strong { color: var(--ch-ink); }
 .solz-home .ch-console .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }
 .solz-home .ch-console .ch-trade-controls { border-color: var(--ch-line); }
-.solz-home .ch-console .ch-trade-controls button.is-buy { color: #40df9f; }
-.solz-home .ch-console .ch-trade-controls button.is-sell { color: #ff7181; }
+.solz-home .ch-console .ch-trade-controls button.is-buy[aria-pressed='true'] { color: #40df9f; }
+.solz-home .ch-console .ch-trade-controls button.is-sell[aria-pressed='true'] { color: #ff7181; }
 .solz-home .ch-console .ch-trade-controls button[aria-pressed='true'] { border-color: currentColor; }
 .solz-home .ch-console .ch-trade-controls button:hover { filter: brightness(1.2); }
 .solz-home .ch-console .ch-trade-controls select { background: var(--ch-body); color: var(--ch-ink); }

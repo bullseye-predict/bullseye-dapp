@@ -121,7 +121,9 @@ export class DreamDexBrowser {
     if (!market.finalized) {
       pool = await this.pool(market);
       book = await this.client.getBinaryOrderBook(market.pool, {
-        depth: 10,
+        // The UI keeps a bounded scroll viewport, so request enough depth to
+        // navigate a real book rather than silently truncating it at ten rows.
+        depth: 100,
         decimals: market.decimals,
       });
     } else if (owner) {

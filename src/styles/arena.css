@@ -1,5 +1,13 @@
 @import './fonts.css';
 .arena-app {
+  --sh-bg: #10110e;
+  --sh-line: #34382f;
+  --sh-text: #f3f2e9;
+  --sh-lime: #c7ff4a;
+  --site-content-width: 1600px;
+  --site-gutter: 32px;
+  --site-header-height: 80px;
+  --z-site-header: 20;
   --arena-bg: #10110e;
   --arena-panel: #181a16;
   --arena-panel-2: #1e211b;
@@ -16,6 +24,8 @@
   background: var(--arena-bg);
   font-family: 'Archivo', system-ui, sans-serif;
 }
+
+.arena-mode-strip { min-height: 52px; display: flex; align-items: center; justify-content: center; padding: 7px clamp(16px, 2vw, 32px); border-bottom: 1px solid var(--arena-border); background: #12140f; }
 
 .arena-app button,
 .arena-app input,
@@ -129,6 +139,9 @@
 .arena-wallet-recovery { max-width: 270px; display: grid; justify-items: end; gap: 4px; }
 .arena-wallet-recovery > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .arena-wallet-recovery > span { color: var(--arena-coral); font-size: 9px; line-height: 1.35; text-align: right; text-wrap: pretty; }
+.arena-wallet-login-options { position: absolute; z-index: 50; top: calc(100% + 8px); right: 0; display: grid !important; min-width: 230px; padding: 6px; border: 1px solid var(--arena-border); border-radius: 8px; background: #20231d; }
+.arena-wallet-login-options button { min-height: 40px; justify-content: flex-start; border: 0; border-radius: 5px; background: transparent; color: var(--arena-text); cursor: pointer; }
+.arena-wallet-login-options button:hover:not(:disabled) { background: #2b2f27; }
 
 .arena-wallet-menu { position: relative; justify-self: end; }
 .arena-wallet-menu summary { min-height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--arena-border); border-radius: 7px; background: var(--arena-panel); cursor: pointer; font: 500 12px/1 'Geist Mono', monospace; list-style: none; }
@@ -138,6 +151,13 @@
 .arena-wallet-menu a { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--arena-text); text-decoration: none; cursor: pointer; font-size: 12px; }
 .arena-wallet-menu button:hover,
 .arena-wallet-menu a:hover { background: #2b2f27; }
+.arena-wallet-account-switcher { display: grid; gap: 2px; margin: 0 0 6px; padding: 6px 0; border-bottom: 1px solid var(--arena-border); }
+.arena-wallet-account-switcher > small { padding: 3px 10px 6px; color: var(--arena-muted); font-size: 8px; letter-spacing: .12em; }
+.arena-wallet-account-switcher button[aria-pressed="true"] { color: var(--arena-accent); background: rgba(199, 255, 74, .08); }
+.arena-wallet-account-switcher button > span { display: grid; gap: 3px; text-align: left; }
+.arena-wallet-account-switcher button b { font: 600 11px/1 'Geist Mono', monospace; }
+.arena-wallet-account-switcher button small { color: var(--arena-muted); font: 500 9px/1 'Geist Mono', monospace; }
+.arena-wallet-account-switcher p { margin: 5px 10px 1px; color: var(--arena-muted); font-size: 9px; line-height: 1.4; }
 
 .arena-ticker {
   min-height: 36px;
@@ -849,6 +869,8 @@
 }
 
 @media (max-width: 620px) {
+  .arena-app { --site-gutter: 18px; --site-header-height: 68px; }
+  .arena-mode-strip { min-height: 48px; justify-content: flex-start; overflow-x: auto; }
   .arena-topbar { gap: 10px; padding-inline: 12px; }
   .arena-wordmark b { display: none; }
   .arena-mode-nav a { padding-inline: 12px; }

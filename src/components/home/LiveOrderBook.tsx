@@ -1,5 +1,5 @@
-import { RefreshCw } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import { Crosshair, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, type CSSProperties, type RefObject } from 'react'
 import type { ArenaMarket } from '../solz/model'
 import { useDreamDexSnapshot } from './useDreamDexSnapshot'
 import { refreshDreamDex } from './dreamDexRefresh'
@@ -17,7 +17,7 @@ export function depthRows(levels: DepthLevel[], side: 'ask' | 'bid', decimals: n
 }
 const number = (value: bigint, decimals: number) => Number(formatUnits(value, decimals)).toLocaleString(undefined, { maximumFractionDigits: 4 })
 
-export function OrderBookTable({ asks, bids, decimals, last, label }: { asks: DepthLevel[]; bids: DepthLevel[]; decimals: number; last?: number; label: string }) {
+export function OrderBookTable({ asks, bids, decimals, last, label, centerRowRef }: { asks: DepthLevel[]; bids: DepthLevel[]; decimals: number; last?: number; label: string; centerRowRef?: RefObject<HTMLTableRowElement | null> }) {
   const askRows = depthRows(asks, 'ask', decimals), bidRows = depthRows(bids, 'bid', decimals)
   const bestAsk = askRows.at(-1)?.price, bestBid = bidRows[0]?.price
   const spread = bestAsk !== undefined && bestBid !== undefined ? bestAsk - bestBid : undefined
@@ -27,17 +27,33 @@ export function OrderBookTable({ asks, bids, decimals, last, label }: { asks: De
   </tr>) : <tr className="ch-book-empty"><td colSpan={4}>No {side === 'ask' ? 'asks' : 'bids'}</td></tr>
   return <table className="ch-order-book" aria-label={`${label} order book`}><caption className="sr-only">Asks above last trade, bids below. Depth and totals accumulate from the best price.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col"><span className="sr-only">Side</span></th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>
     {rows(askRows, 'ask')}
-    <tr className="ch-book-spread"><td colSpan={2}>Last: {last === undefined ? '—' : `${(last * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢`}</td><td colSpan={2}>Spread: {spread === undefined ? '—' : `${number(spread * 100n, decimals)}¢`}</td></tr>
+    <tr className="ch-book-spread" ref={centerRowRef}><td colSpan={2}>Last: {last === undefined ? '—' : `${(last * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢`}</td><td colSpan={2}>Spread: {spread === undefined ? '—' : `${number(spread * 100n, decimals)}¢`}</td></tr>
     {rows(bidRows, 'bid')}
   </tbody></table>
 }
 
 export function LiveOrderBook({ market, isNo, label, collateral }: { market: ArenaMarket; isNo: boolean; label: string; collateral: string }) {
   const { data, error, refreshing } = useDreamDexSnapshot(market)
+  const viewport = useRef<HTMLDivElement>(null), centerRow = useRef<HTMLTableRowElement>(null), initialCenter = useRef('')
   const last = (isNo ? market.outcomes[1] : market.outcomes[0])?.priceHistory?.at(-1)?.probability
+  const recenter = () => {
+    const container = viewport.current, row = centerRow.current
+    if (!container || !row) return
+    container.scrollTo({ top: Math.max(0, row.offsetTop - (container.clientHeight - row.clientHeight) / 2), behavior: 'smooth' })
+  }
+  useEffect(() => {
+    const key = `${market.id}:${isNo}`
+    if (data && initialCenter.current !== key) {
+      recenter()
+      initialCenter.current = key
+    }
+  }, [data, isNo, market.id])
+  const volume = market.onchain?.volume24h
+    ? `${number(BigInt(market.onchain.volume24h.amount), market.onchain.volume24h.decimals)} ${collateral} Vol.`
+    : 'Volume unavailable'
   return <div className="ch-live-book">
-    <div className="ch-book-toolbar"><strong className={isNo ? 'is-no' : 'is-yes'}>{label} order book</strong><span>{collateral} total</span><button type="button" aria-label={`Refresh ${label} order book`} disabled={refreshing} onClick={() => refreshDreamDex(market.onchain!.chainId)}><RefreshCw size={15}/><span className="sr-only">Refresh</span></button></div>
-    {data ? <OrderBookTable asks={(isNo ? data.book?.noAsks : data.book?.yesAsks) ?? []} bids={(isNo ? data.book?.noBids : data.book?.yesBids) ?? []} decimals={data.market.decimals} last={last} label={label}/> : <p className="ch-book-message" role="status">{error ?? 'Loading order book…'}</p>}
+    <div className="ch-book-toolbar"><strong className={isNo ? 'is-no' : 'is-yes'}>{label} order book</strong><span>{volume}</span><button type="button" aria-label="Recenter order book on last trade" disabled={!data} onClick={recenter}><Crosshair size={15}/><span className="sr-only">Recenter</span></button><button type="button" aria-label={`Refresh ${label} order book`} disabled={refreshing} onClick={() => refreshDreamDex(market.onchain!.chainId)}><RefreshCw size={15}/><span className="sr-only">Refresh</span></button></div>
+    {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book?.noAsks : data.book?.yesAsks) ?? []} bids={(isNo ? data.book?.noBids : data.book?.yesBids) ?? []} decimals={data.market.decimals} last={last} label={label} centerRowRef={centerRow}/></div> : <p className="ch-book-message" role="status">{error ?? 'Loading order book…'}</p>}
     {data && <div className="ch-book-footer"><span>{data.market.finalized || data.now >= market.closesAt ? 'Trading closed' : refreshing ? 'Refreshing…' : 'Auto-refresh · 10s'}</span><span>Updated {new Date(data.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>}
     <p className="ch-sample-note">Last is the most recent trade. Depth and totals are cumulative from the best price.</p>
   </div>

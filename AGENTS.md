@@ -6,6 +6,13 @@ Do not create new Markdown files unless the current user message explicitly requ
 ## Browser testing
 Reuse one test tab. Open a second only for a direct comparison, never exceed two, and close temporary tabs afterward.
 
+## Protected external actions
+- Never authenticate with Vercel, open a Vercel authorization flow, link this repository to Vercel, change Vercel configuration, call the Vercel API, or deploy to Vercel unless the **current user message** explicitly authorizes that exact Vercel action.
+- Never create a Git commit or push a Git branch or tag unless the **current user message** explicitly authorizes that exact Git action.
+- Authorization from an earlier message or turn does not carry forward. Requests such as “finish it,” “deploy it,” “make it live,” or “complete it” do not authorize Vercel or Git operations unless Vercel or the exact Git operation is named in the current message.
+- A request to deploy a Solana program, contract, backend, or another named target authorizes only that named target. Do not infer a frontend or Vercel deployment from it.
+- Local builds, local previews, and local browser testing are allowed. If a requested deployment target is ambiguous, keep the work local and ask before performing any external deployment.
+
 ## Architecture
 Read ARCHITECTURE.md before changing application boundaries.
 Keep all product UI and interactive behavior in React and ordinary TypeScript. Astro files may contain route entry points, redirects, document metadata, and server endpoint bindings only. Do not move product logic into Astro components.

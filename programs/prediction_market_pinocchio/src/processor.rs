@@ -16,7 +16,7 @@ use pinocchio::{
 
 pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> ProgramResult {
     let (&tag, args) = data.split_first().ok_or(Error::InvalidData)?;
-    if (22..=26).contains(&tag) {
+    if (22..=26).contains(&tag) || tag == 28 {
         return crate::manifest_tokens::process(program, accounts, args, tag);
     }
     #[cfg(feature = "external-venue-comparison")]
@@ -33,7 +33,7 @@ pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> 
         12 | 14 | 15 | 18 => 2,
         16 => 12,
         17 => 4,
-        27 => 7,
+        27 => 8,
         _ => return Err(Error::InvalidData.into()),
     };
     check(accounts.len() == count, Error::InvalidAccount)?;
@@ -53,7 +53,7 @@ pub fn process(program: &Address, accounts: &mut [AccountView], data: &[u8]) -> 
         15 | 18 => revoke_or_cancel_all(program, accounts, args, tag == 15),
         16 => fill(program, accounts, data),
         17 => initialize_nonce(program, accounts, args),
-        27 => create_question_market(program, accounts, args),
+        27 => create_question_market(program, accounts, data),
         _ => Err(Error::InvalidData.into()),
     }
 }
@@ -175,27 +175,65 @@ fn create_market(program: &Address, accounts: &mut [AccountView], args: &[u8]) -
     a::save(&mut accounts[2], &state, program)
 }
 
-// 27: first trader/payer(s,w), config, market(w), market collateral(w), mint, system, token.
-// Venue collateral/oracle are frozen in config. The canonical match identity
-// supplies the lock and expiry, so the payer cannot inject market parameters.
-fn create_question_market(program: &Address, accounts: &mut [AccountView], args: &[u8]) -> Result<()> {
+// 27: first trader/payer(s,w), config, market(w), market collateral(w), mint,
+// system, token, instructions sysvar. The backend authorizes a canonical
+// question with a short-lived Ed25519 permit, but never submits or funds it.
+fn create_question_market(
+    program: &Address,
+    accounts: &mut [AccountView],
+    data: &[u8],
+) -> Result<()> {
+    check(
+        data.len() == orders::CREATE_QUESTION_LEN && data[0] == orders::CREATE_QUESTION_TAG,
+        Error::InvalidData,
+    )?;
+    let args = &data[1..];
     let mut r = Reader::new(args);
     let match_id = r.bytes()?;
     let question_id = r.bytes()?;
+    let permit_authority = r.bytes()?;
+    let permit_expiry = r.i64()?;
+    let supplied_digest = r.bytes()?;
+    let _signature = r.bytes::<64>()?;
     r.done()?;
     let match_config = identity::decode_match(&match_id)?;
     identity::question_kind(&question_id)?;
+    let duration = i64::from(match_config.duration_minutes)
+        .checked_mul(60)
+        .ok_or(Error::Arithmetic)?;
+    let locks_at = match_config.kickoff
+        .checked_add(duration)
+        .ok_or(Error::Arithmetic)?;
     let config = a::config(&accounts[1], program)?;
     a::signer(&accounts[0])?;
     check(!config.paused, Error::Paused)?;
     let created_at = now()?;
-    check(created_at < match_config.kickoff, Error::InvalidTime)?;
-    let duration = i64::from(match_config.duration_minutes)
-        .checked_mul(60)
-        .ok_or(Error::Arithmetic)?;
-    let expiry = match_config.kickoff
-        .checked_add(duration)
-        .and_then(|value| value.checked_add(identity::LAZY_SETTLEMENT_WINDOW_SECONDS))
+    check(
+        permit_authority == config.oracle
+            && created_at < permit_expiry
+            && permit_expiry <= locks_at
+            && permit_expiry <= created_at.saturating_add(orders::CREATE_PERMIT_MAX_SECONDS),
+        Error::InvalidTime,
+    )?;
+    check(
+        supplied_digest
+            == orders::creation_digest(
+                program,
+                &config.domain,
+                &a::key(&accounts[0]),
+                &match_id,
+                &question_id,
+                permit_expiry,
+            ),
+        Error::InvalidSignatureInstruction,
+    )?;
+    check(
+        accounts[7].address() == &INSTRUCTIONS_ID,
+        Error::InvalidSignatureInstruction,
+    )?;
+    orders::verify_creation_precompile(&accounts[7].try_borrow()?, program, data)?;
+    let expiry = locks_at
+        .checked_add(identity::LAZY_SETTLEMENT_WINDOW_SECONDS)
         .ok_or(Error::Arithmetic)?;
     a::mint(&accounts[4], &config.mint)?;
     a::program(&accounts[5], &pinocchio_system::ID)?;
@@ -225,7 +263,7 @@ fn create_question_market(program: &Address, accounts: &mut [AccountView], args:
         oracle: config.oracle,
         escrow,
         starts_at: created_at,
-        locks_at: match_config.kickoff,
+        locks_at,
         expiry,
         created_at,
         status: state::TRADING,

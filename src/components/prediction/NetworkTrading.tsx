@@ -4,17 +4,19 @@ import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClie
 import type { DynamicSolanaSessionValue } from "../arena/DynamicSolanaSession";
 import { DreamDexTerminal } from "./DreamDexTerminal";
 import { ManifestTerminal } from "./LazyManifestTerminal";
+import { ManifestTerminalPreview } from "./ManifestTerminalPreview";
 import "./prediction.css";
 import { parseDreamDexPublicConfig } from '../../../packages/adapters/dreamdex/config';
 export type TradingNetwork = "SOLANA" | "SOMNIA";
 export function NetworkTabs({
   network,
   onChange,
+  choices = ["SOLANA", "SOMNIA"],
 }: {
   network: TradingNetwork;
   onChange: (n: TradingNetwork) => void;
+  choices?: readonly TradingNetwork[];
 }) {
-  const choices = ["SOLANA", "SOMNIA"] as const;
   return (
     <div
       className="ch-network-tabs"
@@ -34,12 +36,13 @@ export function NetworkTabs({
           onKeyDown={(e) => {
             if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
               e.preventDefault();
-              const next =
-                e.key === "Home"
-                  ? choices[0]
-                  : e.key === "End"
-                    ? choices[1]
-                    : choices[1 - i]!;
+                const next =
+                  e.key === "Home"
+                    ? choices[0]
+                    : e.key === "End"
+                    ? choices[choices.length - 1]
+                    : choices[(i + (e.key === "ArrowRight" ? 1 : -1) + choices.length) % choices.length]!;
+              if (!next) return;
               onChange(next);
               document.getElementById(`network-tab-${next}`)?.focus();
             }
@@ -61,6 +64,7 @@ export function NetworkTrading({
   initialOutcome,
   renderEvmTerminal,
   dreamDexOnly = false,
+  previewWhenUnavailable = false,
 }: {
   apiUrl: string;
   network: TradingNetwork;
@@ -71,6 +75,7 @@ export function NetworkTrading({
   initialOutcome?: 0 | 1;
   renderEvmTerminal?: (venue: PublicPredictionVenue, audience: string, allowedMarketIds?: string[]) => ReactNode;
   dreamDexOnly?: boolean;
+  previewWhenUnavailable?: boolean;
 }) {
   const [config, setConfig] = useState<PredictionPublicConfig | null>(null),
     [error, setError] = useState(""),
@@ -129,7 +134,7 @@ export function NetworkTrading({
           <h2>{network === "SOLANA" ? "Solana" : "Somnia"} markets</h2>
           <p>
             {network === "SOLANA"
-              ? `${venue?.collateralSymbol ?? 'SOL'} predictions · Manifest order book`
+              ? `${venue?.collateralSymbol ?? 'fUSDC'} predictions · Manifest order book`
               : venue ? `${venue.collateralSymbol} custom SOLZ settlement · chain ${venue.chainId}` : `DreamDEX Event Contracts · ${somniaChainId === '50312' ? 'tUSDC testnet' : 'USDso mainnet'}`}
           </p>
         </div>
@@ -150,15 +155,14 @@ export function NetworkTrading({
         )}
       </header>
       {error ? (
-        <div className="pt-empty" role="alert">
-          <h3>Trading is not connected</h3>
-          <p>{error}</p>
-          {apiUrl && (
-            <button onClick={() => setRetry((n) => n + 1)}>
-              Retry connection
-            </button>
-          )}
-        </div>
+        <>
+          {previewWhenUnavailable && network === 'SOLANA' && <ManifestTerminalPreview />}
+          <div className="pt-empty pt-service-status" role="alert">
+            <h3>Trading service unavailable</h3>
+            <p>{error}</p>
+            {apiUrl && <button onClick={() => setRetry((n) => n + 1)}>Retry connection</button>}
+          </div>
+        </>
       ) : !config ? (
         <p role="status" className="pt-empty">
           Loading {network === "SOLANA" ? "Solana" : "Somnia"} markets…

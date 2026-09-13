@@ -60,10 +60,12 @@ pub fn config(account: &AccountView, program: &Address) -> Result<Config> {
 }
 pub fn market(account: &AccountView, program: &Address) -> Result<Market> {
     let value: Market = load(account, program)?;
-    check(
-        pda(account, &[b"market", &value.match_id], program)? == value.bump,
-        Error::InvalidAccount,
-    )?;
+    let bump = if value.question_id == [0; 32] {
+        pda(account, &[b"market", &value.match_id], program)?
+    } else {
+        pda(account, &[b"market", &value.match_id, &value.question_id], program)?
+    };
+    check(bump == value.bump, Error::InvalidAccount)?;
     Ok(value)
 }
 pub fn vault(account: &AccountView, program: &Address) -> Result<Vault> {

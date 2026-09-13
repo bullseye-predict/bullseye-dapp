@@ -73,7 +73,11 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
             const boundMarket: ArenaMarket = { ...market, closesAt: binding.tradingLocksAt, status: Date.now() >= binding.tradingLocksAt ? 'closed' : 'open', rules: 'YES pays if this agent is the recorded final winner; NO pays otherwise. DreamDEX OracleHub resolves from this room’s public final winner log. Uniform void payouts apply if no valid answer is finalized.', description: 'Real DreamDEX game event. Creation and wallet trading are separate transactions.', onchain: { chainId: deployment.chainId, marketId: binding.marketId, oracleQuestionId: binding.oracleQuestionId, tradingStartsAt: binding.tradingStartsAt, tradingLocksAt: binding.tradingLocksAt, voidPolicy: binding.voidPolicy, indexerUrl: deployment.indexerUrl, wsRpcUrl: deployment.wsRpcUrl, creationTxHash: binding.creationTxHash, sponsoredTransactions: binding.sponsoredTransactions } }
             try {
               const browser = new DreamDexBrowser(deployment, eventBinding(deployment, binding), resources)
-              const [candles, onchain] = await Promise.all([browser.candles(0).catch(() => null), browser.snapshot()])
+              const [candles, onchain, volume] = await Promise.all([
+                browser.candles(0).catch(() => null),
+                browser.snapshot(),
+                resources.reader.volume(eventBinding(deployment, binding)).catch(() => null),
+              ])
               const history = (candles ?? []).map((candle) => ({ at: candle.timestamp, probability: Number(candle.close) / 1_000_000 }))
               const ask = onchain.book?.yesAsks[0]?.price, bid = onchain.book?.yesBids[0]?.price
               const quote = ask !== undefined && bid !== undefined ? (ask + bid) / 2n : ask ?? bid
@@ -86,6 +90,10 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
               const probability = history.at(-1)?.probability ?? quotePrice ?? .5
               return {
                 ...boundMarket,
+                onchain: {
+                  ...boundMarket.onchain!,
+                  ...(volume ? { volume24h: { amount: volume.volume24h.toString(), decimals: volume.collateralDecimals, trades: volume.trades24h } } : {}),
+                },
                 outcomes: market.outcomes.map((outcome, index) => ({
                   ...outcome,
                   probability: index === 0 ? probability : 1 - probability,

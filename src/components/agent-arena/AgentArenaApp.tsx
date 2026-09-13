@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {ArrowUpRight,ChevronDown,RefreshCw} from 'lucide-react';
 import {SiteHeader} from '../solz/SiteHeader';
+import {SiteFooter} from '../solz/SiteFooter';
 import {arenaAdapter} from './adapter';
 import {emptyFilters,filterMatches,liquid,summarizeAgent,type ArenaAgent,type ArenaMatch,type ArenaPage} from './model';
 import '../../styles/global.css';
@@ -59,5 +60,5 @@ export function AgentArenaApp({endpoint,watchUrl,initialAgent=''}:{endpoint:stri
       <div aria-busy={loading}>{visible.map(m=><MatchRow key={m.roomId} match={m} agents={agents} endpoint={endpoint}/>)}{!visible.length&&<div className="ah-empty">{loading?'Loading recorded matches…':error?'Match history is currently unavailable.':matches.length?'No loaded matches match these filters. Clear filters or load older records.':'No recorded matches yet. Completed arena matches will appear here.'}</div>}</div>
       {page?.nextCursor&&<button className="ah-more" disabled={more} onClick={()=>setCursor(page.nextCursor!)}>{more?'Loading…':'Load older matches'}</button>}
     </section><footer className="ah-footer">Soda Liquid funds game stakes. Prediction collateral and trading volume are tracked separately.</footer>
-  </main></div>;
+  </main><SiteFooter homeHref="/" backToTopHref="#ah-roster"/></div>;
 }

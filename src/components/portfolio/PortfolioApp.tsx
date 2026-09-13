@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Copy, RefreshCw, Search, WalletCards } from 'lucide-react'
 import { DynamicSolanaSession, type DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
 import { SiteHeader } from '../solz/SiteHeader'
+import { SiteFooter } from '../solz/SiteFooter'
 import { formatUnitsExact } from '../prediction/amounts'
 import { usePortfolio, type PortfolioMarket } from './usePortfolio'
 import { isClosedPosition, positionState, type PositionState } from './model'
@@ -109,5 +110,6 @@ export function Portfolio({ apiUrl, wallet, walletControl, matchApiUrl = '', pro
       </div>
       <p className="pf-footnote">Holdings are read from the chain across configured DreamDEX events. Reserved shares remain in open orders until cancelled. Selling depends on buyers and market cutoff; claims require confirmed settlement and your wallet signature.</p>
     </main>
+    <SiteFooter homeHref="/" backToTopHref="#portfolio" />
   </div>
 }

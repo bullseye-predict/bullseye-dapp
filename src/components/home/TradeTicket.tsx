@@ -42,6 +42,13 @@ import {
 } from "./useDreamDexSnapshot";
 import { parseUnits } from "viem";
 import type { DynamicEvmWalletPort } from "../arena/DynamicSolanaSession";
+import type { LiveArenaWalletPort } from "../arena/liveArenaAdapter";
+import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
+import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
+import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
+import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
+import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
+import { parseUnitsExact } from "../prediction/amounts";
 
 type Props = {
   source: SolzDataSource;
@@ -61,6 +68,10 @@ type Props = {
   onBuyAmountChange?: (value: string) => void;
   preparing?: boolean;
   solana?: boolean;
+  solanaWallet?: LiveArenaWalletPort | null;
+  solanaVenue?: PublicPredictionVenue | null;
+  solanaQuestion?: ReservedSolanaQuestion;
+  predictionApiUrl?: string;
 };
 export function TradeTicket({
   source,
@@ -80,6 +91,10 @@ export function TradeTicket({
   onBuyAmountChange,
   preparing = false,
   solana = false,
+  solanaWallet = null,
+  solanaVenue = null,
+  solanaQuestion,
+  predictionApiUrl = "",
 }: Props) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [type, setType] = useState<"market" | "limit">("market");
@@ -133,7 +148,7 @@ export function TradeTicket({
       ? Number(balances[outcomeIndex === 1 ? 2 : 1]) / 1_000_000
       : 0;
   const closed =
-    market.status !== "open" || snapshot.updatedAt >= market.closesAt;
+    (!solana && market.status !== "open") || snapshot.updatedAt >= market.closesAt;
   const binarySide =
     `${side === "buy" ? "BUY" : "SELL"}_${outcomeIndex === 1 ? "NO" : "YES"}` as OrderInput["side"];
   const livePreview = (() => {
@@ -243,11 +258,28 @@ export function TradeTicket({
     !solana &&
     collateralSymbol === "tUSDC" &&
     market.onchain?.chainId === "50312";
+  const liveSolana = !simulation && solana && Boolean(solanaVenue?.programId && solanaVenue.manifestProgramId && solanaVenue.publicRpcUrl && solanaQuestion && predictionApiUrl);
   const unavailable =
-    (!simulation && !liveDreamDex) ||
+    (!simulation && !liveDreamDex && !liveSolana) ||
     closed ||
     (simulation && side === "sell" && available < 0.01) ||
-    (liveDreamDex && (!evmWallet || !account.data || !!account.error));
+    (liveDreamDex && (!evmWallet || !account.data || !!account.error)) ||
+    (liveSolana && !solanaWallet);
+  const solanaUnavailableMessage = !solana
+    ? null
+    : closed
+      ? "Trading has closed for this question."
+      : !solanaVenue?.programId ||
+          !solanaVenue.manifestProgramId ||
+          !solanaVenue.publicRpcUrl
+        ? "Manifest venue configuration is unavailable. Reload after the prediction service reconnects."
+        : !solanaQuestion
+          ? "This question is visible, but it has no backend creation permit yet. It cannot be opened on-chain."
+          : !predictionApiUrl
+            ? "The prediction service is unavailable, so the creation permit cannot be requested."
+            : !solanaWallet
+              ? `Connect a Solana wallet to trade. SOL pays network fees and first-trader rent; the order itself uses ${collateralSymbol}.`
+              : null;
   const gameRemainingMs =
     preparing || match?.phase !== "live" || match.timingType === "open-ended"
       ? null
@@ -291,7 +323,7 @@ export function TradeTicket({
     return () => window.clearInterval(timer);
   }, [match?.id, match?.phase, match?.timingType]);
   useEffect(() => {
-    if (!simulation && collateralSymbol === "tUSDC") {
+    if (!simulation && ["tUSDC", "fUSDC"].includes(collateralSymbol)) {
       setAmount("1");
       setShares("1");
     }
@@ -372,6 +404,56 @@ export function TradeTicket({
           }
         } finally {
           await adapter.close();
+        }
+      } else if (liveSolana) {
+        if (!solanaWallet || !solanaVenue?.programId || !solanaVenue.manifestProgramId || !solanaVenue.publicRpcUrl || !solanaQuestion)
+          throw Error("Connect a Solana wallet and wait for the Manifest deployment configuration.");
+        if (side !== "buy") throw Error("Buy an outcome first; selling requires available claim shares.");
+        setProgress("Preparing the Pinocchio question and guarded Manifest books…");
+        const client = createManifestHybridClient(solanaVenue.publicRpcUrl, {
+          genesisHash: solanaVenue.chainId,
+          predictionProgram: solanaVenue.programId,
+          manifestProgram: solanaVenue.manifestProgramId,
+          collateralMint: solanaVenue.collateralToken,
+        });
+        const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client);
+        try {
+          const activation = await wallet.activateQuestion(predictionApiUrl, solanaQuestion);
+          setProgress(`Funding this outcome book with ${solanaVenue.collateralSymbol}…`);
+          const selected = market.outcomes.findIndex((item) => item.id === outcome.id) === 1 ? 1 : 0;
+          const binding = await client.binding(solanaQuestion.marketId, selected);
+          const priceMicros = BigInt(Math.round(price * 1_000_000));
+          const quantityAtoms = type === "market"
+            ? parseUnitsExact(amount, solanaVenue.collateralDecimals) * 1_000_000n / priceMicros
+            : parseUnitsExact(shares, 6);
+          const amountAtoms = type === "market"
+            ? parseUnitsExact(amount, solanaVenue.collateralDecimals)
+            : (quantityAtoms * priceMicros + 999_999n) / 1_000_000n;
+          if (amountAtoms <= 0n || quantityAtoms <= 0n)
+            throw Error(`Enter a positive ${solanaVenue.collateralSymbol} amount.`);
+          const holdings = await client.adapter.holdings(wallet.owner, binding);
+          const missing = amountAtoms > holdings.venueAvailableUsdc ? amountAtoms - holdings.venueAvailableUsdc : 0n;
+          const maximumFee = takerFee(amountAtoms, binding.bps);
+          if (missing > 0n) {
+            if (holdings.walletUsdc < missing + maximumFee)
+              throw Error(`Not enough ${solanaVenue.collateralSymbol}. Keep the order amount plus up to ${Number(maximumFee) / 10 ** solanaVenue.collateralDecimals} ${solanaVenue.collateralSymbol} for an executed taker fee.`);
+            await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "USDC", missing, "deposit"));
+          }
+          setProgress("Submitting your Manifest trade order…");
+          const hash = await wallet.send(await client.adapter.order(wallet.owner, binding, {
+            side: "BUY",
+            quantity: quantityAtoms,
+            priceMicros,
+            lastValidSlot: 0,
+            kind: "LIMIT",
+            maxFeeAtoms: maximumFee,
+          }));
+          setFeedback({
+            text: `${activation.length ? "Market activated and " : ""}trade order submitted on Manifest. Any amount not matched immediately remains as your limit order.`,
+            hash,
+          });
+        } finally {
+          wallet.dispose();
         }
       } else if (type === "limit") {
         const order = await source.placeLimitOrder({
@@ -709,7 +791,7 @@ export function TradeTicket({
               />
               <span>
                 {priceFormat === "decimal"
-                  ? "tUSDC"
+                  ? collateralSymbol
                   : priceFormat === "percent"
                     ? "%"
                     : "¢"}
@@ -743,7 +825,7 @@ export function TradeTicket({
               inputMode="decimal"
               required
               min={
-                liveDreamDex
+                liveDreamDex || liveSolana
                   ? 1
                   : side === "buy" && type === "market"
                     ? 25
@@ -804,7 +886,9 @@ export function TradeTicket({
             <div>
               <span>Available shares</span>
               <strong>
-                {balances
+                {solana && !market.onchain
+                  ? "Market not created yet"
+                  : balances
                   ? `${safeLabel(Number(balances[1]) / 1_000_000)} YES · ${safeLabel(Number(balances[2]) / 1_000_000)} NO`
                   : "Loading…"}
               </strong>
@@ -860,18 +944,12 @@ export function TradeTicket({
           </div>
         )}
         <div className="ch-trade-action">
-          {solana && indicativeOnly ? (
-            <a className="ch-submit-trade" href="/live">
-              Open Solana terminal <ArrowUpRight size={17} />
-            </a>
-          ) : (
-            <button
-              className="ch-submit-trade"
-              disabled={pending || unavailable || !valid}
-            >
-              Trade <ArrowUpRight size={17} />
-            </button>
-          )}
+          <button
+            className="ch-submit-trade"
+            disabled={pending || unavailable || !valid}
+          >
+            {pending && liveSolana ? "Trading on Solana…" : "Trade"} <ArrowUpRight size={17} />
+          </button>
           <p className="ch-sample-note">
             {!simulation
               ? liveDreamDex
@@ -885,7 +963,8 @@ export function TradeTicket({
                         : "Market orders fill immediately against available orders. Any unfilled remainder is cancelled."
                       : "Limit orders can wait for a match. Unfilled buys reserve funds; unfilled sells reserve shares."
                 : solana
-                  ? "Indicative 50/50 only. Open the Solana terminal to activate the market and get executable Manifest quotes."
+                  ? solanaUnavailableMessage ??
+                    `Your first trade activates the Pinocchio market and guarded Manifest books, then submits the ${collateralSymbol} order here.`
                   : `On-chain ${collateralSymbol} trading opens when this question has a confirmed DreamDEX event contract.`
               : closed
                 ? "This market is closed."
@@ -1070,6 +1149,7 @@ export function TradeTicket({
         expiry={expiry}
         onExpiry={setExpiry}
         simulation={simulation}
+        network={solana ? "SOLANA" : "SOMNIA"}
         collateralSymbol={collateralSymbol}
         error={
           closed

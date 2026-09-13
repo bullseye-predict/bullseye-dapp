@@ -1345,37 +1345,112 @@ fn legacy_market_layout_preserves_existing_positions_and_cannot_hide_guard() {
 }
 
 #[test]
-fn first_trader_creates_distinct_canonical_question_markets_without_admin_parameters() {
+fn first_trader_creates_only_backend_permitted_canonical_question_markets() {
     let mut f = Fixture::new(2);
     let mut match_id = [0; 32];
     match_id[..4].copy_from_slice(b"SOLZ");
     match_id[4] = 1;
     match_id[5] = 2;
     match_id[6..8].copy_from_slice(&20_u16.to_be_bytes());
-    match_id[8..16].copy_from_slice(&2_000_u64.to_be_bytes());
+    // The first trader may activate while the 20-minute match is live.
+    match_id[8..16].copy_from_slice(&500_u64.to_be_bytes());
     match_id[31] = 77;
     let mut question_id = [0; 32];
     question_id[..4].copy_from_slice(b"QUES");
     question_id[4] = 1;
     question_id[5] = 1;
     question_id[31] = 9;
+    let permit_expiry = 1_100_i64;
+    let digest = orders::creation_digest(
+        &f.program.pubkey(),
+        &f.domain,
+        &f.admin.pubkey().to_bytes(),
+        &match_id,
+        &question_id,
+        permit_expiry,
+    );
+    let signature = f.oracle.sign_message(&digest);
     let market = derive(f.program.pubkey(), &[b"market", &match_id, &question_id]);
     let escrow = derive(f.program.pubkey(), &[b"market_collateral", market.as_ref()]);
     let create = f.ix(
-        vec![s(f.admin.pubkey()), r(f.config), w(market), w(escrow), r(f.mint), r(pinocchio_system::ID), r(pinocchio_token::ID)],
-        bytes(27, &[&match_id, &question_id]),
+        vec![
+            s(f.admin.pubkey()),
+            r(f.config),
+            w(market),
+            w(escrow),
+            r(f.mint),
+            r(pinocchio_system::ID),
+            r(pinocchio_token::ID),
+            r(pinocchio::sysvars::instructions::INSTRUCTIONS_ID),
+        ],
+        bytes(
+            27,
+            &[
+                &match_id,
+                &question_id,
+                f.oracle.pubkey().as_ref(),
+                &permit_expiry.to_le_bytes(),
+                &digest,
+                signature.as_ref(),
+            ],
+        ),
     );
-    f.send_admin(vec![create.clone()]).unwrap();
+    assert!(f.send_admin(vec![create.clone()]).is_err());
+    let permitted = vec![
+        Instruction {
+            program_id: orders::ED25519_ID,
+            accounts: vec![],
+            data: orders::creation_ed25519_descriptor(1).to_vec(),
+        },
+        create.clone(),
+    ];
+    f.send_admin(permitted.clone()).unwrap();
     let state = Market::decode(&f.svm.get_account(&market).unwrap().data).unwrap();
     assert_eq!(state.match_id, match_id);
     assert_eq!(state.question_id, question_id);
     assert_eq!(state.outcomes, 2);
     assert_eq!(state.starts_at, 1000);
-    assert_eq!(state.locks_at, 2000);
-    assert_eq!(state.expiry, 6800);
-    assert!(f.send_admin(vec![create]).is_err());
+    assert_eq!(state.locks_at, 1700);
+    assert_eq!(state.expiry, 5300);
+    assert!(f.send_admin(permitted).is_err());
 
     question_id[5] = 2;
     let other = derive(f.program.pubkey(), &[b"market", &match_id, &question_id]);
     assert_ne!(market, other);
+    let forged = f.ix(
+        vec![
+            s(f.admin.pubkey()),
+            r(f.config),
+            w(other),
+            w(derive(
+                f.program.pubkey(),
+                &[b"market_collateral", other.as_ref()],
+            )),
+            r(f.mint),
+            r(pinocchio_system::ID),
+            r(pinocchio_token::ID),
+            r(pinocchio::sysvars::instructions::INSTRUCTIONS_ID),
+        ],
+        bytes(
+            27,
+            &[
+                &match_id,
+                &question_id,
+                f.oracle.pubkey().as_ref(),
+                &permit_expiry.to_le_bytes(),
+                &digest,
+                signature.as_ref(),
+            ],
+        ),
+    );
+    assert!(f
+        .send_admin(vec![
+            Instruction {
+                program_id: orders::ED25519_ID,
+                accounts: vec![],
+                data: orders::creation_ed25519_descriptor(1).to_vec(),
+            },
+            forged,
+        ])
+        .is_err());
 }
