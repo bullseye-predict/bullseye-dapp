@@ -14,7 +14,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types",
-    "test:frontend": "bun test src tests --timeout 30000"
+    "test:frontend": "bun test src tests --timeout 30000",
+    "check:shared": "if [ -d ../solz-prediction-backend/packages ]; then diff -r -q --exclude=node_modules --exclude=.DS_Store packages ../solz-prediction-backend/packages && echo \"packages/ in sync with solz-prediction-backend\"; else echo \"../solz-prediction-backend not present - shared-package drift check skipped\"; fi"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.6",

@@ -75,7 +75,10 @@ export class DreamDexEventReader {
 
   async quoteCreation(question: QuestionDefinitionInput) {
     question = structuredClone(question)
-    invariant(question.validAnswers.answerType === 1 && question.validAnswers.discreteOutcomes.length === 2 && question.validAnswers.discreteOutcomes[0] === 'YES' && question.validAnswers.discreteOutcomes[1] === 'NO' && question.validAnswers.numericIntervals.length === 0 && question.validAnswers.numericDecimals === 0n, 'INVALID_OUTCOMES', 'Game events require ordered discrete YES/NO outcomes.')
+    const answers = question.validAnswers
+    const discrete = answers.answerType === 1 && answers.discreteOutcomes.length === 2 && answers.discreteOutcomes[0] === 'YES' && answers.discreteOutcomes[1] === 'NO' && answers.numericIntervals.length === 0
+    const numeric = answers.answerType === 0 && answers.discreteOutcomes.length === 0 && answers.numericIntervals.length === 2 && answers.numericIntervals[0]?.low === 1n && answers.numericIntervals[0]?.high === 1n && answers.numericIntervals[1]?.low === 2n && answers.numericIntervals[1]?.high === 2n
+    invariant((discrete || numeric) && answers.numericDecimals === 0n, 'INVALID_OUTCOMES', 'Game events require ordered discrete YES/NO or exact numeric codes 1/2.')
     invariant(question.questionText.trim().length > 0 && question.sources.length > 0 && question.sources.every(source => [0, 1, 2].includes(source.sourceType) && /^0x(?:[0-9a-fA-F]{2})+$/.test(source.params)), 'INVALID_SOURCE', 'A game event needs an explicitly encoded oracle source; question text alone cannot bind a match.')
     invariant(question.resolutionTime > BigInt(Math.floor(this.now() / 1000)) && question.minAgreement > 0n && question.minAgreement <= BigInt(question.sources.length) && question.subcommitteeThreshold > 0n && question.subcommitteeThreshold <= question.subcommitteeSize, 'INVALID_QUESTION', 'Invalid oracle timing or agreement thresholds.')
     await this.reads.verifyNetwork()

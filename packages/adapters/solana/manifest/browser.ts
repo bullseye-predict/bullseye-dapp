@@ -110,7 +110,15 @@ export class ManifestBrowserWallet {
     const tx = new Transaction()
     if (!accounts[0]) tx.add(initializeVault(p, this.owner, b.collateral, 1n))
     if (!accounts[1]) tx.add(initializePosition(p, this.owner, b.question, vault))
-    tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, this.owner), this.owner, b.collateral), prepareClaimAccount(this.owner, this.owner, b.mint))
+    // The guard transfers the taker fee to the venue recipient and requires that
+    // account to already be an initialised SPL account; a missing one is System-owned
+    // and fails the check as Custom(8100) on the first order that actually fills.
+    // Idempotent, so it is a no-op once any trader has paid the one-time rent.
+    tx.add(
+      createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, this.owner), this.owner, b.collateral),
+      createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, b.recipient), b.recipient, b.collateral),
+      prepareClaimAccount(this.owner, this.owner, b.mint),
+    )
     return this.send(tx)
   }
   async collateral(b: ManifestBinding, action: 'deposit' | 'withdraw' | 'split' | 'merge' | 'redeem', atoms?: bigint) {
