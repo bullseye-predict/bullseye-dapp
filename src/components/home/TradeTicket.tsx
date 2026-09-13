@@ -47,6 +47,7 @@ import type { PublicPredictionVenue } from "../../../packages/prediction-core/ma
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
+import { toast } from "sonner";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
@@ -417,7 +418,22 @@ export function TradeTicket({
           manifestProgram: solanaVenue.manifestProgramId,
           collateralMint: solanaVenue.collateralToken,
         });
-        const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client);
+        // Each wallet prompt names the transaction it is asking for, so a first
+        // trade (question creation, two book activations, funding, order) is not
+        // four anonymous approvals in a row.
+        const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client, (stage) => {
+          const id = `solana-tx:${stage.step}`;
+          if (stage.status === "signing") toast.loading(stage.step, { id, description: "Approve in your wallet" });
+          else if (stage.status === "failed") toast.error(stage.step, { id, description: stage.error });
+          else {
+            const href = stage.signature ? explorerTxUrl(solanaVenue, stage.signature) : undefined;
+            toast.success(stage.step, {
+              id,
+              description: "Confirmed on Solana",
+              ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
+            });
+          }
+        });
         try {
           const activation = await wallet.activateQuestion(predictionApiUrl, solanaQuestion);
           setProgress(`Funding this outcome book with ${solanaVenue.collateralSymbol}…`);
@@ -438,7 +454,7 @@ export function TradeTicket({
           if (missing > 0n) {
             if (holdings.walletUsdc < missing + maximumFee)
               throw Error(`Not enough ${solanaVenue.collateralSymbol}. Keep the order amount plus up to ${Number(maximumFee) / 10 ** solanaVenue.collateralDecimals} ${solanaVenue.collateralSymbol} for an executed taker fee.`);
-            await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "USDC", missing, "deposit"));
+            await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "USDC", missing, "deposit"), `Funding the book with ${solanaVenue.collateralSymbol}`);
           }
           setProgress("Submitting your Manifest trade order…");
           const hash = await wallet.send(await client.adapter.order(wallet.owner, binding, {
@@ -448,7 +464,7 @@ export function TradeTicket({
             lastValidSlot: 0,
             kind: "LIMIT",
             maxFeeAtoms: maximumFee,
-          }));
+          }), "Submitting your order");
           setFeedback({
             text: `${activation.length ? "Market activated and " : ""}trade order submitted on Manifest. Any amount not matched immediately remains as your limit order.`,
             hash,

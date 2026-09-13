@@ -1,4 +1,5 @@
 import "../../styles/home.css";
+import { Toaster } from 'sonner'
 import "../../styles/home-hero.css";
 import {
   ArrowRight,
@@ -132,6 +133,11 @@ export function HomeApp({
   marketSources,
 }: Props) {
   return (
+    <>
+    {/* One Toaster for the whole app. Each on-chain transaction reports which
+        step it is, so a multi-transaction first trade is not a run of
+        unlabelled wallet prompts. */}
+    <Toaster position="bottom-center" richColors closeButton theme="dark" />
     <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={marketSources.includes('SOMNIA')}>
       {(session) => (
         <Home
@@ -147,6 +153,7 @@ export function HomeApp({
         />
       )}
     </DynamicSolanaSession>
+    </>
   );
 }
 

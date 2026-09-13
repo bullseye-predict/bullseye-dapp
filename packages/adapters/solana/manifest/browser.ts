@@ -4,6 +4,11 @@ import { getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentIn
 import type { ISolana } from '@dynamic-labs/solana-core'
 export interface ManifestWalletPort { address: string; getSigner(): Promise<ISolana> }
 export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; latestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight: number }> }
+/** Per-transaction progress. The first trade on a question sends several
+ *  transactions and the wallet prompts for each one; without a label the user
+ *  cannot tell which prompt is which. */
+export type SolanaTransactionStage = { step: string; status: 'signing' | 'sent' | 'failed'; signature?: string; error?: string }
+export interface SolanaTransactionNotifier { (stage: SolanaTransactionStage): void }
 import { ManifestAdapter } from './adapter'
 import { activateBook, bindingAddress, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
 import { buildCreateQuestionMarket, changePosition, initializePosition, initializeVault, moveVaultCollateral, positionAddress, questionCreationDigest, questionMarketAddress, vaultAddress } from '../wire'
@@ -11,7 +16,7 @@ import { buildCreateQuestionMarket, changePosition, initializePosition, initiali
 export class ManifestBrowserWallet {
   private active = true
   readonly owner: PublicKey
-  constructor(readonly adapter: ManifestAdapter, readonly port: ManifestWalletPort, readonly planner?: SolanaTransactionPlanner) { this.owner = new PublicKey(port.address) }
+  constructor(readonly adapter: ManifestAdapter, readonly port: ManifestWalletPort, readonly planner?: SolanaTransactionPlanner, readonly notify?: SolanaTransactionNotifier) { this.owner = new PublicKey(port.address) }
   dispose() { this.active = false }
   private async signer() {
     if (!this.active) throw new Error('Network or wallet selection changed. Reconnect before signing.')
@@ -24,7 +29,16 @@ export class ManifestBrowserWallet {
     await this.adapter.verifyDeployment()
     return signer
   }
-  async send(tx: Transaction): Promise<string> {
+  async send(tx: Transaction, step = 'Solana transaction'): Promise<string> {
+    this.notify?.({ step, status: 'signing' })
+    try {
+      return await this.submit(tx, step)
+    } catch (error) {
+      this.notify?.({ step, status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+  }
+  private async submit(tx: Transaction, step: string): Promise<string> {
     await this.signer()
     const connection = this.adapter.connection
     await this.planner?.assertNetwork()
@@ -57,6 +71,7 @@ export class ManifestBrowserWallet {
     try {
       const receipt = await connection.confirmTransaction({ ...recent, signature }, 'finalized')
       if (receipt.value.err) throw new Error(`Transaction failed: ${signature}`)
+      this.notify?.({ step, status: 'sent', signature })
       return signature
     } catch (error) {
       throw new Error(`Check transaction ${signature} before retrying: ${error instanceof Error ? error.message : 'confirmation unavailable'}`)
@@ -89,7 +104,7 @@ export class ManifestBrowserWallet {
       const authority = await crypto.subtle.importKey('raw', Uint8Array.from(config.oracle.toBytes()).buffer, { name: 'Ed25519' }, false, ['verify'])
       if (!await crypto.subtle.verify('Ed25519', authority, Uint8Array.from(signature).buffer, Uint8Array.from(digest).buffer)) throw new Error('Invalid backend question permit signature')
       const create = buildCreateQuestionMarket(deployment.predictionProgram, this.owner, deployment.collateralMint, matchId, questionId, { authority: config.oracle, expirySeconds: BigInt(value.expiresAt as number), digest, signature })
-      signatures.push(await this.send(new Transaction().add(...create)))
+      signatures.push(await this.send(new Transaction().add(...create), 'Creating the on-chain question'))
     }
     for (const outcome of [0, 1] as const) {
       const bindingKey = bindingAddress(deployment.predictionProgram, question, outcome)
@@ -110,7 +125,7 @@ export class ManifestBrowserWallet {
       if (!bindingRecord) transaction.add(registerBinding(deployment.predictionProgram, this.owner, question, deployment.manifestProgram, outcome))
       if (!mintRecord) transaction.add(initializeClaimMint(deployment.predictionProgram, this.owner, binding))
       if (!venueRecord) transaction.add(activateBook(deployment.predictionProgram, this.owner, binding))
-      if (transaction.instructions.length) signatures.push(await this.send(transaction))
+      if (transaction.instructions.length) signatures.push(await this.send(transaction, `Opening the ${outcome === 0 ? 'YES' : 'NO'} order book`))
     }
     for (const outcome of [0, 1] as const) await this.adapter.readBook(await this.adapter.binding(question, outcome))
     return signatures
@@ -131,7 +146,7 @@ export class ManifestBrowserWallet {
       createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, b.recipient), b.recipient, b.collateral),
       prepareClaimAccount(this.owner, this.owner, b.mint),
     )
-    return this.send(tx)
+    return this.send(tx, 'Preparing your trading accounts')
   }
   async collateral(b: ManifestBinding, action: 'deposit' | 'withdraw' | 'split' | 'merge' | 'redeem', atoms?: bigint) {
     const p = this.adapter.deployment.predictionProgram

@@ -1,4 +1,5 @@
 import { getWallets } from '@wallet-standard/app'
+import { solanaRpcEndpoint } from './solanaRpc'
 import type { Wallet, WalletAccount } from '@wallet-standard/base'
 import { StandardConnect, StandardDisconnect, type StandardConnectFeature, type StandardDisconnectFeature } from '@wallet-standard/features'
 import { SolanaSignMessage, SolanaSignTransaction, type SolanaSignMessageFeature, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features'
@@ -35,7 +36,7 @@ function unsignedBytes(transaction: Transaction | VersionedTransaction) {
     : transaction.serialize()
 }
 
-export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcUrl = 'https://api.devnet.solana.com/'): Promise<DirectSolanaSession> {
+export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcUrl = solanaRpcEndpoint()): Promise<DirectSolanaSession> {
   const connect = wallet.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect]
   const connected = await connect.connect()
   const account = solanaAccount(connected.accounts.length ? connected.accounts : wallet.accounts)

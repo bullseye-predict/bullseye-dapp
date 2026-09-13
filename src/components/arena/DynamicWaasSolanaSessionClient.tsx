@@ -1,4 +1,5 @@
 import { getWalletProviderRegistry, type BaseWalletAccount } from '@dynamic-labs-sdk/client/core'
+import { solanaRpcEndpoint } from './solanaRpc'
 import {
   useConnectAndVerifyWithWalletProvider,
   useGetAvailableWalletProvidersData,
@@ -143,7 +144,7 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
     } as unknown as ISolana
     return {
       address: selectedWallet.address,
-      getConnection: async () => new Connection('https://api.devnet.solana.com', 'confirmed'),
+      getConnection: async () => new Connection(solanaRpcEndpoint(), 'confirmed'),
       getSigner: async () => signer,
     }
   }, [client, selectedWallet])
