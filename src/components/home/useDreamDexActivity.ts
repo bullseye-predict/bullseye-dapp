@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { readMarketActivity, type MarketActivity } from '../../../packages/adapters/dreamdex/activity'
 import type { ArenaMarket } from '../solz/model'
 import { useDreamDexRevision } from './venue/revision'
+import { dreamDexOnly } from './useDreamDexSnapshot'
 
 export function useDreamDexActivity(market: ArenaMarket, enabled: boolean) {
-  const binding = market.onchain
+  const binding = dreamDexOnly(market)
   const key = `${binding?.chainId}:${binding?.marketId}:${binding?.indexerUrl}`
   const revision = useDreamDexRevision(binding?.chainId ?? '')
   const [state, setState] = useState<{ key: string; rows: MarketActivity[]; error: string; loading: boolean }>({ key: '', rows: [], error: '', loading: true })

@@ -6,8 +6,22 @@ import type { DreamDexPublicConfig } from '../../../packages/prediction-core/mar
 import type { ArenaMarket } from '../solz/model'
 import { useDreamDexRevision } from './venue/revision'
 
+/**
+ * A Solana market also carries `onchain`, so a truthy check is not enough to
+ * decide this hook may read it: a Solana binding has no `oracleQuestionId`, and
+ * BigInt(undefined) threw synchronously out of the effect body and blanked the
+ * app. Callers that pass a raw market (TradeTicket) are protected here rather
+ * than at each call site. Legacy records predate `family` and are DreamDEX.
+ */
+export function dreamDexOnly(market: ArenaMarket) {
+  const binding = market.onchain
+  if (!binding || binding.family === 'SOLANA') return undefined
+  return binding.oracleQuestionId && binding.indexerUrl ? binding : undefined
+}
+
 export function createMarketBrowser(market: ArenaMarket) {
-  const binding = market.onchain!
+  const binding = dreamDexOnly(market)
+  if (!binding) throw new Error('This market is not a DreamDEX market.')
   const config: DreamDexPublicConfig = {
     chainId: binding.chainId, label: market.title, indexerUrl: binding.indexerUrl, wsRpcUrl: binding.wsRpcUrl,
     markets: [{ eventId: market.matchId ?? '', label: market.title, marketId: binding.marketId, oracleQuestionId: binding.oracleQuestionId, tradingStartsAt: binding.tradingStartsAt, tradingLocksAt: binding.tradingLocksAt, voidPolicy: binding.voidPolicy }],
@@ -18,7 +32,7 @@ type Snapshot = Awaited<ReturnType<DreamDexBrowser['snapshot']>>
 
 /** Scope reads to the exact chain, question, and account; never expose the last match's data. */
 export function useDreamDexSnapshot(market: ArenaMarket, owner?: string) {
-  const binding = market.onchain
+  const binding = dreamDexOnly(market)
   const key = JSON.stringify([binding, market.matchId, owner?.toLowerCase()])
   const revision = useDreamDexRevision(binding?.chainId ?? '')
   const [refreshing, setRefreshing] = useState(false)
@@ -27,7 +41,15 @@ export function useDreamDexSnapshot(market: ArenaMarket, owner?: string) {
     if (!binding) return
     let active = true
     let timer: ReturnType<typeof setTimeout>
-    const adapter = createMarketBrowser(market)
+    // Constructed inside the guard: a throw here is adapter misconfiguration,
+    // and from an effect body it escapes React and unmounts the whole tree.
+    let adapter: DreamDexBrowser
+    try {
+      adapter = createMarketBrowser(market)
+    } catch (reason) {
+      setResult({ key, data: null, error: reason instanceof Error ? reason.message : 'Market data unavailable. Retry shortly.' })
+      return
+    }
     async function load() {
       setRefreshing(true)
       try {

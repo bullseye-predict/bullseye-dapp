@@ -81,11 +81,33 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
   }
 }
 
+/** One entry of the question catalogue: the synthetic match, its market, and
+ *  the question it came from. */
+export type ReservedSolanaView = { match: SolzMatch; market: ArenaMarket; question: ReservedSolanaQuestion }
+
+/** Resolves /events/<id> against the question catalogue. Callers try the arena
+ *  snapshot first, so a question never shadows a real match that shares its id. */
+export function resolveQuestionEvent(views: readonly ReservedSolanaView[], eventId: string) {
+  const view = views.find((item) => item.question.eventId === eventId)
+  if (!view) return undefined
+  return { match: view.match, markets: views.filter((item) => item.match.id === view.match.id).map((item) => item.market) }
+}
+
+/** Questions with no arena match behind them. An arena-backed question already
+ *  appears as its match, so listing it as standalone would duplicate it. */
+export function standaloneQuestions(views: readonly ReservedSolanaView[], matches: readonly { id: string }[]) {
+  return views.filter((item) => !matches.some((match) => match.id === item.question.eventId))
+}
+
 export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
+  // Distinguishes "no questions" from "not fetched yet": the event page must
+  // not render EVENT NOT FOUND for a standalone question while it is in flight.
+  const [loaded, setLoaded] = useState(false)
   useEffect(() => {
     setQuestions([])
-    if (!apiUrl) return
+    setLoaded(false)
+    if (!apiUrl) { setLoaded(true); return }
     const controller = new AbortController()
     let timer: number | undefined
     const load = async () => {
@@ -101,7 +123,7 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
         // Preserve the last verified catalogue through a transient local-backend
         // outage. The next poll will replace it with the current match.
       } finally {
-        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), 10_000)
+        if (!controller.signal.aborted) { setLoaded(true); timer = window.setTimeout(() => void load(), 10_000) }
       }
     }
     void load()
@@ -110,8 +132,9 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
   // The venue supplies the binding the shared venue hook needs to read this
   // question's Manifest books. Without it every Solana market renders as if no
   // market had been opened, however many trades have settled against it.
-  return useMemo(
+  const views = useMemo(
     () => questions.map(question => ({ ...reservedSolanaView(question, Date.now(), venue), question })),
     [questions, venue?.publicRpcUrl, venue?.programId, venue?.manifestProgramId, venue?.collateralToken],
   )
+  return useMemo(() => ({ questions: views, loaded }), [views, loaded])
 }

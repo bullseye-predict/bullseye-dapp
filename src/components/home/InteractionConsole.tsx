@@ -25,6 +25,7 @@ import {
 import { AnimatedCollapse } from "./AnimatedCollapse";
 import { PromptComposer } from "./PromptComposer";
 import { TradeTicket } from "./TradeTicket";
+import { MarketErrorBoundary } from "./MarketErrorBoundary";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 
@@ -205,6 +206,7 @@ export function InteractionConsole({
       >
         {tradingPanel ??
           (marketAvailable ? (
+            <MarketErrorBoundary label={market?.title ?? "Trade ticket"}>
             <TradeTicket
               preparing={intermission}
               match={match}
@@ -226,6 +228,7 @@ export function InteractionConsole({
               onAnswer={selectAnswer}
               simulation={simulation}
             />
+            </MarketErrorBoundary>
           ) : (
             // Keep the ticket's shape while it has no data. A blank panel reads as a
             // broken page; a disabled skeleton shows what will appear and where.

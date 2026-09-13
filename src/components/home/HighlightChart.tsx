@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Clock3 } from 'lucide-react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
 import { compact, percent } from './HomePrimitives'
+import { dreamDexOnly } from './useDreamDexSnapshot'
 import { resolvePredictionContract } from '../solz/predictionContracts'
 import { outcomeColor } from './heroMarket'
 
@@ -96,6 +97,6 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
         return <span key={item.id}><i style={{ background: colorFor(item, index) }}/>{item.label}<b>{percent(closest?.probability ?? item.probability)}</b></span>
       })}</div>}
     </div>
-    <div className="ch-chart-footer"><span>{simulation ? `${compact(displayMarket.volume.COOLA)} COOLA Vol.` : `${collateral === 'COOLA' ? market.onchain?.chainId === '50312' ? 'tUSDC' : 'Collateral' : collateral} ${historyMode === 'quotes' ? 'quote observations' : 'trade history'}`}</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
+    <div className="ch-chart-footer"><span>{simulation ? `${compact(displayMarket.volume.COOLA)} COOLA Vol.` : `${collateral === 'COOLA' ? dreamDexOnly(market)?.chainId === '50312' ? 'tUSDC' : 'Collateral' : collateral} ${historyMode === 'quotes' ? 'quote observations' : 'trade history'}`}</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
   </div>
 }

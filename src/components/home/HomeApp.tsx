@@ -39,8 +39,7 @@ import {
 } from "./MarketSourceControls";
 import { unpricedMarkets, useSomniaMarketPrices } from "./useVenueMarketPrices";
 import { useReservedSolanaQuestions } from "./solanaQuestionMarkets";
-import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClient";
-import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
+import { useSolanaVenue } from "./useSolanaVenue";
 
 type Props = {
   apiUrl?: string;
@@ -174,28 +173,8 @@ function Home({
   const source = useMemo(() => createSolzDataSource(), []);
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
     useHomeData(source, apiUrl);
-  const [solanaVenue, setSolanaVenue] = useState<PublicPredictionVenue | null>(null);
-  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue);
-  useEffect(() => {
-    setSolanaVenue(null);
-    if (!apiUrl || !marketSources.includes("SOLANA")) return;
-    const controller = new AbortController();
-    let timer: number | undefined;
-    const load = async () => {
-      try {
-        const config = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)]));
-        if (!controller.signal.aborted)
-          setSolanaVenue(config.venues.find((venue) => venue.family === "SOLANA" && venue.matchingEngine === "MANIFEST") ?? null);
-      } catch {
-        // A local backend may be restarted independently from Astro. Keep
-        // retrying so wallet balances and trading recover without a page reload.
-      } finally {
-        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), 10_000);
-      }
-    };
-    void load();
-    return () => { controller.abort(); if (timer) window.clearTimeout(timer); };
-  }, [apiUrl, marketSources]);
+  const solanaVenue = useSolanaVenue(apiUrl, marketSources.includes("SOLANA"));
+  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue).questions;
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");

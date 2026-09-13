@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, solanaQuestionLocksAt } from '../src/components/home/solanaQuestionMarkets'
+import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
@@ -24,5 +24,60 @@ describe('reserved Solana question view', () => {
     expect(match.timingType).toBe('countdown')
     expect(match.endsAt).toBe(solanaQuestionLocksAt(parsed))
     expect(market.closesAt).toBe(match.endsAt)
+  })
+})
+
+describe('standalone long-lived questions reach the market and event pages', () => {
+  // The real 45.5-day question configured in
+  // /Users/Shared/march-2026/solz-prediction-backend/.env (SOLANA_LAZY_QUESTIONS_JSON),
+  // as /solana/questions serves it once the backend has been restarted.
+  const lazy: ReservedSolanaQuestion = {
+    eventId: 'lazy-534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
+    matchId: '0x534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
+    questionId: '0x515545530102686967686573742d6b696c6c2d6167656e742d736561736f6e2d',
+    marketId: 'CtzDdaGDQ2yPrXYvupmEYxddLWFNn4aJ2e5xaBcGcRNu',
+    label: 'Which agent finishes Season 01 with the most kills? (SPRITE)',
+    outcomes: ['YES', 'NO'],
+    scheduledStartAt: '2026-09-13T22:38:56.000Z',
+    status: 'live',
+  }
+  const arena: ReservedSolanaQuestion = {
+    ...lazy,
+    eventId: 'arena-534f4c5a01010014000000006aa729217129606d71a40f50cde20f3291c57a1d',
+    matchId: '0x534f4c5a01010014000000006aa729217129606d71a40f50cde20f3291c57a1d',
+    questionId: '0x5155455301010f9dcc2247b7e613c796cc77d8b9f9ea35780c6ed6181582207',
+    label: 'Will genesis-01 win?',
+    // The kickoff encoded in matchId; the backend rejects any other value.
+    scheduledStartAt: '2026-09-13T22:52:17.000Z',
+  }
+  const view = (question: ReservedSolanaQuestion) => ({ ...reservedSolanaView(question, Date.now()), question })
+
+  test('the 45-day question outlives the ~20-minute arena cycle', () => {
+    const days = (solanaQuestionLocksAt(lazy) - Date.parse(lazy.scheduledStartAt)) / 86_400_000
+    expect(days).toBeCloseTo(45.5, 1)
+    expect(solanaQuestionLocksAt(lazy)).toBeGreaterThan(Date.now())
+    // The arena questions it must outlive.
+    expect(solanaQuestionLocksAt(arena) - Date.parse(arena.scheduledStartAt)).toBe(20 * 60_000)
+  })
+
+  test('its event id opens the market detail page with its own market', () => {
+    const resolved = resolveQuestionEvent([view(lazy)], lazy.eventId)
+    expect(resolved?.match.id).toBe(lazy.eventId)
+    expect(resolved?.markets.map((market) => market.title)).toEqual([lazy.label])
+    expect(resolveQuestionEvent([view(lazy)], 'no-such-event')).toBeUndefined()
+  })
+
+  test('the directory lists it but not questions an arena match already covers', () => {
+    const views = [view(lazy), view(arena)]
+    const matches = [{ id: arena.eventId }]
+    expect(standaloneQuestions(views, matches).map((item) => item.question.eventId)).toEqual([lazy.eventId])
+    expect(standaloneQuestions(views, []).length).toBe(2)
+  })
+
+  test('a team-less question still carries a title for the event heading', () => {
+    const { match, market } = view(lazy)
+    expect(match.teams).toEqual([])
+    expect(market.title).toBe(lazy.label)
+    expect(market.outcomes.map((outcome) => outcome.id)).toEqual(['yes', 'no'])
   })
 })
