@@ -93,10 +93,21 @@ export function resolveQuestionEvent(views: readonly ReservedSolanaView[], event
   return { match: view.match, markets: views.filter((item) => item.match.id === view.match.id).map((item) => item.market) }
 }
 
-/** Questions with no arena match behind them. An arena-backed question already
- *  appears as its match, so listing it as standalone would duplicate it. */
+/** The canonical QUES v1 kind byte: 01 is a question about one arena match, 02
+ *  is an independent proposition that settles on its own schedule. */
+export function questionKind(questionId: string) {
+  return questionId.slice(12, 14).toLowerCase()
+}
+
+/**
+ * Questions that stand on their own, by protocol identity rather than by whether
+ * their match happens to be in the current snapshot. Arena matches roll every
+ * ~20 minutes, so a kind-01 question outlives its match in the catalogue for a
+ * few minutes; keying off the snapshot listed those stale rows as standalone.
+ */
 export function standaloneQuestions(views: readonly ReservedSolanaView[], matches: readonly { id: string }[]) {
-  return views.filter((item) => !matches.some((match) => match.id === item.question.eventId))
+  return views.filter((item) => questionKind(item.question.questionId) === '02'
+    && !matches.some((match) => match.id === item.question.eventId))
 }
 
 export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {

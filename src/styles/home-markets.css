@@ -108,15 +108,16 @@
 .mk-group-heading h2 { font-size: 22px; line-height: 1.1; }
 .mk-group-heading p { margin-top: 4px; color: var(--sh-muted); font-size: 10px; }
 .mk-group-heading > span { display: grid; min-width: 28px; height: 28px; place-items: center; border: 1px solid var(--sh-line); color: var(--sh-lime); font: 600 10px var(--sh-mono); }
-.mk-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; padding-top: 4px; }
-.mk-card { display: flex; flex-direction: column; gap: 10px; min-height: 178px; padding: 15px; border: 1px solid var(--sh-line); background: var(--sh-panel); transition: border-color .18s ease-out, background .18s ease-out; }
+.mk-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 12px; padding-top: 4px; }
+.mk-card { display: flex; flex-direction: column; gap: 12px; padding: 15px; border: 1px solid var(--sh-line); background: var(--sh-panel); transition: border-color .18s ease-out, background .18s ease-out; }
 .mk-card:hover { border-color: var(--sh-lime); background: #1d2019; }
-.mk-card-top { display: flex; align-items: center; gap: 10px; }
-.mk-card-mode { margin-left: auto; color: var(--sh-muted); font-size: 8px; letter-spacing: .08em; }
-.mk-card-open { flex-shrink: 0; color: var(--sh-muted); }
+/* The question leads the card; the arrow rides beside it without stealing a row. */
+.mk-card-head { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.mk-card-title { overflow: hidden; margin: 0; font: 600 19px/1.15 var(--sh-heading); letter-spacing: -.01em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mk-card-open { flex-shrink: 0; margin-top: 2px; color: var(--sh-muted); }
 .mk-card:hover .mk-card-open { color: var(--sh-lime); }
-.mk-card-title { overflow: hidden; margin: 0; font: 600 17px/1.2 var(--sh-heading); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.mk-card-detail { margin: -4px 0 0; color: var(--sh-muted); font-size: 8px; letter-spacing: .06em; }
+.mk-card-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: -4px; }
+.mk-card-status > span { color: var(--sh-muted); font-size: 8px; letter-spacing: .06em; }
 .mk-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--sh-line); color: var(--sh-muted); font-size: 9px; }
 .mk-card-bottom span { display: inline-flex; align-items: center; gap: 5px; }
 .mk-card-note { display: flex; align-items: center; gap: 6px; color: var(--sh-muted); font-size: 8px; }

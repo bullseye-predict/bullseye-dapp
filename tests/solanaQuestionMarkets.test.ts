@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
@@ -67,11 +67,14 @@ describe('standalone long-lived questions reach the market and event pages', () 
     expect(resolveQuestionEvent([view(lazy)], 'no-such-event')).toBeUndefined()
   })
 
-  test('the directory lists it but not questions an arena match already covers', () => {
+  test('the directory lists it but never a per-match question, even a stale one', () => {
     const views = [view(lazy), view(arena)]
-    const matches = [{ id: arena.eventId }]
-    expect(standaloneQuestions(views, matches).map((item) => item.question.eventId)).toEqual([lazy.eventId])
-    expect(standaloneQuestions(views, []).length).toBe(2)
+    expect(standaloneQuestions(views, [{ id: arena.eventId }]).map((item) => item.question.eventId)).toEqual([lazy.eventId])
+    // Arena matches roll every ~20 minutes. When the match leaves the snapshot
+    // its kind-01 questions must NOT become "standalone".
+    expect(standaloneQuestions(views, []).map((item) => item.question.eventId)).toEqual([lazy.eventId])
+    expect(questionKind(lazy.questionId)).toBe('02')
+    expect(questionKind(arena.questionId)).toBe('01')
   })
 
   test('a team-less question still carries a title for the event heading', () => {

@@ -42,16 +42,19 @@ function teamOdds(match: SolzMatch, market: ArenaMarket | undefined) {
   })
 }
 
+/** The question leads. Everything that qualifies it - status, mode, schedule -
+ *  sits under it, so scanning the grid reads the markets and not the chrome. */
 function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: number; kind: string; children: ReactNode }) {
   const { match } = row
   return <a className={`mk-card mk-card--${kind}`} href={`/events/${encodeURIComponent(match.id)}`}>
-    <div className="mk-card-top">
-      <StatusDot pink={match.phase !== 'live'}>{row.status ?? scheduleLabel(match, now)}</StatusDot>
-      <span className="mk-card-mode">{match.mode}</span>
+    <div className="mk-card-head">
+      <h3 className="mk-card-title">{row.title ?? match.map}</h3>
       <ArrowUpRight className="mk-card-open" size={15}/>
     </div>
-    <h3 className="mk-card-title">{row.title ?? match.map}</h3>
-    <p className="mk-card-detail">{row.detail ?? `${match.map} · ${match.round}`}</p>
+    <div className="mk-card-status">
+      <StatusDot pink={match.phase !== 'live'}>{row.status ?? scheduleLabel(match, now)}</StatusDot>
+      <span>{row.detail ?? `${match.mode} · ${match.round}`}</span>
+    </div>
     {children}
     <div className="mk-card-bottom">
       <span>{compact(match.volume.COOLA)} COOLA Vol.</span>
