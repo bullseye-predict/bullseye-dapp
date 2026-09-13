@@ -92,7 +92,8 @@ export function resolveQuestionEvent(views: readonly ReservedSolanaView[], event
   if (!view) return undefined
   // The question travels with the match: the trade ticket needs it to open the
   // market on-chain, not just to render a title.
-  return { match: view.match, question: view.question, markets: views.filter((item) => item.match.id === view.match.id).map((item) => item.market) }
+  const linked = views.filter((item) => item.match.id === view.match.id)
+  return { match: view.match, question: view.question, questions: linked.map((item) => item.question), markets: linked.map((item) => item.market) }
 }
 
 /** The canonical QUES v1 kind byte: 01 is a question about one arena match, 02

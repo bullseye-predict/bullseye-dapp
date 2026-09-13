@@ -1,5 +1,6 @@
 import '../../styles/home.css'
 import '../../styles/home-hero.css'
+import '../../styles/home-markets.css'
 import '../../styles/events.css'
 import { ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Crosshair, Eye, Link as LinkIcon, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -60,7 +61,7 @@ function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, 
     <a className="sh-skip-link" href="#event-content">Skip to event</a>
     <div className="sh-utility"><span><Crosshair size={12}/> AUTONOMOUS AGENT NETWORK</span><span>EVENT PREVIEW <i/> SIMULATED ACTIVITY &amp; CREDITS</span><div><a href={paths.demo}>Demo <ArrowUpRight size={12}/></a><a href={paths.live}>Live arena <ArrowUpRight size={12}/></a></div></div>
     <SiteHeader homeHref={paths.home} marketsHref="/markets" walletControl={walletControl} active="highlight"/>
-    {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets} solanaQuestion={question?.question} solanaVenue={solanaVenue}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
+    {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
     <SiteFooter homeHref={paths.home} backToTopHref="#event-content" />
   </div>
 }
@@ -96,7 +97,7 @@ function EventSkeleton() {
   </main>
 }
 
-function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets, solanaQuestion, solanaVenue }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; session: DynamicSolanaSessionValue; questionMarkets?: ArenaMarket[]; solanaQuestion?: ReservedSolanaQuestion; solanaVenue?: PublicPredictionVenue | null }) {
+function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets, solanaQuestions, solanaVenue }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; session: DynamicSolanaSessionValue; questionMarkets?: ArenaMarket[]; solanaQuestions?: ReservedSolanaQuestion[]; solanaVenue?: PublicPredictionVenue | null }) {
   // A standalone question has no row in the arena snapshot; its markets are
   // supplied directly and are the only markets this event has.
   const markets = questionMarkets ?? snapshot.markets.filter((item) => item.matchId === match.id)
@@ -107,7 +108,7 @@ function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutco
   const isMatch = match.teams.length > 0 || match.roster.length > 0
   // A question backed by a real venue opens live, not in simulation, so its
   // book is the on-chain one rather than sample depth.
-  const [simulation, setSimulation] = useState(!solanaQuestion)
+  const [simulation, setSimulation] = useState(!solanaQuestions?.length)
   const referenceSnapshot = useRef(snapshot).current
   const view: EventView = prediction || !isMatch ? 'market' : 'live'
   const [marketId, setMarketId] = useState(prediction?.id ?? markets.find((item) => item.id === eventId)?.id ?? match.marketId)
@@ -123,6 +124,10 @@ function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutco
     if (mobileTrade && window.matchMedia('(max-width: 760px)').matches) tradeRail.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }, [mobileTrade, tradeRequest])
   const market = prediction ?? markets.find((item) => item.id === marketId) ?? markets[0]
+  // reservedSolanaView keys each market by its questionId, so the selected
+  // market names its own question. Without this the ticket would activate the
+  // event's first market whichever of the twelve is on screen.
+  const solanaQuestion = solanaQuestions?.find((item) => item.questionId.toLowerCase() === market?.id.toLowerCase())
   const answer = market?.outcomes.find((item) => item.id === baseOutcomeId(outcomeId)) ?? market?.outcomes[0]
   const ticketMarket = market && answer && market.outcomes.length > 2 ? eventAnswerMarket(market, answer) : market
   const outcome = ticketMarket?.outcomes.find((item) => item.id === outcomeId) ?? ticketMarket?.outcomes[0]

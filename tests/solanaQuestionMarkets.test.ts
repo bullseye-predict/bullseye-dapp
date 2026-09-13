@@ -116,3 +116,34 @@ describe('linked questions group into one event', () => {
     expect(linkedQuestionTitle([])).toBe('')
   })
 })
+
+describe('the selected market names its own question', () => {
+  const q = (n: number): ReservedSolanaQuestion => ({
+    eventId: 'lazy-event',
+    matchId: '0x534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
+    questionId: `0x5155455301025330312d6d6f73742d6b696c6c732d67656e657369732d${String(n).padStart(2, '0')}00`,
+    marketId: `market-${n}`,
+    label: `Will genesis-${String(n).padStart(2, '0')} finish Season 01 with the most kills?`,
+    outcomes: ['YES', 'NO'], scheduledStartAt: '2026-09-13T22:38:56.000Z', status: 'live',
+  })
+  const views = [1, 2, 3].map((n) => ({ ...reservedSolanaView(q(n), Date.now()), question: q(n) }))
+
+  test('every linked question is returned, aligned with its market', () => {
+    const resolved = resolveQuestionEvent(views, 'lazy-event')!
+    expect(resolved.questions.length).toBe(3)
+    // The trade ticket keys off market.id, so each market must name its question.
+    for (const [index, market] of resolved.markets.entries()) {
+      expect(market.id.toLowerCase()).toBe(resolved.questions[index].questionId.toLowerCase())
+    }
+  })
+
+  test('picking the third market resolves the third question, not the first', () => {
+    const resolved = resolveQuestionEvent(views, 'lazy-event')!
+    const selected = resolved.markets[2]
+    const question = resolved.questions.find((item) => item.questionId.toLowerCase() === selected.id.toLowerCase())
+    expect(question?.label).toContain('genesis-03')
+    // Activation uses this marketId; the event's first question would be wrong.
+    expect(question?.marketId).toBe('market-3')
+    expect(resolved.question.marketId).toBe('market-1')
+  })
+})
