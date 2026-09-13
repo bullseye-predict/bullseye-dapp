@@ -81,7 +81,7 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
   }
 }
 
-export function useReservedSolanaQuestions(apiUrl: string) {
+export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
   useEffect(() => {
     setQuestions([])
@@ -104,5 +104,11 @@ export function useReservedSolanaQuestions(apiUrl: string) {
     void load()
     return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
   }, [apiUrl])
-  return useMemo(() => questions.map(question => ({ ...reservedSolanaView(question), question })), [questions])
+  // The venue supplies the binding the shared venue hook needs to read this
+  // question's Manifest books. Without it every Solana market renders as if no
+  // market had been opened, however many trades have settled against it.
+  return useMemo(
+    () => questions.map(question => ({ ...reservedSolanaView(question, Date.now(), venue), question })),
+    [questions, venue?.publicRpcUrl, venue?.programId, venue?.manifestProgramId, venue?.collateralToken],
+  )
 }

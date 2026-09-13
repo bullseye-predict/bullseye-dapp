@@ -53,7 +53,12 @@ export class ManifestBrowserWallet {
     let recent: { blockhash: string; lastValidBlockHeight: number }
     let simulation: Awaited<ReturnType<typeof connection.simulateTransaction>>
     for (let attempt = 0; ; attempt++) {
-      recent = this.planner ? await this.planner.latestBlockhash() : await connection.getLatestBlockhash('confirmed')
+      // First pass uses the freshest hash for the longest validity window. A retry
+      // means the pool disagreed about it, so fall back to a finalized hash: older,
+      // shorter-lived, but every node in the pool is guaranteed to know it.
+      recent = attempt === 0
+        ? (this.planner ? await this.planner.latestBlockhash() : await connection.getLatestBlockhash('confirmed'))
+        : await connection.getLatestBlockhash('finalized')
       tx.recentBlockhash = recent.blockhash
       simulation = await connection.simulateTransaction(tx)
       if (!simulation.value.err) break

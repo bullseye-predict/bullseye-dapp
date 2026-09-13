@@ -54,8 +54,22 @@
 .ch-trade-skeleton__fields dt { color: var(--ch-muted); font-size: 10px; }
 .ch-trade-skeleton__fields dd { margin: 0; color: var(--ch-muted); font-size: 11px; }
 .ch-trade-skeleton__action { width: 100%; padding: 13px; border: 1px solid var(--ch-line); background: var(--ch-field); color: var(--ch-muted); font: inherit; font-size: 12px; opacity: .45; cursor: not-allowed; }
-@media (prefers-reduced-motion: no-preference) { .ch-trade-skeleton[aria-busy="true"] .ch-trade-skeleton__outcomes span { animation: ch-skeleton-pulse 2.4s ease-in-out infinite; } }
-@keyframes ch-skeleton-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .28; } }
+/* Shimmer sweeps the placeholders so the panel reads as loading rather than as
+   a rendered-but-empty ticket. Motion is opt-out; the static state stays legible. */
+.ch-trade-skeleton__outcomes span,
+.ch-trade-skeleton__fields dd,
+.ch-trade-skeleton__action { position: relative; overflow: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .ch-trade-skeleton[aria-busy="true"] :is(.ch-trade-skeleton__outcomes span, .ch-trade-skeleton__fields dd, .ch-trade-skeleton__action)::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, .07) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: ch-skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+  .ch-trade-skeleton[aria-busy="true"] .ch-trade-skeleton__fields dd::after { animation-delay: .15s; }
+  .ch-trade-skeleton[aria-busy="true"] .ch-trade-skeleton__action::after { animation-delay: .3s; }
+}
+@keyframes ch-skeleton-shimmer { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
 
 .ch-integration-warning { margin: 0 0 11px; padding: 9px 10px; border: 1px solid #866b34; background: #332b1d; color: #f2d99f; font-size: 9px; line-height: 1.55; }
 .ch-console-automate .ch-integration-warning { border-color: #775f31; background: #eee0bd; color: #493813; }

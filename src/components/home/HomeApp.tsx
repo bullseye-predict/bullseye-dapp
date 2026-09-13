@@ -138,7 +138,10 @@ export function HomeApp({
     {/* One Toaster for the whole app. Each on-chain transaction reports which
         step it is, so a multi-transaction first trade is not a run of
         unlabelled wallet prompts. */}
-    <Toaster position="bottom-center" richColors closeButton theme="dark" />
+    {/* Above the trade dialog: a wallet-stage toast is useless if the modal that
+        triggered it covers it. Bottom-right so the stack builds away from the
+        ticket, each dismissable, and expand shows the recent history. */}
+    <Toaster position="bottom-right" richColors closeButton theme="dark" expand visibleToasts={6} style={{ zIndex: 2147483000 }} />
     <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={marketSources.includes('SOMNIA')}>
       {(session) => (
         <Home
@@ -184,8 +187,8 @@ function Home({
   const source = useMemo(() => createSolzDataSource(), []);
   const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
     useHomeData(source, apiUrl);
-  const reservedSolana = useReservedSolanaQuestions(apiUrl);
   const [solanaVenue, setSolanaVenue] = useState<PublicPredictionVenue | null>(null);
+  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue);
   useEffect(() => {
     setSolanaVenue(null);
     if (!apiUrl || !marketSources.includes("SOLANA")) return;

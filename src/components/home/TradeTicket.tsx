@@ -468,10 +468,17 @@ export function TradeTicket({
             kind: "LIMIT",
             maxFeeAtoms: maximumFee,
           }), "Submitting your order");
-          setFeedback({
-            text: `${activation.length ? "Market activated and " : ""}trade order submitted on Manifest. Any amount not matched immediately remains as your limit order.`,
-            hash,
+          const summary = `${activation.length ? "Market activated and " : ""}trade order submitted on Manifest`;
+          const href = explorerTxUrl(solanaVenue, hash);
+          // Surfaced as a toast rather than text under the button, which sits
+          // below the fold once the ticket is scrolled.
+          toast.success(summary, {
+            id: `solana-order:${hash}`,
+            description: "Any amount not matched immediately remains as your limit order.",
+            duration: 12_000,
+            ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
           });
+          setFeedback({ text: `${summary}.`, hash });
         } finally {
           wallet.dispose();
         }
