@@ -147,12 +147,22 @@
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 250px; }
 
 
+/* The toasts and the alert log are hosted inside whichever modal <dialog> is
+   open, because such a dialog paints in the top layer and makes everything
+   outside itself inert. The host must stay layout-neutral there and must not
+   inherit the dialog's own styling for a direct child, so display: contents is
+   given a specificity that beats `.ch-event-dialog > div`. */
+.ch-overlay-layer.ch-overlay-layer { display: contents; }
+
 /* Floating alert log, bottom-right. Above the trade dialog like the toasts, but
    persistent: a toast disappears, this keeps the record until it is cleared. */
 .ch-alerts-dock { position: fixed; right: 16px; bottom: 16px; z-index: 2147483000; display: grid; justify-items: end; gap: 8px; }
 .ch-alerts-dock__toggle { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--ch-accent, #c9f24d); background: var(--ch-surface, #16181c); color: var(--ch-accent, #c9f24d); cursor: pointer; }
 .ch-alerts-dock__toggle:focus-visible { outline: 2px solid var(--ch-accent, #c9f24d); outline-offset: 2px; }
-.ch-alerts-dock__badge { position: absolute; top: -8px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px; display: grid; place-items: center; background: #d8443c; color: #fff; font-size: 10px; font-weight: 700; }
+/* Counts the whole log, not only the failures; red is reserved for a log that
+   still holds one. */
+.ch-alerts-dock__badge { position: absolute; top: -8px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px; display: grid; place-items: center; background: var(--ch-surface, #16181c); border: 1px solid var(--ch-accent, #c9f24d); color: var(--ch-accent, #c9f24d); font-size: 10px; font-weight: 700; }
+.ch-alerts-dock__badge.is-failing { border-color: #d8443c; background: #d8443c; color: #fff; }
 .ch-alerts-dock__panel { width: min(360px, calc(100vw - 32px)); max-height: min(420px, 60vh); display: flex; flex-direction: column; border: 1px solid var(--ch-line); background: var(--ch-surface, #16181c); }
 .ch-alerts-dock__panel header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--ch-line); }
 .ch-alerts-dock__panel header strong { font-size: 11px; color: var(--ch-ink); }
@@ -167,5 +177,7 @@
 .ch-alerts-dock__panel li time { font-size: 9px; color: var(--ch-muted); opacity: .8; }
 .ch-alerts-dock__panel li.is-error strong { color: #f08a82; }
 .ch-alerts-dock__panel li.is-success strong { color: #5fc98a; }
+.ch-alerts-dock__panel li.is-warning strong { color: #e8c368; }
+.ch-alerts-dock__panel li.is-info > svg { opacity: .55; }
 .ch-alerts-dock__panel li > button { border: 0; background: transparent; color: var(--ch-muted); cursor: pointer; padding: 0; line-height: 1; }
 .ch-alerts-dock__panel li > button:hover { color: var(--ch-ink); }

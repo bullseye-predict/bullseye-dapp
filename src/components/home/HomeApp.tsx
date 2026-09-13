@@ -1,7 +1,6 @@
 import "../../styles/home.css";
 import "../../styles/home-markets.css";
-import { Toaster } from 'sonner'
-import { AlertsDock } from './alerts/AlertsDock'
+import { OverlayLayer } from './alerts/OverlayLayer'
 import "../../styles/home-hero.css";
 import {
   ArrowRight,
@@ -136,14 +135,9 @@ export function HomeApp({
 }: Props) {
   return (
     <>
-    {/* One Toaster for the whole app. Each on-chain transaction reports which
-        step it is, so a multi-transaction first trade is not a run of
-        unlabelled wallet prompts. */}
-    {/* Bottom-centre, above the trade dialog overlay. The dialog does not dim or
-        hide what is under it, so the toast needs to win on z-index rather than
-        be moved out of the way. */}
-    <Toaster position="bottom-center" richColors closeButton theme="dark" style={{ zIndex: 2147483000 }} />
-    <AlertsDock />
+    {/* Toasts and the alert log, hosted so that a modal trade dialog cannot
+        bury them in the top layer. */}
+    <OverlayLayer />
     <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={marketSources.includes('SOMNIA')}>
       {(session) => (
         <Home

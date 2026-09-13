@@ -427,14 +427,20 @@ export function TradeTicket({
         // four anonymous approvals in a row.
         const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client, (stage) => {
           const id = `solana-tx:${stage.step}`;
-          if (stage.status === "signing") toast.loading(stage.step, { id, description: "Approve in your wallet" });
+          // The toast is updated in place by its id; the log takes a line per
+          // stage, so the request for a signature stays on the record next to
+          // whatever came of it.
+          if (stage.status === "signing") {
+            toast.loading(stage.step, { id, description: "Approve in your wallet" });
+            pushAlert({ level: "info", title: stage.step, detail: "Waiting for your wallet signature" });
+          }
           else if (stage.status === "failed") {
             toast.error(stage.step, { id, description: stage.error });
-            pushAlert({ id, level: "error", title: stage.step, detail: stage.error });
+            pushAlert({ level: "error", title: stage.step, detail: stage.error });
           }
           else {
             const href = stage.signature ? explorerTxUrl(solanaVenue, stage.signature) : undefined;
-            pushAlert({ id, level: "success", title: stage.step, detail: "Confirmed on Solana", href });
+            pushAlert({ level: "success", title: stage.step, detail: "Confirmed on Solana", href });
             toast.success(stage.step, {
               id,
               description: "Confirmed on Solana",
@@ -483,7 +489,7 @@ export function TradeTicket({
             duration: 12_000,
             ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
           });
-          pushAlert({ id: `solana-order:${hash}`, level: "success", title: summary, detail: "Any amount not matched immediately remains as your limit order.", href });
+          pushAlert({ level: "success", title: summary, detail: "Any amount not matched immediately remains as your limit order.", href });
           setFeedback({ text: `${summary}.`, hash });
         } finally {
           wallet.dispose();
@@ -528,12 +534,11 @@ export function TradeTicket({
       const selfMatch =
         reason instanceof Error &&
         reason.message.includes("SelfMatchCancelTaker");
-      setFeedback({
-        text: selfMatch
-          ? "Trade not completed: your own opposing order blocks this trade. Cancel or change that open order below. Token approval alone does not buy shares."
-          : `Trade not completed: ${reason instanceof Error ? reason.message : "Please check your wallet and try again."}`,
-        error: true,
-      });
+      const text = selfMatch
+        ? "Trade not completed: your own opposing order blocks this trade. Cancel or change that open order below. Token approval alone does not buy shares."
+        : `Trade not completed: ${reason instanceof Error ? reason.message : "Please check your wallet and try again."}`;
+      setFeedback({ text, error: true });
+      pushAlert({ level: "error", title: "Trade not completed", detail: text.replace("Trade not completed: ", "") });
       setOrdersExpanded(true);
       setReview(false);
       if (evmBinding) refreshDreamDex(evmBinding.chainId);

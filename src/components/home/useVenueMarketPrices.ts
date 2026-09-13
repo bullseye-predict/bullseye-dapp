@@ -9,10 +9,15 @@ import type { SomniaChain } from './MarketSourceControls'
 
 type Result = { markets: ArenaMarket[]; status: string }
 
+/** Clears venue *pricing* so a market renders without quotes. It must not
+ *  destroy the venue *binding*: this is the path the Solana source renders
+ *  through, and dropping the binding made every activated Solana question report
+ *  "no market opened" with an empty book however many trades had settled.
+ *  A DreamDEX binding is still cleared, because its pricing is what is absent. */
 export function unpricedMarkets(markets: ArenaMarket[]) {
   return markets.map((market) => ({
     ...market,
-    onchain: undefined,
+    onchain: market.onchain?.family === 'SOLANA' ? market.onchain : undefined,
     volume: { SOL: 0, COOLA: 0 },
     outcomes: market.outcomes.map((outcome) => ({ ...outcome, probability: .5, priceHistory: [], quoteHistory: [], historyStatus: undefined })),
   }))
