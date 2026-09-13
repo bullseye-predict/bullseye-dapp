@@ -85,7 +85,9 @@ function publicMatch(match: ActivityMatch, region: string) {
     capacity: Math.max(1, Number(match.configuredPlayers) || 1),
     spectators: Math.max(0, Number(match.spectators) || 0),
     startedAt: Number(match.startedAt) || Number(match.createdAt) || null,
-    watchUrl: 'https://solz.fun/watch/live/',
+    // This endpoint is also the source of the local match directory. Its
+    // watch links must stay on the configured game host, never production.
+    watchUrl: '',
   }
 }
 
@@ -112,6 +114,9 @@ export const GET: APIRoute = async ({ locals }) => {
       activity: primary.activity,
       matches: available.flatMap(({ source, activity }) => activityMatches(activity).flatMap((match) => {
         const result = publicMatch(match, source.label)
+        if (result) result.watchUrl = configuredGameOrigin(runtimeEnv)
+          ? `${configuredGameOrigin(runtimeEnv)}/game/watch/${encodeURIComponent(result.id)}`
+          : ''
         return result ? [result] : []
       })),
       leaderboard: { kills: null, wins: null },

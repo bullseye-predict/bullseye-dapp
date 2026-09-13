@@ -45,7 +45,7 @@ Local preview: [http://127.0.0.1:4321/demo](http://127.0.0.1:4321/demo)
 
 ## Prediction services and chain programs
 
-The backend now lives in `apps/` and shared business logic in `packages/`, independently of the game server and React host. The Solidity contracts are in `contracts/evm`; the Solana Pinocchio program is in `programs/prediction_market_pinocchio`. See the existing `ARCHITECTURE.md` for boundaries and current integration limits.
+The backend now lives in `apps/` and shared business logic in `packages/`, independently of the game server and React host. The Solidity contracts are in `contracts/evm`. The Solana Pinocchio program and the guarded Manifest fork live in the solz-prediction-backend repository under `programs/`; this repository holds no on-chain program source. See the existing `ARCHITECTURE.md` for boundaries and current integration limits.
 
 Start the local API:
 

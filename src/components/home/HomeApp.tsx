@@ -675,7 +675,7 @@ function Home({
         )}
         {snapshot && (
           <>
-            <LiveMatches feed={watchMatches} />
+            <LiveMatches feed={watchMatches} watchHref={liveHref} />
             <div className="sh-community-grid">
               <TeamStandings snapshot={snapshot} onSelect={chooseMatch} />
               <ArenaEntry snapshot={snapshot} source={source} />

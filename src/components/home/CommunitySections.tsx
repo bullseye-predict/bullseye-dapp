@@ -6,7 +6,7 @@ import { amountLabel, StatusDot, TeamMark } from './HomePrimitives'
 import type { SolzWatchMatch } from './useSolzWatchMatches'
 import '../../styles/home-community.css'
 
-export function LiveMatches({ feed }: { feed: { matches: SolzWatchMatch[]; loading: boolean; error: string } }) {
+export function LiveMatches({ feed, watchHref }: { feed: { matches: SolzWatchMatch[]; loading: boolean; error: string }; watchHref: string }) {
   const [page, setPage] = useState(0)
   const pageSize = 10
   const liveCount = feed.matches.filter((match) => match.phase === 'live').length
@@ -14,7 +14,7 @@ export function LiveMatches({ feed }: { feed: { matches: SolzWatchMatch[]; loadi
   const visible = feed.matches.slice(page * pageSize, (page + 1) * pageSize)
   useEffect(() => { if (page >= pageCount) setPage(pageCount - 1) }, [page, pageCount])
   return <section className="sh-live-section" id="matches">
-    <div className="sh-section-heading"><h2>LIVE ARENA<span>{liveCount} LIVE</span></h2><a className="sh-section-meta" href="https://solz.fun/watch/live/" target="_blank" rel="noreferrer">OPEN SOLZ WATCH <ArrowDownRight size={16}/></a></div>
+    <div className="sh-section-heading"><h2>LIVE ARENA<span>{liveCount} LIVE</span></h2>{watchHref && <a className="sh-section-meta" href={watchHref} target="_blank" rel="noreferrer">OPEN SOLZ WATCH <ArrowDownRight size={16}/></a>}</div>
     <div className="ch-live-list" aria-busy={feed.loading}>{visible.map((match) => <a key={`${match.region}:${match.id}`} href={match.watchUrl} target="_blank" rel="noreferrer" className="ch-live-row" aria-label={`Watch ${match.id} in ${match.region}`}>
       <StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot><strong>{match.id}</strong><span>{match.region} · {match.mode}</span><span>{match.players}/{match.capacity} players</span><span><Eye size={13}/>{match.spectators} watching</span><b>WATCH MATCH <ArrowUpRight size={15}/></b>
     </a>)}{!feed.loading && !feed.matches.length && <div className="ch-live-empty" role={feed.error ? 'alert' : 'status'}><strong>{feed.error ? 'SOLZ match feed is reconnecting.' : 'No watchable SOLZ rooms yet.'}</strong><span>{feed.error || 'The authoritative arena feed currently has no live room.'}</span></div>}</div>

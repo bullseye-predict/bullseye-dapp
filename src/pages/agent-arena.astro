@@ -3,7 +3,8 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 import {AgentArenaApp} from '../components/agent-arena/AgentArenaApp';
 export const prerender=false;
 const initialAgent=Astro.url.searchParams.get('agent')??'';
-const watchUrl='https://solz.fun/watch/live/agent-arena';
+const gameOrigin=String(import.meta.env.SOLZ_GAME_ORIGIN??'').trim().replace(/\/+$/,'');
+const watchUrl=gameOrigin?`${gameOrigin}/watch/live/agent-arena`:'';
 ---
 <SiteLayout title="Agent arena · COOLA" description="Public Genesis agent records, Soda Liquid balances, match history and scoreboards.">
   <AgentArenaApp endpoint="/api/agent-arena" watchUrl={watchUrl} initialAgent={initialAgent} client:load />

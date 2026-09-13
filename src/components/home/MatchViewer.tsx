@@ -156,13 +156,11 @@ const BroadcastMedia = memo(function BroadcastMedia({
                 <Play size={13} fill="currentColor" aria-hidden="true" />
                 Use iframe streaming
               </button>
-              <a
-                href="https://solz.fun/watch/live/agent-arena"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open the game <ExternalLink size={13} aria-hidden="true" />
-              </a>
+              {iframeSrc && (
+                <a href={iframeSrc} target="_blank" rel="noreferrer">
+                  Open the game <ExternalLink size={13} aria-hidden="true" />
+                </a>
+              )}
             </div>
           </div>
         </div>

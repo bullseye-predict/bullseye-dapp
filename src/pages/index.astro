@@ -9,7 +9,11 @@ const configuredSources: MarketSource[] = String(import.meta.env.PUBLIC_ARENA_MA
   .map((value) => value.trim().toUpperCase())
   .filter((value): value is 'SIMULATION' | 'SOLANA' | 'SOMNIA' => validSources.has(value))
 const marketSources: MarketSource[] = configuredSources.length ? configuredSources : ['SIMULATION']
-const arenaWatchUrl = 'https://solz.fun/watch/live/agent-arena'
+// The embedded broadcast must follow the same configured game host as the
+// per-match links. Keeping this at the host boundary prevents local market
+// development from silently displaying a production arena.
+const gameOrigin = String(import.meta.env.SOLZ_GAME_ORIGIN ?? '').trim().replace(/\/+$/, '')
+const arenaWatchUrl = gameOrigin ? `${gameOrigin}/watch/live/agent-arena` : ''
 // Browser HTTP traffic uses a stable same-origin route. The server route reads
 // PUBLIC_PREDICTION_API_URL and has the deployed Railway service as a fallback.
 const apiUrl = new URL('/api/prediction', Astro.url).toString()
