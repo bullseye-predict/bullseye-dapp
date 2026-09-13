@@ -112,6 +112,40 @@ export function standaloneQuestions(views: readonly ReservedSolanaView[], matche
     && !matches.some((match) => match.id === item.question.eventId))
 }
 
+/** Groups a flat question list into the events the directory actually lists.
+ *  Twelve questions sharing one eventId are one event with twelve markets, the
+ *  same way an arena match owns its per-agent questions. */
+export function questionEvents(views: readonly ReservedSolanaView[]) {
+  const byEvent = new Map<string, ReservedSolanaView[]>()
+  for (const view of views) {
+    const list = byEvent.get(view.question.eventId)
+    if (list) list.push(view)
+    else byEvent.set(view.question.eventId, [view])
+  }
+  return [...byEvent.values()]
+}
+
+/** The shared tail of a set of linked question labels, which is the event they
+ *  all ask about ("Will genesis-07 finish Season 01 with the most kills?" ->
+ *  "Finish Season 01 with the most kills?"). Falls back to the first label when
+ *  the questions share nothing substantial, rather than inventing a title. */
+export function linkedQuestionTitle(labels: readonly string[]) {
+  const [first, ...rest] = labels
+  if (!first) return ''
+  if (!rest.length) return first
+  let shared = first
+  for (const label of rest) {
+    let size = 0
+    while (size < shared.length && size < label.length
+      && shared[shared.length - 1 - size] === label[label.length - 1 - size]) size++
+    shared = shared.slice(shared.length - size)
+  }
+  // Start at a word boundary so the title never opens mid-word.
+  const trimmed = shared.replace(/^[^ ]*\s+/, '').trim()
+  if (trimmed.length < 12) return first
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+}
+
 export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
   // Distinguishes "no questions" from "not fetched yet": the event page must

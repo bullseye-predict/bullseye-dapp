@@ -101,9 +101,15 @@ function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutco
   // supplied directly and are the only markets this event has.
   const markets = questionMarkets ?? snapshot.markets.filter((item) => item.matchId === match.id)
   const prediction = markets.find((item) => item.id === predictionId)
-  const [simulation, setSimulation] = useState(true)
+  // A standalone question has no game behind it: no teams, no roster, nothing
+  // to broadcast. Everything match-shaped is gated on this rather than on the
+  // venue, so any team-less event renders as a question.
+  const isMatch = match.teams.length > 0 || match.roster.length > 0
+  // A question backed by a real venue opens live, not in simulation, so its
+  // book is the on-chain one rather than sample depth.
+  const [simulation, setSimulation] = useState(!solanaQuestion)
   const referenceSnapshot = useRef(snapshot).current
-  const view: EventView = prediction ? 'market' : 'live'
+  const view: EventView = prediction || !isMatch ? 'market' : 'live'
   const [marketId, setMarketId] = useState(prediction?.id ?? markets.find((item) => item.id === eventId)?.id ?? match.marketId)
   const [outcomeId, setOutcomeId] = useState(initialOutcomeId ?? '')
   const [section, setSection] = useState<ConsoleSection | null>('trade')
@@ -141,8 +147,8 @@ function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutco
       <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{heading}</a><ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div><p><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE NOW' : match.phase.toUpperCase()}</StatusDot><span>{match.map}</span><span>{compact(market.volume.COOLA)} COOLA VOL.</span><span>{match.roster.length ? `${match.roster.length} agents · ${match.round}` : match.round}</span></p></div>
       <TradeContextBar simulation={simulation} onSimulationChange={setSimulation} liveMatchCount={snapshot.matches.filter((item) => item.phase === 'live').length}/>
       <div className="ev-center">
-        <EventStage simulation={simulation} referenceMarket={referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={market} snapshot={snapshot} outcome={answer} onOutcome={(pick) => { setOutcomeId(pick.id); setSection('trade') }} prediction={!!prediction}/>
-        <EventMarkets actions={<div className="ev-market-actions"><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div>} markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/>
+        <EventStage simulation={simulation} referenceMarket={referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={market} snapshot={snapshot} outcome={answer} onOutcome={(pick) => { setOutcomeId(pick.id); setSection('trade') }} prediction={!!prediction} broadcast={isMatch}/>
+        <EventMarkets simulation={simulation} collateral={solanaQuestion ? 'fUSDC' : 'COOLA'} actions={<div className="ev-market-actions"><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div>} markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/>
         <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} hideComments={variant === 'community'}/>
         <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
       </div>

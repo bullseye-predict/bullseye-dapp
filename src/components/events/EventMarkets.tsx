@@ -1,32 +1,26 @@
 import { ArrowUpRight, ChevronDown, FileText, Layers } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
-import { Tabs, TabPanel } from '../solz/ui'
 import { AgentPortrait, amountLabel, compact, percent, TeamMark } from '../home/HomePrimitives'
 import { outcomeColor } from '../home/heroMarket'
-import { HighlightChart } from '../home/HighlightChart'
-import { eventAnswerMarket, sampleOrderBook } from './eventModel'
+import { eventAnswerMarket } from './eventModel'
+import { PredictionDetail } from '../home/PredictionDetail'
+import { MarketErrorBoundary } from '../home/MarketErrorBoundary'
 import { baseOutcomeId } from '../solz/predictionContracts'
 
-type Props = { actions?: ReactNode; markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string }
+type Props = { actions?: ReactNode; markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string; simulation?: boolean; collateral?: string }
 
-function MarketDetail({ market, selected, snapshot, onSelect }: { market: ArenaMarket; selected: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (outcome: ArenaMarketOutcome) => void }) {
-  const [tab, setTab] = useState<'book' | 'graph' | 'about'>('book')
-  const book = sampleOrderBook(selected)
-  const colors = market.outcomes.every((item) => item.label === 'Yes' || item.label === 'No') ? Object.fromEntries(market.outcomes.map((item) => [item.id, item.label === 'Yes' ? '#87dfb4' : '#f793a3'])) : undefined
-  const prefix = `market-detail-${market.id}-${baseOutcomeId(selected.id)}`
-  return <div className="ev-market-detail">
-    <div className="ev-market-detail-tabs"><Tabs idPrefix={prefix} label={`${market.title} details`} value={tab} onChange={setTab} tabs={[{ id: 'book', label: 'Order book' }, { id: 'graph', label: 'Graph' }, { id: 'about', label: 'About' }]}/><span><Layers size={12}/> SAMPLE DEPTH</span></div>
-    <TabPanel id="book" idPrefix={prefix} active={tab === 'book'}>
-      <div className="ev-book-outcome"><label>Outcome<select value={selected.id} onChange={(event) => { const next = market.outcomes.find((item) => item.id === event.target.value); if (next) onSelect(next) }}>{market.outcomes.map((outcome) => <option key={outcome.id} value={outcome.id}>{outcome.label}</option>)}</select></label><span>Pays up to 1 COOLA per share</span></div>
-      <table className="ev-order-book"><caption className="sr-only">Illustrative order book for {selected.label}, denominated in COOLA</caption><thead><tr><th scope="col">SIDE</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>{book.asks.map((row, i) => <tr className="is-ask" key={row.price} style={{ backgroundSize: `${row.depth}% 100%` }}><td>{i === book.asks.length - 1 && <span>Asks</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)}</td></tr>)}<tr className="ev-book-spread"><td colSpan={2}>Last: {Math.round(selected.probability * 100)}¢</td><td colSpan={2}>Spread: {Math.round(book.spread * 100)}¢</td></tr>{book.bids.map((row, i) => <tr className="is-bid" key={row.price} style={{ backgroundSize: `${row.depth}% 100%` }}><td>{i === 0 && <span>Bids</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)}</td></tr>)}</tbody></table>
-    </TabPanel>
-    <TabPanel id="graph" idPrefix={prefix} active={tab === 'graph'} className="ev-inline-chart"><HighlightChart market={market} snapshot={snapshot} outcome={selected} onOutcome={onSelect} colors={colors} onMarket={() => {}}/></TabPanel>
-    <TabPanel id="about" idPrefix={prefix} active={tab === 'about'} className="ev-market-about"><h3><FileText size={15}/>Resolution rules</h3><p>{market.rules}</p><p>{market.description}</p><dl><div><dt>Trading closes</dt><dd>{new Date(market.closesAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd></div><div><dt>Status</dt><dd>{market.status}</dd></div></dl></TabPanel>
-  </div>
+/** The order book, graph and resolution panel are the highlight page's, not a
+ *  copy: this used to render sampleOrderBook(), which invented depth for a
+ *  market that may not exist on chain at all. PredictionDetail reads the venue
+ *  and shows an empty book until someone actually opens the market. */
+function MarketDetail({ market, selected, snapshot, onSelect, simulation, collateral }: { market: ArenaMarket; selected: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (outcome: ArenaMarketOutcome) => void; simulation: boolean; collateral: string }) {
+  return <MarketErrorBoundary label={market.title}>
+    <PredictionDetail market={market} outcome={selected} snapshot={snapshot} simulation={simulation} collateral={collateral} onSelect={(pick) => onSelect(pick)}/>
+  </MarketErrorBoundary>
 }
 
-export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref }: Props) {
+export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref, simulation = true, collateral = 'COOLA' }: Props) {
   const [expanded, setExpanded] = useState<string[]>(prediction || market.outcomes.length > 2 ? [] : [market.id])
   const toggle = (id: string) => setExpanded((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id])
   return <section className={`ev-markets ${prediction ? 'ev-prediction-answers' : ''}`} id="event-markets" aria-labelledby="event-markets-title">
@@ -49,7 +43,7 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
               {binary.outcomes.map((pick, side) => <button key={pick.id} className={side === 0 ? 'is-yes' : 'is-no'} aria-label={`${pick.label} on ${answer.label}`} aria-pressed={selected && outcome.id === pick.id} onClick={() => onSelect(prediction, pick)}><span>{pick.label}</span><b>{Math.round(pick.probability * 100)}¢</b></button>)}
             </div>
           </div>
-          <div id={`answer-detail-${answer.id}`} hidden={!open}><MarketDetail market={binary} selected={contract} snapshot={snapshot} onSelect={(pick) => onSelect(prediction, pick, false)}/></div>
+          <div id={`answer-detail-${answer.id}`} hidden={!open}><MarketDetail market={binary} selected={contract} snapshot={snapshot} simulation={simulation} collateral={collateral} onSelect={(pick) => onSelect(prediction, pick, false)}/></div>
         </section>
       })}
     </> : markets.map((item) => {
@@ -62,7 +56,7 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
       const selected = item.id === market.id ? outcome : item.outcomes[0]
       return <section key={item.id} id={`event-${item.id}`} className={`ev-market ${item.id === market.id ? 'is-selected' : ''}`}>
         <div className="ev-market-summary"><h3><button aria-expanded={open} aria-controls={`event-market-${item.id}`} onClick={() => toggle(item.id)}><span>{item.title}<small>{compact(item.volume.COOLA)} COOLA VOL.</small></span><ChevronDown size={16}/></button></h3><div className="ev-market-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={item.id === market.id && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{percent(pick.probability)}</b></button>)}</div></div>
-        <div id={`event-market-${item.id}`} hidden={!open}><MarketDetail market={item} selected={selected} snapshot={snapshot} onSelect={(pick) => onSelect(item, pick, false)}/></div>
+        <div id={`event-market-${item.id}`} hidden={!open}><MarketDetail market={item} selected={selected} snapshot={snapshot} simulation={simulation} collateral={collateral} onSelect={(pick) => onSelect(item, pick, false)}/></div>
       </section>
     })}
   </section>

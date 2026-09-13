@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
@@ -82,5 +82,37 @@ describe('standalone long-lived questions reach the market and event pages', () 
     expect(match.teams).toEqual([])
     expect(market.title).toBe(lazy.label)
     expect(market.outcomes.map((outcome) => outcome.id)).toEqual(['yes', 'no'])
+  })
+})
+
+describe('linked questions group into one event', () => {
+  const agentQuestion = (n: number): ReservedSolanaQuestion => ({
+    eventId: 'lazy-534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
+    matchId: '0x534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
+    questionId: `0x5155455301025330312d6d6f73742d6b696c6c732d67656e657369732d${String(n).padStart(2, '0')}00`,
+    marketId: `market-${n}`,
+    label: `Will genesis-${String(n).padStart(2, '0')} finish Season 01 with the most kills?`,
+    outcomes: ['YES', 'NO'], scheduledStartAt: '2026-09-13T22:38:56.000Z', status: 'live',
+  })
+  const views = [1, 2, 3].map((n) => ({ ...reservedSolanaView(agentQuestion(n), Date.now()), question: agentQuestion(n) }))
+
+  test('twelve questions on one event are one directory entry, not twelve', () => {
+    const events = questionEvents(views)
+    expect(events.length).toBe(1)
+    expect(events[0].length).toBe(3)
+    // Separate events stay separate.
+    const other = { ...reservedSolanaView(agentQuestion(9), Date.now()), question: { ...agentQuestion(9), eventId: 'lazy-other' } }
+    expect(questionEvents([...views, other]).length).toBe(2)
+  })
+
+  test('the event title is the shared tail of its linked questions', () => {
+    expect(linkedQuestionTitle(views.map((view) => view.market.title)))
+      .toBe('Finish Season 01 with the most kills?')
+  })
+
+  test('a lone question keeps its own label, and unrelated questions do not invent one', () => {
+    expect(linkedQuestionTitle(['Will it rain?'])).toBe('Will it rain?')
+    expect(linkedQuestionTitle(['Will it rain?', 'Who wins the cup?'])).toBe('Will it rain?')
+    expect(linkedQuestionTitle([])).toBe('')
   })
 })

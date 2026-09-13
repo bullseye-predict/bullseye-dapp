@@ -5,7 +5,7 @@ import { useMemo, type ReactNode } from 'react'
 import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { StatusDot, TeamMark, compact } from '../home/HomePrimitives'
 import { useHomeData } from '../home/useHomeData'
-import { standaloneQuestions, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
+import { linkedQuestionTitle, questionEvents, standaloneQuestions, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { SiteFooter } from '../solz/SiteFooter'
 import { SiteHeader } from '../solz/SiteHeader'
@@ -16,7 +16,7 @@ type Props = { apiUrl?: string; environmentId: string }
 
 /** A directory entry. A standalone question is not match-backed, so its title,
  *  status and market are supplied rather than derived from teams. */
-export type DirectoryRow = { match: SolzMatch; market?: ArenaMarket; title?: string; detail?: string; status?: string }
+export type DirectoryRow = { match: SolzMatch; market?: ArenaMarket; markets?: ArenaMarket[]; title?: string; detail?: string; status?: string }
 
 type MarketGroup = { title: string; detail: string; rows: DirectoryRow[]; empty: string }
 
@@ -81,22 +81,40 @@ function VersusCard({ row, now }: { row: DirectoryRow; now: number }) {
   </CardFrame>
 }
 
-/** More than two teams: no head-to-head exists, so each contender gets its own
- *  row and bar, ranked, with the tail collapsed into a count. */
-function FreeForAllCard({ row, now }: { row: DirectoryRow; now: number }) {
-  const odds = teamOdds(row.match, row.market).sort((a, b) => b.probability - a.probability)
-  const shown = odds.slice(0, 4)
-  return <CardFrame row={row} now={now} kind="ffa">
+/** One ranked row per contender, highest first, tail collapsed into a count.
+ *  Used for a team field and for a set of linked questions alike: both are a
+ *  field with no head-to-head to split. */
+function RankedCard({ row, now, kind, rows, note }: { row: DirectoryRow; now: number; kind: string; rows: { key: string; label: string; color?: string; probability: number }[]; note: string }) {
+  const ranked = [...rows].sort((a, b) => b.probability - a.probability)
+  const shown = ranked.slice(0, 4)
+  return <CardFrame row={row} now={now} kind={kind}>
     <div className="mk-ffa">
-      {shown.map(({ team, probability }) => <div className="mk-ffa-row" key={team.teamId}>
-        <TeamMark id={team.teamId} color={team.color}/>
-        <strong>{team.symbol}</strong>
-        <span className="mk-ffa-bar"><i style={{ width: percent(probability), background: team.color }}/></span>
-        <b>{percent(probability)}</b>
+      {shown.map((item) => <div className="mk-ffa-row" key={item.key}>
+        {item.color ? <TeamMark id={item.key} color={item.color}/> : <span className="mk-ffa-dot" aria-hidden="true"/>}
+        <strong>{item.label}</strong>
+        <span className="mk-ffa-bar"><i style={{ width: percent(item.probability), background: item.color ?? 'var(--sh-lime)' }}/></span>
+        <b>{percent(item.probability)}</b>
       </div>)}
     </div>
-    <div className="mk-card-note"><Users size={11}/>{row.match.teams.length} teams{odds.length > shown.length ? ` · ${odds.length - shown.length} more` : ''} · {row.match.roster.length} agents</div>
+    <div className="mk-card-note"><Users size={11}/>{note}{ranked.length > shown.length ? ` · ${ranked.length - shown.length} more` : ''}</div>
   </CardFrame>
+}
+
+function FreeForAllCard({ row, now }: { row: DirectoryRow; now: number }) {
+  const rows = teamOdds(row.match, row.market).map(({ team, probability }) => ({ key: team.teamId, label: team.symbol, color: team.color, probability }))
+  return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={`${row.match.teams.length} teams${row.match.roster.length ? ` · ${row.match.roster.length} agents` : ''}`}/>
+}
+
+/** Several linked questions under one event: rank them by their YES price. */
+function LinkedQuestionsCard({ row, now }: { row: DirectoryRow; now: number }) {
+  const rows = (row.markets ?? []).map((market) => ({
+    key: market.id,
+    // The subject is what differs between linked questions; the shared tail is
+    // already the card title, so showing it on every row would be noise.
+    label: market.title.replace(/^Will\s+/i, '').replace(/\s+finish.*$/i, '') || market.title,
+    probability: market.outcomes[0]?.probability ?? .5,
+  }))
+  return <RankedCard row={row} now={now} kind="linked" rows={rows} note={`${rows.length} linked questions`}/>
 }
 
 /** A standalone question has no teams at all: it trades as a plain YES/NO pair. */
@@ -114,7 +132,7 @@ function QuestionCard({ row, now }: { row: DirectoryRow; now: number }) {
 /** Three shapes, chosen by what the market actually is: no teams is a plain
  *  question, exactly two is a head-to-head, anything else is a ranked field. */
 export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
-  if (!row.match.teams.length) return <QuestionCard row={row} now={now}/>
+  if (!row.match.teams.length) return (row.markets?.length ?? 0) > 1 ? <LinkedQuestionsCard row={row} now={now}/> : <QuestionCard row={row} now={now}/>
   if (row.match.teams.length === 2) return <VersusCard row={row} now={now}/>
   return <FreeForAllCard row={row} now={now}/>
 }
@@ -154,13 +172,17 @@ export function MarketsDirectoryApp({ apiUrl = '', environmentId }: Props) {
   // Only questions with no arena match behind them. An arena-backed question
   // already appears as its match card, and listing it here would duplicate it.
   const questions = useMemo<DirectoryRow[]>(
-    () => standaloneQuestions(reserved.questions, snapshot?.matches ?? []).map(({ match, market, question }) => ({
-      match,
-      market,
-      title: market.title,
-      detail: `${match.map} · LOCKS ${lockLabel(match.endsAt)}`,
-      status: question.status === 'live' ? 'LIVE NOW' : 'RESERVED',
-    })),
+    () => questionEvents(standaloneQuestions(reserved.questions, snapshot?.matches ?? [])).map((views) => {
+      const markets = views.map((view) => view.market)
+      return {
+        match: views[0].match,
+        market: views[0].market,
+        markets,
+        title: linkedQuestionTitle(markets.map((market) => market.title)),
+        detail: `${views[0].match.map} · LOCKS ${lockLabel(views[0].match.endsAt)}`,
+        status: views[0].question.status === 'live' ? 'LIVE NOW' : 'RESERVED',
+      }
+    }),
     [reserved.questions, snapshot?.matches],
   )
   return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl}>{(session) => <MarketDirectory snapshot={snapshot} questions={questions} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>

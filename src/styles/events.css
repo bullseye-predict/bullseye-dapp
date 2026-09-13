@@ -47,6 +47,12 @@
 .ev-scoreboard.is-ffa b { font-size: 22px; margin-left: 0; }
 .ev-screen { height: clamp(275px, 24vw, 390px); position: relative; border: 1px solid #393c45; background: #171a1f; }
 .ev-screen > [role='tabpanel'] { position: absolute; inset: 0; min-width: 0; }
+/* With no broadcast there is nothing to stack the chart against, so the box
+   sizes to its content instead of spilling a taller empty state out of a
+   fixed-height video frame. Scoped to .ev-app because the responsive
+   .ev-screen heights further down this file would otherwise clamp it back. */
+.ev-app .ev-screen--single { height: auto; min-height: clamp(275px, 24vw, 390px); display: grid; }
+.ev-app .ev-screen--single > [role='tabpanel'] { position: static; }
 .ev-screen .sh-broadcast { height: 100%; aspect-ratio: auto; }
 .ev-screen .sh-broadcast:fullscreen { height: 100vh; }
 .ev-screen .sh-broadcast-bottom h2 { font-size: 25px; }
