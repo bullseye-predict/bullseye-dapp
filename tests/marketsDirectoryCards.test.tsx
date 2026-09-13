@@ -48,7 +48,7 @@ test('a standalone question renders YES/NO instead of any team layout', () => {
     eventId: 'lazy-534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
     matchId: '0x534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
     questionId: '0x515545530102686967686573742d6b696c6c2d6167656e742d736561736f6e2d',
-    marketId: 'CtzDdaGDQ2yPrXYvupmEYxddLWFNn4aJ2e5xaBcGcRNu',
+    marketId: 'Fof6MKW3arFMnmFPe8gnXymAYTgdFVVrdQofqBx6c5Bx',
     label: 'Which agent finishes Season 01 with the most kills? (SPRITE)',
     outcomes: ['YES', 'NO'], scheduledStartAt: '2026-09-13T22:38:56.000Z', status: 'live',
   }
