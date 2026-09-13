@@ -27,12 +27,6 @@ function configuredGameOrigin(runtimeEnv: Record<string, unknown> = {}) {
     .replace(/\/+$/, '')
 }
 
-const publicRegions = [
-  { label: 'North America', url: 'https://us-lax-ffc03a4f.colyseus.cloud' },
-  { label: 'Asia', url: 'https://sg-sgp-577148dd.colyseus.cloud' },
-  { label: 'Europe', url: 'https://de-fra-bb2d679b.colyseus.cloud' },
-] as const
-
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -98,7 +92,13 @@ function publicMatch(match: ActivityMatch, region: string) {
 export const GET: APIRoute = async ({ locals }) => {
   const runtimeEnv = (locals as { runtime?: { env?: Record<string, unknown> } }).runtime?.env ?? {}
   const configuredUrl = configuredColyseusUrl(runtimeEnv)
-  const sources = configuredUrl ? [{ label: 'Configured arena', url: httpOrigin(configuredUrl) }] : publicRegions
+  // No production fallback. An unset URL must fail loudly instead of silently
+  // pointing local development at the deployed Colyseus Cloud regions.
+  if (!configuredUrl) return json({
+    code: 'solz_colyseus_not_configured',
+    message: 'SOLZ_COLYSEUS_SERVER_URL is unset in solz-prediction-market. Refusing to guess an upstream.',
+  }, 503)
+  const sources = [{ label: 'Configured arena', url: httpOrigin(configuredUrl) }]
   try {
     const results = await Promise.allSettled(sources.map(async (source) => ({ source, activity: await readJson(`${source.url}/activity`) })))
     const available = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
@@ -108,7 +108,7 @@ export const GET: APIRoute = async ({ locals }) => {
     return json({
       generatedAt: Date.now(),
       colyseusUrl: primary.source.url,
-      gameOrigin: configuredGameOrigin(runtimeEnv) || 'https://solz.fun',
+      gameOrigin: configuredGameOrigin(runtimeEnv),
       activity: primary.activity,
       matches: available.flatMap(({ source, activity }) => activityMatches(activity).flatMap((match) => {
         const result = publicMatch(match, source.label)

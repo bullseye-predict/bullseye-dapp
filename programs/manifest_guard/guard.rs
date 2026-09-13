@@ -54,13 +54,26 @@ fn open(config: &AccountView, question: &AccountView, b: &Binding, trading: bool
     need(config.pubkey() == &Pubkey::find_program_address(&[b"prediction_config"], &PREDICTION).0)?;
     let c = config.try_borrow()?; let q = question.try_borrow()?;
     need(c.len() == 138 && &c[..8] == b"SOLZCFG1" && key(&c,72)? == b.quote)?;
-    need(q.len() == 231 && &q[..8] == b"SOLZMKT2" && q[230] == 1 && key(&q,40)? == b.quote && q[169] == 2)?;
-    need(question.pubkey() == &Pubkey::find_program_address(&[b"market", &q[8..40]], &PREDICTION).0)?;
+    let lazy = q.len() == 263 && &q[..8] == b"SOLZMKT3";
+    let legacy = q.len() == 231 && &q[..8] == b"SOLZMKT2";
+    need(lazy || legacy)?;
+    let (question_id, mint_at, starts_at, locks_at, status_at, outcomes_at, paused_at, guarded_at) = if lazy {
+        (&q[40..72], 72, 168, 176, 200, 201, 203, 262)
+    } else {
+        (&q[0..0], 40, 136, 144, 168, 169, 171, 230)
+    };
+    need(q[guarded_at] == 1 && key(&q,mint_at)? == b.quote && q[outcomes_at] == 2)?;
+    let expected = if question_id.iter().any(|byte| *byte != 0) {
+        Pubkey::find_program_address(&[b"market", &q[8..40], question_id], &PREDICTION).0
+    } else {
+        Pubkey::find_program_address(&[b"market", &q[8..40]], &PREDICTION).0
+    };
+    need(question.pubkey() == &expected)?;
     if trading {
         let now = Clock::get()?.unix_timestamp;
-        let starts = i64::from_le_bytes(q[136..144].try_into().map_err(|_| ERR)?);
-        let locks = i64::from_le_bytes(q[144..152].try_into().map_err(|_| ERR)?);
-        need(c[136] == 0 && q[171] == 0 && q[168] <= 1 && now >= starts && now < locks)?;
+        let starts = i64::from_le_bytes(q[starts_at..starts_at+8].try_into().map_err(|_| ERR)?);
+        let locks = i64::from_le_bytes(q[locks_at..locks_at+8].try_into().map_err(|_| ERR)?);
+        need(c[136] == 0 && q[paused_at] == 0 && q[status_at] <= 1 && now >= starts && now < locks)?;
     }
     Ok(())
 }

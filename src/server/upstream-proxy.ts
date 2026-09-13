@@ -23,7 +23,7 @@ function predictionOrigin(runtime: RuntimeEnv) {
         ? process.env.PUBLIC_PREDICTION_API_URL
         : undefined) ??
       import.meta.env.PUBLIC_PREDICTION_API_URL ??
-      "https://coola-backend-production.up.railway.app",
+      "",
   )
     .trim()
     .replace(/\/+$/, "");
@@ -58,7 +58,7 @@ export async function proxyPrediction(
   const origin = predictionOrigin(runtime);
   if (!validOrigin(origin))
     return Response.json(
-      { error: "Prediction API origin is invalid." },
+      { error: "PUBLIC_PREDICTION_API_URL is unset or invalid in solz-prediction-market. Refusing to guess an upstream." },
       { status: 503 },
     );
   const target = new URL(`/${path ?? ""}`, `${origin}/`);
