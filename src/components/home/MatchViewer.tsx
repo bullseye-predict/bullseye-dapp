@@ -27,6 +27,7 @@ import { HighlightChart } from "./HighlightChart";
 import { PredictionOptions } from "./PredictionOptions";
 import { HeroActivity } from "./HeroActivity";
 import { matchIdLabel, teamLabel, type HighlightView } from "./heroMarket";
+import { needsIframeWarning, useArenaPerformance, type ArenaPerformance } from "./useArenaPerformance";
 
 // Stable source identity keeps market ticks independent from playback.
 type ArenaBroadcastStatus = {
@@ -52,20 +53,24 @@ const BroadcastMedia = memo(function BroadcastMedia({
 }) {
   const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<"iframe" | "video">("video");
+  const [iframeWarning, setIframeWarning] = useState<ArenaPerformance | null>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
-  const iframePreference = "solz:agent-arena:iframe-enabled";
+  const performanceDialog = useRef<HTMLDialogElement>(null);
+  const { inspect } = useArenaPerformance();
 
   useEffect(() => {
-    if (source || typeof window === "undefined") return;
-    if (window.localStorage.getItem(iframePreference) === "true")
-      setMode("iframe");
-  }, [source]);
+    if (iframeWarning && !performanceDialog.current?.open) performanceDialog.current?.showModal();
+  }, [iframeWarning]);
 
   const chooseMode = (next: "iframe" | "video") => {
     setMode(next);
     setFailed(false);
-    if (typeof window !== "undefined")
-      window.localStorage.setItem(iframePreference, String(next === "iframe"));
+  };
+  const requestMode = async (next: "iframe" | "video") => {
+    if (next === "video") { chooseMode(next); return; }
+    const profile = await inspect();
+    if (needsIframeWarning(profile)) { setIframeWarning(profile); return; }
+    chooseMode(next);
   };
 
   useEffect(() => {
@@ -135,8 +140,6 @@ const BroadcastMedia = memo(function BroadcastMedia({
           onError={() => {
             setFailed(true);
             setMode("video");
-            if (typeof window !== "undefined")
-              window.localStorage.setItem(iframePreference, "false");
           }}
         />
       ) : (
@@ -152,7 +155,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
               if your device can handle the load.
             </p>
             <div>
-              <button type="button" onClick={() => chooseMode("iframe")}>
+              <button type="button" onClick={() => void requestMode("iframe")}>
                 <Play size={13} fill="currentColor" aria-hidden="true" />
                 Use iframe streaming
               </button>
@@ -178,18 +181,27 @@ const BroadcastMedia = memo(function BroadcastMedia({
         <button
           type="button"
           aria-pressed={iframeActive}
-          onClick={() => chooseMode("iframe")}
+          onClick={() => void requestMode("iframe")}
         >
           Iframe
         </button>
         <button
           type="button"
           aria-pressed={!iframeActive}
-          onClick={() => chooseMode("video")}
+          onClick={() => void requestMode("video")}
         >
           Video
         </button>
       </div>
+      <dialog ref={performanceDialog} className="ch-event-dialog ch-performance-dialog" onClose={() => setIframeWarning(null)} aria-labelledby="iframe-performance-title">
+        {iframeWarning && <>
+          <div><span className="ch-simulation">PERFORMANCE CHECK</span><button aria-label="Keep video source" onClick={() => performanceDialog.current?.close()}><X size={20}/></button></div>
+          <h2 id="iframe-performance-title">Iframe may reduce playback quality.</h2>
+          <p>Your GPU benchmark is {iframeWarning.fps === null ? 'below the recommended tier' : `${Math.round(iframeWarning.fps)} FPS`}. The direct game iframe can add rendering work and may cause dropped frames.</p>
+          <dl><div><dt>GPU tier</dt><dd>{iframeWarning.tier} / 3</dd></div><div><dt>Detected GPU</dt><dd>{iframeWarning.gpu ?? 'Unavailable'}</dd></div><div><dt>Benchmark</dt><dd>{iframeWarning.type.replaceAll('_', ' ')}</dd></div></dl>
+          <div className="ch-performance-actions"><button type="button" onClick={() => performanceDialog.current?.close()}>Stay on video</button><button type="button" onClick={() => { chooseMode('iframe'); performanceDialog.current?.close() }}>Continue to iframe</button></div>
+        </>}
+      </dialog>
     </>
   );
 });

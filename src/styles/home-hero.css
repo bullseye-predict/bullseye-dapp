@@ -321,6 +321,14 @@
 .ch-event-dialog dl > div { display: flex; justify-content: space-between; gap: 15px; }
 .ch-event-dialog dd { margin: 0; }
 .ch-event-dialog .ch-dialog-note { font-size: 10px; margin-top: 16px; color: #abb7c8; }
+.ch-performance-dialog { max-width: 520px; }
+.ch-performance-dialog dl { margin-bottom: 18px; }
+.ch-performance-dialog dd { max-width: 28ch; overflow: hidden; color: #edf0f5; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.ch-performance-actions { display: flex !important; justify-content: flex-end !important; gap: 8px; margin: 0 !important; }
+.ch-performance-actions button { min-height: 36px; padding: 0 12px; border: 1px solid #68727e; background: transparent; color: #edf0f5; font: 600 10px var(--sh-mono); }
+.ch-performance-actions button:hover { border-color: var(--sh-lime); color: var(--sh-lime); }
+.ch-performance-actions button:last-child { border-color: var(--sh-lime); background: var(--sh-lime); color: #15180c; }
+.ch-performance-actions button:last-child:hover { background: #d9ff61; color: #15180c; }
 @media (min-width: 1500px) { .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 360px; } }
 @media (max-width: 1190px) {
   .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 315px; gap: 14px; }

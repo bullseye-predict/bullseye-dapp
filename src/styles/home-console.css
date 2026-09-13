@@ -40,6 +40,23 @@
 .ch-console-empty { min-height: 260px; display: grid; align-content: center; gap: 8px; padding: 22px; color: var(--ch-ink); }
 .ch-console-empty strong { font-size: 13px; }
 .ch-console-empty span { color: var(--ch-muted); font-size: 10px; line-height: 1.6; }
+/* Disabled trade ticket. Keeps the real ticket's shape so an empty feed reads as
+   "nothing to trade yet" rather than a broken panel. Inert: no inputs, no focus
+   stops, and the fields are aria-hidden so a screen reader hears only the notice. */
+.ch-trade-skeleton { display: grid; gap: 14px; padding: 18px; min-height: 260px; align-content: start; }
+.ch-trade-skeleton__notice { display: grid; gap: 8px; color: var(--ch-ink); }
+.ch-trade-skeleton__notice strong { font-size: 13px; }
+.ch-trade-skeleton__notice span { color: var(--ch-muted); font-size: 10px; line-height: 1.6; }
+.ch-trade-skeleton__outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ch-trade-skeleton__outcomes span { padding: 16px 12px; border: 1px solid var(--ch-line); background: var(--ch-field); color: var(--ch-muted); font-size: 12px; text-align: center; opacity: .5; }
+.ch-trade-skeleton__fields { display: grid; gap: 9px; margin: 0; }
+.ch-trade-skeleton__fields > div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--ch-line); }
+.ch-trade-skeleton__fields dt { color: var(--ch-muted); font-size: 10px; }
+.ch-trade-skeleton__fields dd { margin: 0; color: var(--ch-muted); font-size: 11px; }
+.ch-trade-skeleton__action { width: 100%; padding: 13px; border: 1px solid var(--ch-line); background: var(--ch-field); color: var(--ch-muted); font: inherit; font-size: 12px; opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: no-preference) { .ch-trade-skeleton[aria-busy="true"] .ch-trade-skeleton__outcomes span { animation: ch-skeleton-pulse 2.4s ease-in-out infinite; } }
+@keyframes ch-skeleton-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .28; } }
+
 .ch-integration-warning { margin: 0 0 11px; padding: 9px 10px; border: 1px solid #866b34; background: #332b1d; color: #f2d99f; font-size: 9px; line-height: 1.55; }
 .ch-console-automate .ch-integration-warning { border-color: #775f31; background: #eee0bd; color: #493813; }
 .ch-prompt-accordion .ch-integration-warning { margin: 0 0 9px; }

@@ -1,10 +1,48 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Check, Eye, Trophy } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import type { QueueSlot, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
 import { amountLabel, StatusDot, TeamMark } from './HomePrimitives'
 import type { SolzWatchMatch } from './useSolzWatchMatches'
 import '../../styles/home-community.css'
+
+function matchTeams(match: SolzMatch) {
+  return match.teams.length > 2
+    ? `${match.teams.length}-TEAM FREE FOR ALL`
+    : match.teams.map((team) => team.symbol).join(' VS ')
+}
+
+function matchStart(match: SolzMatch, now: number) {
+  const remaining = Math.max(0, match.startedAt - now)
+  if (remaining < 60_000) return 'NOW'
+  if (remaining < 3_600_000) return `IN ${formatClock(remaining)}`
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(match.startedAt)
+}
+
+function matchGradient(match: SolzMatch) {
+  const colors = match.teams.map((team) => team.color).filter(Boolean)
+  return `linear-gradient(105deg, ${colors.length ? colors.join(', ') : '#384858, #202a32'})`
+}
+
+/** Scheduled matches remain a horizontal browse surface so the arena stays the page focus. */
+export function NextMatches({ snapshot, eventBasePath }: { snapshot: SolzSnapshot | null; eventBasePath: string }) {
+  const matches = (snapshot?.matches ?? [])
+    .filter((match) => match.phase === 'countdown' || match.phase === 'queued')
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .slice(0, 8)
+  return <section className="sh-next-matches" aria-label="Upcoming match markets">
+    <div className="sh-next-match-rail" role="list">
+      {matches.map((match) => <a key={match.id} role="listitem" className="sh-next-match" style={{ '--next-match-gradient': matchGradient(match) } as CSSProperties} href={`${eventBasePath}/${encodeURIComponent(match.id)}`} aria-label={`Open early prediction market for ${matchTeams(match)}`}>
+        <div><span className="sh-next-status">UP NEXT · {matchStart(match, snapshot!.updatedAt)}</span><ArrowUpRight size={15}/></div>
+        <div className="sh-next-matchup"><span className="sh-next-teams" aria-hidden="true">{match.teams.map((team) => <TeamMark key={team.teamId} id={team.teamId} color={team.color}/>)}</span><strong>{matchTeams(match)}</strong></div>
+      </a>)}
+      {Array.from({ length: Math.max(0, 5 - matches.length) }, (_, index) => <div key={`pending-${index}`} role="listitem" className="sh-next-match sh-next-match--empty">
+        <span className="sh-next-status">UP NEXT · TO BE ANNOUNCED</span>
+        <strong>COMING NEXT</strong>
+      </div>)}
+    </div>
+  </section>
+}
 
 export function LiveMatches({ feed, watchHref }: { feed: { matches: SolzWatchMatch[]; loading: boolean; error: string }; watchHref: string }) {
   const [page, setPage] = useState(0)

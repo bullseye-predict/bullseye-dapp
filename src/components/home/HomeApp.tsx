@@ -1,4 +1,5 @@
 import "../../styles/home.css";
+import "../../styles/home-markets.css";
 import { Toaster } from 'sonner'
 import "../../styles/home-hero.css";
 import {
@@ -21,7 +22,7 @@ import { SiteFooter } from "../solz/SiteFooter";
 import { TradeContextBar } from "./TradeContextBar";
 import { MatchViewer } from "./MatchViewer";
 import { InteractionConsole, type ConsoleSection } from "./InteractionConsole";
-import { ArenaEntry, LiveMatches, TeamStandings } from "./CommunitySections";
+import { ArenaEntry, LiveMatches, NextMatches, TeamStandings } from "./CommunitySections";
 import { GenesisAgents } from "./GenesisAgents";
 import { StatusDot } from "./HomePrimitives";
 import type { PredictionAnswer } from "../solz/predictionContracts";
@@ -462,12 +463,13 @@ function Home({
       </a>
       <SiteHeader
         homeHref="/"
+        marketsHref="/markets"
         walletControl={walletControl}
         active={view === "market" ? "markets" : "highlight"}
         onArena={() => setView("live")}
-        onMarkets={() => setView("market")}
       />
       <main className="sh-main">
+        <NextMatches snapshot={snapshot} eventBasePath={eventBasePath} />
         <section
           className="sh-highlight-section"
           ref={highlight}

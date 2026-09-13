@@ -16,6 +16,7 @@
         "@dynamic-labs/solana": "5.6.1",
         "@dynamic-labs/solana-core": "5.6.1",
         "@meteora-ag/cp-amm-sdk": "1.4.8",
+        "@pmndrs/detect-gpu": "^6.0.22",
         "@scure/base": "1.2.6",
         "@solana/compat": "^8.3.0",
         "@solana/kit": "^8.3.0",
@@ -552,6 +553,8 @@
     "@phosphor-icons/webcomponents": ["@phosphor-icons/webcomponents@2.1.5", "", { "dependencies": { "lit": "^3" } }, "sha512-JcvQkZxvcX2jK+QCclm8+e8HXqtdFW9xV4/kk2aL9Y3dJA2oQVt+pzbv1orkumz3rfx4K9mn9fDoMr1He1yr7Q=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
+
+    "@pmndrs/detect-gpu": ["@pmndrs/detect-gpu@6.0.22", "", {}, "sha512-CRoNJOwHg0Xlp/67seTqvWYXhHro3p1YLmkx50eezt/hjlz97nA1HF7fPiJbpH8qghpsr0dFNV2W80v46OFbHg=="],
 
     "@poppinss/colors": ["@poppinss/colors@4.1.6", "", { "dependencies": { "kleur": "^4.1.5" } }, "sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg=="],
 

@@ -235,12 +235,28 @@ export function InteractionConsole({
               simulation={simulation}
             />
           ) : (
-            <div className="ch-console-empty" role="status">
-              <strong>Prediction feed unavailable.</strong>
-              <span>
-                The trade ticket will populate when match questions return.
-                Other arena controls remain independent.
-              </span>
+            // Keep the ticket's shape while it has no data. A blank panel reads as a
+            // broken page; a disabled skeleton shows what will appear and where.
+            <div className="ch-trade-skeleton" role="status" aria-busy="true">
+              <div className="ch-trade-skeleton__notice">
+                <strong>Prediction feed unavailable.</strong>
+                <span>
+                  The trade ticket will populate when match questions return.
+                  Other arena controls remain independent.
+                </span>
+              </div>
+              <div className="ch-trade-skeleton__outcomes" aria-hidden="true">
+                <span className="is-yes">YES</span>
+                <span className="is-no">NO</span>
+              </div>
+              <dl className="ch-trade-skeleton__fields" aria-hidden="true">
+                <div><dt>Limit price</dt><dd>—</dd></div>
+                <div><dt>Shares</dt><dd>—</dd></div>
+                <div><dt>Available shares</dt><dd>—</dd></div>
+                <div><dt>Expires</dt><dd>—</dd></div>
+                <div><dt>Payout if filled &amp; correct</dt><dd>—</dd></div>
+              </dl>
+              <button type="button" className="ch-trade-skeleton__action" disabled>Trade</button>
             </div>
           ))}
       </ConsolePanel>
