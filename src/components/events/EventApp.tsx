@@ -2,12 +2,13 @@ import '../../styles/home.css'
 import '../../styles/home-hero.css'
 import '../../styles/events.css'
 import { ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Crosshair, Eye, Link as LinkIcon, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DynamicSolanaSession, type DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { useHomeData } from '../home/useHomeData'
-import { resolveQuestionEvent, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
+import { resolveQuestionEvent, useReservedSolanaQuestions, type ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
+import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
 import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
@@ -24,6 +25,10 @@ import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predict
 type Props = { apiUrl?: string; environmentId: string; eventId: string; predictionId?: string; initialOutcomeId?: string; variant: EventVariant; paths: EventPaths }
 
 export function EventApp({ environmentId, ...props }: Props) {
+  // The page ships a server-rendered skeleton because this island is
+  // client:only. Drop it synchronously as this tree takes over, so the two
+  // never paint in the same frame.
+  useLayoutEffect(() => { document.getElementById('boot-skeleton')?.remove() }, [])
   const source = useMemo(() => createSolzDataSource(), [])
   const { snapshot, error, retry } = useHomeData(source)
   // A canonical Solana question is not an arena match, so it is absent from the
@@ -31,12 +36,12 @@ export function EventApp({ environmentId, ...props }: Props) {
   // can open a standalone question exactly like a match-backed market.
   const solanaVenue = useSolanaVenue(props.apiUrl ?? '')
   const reserved = useReservedSolanaQuestions(props.apiUrl ?? '', solanaVenue)
-  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={props.apiUrl}>{(session) => <EventShell {...props} reserved={reserved} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={props.apiUrl}>{(session) => <EventShell {...props} reserved={reserved} solanaVenue={solanaVenue} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
 }
 
 type ReservedCatalogue = ReturnType<typeof useReservedSolanaQuestions>
 
-function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, walletControl, reserved }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; walletControl: ReactNode; session: DynamicSolanaSessionValue; reserved: ReservedCatalogue }) {
+function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, walletControl, reserved, solanaVenue }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; walletControl: ReactNode; session: DynamicSolanaSessionValue; reserved: ReservedCatalogue; solanaVenue: PublicPredictionVenue | null }) {
   const arenaMatch = snapshot ? resolveEvent(snapshot, eventId) : undefined
   // Only consult the question catalogue when the arena has no such event, so a
   // real match is never shadowed by a reservation that shares its id.
@@ -55,12 +60,43 @@ function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, 
     <a className="sh-skip-link" href="#event-content">Skip to event</a>
     <div className="sh-utility"><span><Crosshair size={12}/> AUTONOMOUS AGENT NETWORK</span><span>EVENT PREVIEW <i/> SIMULATED ACTIVITY &amp; CREDITS</span><div><a href={paths.demo}>Demo <ArrowUpRight size={12}/></a><a href={paths.live}>Live arena <ArrowUpRight size={12}/></a></div></div>
     <SiteHeader homeHref={paths.home} marketsHref="/markets" walletControl={walletControl} active="highlight"/>
-    {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot || pending ? <main className="ev-load-state" id="event-content" aria-busy="true"><div className="ev-skeleton"/><p role="status">Loading the event…</p></main> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
+    {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets} solanaQuestion={question?.question} solanaVenue={solanaVenue}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
     <SiteFooter homeHref={paths.home} backToTopHref="#event-content" />
   </div>
 }
 
-function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; session: DynamicSolanaSessionValue; questionMarkets?: ArenaMarket[] }) {
+/** Mirrors the real three-column layout so the page does not reflow when data
+ *  arrives. The page is client:only, so this is the first structure a visitor
+ *  sees; a single grey box read as a broken page. */
+function EventSkeleton() {
+  return <main className="ev-main ev-loading" id="event-content" aria-busy="true">
+    <p className="sr-only" role="status">Loading the event…</p>
+    <div className="ev-layout-bar"><span className="ev-sk ev-sk-line" style={{ width: 96 }}/></div>
+    <div className="ev-layout" aria-hidden="true">
+      <aside className="ev-left-rail"><div className="ev-sk-rail">
+        <span className="ev-sk ev-sk-line" style={{ width: '60%' }}/>
+        {[0, 1, 2, 3].map((key) => <span className="ev-sk ev-sk-row" key={key}/>)}
+      </div></aside>
+      <div className="ev-center">
+        <div className="ev-sk-heading">
+          <span className="ev-sk ev-sk-line" style={{ width: 168 }}/>
+          <span className="ev-sk ev-sk-title"/>
+          <span className="ev-sk ev-sk-line" style={{ width: '46%' }}/>
+        </div>
+        <span className="ev-sk ev-sk-stage"/>
+        <div className="ev-sk-markets">{[0, 1, 2].map((key) => <span className="ev-sk ev-sk-market" key={key}/>)}</div>
+      </div>
+      <aside className="ev-right-rail"><div className="ev-sk-ticket">
+        <span className="ev-sk ev-sk-line" style={{ width: '70%' }}/>
+        <div className="ev-sk-pair"><span className="ev-sk ev-sk-chip"/><span className="ev-sk ev-sk-chip"/></div>
+        <span className="ev-sk ev-sk-line" style={{ width: '40%' }}/>
+        <span className="ev-sk ev-sk-button"/>
+      </div></aside>
+    </div>
+  </main>
+}
+
+function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets, solanaQuestion, solanaVenue }: Omit<Props, 'environmentId'> & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; session: DynamicSolanaSessionValue; questionMarkets?: ArenaMarket[]; solanaQuestion?: ReservedSolanaQuestion; solanaVenue?: PublicPredictionVenue | null }) {
   // A standalone question has no row in the arena snapshot; its markets are
   // supplied directly and are the only markets this event has.
   const markets = questionMarkets ?? snapshot.markets.filter((item) => item.matchId === match.id)
@@ -110,7 +146,7 @@ function EventDetail({ apiUrl = '', session, eventId, predictionId, initialOutco
         <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} hideComments={variant === 'community'}/>
         <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
       </div>
-      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} simulation={true} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
+      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={solanaQuestion ? 'fUSDC' : undefined} simulation={!solanaQuestion} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
     </div>
     {notice && <div className="ev-toast" role="status"><Check size={15}/>{notice}</div>}
   </main>

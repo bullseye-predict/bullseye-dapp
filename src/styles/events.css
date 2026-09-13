@@ -314,6 +314,28 @@
 .ev-load-state h1 { font-size: 30px; }
 .ev-load-state p { font-size: 12px; color: #b8c3d4; line-height: 1.9; }
 .ev-skeleton { width: 100%; height: 220px; background: #242930; border: 1px solid #39414c; }
+
+/* Loading skeleton. Shapes match the real layout so nothing jumps when the
+   data lands, and the sweep stops for reduced-motion users. */
+.ev-loading { padding-top: 0; }
+.ev-sk { display: block; position: relative; overflow: hidden; background: #21252b; border-radius: 3px; }
+.ev-sk::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .06) 55%, transparent);
+  animation: ev-shimmer 1.35s ease-in-out infinite; }
+@keyframes ev-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .ev-sk::after { animation: none; } }
+.ev-sk-line { height: 10px; }
+.ev-sk-title { width: 72%; height: 34px; margin: 14px 0 10px; }
+.ev-sk-stage { width: 100%; aspect-ratio: 16 / 9; max-height: 430px; border-radius: 5px; }
+.ev-sk-rail, .ev-sk-ticket { display: grid; gap: 11px; padding: 14px; border: 1px solid #2a2b31; border-radius: 5px; }
+.ev-sk-row { height: 42px; }
+.ev-sk-heading { display: grid; justify-items: start; padding: 4px 0 20px; }
+.ev-sk-markets { display: grid; gap: 11px; margin-top: 22px; }
+.ev-sk-market { height: 74px; }
+.ev-sk-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.ev-sk-chip { height: 52px; }
+.ev-sk-button { height: 46px; margin-top: 4px; }
+@media (max-width: 1100px) { .ev-sk-rail, .ev-sk-ticket { display: none; } }
 .ev-toast { position: fixed; z-index: 40; bottom: 25px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 9px; background: #d1f694; color: #17220c; padding: 14px 20px; font-size: 11px; max-width: calc(100% - 30px); }
 .ev-mobile-actions, .ev-mobile-rail-heading { display: none; }
 @media (min-width: 1700px) {

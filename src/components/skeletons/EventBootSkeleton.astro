@@ -1,0 +1,77 @@
+---
+/**
+ * Server-rendered boot skeleton.
+ *
+ * Every app entry is `client:only`, so Astro ships an empty <astro-island> and
+ * the browser paints nothing at all until the React + wallet bundles hydrate.
+ * A skeleton living inside React cannot cover that window, because it is part
+ * of the very bundle being waited on. This markup is in the HTML document, so
+ * it paints on first byte and is removed the moment the island hydrates.
+ *
+ * Styles are inline on purpose: a linked stylesheet is one more round trip
+ * before anything appears, which is the problem this is here to solve.
+ */
+---
+<div id="boot-skeleton" aria-hidden="true">
+  <div class="bs-bar"><span class="bs bs-line" style="width:96px"></span></div>
+  <div class="bs-layout">
+    <aside class="bs-panel">
+      <span class="bs bs-line" style="width:60%"></span>
+      <span class="bs bs-row"></span><span class="bs bs-row"></span>
+      <span class="bs bs-row"></span><span class="bs bs-row"></span>
+    </aside>
+    <div>
+      <div class="bs-heading">
+        <span class="bs bs-line" style="width:168px"></span>
+        <span class="bs bs-title"></span>
+        <span class="bs bs-line" style="width:46%"></span>
+      </div>
+      <span class="bs bs-stage"></span>
+      <div class="bs-markets">
+        <span class="bs bs-market"></span><span class="bs bs-market"></span><span class="bs bs-market"></span>
+      </div>
+    </div>
+    <aside class="bs-panel">
+      <span class="bs bs-line" style="width:70%"></span>
+      <div class="bs-pair"><span class="bs bs-chip"></span><span class="bs bs-chip"></span></div>
+      <span class="bs bs-line" style="width:40%"></span>
+      <span class="bs bs-button"></span>
+    </aside>
+  </div>
+</div>
+
+<style is:inline>
+  #boot-skeleton { max-width: 1660px; margin: auto; padding: 26px 32px 52px; }
+  #boot-skeleton .bs-bar { min-height: 65px; display: flex; align-items: center; margin-bottom: 13px; border-bottom: 1px solid #2a2b31; }
+  #boot-skeleton .bs-layout { display: grid; grid-template-columns: 206px minmax(0, 1fr) 326px; gap: 26px; }
+  #boot-skeleton .bs-panel { display: grid; align-content: start; gap: 11px; padding: 14px; border: 1px solid #2a2b31; border-radius: 5px; }
+  #boot-skeleton .bs { display: block; position: relative; overflow: hidden; background: #21252b; border-radius: 3px; }
+  #boot-skeleton .bs::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.06) 55%, transparent);
+    animation: bs-shimmer 1.35s ease-in-out infinite; }
+  @keyframes bs-shimmer { to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { #boot-skeleton .bs::after { animation: none; } }
+  #boot-skeleton .bs-line { height: 10px; }
+  #boot-skeleton .bs-row { height: 42px; }
+  #boot-skeleton .bs-heading { display: grid; justify-items: start; padding: 4px 0 20px; }
+  #boot-skeleton .bs-title { width: 72%; height: 34px; margin: 14px 0 10px; }
+  #boot-skeleton .bs-stage { width: 100%; aspect-ratio: 16 / 9; max-height: 430px; border-radius: 5px; }
+  #boot-skeleton .bs-markets { display: grid; gap: 11px; margin-top: 22px; }
+  #boot-skeleton .bs-market { height: 74px; }
+  #boot-skeleton .bs-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  #boot-skeleton .bs-chip { height: 52px; }
+  #boot-skeleton .bs-button { height: 46px; }
+  @media (max-width: 1100px) { #boot-skeleton .bs-layout { grid-template-columns: 1fr; } #boot-skeleton .bs-panel { display: none; } }
+</style>
+
+<script is:inline>
+  // The app removes this itself as it mounts, which is later than
+  // astro:hydrate: the island hydrates before the lazy app chunk resolves, and
+  // dropping the skeleton at that point just flashes a spinner instead.
+  // This listener is only the failure path, so a bundle that never loads
+  // leaves a message rather than a skeleton shimmering forever.
+  document.addEventListener('astro:hydration-error', () => {
+    const node = document.getElementById('boot-skeleton')
+    if (node) node.innerHTML = '<p style="padding:40px 0;color:#b8c3d4;font:12px system-ui">This page failed to load. Please refresh.</p>'
+  }, { once: true })
+</script>

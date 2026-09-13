@@ -90,7 +90,9 @@ export type ReservedSolanaView = { match: SolzMatch; market: ArenaMarket; questi
 export function resolveQuestionEvent(views: readonly ReservedSolanaView[], eventId: string) {
   const view = views.find((item) => item.question.eventId === eventId)
   if (!view) return undefined
-  return { match: view.match, markets: views.filter((item) => item.match.id === view.match.id).map((item) => item.market) }
+  // The question travels with the match: the trade ticket needs it to open the
+  // market on-chain, not just to render a title.
+  return { match: view.match, question: view.question, markets: views.filter((item) => item.match.id === view.match.id).map((item) => item.market) }
 }
 
 /** The canonical QUES v1 kind byte: 01 is a question about one arena match, 02
