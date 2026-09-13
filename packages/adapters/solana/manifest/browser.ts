@@ -28,13 +28,25 @@ export class ManifestBrowserWallet {
     await this.signer()
     const connection = this.adapter.connection
     await this.planner?.assertNetwork()
-    const recent = this.planner ? await this.planner.latestBlockhash() : await connection.getLatestBlockhash('confirmed')
-    tx.feePayer = this.owner; tx.recentBlockhash = recent.blockhash
+    tx.feePayer = this.owner
     // Keep precompile-relative instruction indexes stable by appending the
     // budget instruction. Runtime preprocesses compute-budget instructions.
     tx.instructions.push(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }))
-    const simulation = await connection.simulateTransaction(tx)
-    if (simulation.value.err) throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`)
+    // A pooled RPC can answer getLatestBlockhash from one node and
+    // simulateTransaction from another that has not caught up to it, which comes
+    // back as BlockhashNotFound before any instruction has run. That is node skew,
+    // not a rejected trade, so refetch and retry instead of failing the trade.
+    let recent: { blockhash: string; lastValidBlockHeight: number }
+    let simulation: Awaited<ReturnType<typeof connection.simulateTransaction>>
+    for (let attempt = 0; ; attempt++) {
+      recent = this.planner ? await this.planner.latestBlockhash() : await connection.getLatestBlockhash('confirmed')
+      tx.recentBlockhash = recent.blockhash
+      simulation = await connection.simulateTransaction(tx)
+      if (!simulation.value.err) break
+      const stale = simulation.value.err === 'BlockhashNotFound'
+      if (!stale || attempt >= 3) throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`)
+      await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)))
+    }
     const consumed = simulation.value.unitsConsumed ?? 200_000
     tx.instructions[tx.instructions.length - 1] = ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(1_400_000, Math.max(50_000, Math.ceil(consumed * 1.15) + 5_000)) })
     const expected = Buffer.from(tx.serializeMessage())

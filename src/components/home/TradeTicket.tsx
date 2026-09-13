@@ -46,6 +46,7 @@ import type { LiveArenaWalletPort } from "../arena/liveArenaAdapter";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
+import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
@@ -980,16 +981,20 @@ export function TradeTicket({
           role={feedback.error ? "alert" : "status"}
         >
           {feedback.text}
-          {feedback.hash && (
-            <a
-              href={`https://shannon-explorer.somnia.network/tx/${feedback.hash}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {" "}
-              View transaction ↗
-            </a>
-          )}
+          {feedback.hash && (() => {
+            // The link must follow the venue the trade actually executed on.
+            // Hardcoding one chain's explorer sent every Solana signature to the
+            // Somnia explorer, where it does not exist.
+            const href = liveSolana
+              ? explorerTxUrl(solanaVenue, feedback.hash)
+              : explorerTxUrl({ family: "EVM", chainId: "50312", explorerUrl: "https://shannon-explorer.somnia.network" }, feedback.hash);
+            return href ? (
+              <a href={href} target="_blank" rel="noreferrer">
+                {" "}
+                View transaction ↗
+              </a>
+            ) : null;
+          })()}
         </p>
       )}
       {liveDreamDex && evmWallet && (
