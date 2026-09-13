@@ -145,3 +145,27 @@
 .solz-home .ch-console .ch-prompt-composer button { min-height: 36px; border-radius: 8px; padding: 8px 10px; }
 .solz-home .ch-console .ch-prompt-hint { margin-top: 8px; font-size: 9px; line-height: 1.6; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 250px; }
+
+
+/* Floating alert log, bottom-right. Above the trade dialog like the toasts, but
+   persistent: a toast disappears, this keeps the record until it is cleared. */
+.ch-alerts-dock { position: fixed; right: 16px; bottom: 16px; z-index: 2147483000; display: grid; justify-items: end; gap: 8px; }
+.ch-alerts-dock__toggle { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--ch-accent, #c9f24d); background: var(--ch-surface, #16181c); color: var(--ch-accent, #c9f24d); cursor: pointer; }
+.ch-alerts-dock__toggle:focus-visible { outline: 2px solid var(--ch-accent, #c9f24d); outline-offset: 2px; }
+.ch-alerts-dock__badge { position: absolute; top: -8px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px; display: grid; place-items: center; background: #d8443c; color: #fff; font-size: 10px; font-weight: 700; }
+.ch-alerts-dock__panel { width: min(360px, calc(100vw - 32px)); max-height: min(420px, 60vh); display: flex; flex-direction: column; border: 1px solid var(--ch-line); background: var(--ch-surface, #16181c); }
+.ch-alerts-dock__panel header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--ch-line); }
+.ch-alerts-dock__panel header strong { font-size: 11px; color: var(--ch-ink); }
+.ch-alerts-dock__panel header button { border: 1px solid var(--ch-line); background: transparent; color: var(--ch-muted); font: inherit; font-size: 10px; padding: 3px 8px; cursor: pointer; }
+.ch-alerts-dock__panel header button:hover { color: var(--ch-ink); }
+.ch-alerts-dock__panel ol { margin: 0; padding: 0; list-style: none; overflow-y: auto; }
+.ch-alerts-dock__panel li { display: grid; grid-template-columns: auto 1fr auto; gap: 9px; padding: 10px 12px; border-bottom: 1px solid var(--ch-line); align-items: start; }
+.ch-alerts-dock__panel li > div { display: grid; gap: 3px; min-width: 0; }
+.ch-alerts-dock__panel li strong { font-size: 11px; color: var(--ch-ink); }
+.ch-alerts-dock__panel li span { font-size: 10px; color: var(--ch-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.ch-alerts-dock__panel li a { font-size: 10px; color: var(--ch-accent, #c9f24d); }
+.ch-alerts-dock__panel li time { font-size: 9px; color: var(--ch-muted); opacity: .8; }
+.ch-alerts-dock__panel li.is-error strong { color: #f08a82; }
+.ch-alerts-dock__panel li.is-success strong { color: #5fc98a; }
+.ch-alerts-dock__panel li > button { border: 0; background: transparent; color: var(--ch-muted); cursor: pointer; padding: 0; line-height: 1; }
+.ch-alerts-dock__panel li > button:hover { color: var(--ch-ink); }

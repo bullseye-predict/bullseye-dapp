@@ -48,6 +48,7 @@ import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { toast } from "sonner";
+import { pushAlert } from "./alerts/store";
 import { dreamDexBinding } from "./venue/useVenueMarket";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
@@ -427,9 +428,13 @@ export function TradeTicket({
         const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client, (stage) => {
           const id = `solana-tx:${stage.step}`;
           if (stage.status === "signing") toast.loading(stage.step, { id, description: "Approve in your wallet" });
-          else if (stage.status === "failed") toast.error(stage.step, { id, description: stage.error });
+          else if (stage.status === "failed") {
+            toast.error(stage.step, { id, description: stage.error });
+            pushAlert({ id, level: "error", title: stage.step, detail: stage.error });
+          }
           else {
             const href = stage.signature ? explorerTxUrl(solanaVenue, stage.signature) : undefined;
+            pushAlert({ id, level: "success", title: stage.step, detail: "Confirmed on Solana", href });
             toast.success(stage.step, {
               id,
               description: "Confirmed on Solana",
@@ -478,6 +483,7 @@ export function TradeTicket({
             duration: 12_000,
             ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
           });
+          pushAlert({ id: `solana-order:${hash}`, level: "success", title: summary, detail: "Any amount not matched immediately remains as your limit order.", href });
           setFeedback({ text: `${summary}.`, hash });
         } finally {
           wallet.dispose();

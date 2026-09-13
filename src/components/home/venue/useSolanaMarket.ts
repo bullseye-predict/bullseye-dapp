@@ -35,19 +35,23 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean)
     async function load() {
       setRefreshing(true)
       try {
+        // Settled, not all: a question can have one outcome book activated and not
+        // the other, and one unreadable side must not blank the side that works.
         const [yes, no] = await Promise.all([0, 1].map(async outcome => {
-          const bound = await client.binding(binding!.marketId, outcome as 0 | 1)
-          return client.adapter.readBook(bound)
+          try {
+            const bound = await client.binding(binding!.marketId, outcome as 0 | 1)
+            return await client.adapter.readBook(bound)
+          } catch { return null }
         }))
         if (!active) return
+        const side = (b: { asks(): unknown[]; bids(): unknown[] } | null) =>
+          b ? { asks: levels(b.asks() as never[]), bids: levels(b.bids() as never[]) } : { asks: [], bids: [] }
+        const y = side(yes as never), n = side(no as never)
         setState({
           key,
           now: Date.now(),
-          error: null,
-          book: {
-            yesAsks: levels(yes!.asks() as never[]), yesBids: levels(yes!.bids() as never[]),
-            noAsks: levels(no!.asks() as never[]), noBids: levels(no!.bids() as never[]),
-          },
+          error: yes || no ? null : 'This question has no Manifest books yet.',
+          book: yes || no ? { yesAsks: y.asks, yesBids: y.bids, noAsks: n.asks, noBids: n.bids } : null,
         })
       } catch (reason) {
         // A question whose books are not activated yet is the normal pre-first-trade
