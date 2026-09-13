@@ -18,7 +18,7 @@ export function venueBinding(market: ArenaMarket): VenueBinding | null {
  * when a venue is added. Both implementations run unconditionally because hook
  * order must be stable, and each is gated by its own `enabled` flag.
  */
-export function useVenueMarket(market: ArenaMarket, owner?: string): VenueMarketView {
+export function useVenueMarket(market: ArenaMarket, owner?: string, enabled = true): VenueMarketView {
   const binding = venueBinding(market)
   const isDreamDex = binding?.family === 'DREAMDEX'
   const isSolana = binding?.family === 'SOLANA'
@@ -30,7 +30,10 @@ export function useVenueMarket(market: ArenaMarket, owner?: string): VenueMarket
     [market, isDreamDex],
   )
   const dreamDex = useDreamDexSnapshot(dreamDexMarket, owner)
-  const solana = useSolanaMarket(isSolana ? (binding as SolanaBinding) : null, isSolana)
+  // Gated: PredictionDetail mounts one of these per market, so polling every
+  // market's books at once multiplied a single refresh into ~96 RPC calls and
+  // tripped the provider rate limit. Only the panel on screen polls.
+  const solana = useSolanaMarket(isSolana && enabled ? (binding as SolanaBinding) : null, isSolana && enabled)
 
   return useMemo(() => {
     if (isSolana) return solana

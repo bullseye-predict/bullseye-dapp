@@ -41,8 +41,6 @@ import {
   useDreamDexSnapshot,
 } from "./useDreamDexSnapshot";
 import { parseUnits } from "viem";
-import type { DynamicEvmWalletPort } from "../arena/DynamicSolanaSession";
-import type { LiveArenaWalletPort } from "../arena/liveArenaAdapter";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { createManifestHybridClient } from "../../../packages/adapters/solana/manifest/hybrid";
@@ -50,6 +48,7 @@ import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { toast } from "sonner";
 import { pushAlert } from "./alerts/store";
 import { createToastIds } from "./alerts/toastIds";
+import { useEvmWallet, useSolanaWallet } from "../session/store";
 import { dreamDexBinding } from "./venue/useVenueMarket";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
@@ -67,13 +66,11 @@ type Props = {
   collateralSymbol?: string;
   dreamDexApiUrl?: string;
   onDreamDexOpened?: () => void;
-  evmWallet?: DynamicEvmWalletPort | null;
   match?: SolzMatch;
   buyAmount?: string;
   onBuyAmountChange?: (value: string) => void;
   preparing?: boolean;
   solana?: boolean;
-  solanaWallet?: LiveArenaWalletPort | null;
   solanaVenue?: PublicPredictionVenue | null;
   solanaQuestion?: ReservedSolanaQuestion;
   predictionApiUrl?: string;
@@ -90,17 +87,20 @@ export function TradeTicket({
   collateralSymbol = "COOLA",
   dreamDexApiUrl = "",
   onDreamDexOpened,
-  evmWallet = null,
   match,
   buyAmount,
   onBuyAmountChange,
   preparing = false,
   solana = false,
-  solanaWallet = null,
   solanaVenue = null,
   solanaQuestion,
   predictionApiUrl = "",
 }: Props) {
+  // The connected wallets come from the session store rather than four levels
+  // of props through components that never touched them.
+  const evmWallet = useEvmWallet();
+  const solanaWallet = useSolanaWallet();
+
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [type, setType] = useState<"market" | "limit">("market");
   const [orderTypeMenuOpen, setOrderTypeMenuOpen] = useState(false);

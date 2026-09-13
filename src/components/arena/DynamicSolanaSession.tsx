@@ -1,5 +1,6 @@
 import { WalletCards } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { setSession } from '../session/store'
 import DynamicSolanaSessionClient from './DynamicSolanaSessionClient'
 import DynamicWaasSolanaSessionClient from './DynamicWaasSolanaSessionClient'
 import type { LiveArenaWalletPort } from './liveArenaAdapter'
@@ -26,9 +27,22 @@ type Props = {
   children: (session: DynamicSolanaSessionValue) => ReactNode
 }
 
+/** Publishes the session to the store on the way through, so every consumer
+ *  below reads the wallets from one place instead of being handed them down a
+ *  chain of components that do not use them. The render prop is untouched:
+ *  walletControl is a ReactNode slot and stays a prop. */
+function PublishSession({ session, children }: { session: DynamicSolanaSessionValue; children: (session: DynamicSolanaSessionValue) => ReactNode }) {
+  const { wallet, evmWallet, walletAddress, walletReady } = session
+  useEffect(() => {
+    setSession({ solanaWallet: wallet, evmWallet, walletAddress, walletReady })
+  }, [wallet, evmWallet, walletAddress, walletReady])
+  return <>{children(session)}</>
+}
+
 export function DynamicSolanaSession({ children, environmentId, predictionApiUrl = '', allowEvm = false }: Props) {
+  const publish = (session: DynamicSolanaSessionValue) => <PublishSession session={session}>{children}</PublishSession>
   if (!environmentId) {
-    return children({
+    return publish({
       wallet: null,
       evmWallet: null,
       walletReady: false,
@@ -40,6 +54,6 @@ export function DynamicSolanaSession({ children, environmentId, predictionApiUrl
   // lifecycle as zero-engine. Keep the legacy mixed-chain client only for the
   // existing Somnia build until its EVM environment is moved to the modular
   // client; this prevents the Solana fix from regressing DreamDEX.
-  if (!allowEvm) return <DynamicWaasSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl}>{children}</DynamicWaasSolanaSessionClient>
-  return <DynamicSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl} allowEvm>{children}</DynamicSolanaSessionClient>
+  if (!allowEvm) return <DynamicWaasSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl}>{publish}</DynamicWaasSolanaSessionClient>
+  return <DynamicSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl} allowEvm>{publish}</DynamicSolanaSessionClient>
 }

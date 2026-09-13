@@ -8,6 +8,7 @@ import { accentStyle, AgentPortrait, compact, TeamMark } from './HomePrimitives'
 import { matchIdLabel, outcomeColor } from './heroMarket'
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { PredictionDetail } from './PredictionDetail'
+import { MarketErrorBoundary } from './MarketErrorBoundary'
 import { MatchAvatar } from '../portfolio/matchIdentity'
 
 type Props = {
@@ -70,9 +71,9 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
             <div className="ch-outcome-quote" aria-label={`${pick.label} market probability`}><b>{pick.probability > 0 && pick.probability < .01 ? '<1' : Math.round(pick.probability * 100)}%</b><small className={movement(pick).startsWith('↑') ? 'is-up' : movement(pick).startsWith('↓') ? 'is-down' : ''}>{movement(pick)}</small></div>
             <div>{(['yes', 'no'] as const).map((side) => <button className={`ch-answer is-${side}`} key={side} aria-label={`${side === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`} aria-pressed={active && picked && value === side} onClick={() => choose(pick, side)}><span className="ch-buy-label">Buy </span>{side === 'yes' ? 'Yes' : 'No'} <span>{displayedPrice(pick, side)}</span></button>)}</div>
           </div>
-          <AnimatedCollapse id={`outcome-${pick.id}`} labelledBy={`outcome-${pick.id}-button`} open={expanded}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} nested onSelect={choose}/></AnimatedCollapse>
+          <AnimatedCollapse id={`outcome-${pick.id}`} labelledBy={`outcome-${pick.id}-button`} open={expanded}><MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} nested onSelect={choose}/></MarketErrorBoundary></AnimatedCollapse>
         </section>
-      })}</div> : <PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/>}
+      })}</div> : <MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/></MarketErrorBoundary>}
     </AnimatedCollapse>
   </section>
 }

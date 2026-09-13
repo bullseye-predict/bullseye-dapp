@@ -13,7 +13,15 @@ export class ManifestAdapter {
   constructor(readonly connection: Connection, readonly deployment: ManifestDeployment) {
     if (deployment.manifestProgram.toBase58()==='MNFSTqtC93rEfYHB6hF82sKdZpUDFWkViLByLd1k1Ms' || deployment.manifestProgram.equals(deployment.predictionProgram)) throw new Error('A separate guarded Manifest deployment is required')
   }
-  async verifyDeployment() {
+  private verified?: Promise<Awaited<ReturnType<ManifestAdapter['runVerifyDeployment']>>>
+  /** The deployment cannot change under a live client, so verify once and reuse.
+   *  This previously re-ran on every binding() call, which made one order-book
+   *  poll cost two extra round trips per outcome and put the browser straight
+   *  into RPC 429s. A failure is not cached. */
+  verifyDeployment() {
+    return this.verified ??= this.runVerifyDeployment().catch(error => { this.verified = undefined; throw error })
+  }
+  private async runVerifyDeployment() {
     if (await this.connection.getGenesisHash()!==this.deployment.genesisHash) throw new Error('Wrong Solana genesis identity')
     const keys=[this.deployment.predictionProgram,this.deployment.manifestProgram,configAddress(this.deployment.predictionProgram)]
     const records=await this.connection.getMultipleAccountsInfo(keys,'confirmed')

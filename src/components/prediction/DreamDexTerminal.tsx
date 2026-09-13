@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useEvmWallet } from '../session/store'
 import type { BinarySide } from "@somnia-chain/markets-sdk";
 import type {
   Candle,
@@ -13,7 +14,6 @@ import { eventBinding } from "../../../packages/adapters/dreamdex/config";
 import { dreamDexNetwork } from "../../../packages/adapters/dreamdex/event-reader";
 import { ConfirmedPriceChart } from "./ConfirmedPriceChart";
 import { formatUnitsExact, parseUnitsExact, priceLabel } from "./amounts";
-import type { DynamicEvmWalletPort } from "../arena/DynamicSolanaSession";
 import { dynamicEvmProvider } from "./dynamicEvmProvider";
 import { predictionUrl } from "../../../packages/sdk/prediction-url";
 type Snapshot = Awaited<ReturnType<DreamDexBrowser["snapshot"]>>;
@@ -23,7 +23,6 @@ export function DreamDexTerminal({
   subjectId,
   chainId,
   initialOutcome = 0,
-  evmWallet,
   creationApiUrl,
 }: {
   deployments: DreamDexPublicConfig[];
@@ -31,7 +30,6 @@ export function DreamDexTerminal({
   subjectId?: string;
   chainId?: "5031" | "50312";
   initialOutcome?: 0 | 1;
-  evmWallet: DynamicEvmWalletPort | null;
   creationApiUrl?: string;
 }) {
   const [chain, setChain] = useState(deployments[0]?.chainId ?? "50312"),
@@ -160,7 +158,6 @@ export function DreamDexTerminal({
           config={config}
           market={market}
           initialOutcome={initialOutcome}
-          evmWallet={evmWallet}
           creationApiUrl={creationApiUrl}
         />
       )}
@@ -250,15 +247,16 @@ function DreamEvent({
   config,
   market,
   initialOutcome,
-  evmWallet,
   creationApiUrl,
 }: {
   config: DreamDexPublicConfig;
   market: DreamDexPublicConfig["markets"][number];
   initialOutcome: 0 | 1;
-  evmWallet: DynamicEvmWalletPort | null;
   creationApiUrl?: string;
 }) {
+  // The connected EVM wallet comes from the session store; it used to be handed
+  // down from NetworkTrading through a terminal that never read it.
+  const evmWallet = useEvmWallet();
   const adapter = useMemo(
     () => new DreamDexBrowser(config, eventBinding(config, market)),
     [config, market],

@@ -148,8 +148,6 @@ export function HomeApp({
           eventBasePath={eventBasePath}
           marketSources={marketSources}
           walletControl={session.walletControl}
-          evmWallet={session.evmWallet}
-          solanaWallet={session.wallet}
         />
       )}
     </DynamicSolanaSession>
@@ -165,14 +163,7 @@ function Home({
   eventBasePath,
   marketSources,
   walletControl,
-  evmWallet,
-  solanaWallet,
-}: Omit<Props, "environmentId"> & {
-  walletControl: ReactNode;
-  evmWallet:
-    import("../arena/DynamicSolanaSession").DynamicEvmWalletPort | null;
-  solanaWallet: import("../arena/liveArenaAdapter").LiveArenaWalletPort | null;
-}) {
+}: Omit<Props, "environmentId"> & { walletControl: ReactNode }) {
   const [marketSource, setMarketSource] = useState<MarketSource>(() =>
     marketSources.includes("SOMNIA")
       ? "SOMNIA"
@@ -580,9 +571,7 @@ function Home({
                         : "Prompt Agent is mainnet-only. Switch to Somnia Mainnet when the directive relay is available."
                       : undefined
                   }
-                  evmWallet={evmWallet}
                   solana={marketSource === "SOLANA"}
-                  solanaWallet={solanaWallet}
                   solanaVenue={solanaVenue}
                   solanaQuestion={selectedSolanaQuestion}
                   predictionApiUrl={apiUrl}

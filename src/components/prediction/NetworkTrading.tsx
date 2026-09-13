@@ -177,7 +177,6 @@ export function NetworkTrading({
           subjectId={subjectId}
           chainId={somniaChainId}
           initialOutcome={initialOutcome}
-          evmWallet={session.evmWallet}
         />
       ) : !venue ? (
         <div className="pt-empty">

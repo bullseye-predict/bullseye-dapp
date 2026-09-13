@@ -21,7 +21,7 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
   const [tab, setTab] = useState<'book' | 'graph' | 'activity' | 'info'>('book')
   // Every venue branch in this panel goes through one hook. The panel never
   // imports a chain adapter and never reads a chain-specific field.
-  const view = useVenueMarket(market)
+  const view = useVenueMarket(market, undefined, !simulation && tab === 'book')
   const binding = venueBinding(market)
   const contract = predictionContract(outcome, nested ? answer : 'yes')
   const book = simulation ? sampleOrderBook(contract) : null

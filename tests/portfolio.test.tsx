@@ -39,7 +39,7 @@ describe('portfolio settlement and ownership presentation', () => {
     expect(rows.map(row => row.quantity)).toEqual([12n, 4n])
   })
   test('signed-out page asks for the owning wallet and does not present fake balances', () => {
-    const html = renderToStaticMarkup(<Portfolio apiUrl="" wallet={null} walletControl={<button>Connect wallet</button>}/>)
+    const html = renderToStaticMarkup(<Portfolio apiUrl="" walletControl={<button>Connect wallet</button>}/>)
     expect(html).toContain('Make this portfolio yours.')
     expect(html).not.toContain('href="/profile"')
     expect(html).not.toContain('Confirm sell')

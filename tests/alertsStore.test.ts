@@ -14,7 +14,11 @@ async function load(seed?: unknown) {
     removeItem: (key: string) => { cells.delete(key) },
   }
   const store = await import(`../src/components/home/alerts/store?${cells.size}${Math.random()}`) as typeof import('../src/components/home/alerts/store')
-  return { ...store, written: () => JSON.parse(cells.get(KEY) ?? 'null') as AlertRecord[] | null }
+  return {
+    ...store,
+    raw: () => JSON.parse(cells.get(KEY) ?? 'null') as unknown,
+    written: () => (JSON.parse(cells.get(KEY) ?? 'null') as { state?: { records?: AlertRecord[] } } | null)?.state?.records ?? null,
+  }
 }
 
 // getAlerts is the snapshot getAlerts hands to useSyncExternalStore, so the
@@ -88,4 +92,16 @@ test('unreadable storage leaves an empty log rather than taking the page down', 
   expect(store.getAlerts()).toEqual([])
   expect(() => store.pushAlert({ level: 'error', title: 'still works' })).not.toThrow()
   expect(store.getAlerts()).toHaveLength(1)
+})
+
+test('a log written by the hand-rolled store this replaced is adopted, not discarded', async () => {
+  // That store wrote a bare array under the same key. Someone mid-session must
+  // not lose their history to the migration.
+  const legacy = [{ id: 'old', level: 'error', title: 'Submitting your order', detail: 'Blockhash expired', at: 1_700_000_000_000 }]
+  const { getAlerts, pushAlert, raw, written } = await load(legacy)
+  expect(getAlerts()).toEqual(legacy as AlertRecord[])
+  pushAlert({ level: 'success', title: 'Submitting your order' })
+  // And is rewritten in the new envelope, so the legacy read happens once.
+  expect((raw() as { state: unknown }).state).toBeDefined()
+  expect(written()).toHaveLength(2)
 })

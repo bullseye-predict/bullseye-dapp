@@ -1,10 +1,11 @@
 import { encodeStored } from '../../../packages/prediction-core/serialization'
+import { useEvmWallet } from '../session/store'
 import { MatchAvatar, matchLabel, matchStartedAt } from './matchIdentity'
 import { PortfolioChart, chartMarket } from './PortfolioChart'
 import { marketLifecycle } from './model'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowUpRight, Copy, RefreshCw, Search, WalletCards } from 'lucide-react'
-import { DynamicSolanaSession, type DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
+import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { SiteHeader } from '../solz/SiteHeader'
 import { SiteFooter } from '../solz/SiteFooter'
 import { formatUnitsExact } from '../prediction/amounts'
@@ -17,7 +18,7 @@ import './portfolio.css'
 
 type Props = { environmentId: string; apiUrl: string; matchApiUrl?: string; profile?: ProfileRoute }
 export function PortfolioApp({ environmentId, apiUrl, matchApiUrl = '', profile }: Props) {
-  return <DynamicSolanaSession environmentId={environmentId}>{session => <Portfolio matchApiUrl={matchApiUrl} apiUrl={apiUrl} wallet={session.evmWallet} walletControl={session.walletControl} profile={profile}/>}</DynamicSolanaSession>
+  return <DynamicSolanaSession environmentId={environmentId}>{session => <Portfolio matchApiUrl={matchApiUrl} apiUrl={apiUrl} walletControl={session.walletControl} profile={profile}/>}</DynamicSolanaSession>
 }
 type Row = { id: string; entry: PortfolioMarket; outcome?: 0 | 1; quantity: bigint; state: PositionState }
 export function portfolioRows(markets: PortfolioMarket[]): Row[] {
@@ -35,7 +36,10 @@ export function portfolioRows(markets: PortfolioMarket[]): Row[] {
     return rows
   })
 }
-export function Portfolio({ apiUrl, wallet, walletControl, matchApiUrl = '', profile }: { apiUrl: string; matchApiUrl?: string; wallet: DynamicEvmWalletPort | null; walletControl: ReactNode; profile?: ProfileRoute }) {
+export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: { apiUrl: string; matchApiUrl?: string; walletControl: ReactNode; profile?: ProfileRoute }) {
+  // PositionAction still takes the wallet as a prop: Portfolio has already
+  // proven it non-null before rendering it, and narrowing is the point.
+  const wallet = useEvmWallet()
   const initialChain = profile?.chain === 'somnia' && profile.network === 'mainnet' ? '5031' : '50312'
   const [chain, setChain] = useState<'50312' | '5031'>(initialChain)
   const [tab, setTab] = useState<'active' | 'closed' | 'orders'>('active')

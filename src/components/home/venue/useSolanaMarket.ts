@@ -26,12 +26,21 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean)
     if (!enabled || !binding) return
     let active = true
     let timer: ReturnType<typeof setTimeout>
-    const client = createManifestHybridClient(binding.rpcUrl, {
-      genesisHash: binding.genesisHash,
-      predictionProgram: binding.predictionProgram,
-      manifestProgram: binding.manifestProgram,
-      collateralMint: binding.collateralMint,
-    })
+    // Constructed inside the guard: ManifestAdapter's constructor throws on a
+    // malformed deployment, and a throw in an effect body escapes React and
+    // blanks the entire page rather than just emptying this panel.
+    let client: ReturnType<typeof createManifestHybridClient>
+    try {
+      client = createManifestHybridClient(binding.rpcUrl, {
+        genesisHash: binding.genesisHash,
+        predictionProgram: binding.predictionProgram,
+        manifestProgram: binding.manifestProgram,
+        collateralMint: binding.collateralMint,
+      })
+    } catch (reason) {
+      setState({ key, book: null, now: Date.now(), error: reason instanceof Error ? reason.message : 'Solana venue misconfigured.' })
+      return
+    }
     async function load() {
       setRefreshing(true)
       try {
