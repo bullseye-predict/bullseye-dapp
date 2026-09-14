@@ -26,3 +26,43 @@ test('leaving a network while wallet approval is pending prevents broadcast',asy
 test('a signer account change is blocked before broadcast with a reconnect instruction',async () => {
   const f=setup();f.changeAccount();await expect(f.wallet.send(f.transaction())).rejects.toThrow('Reconnect this account');expect(f.sends()).toBe(0)
 })
+
+/** web3.js throws SendTransactionError for a rejected simulation rather than
+ *  returning value.err, so a retry that only read value.err never ran. A pooled
+ *  RPC answering getLatestBlockhash and simulateTransaction from nodes at
+ *  different slots makes this the common first-trade failure, not a rare one. */
+function retrySetup(failures: number, message: string) {
+  const user = Keypair.generate(), keys = Array.from({ length: 3 }, () => Keypair.generate().publicKey)
+  const adapter = new ManifestAdapter(new Connection('http://127.0.0.1:1'), { genesisHash: 'local-fixture', predictionProgram: keys[0]!, manifestProgram: keys[1]!, collateralMint: keys[2]! })
+  adapter.verifyDeployment = async () => ({}) as never
+  let simulations = 0, sends = 0
+  Object.assign(adapter.connection, {
+    getLatestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 }),
+    simulateTransaction: async () => { if (simulations++ < failures) throw new Error(message); return { value: { err: null, unitsConsumed: 10_000 } } },
+    sendRawTransaction: async () => { sends++; return 'fixture-signature' },
+    confirmTransaction: async () => ({ value: { err: null } }),
+  })
+  const wallet = new ManifestBrowserWallet(adapter, { address: user.publicKey.toBase58(), getSigner: async () => ({ isConnected: true, publicKey: user.publicKey, signTransaction: async (tx: Transaction) => { tx.sign(user); return tx } }) as unknown as ISolana })
+  const transaction = () => new Transaction().add(SystemProgram.transfer({ fromPubkey: user.publicKey, toPubkey: keys[0]!, lamports: 1 }))
+  return { wallet, transaction, simulations: () => simulations, sends: () => sends }
+}
+
+test('a thrown blockhash-not-found simulation is retried on a finalized hash', async () => {
+  const f = retrySetup(2, 'Simulation failed. \nMessage: Transaction simulation failed: Blockhash not found. \nLogs: [].')
+  expect(await f.wallet.send(f.transaction())).toBe('fixture-signature')
+  expect(f.simulations()).toBe(3)
+  expect(f.sends()).toBe(1)
+})
+
+test('a thrown rate-limit simulation is retried rather than failing the trade', async () => {
+  const f = retrySetup(1, '429 Too Many Requests: {"jsonrpc":"2.0","error":{"code":-32429,"message":"rate limited"}}')
+  expect(await f.wallet.send(f.transaction())).toBe('fixture-signature')
+  expect(f.sends()).toBe(1)
+})
+
+test('a genuine program rejection is not retried and never broadcasts', async () => {
+  const f = retrySetup(9, 'Simulation failed. \nMessage: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1771.')
+  await expect(f.wallet.send(f.transaction())).rejects.toThrow('custom program error')
+  expect(f.simulations()).toBe(1)
+  expect(f.sends()).toBe(0)
+})

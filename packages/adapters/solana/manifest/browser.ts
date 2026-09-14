@@ -51,7 +51,7 @@ export class ManifestBrowserWallet {
     // back as BlockhashNotFound before any instruction has run. That is node skew,
     // not a rejected trade, so refetch and retry instead of failing the trade.
     let recent: { blockhash: string; lastValidBlockHeight: number }
-    let simulation: Awaited<ReturnType<typeof connection.simulateTransaction>>
+    let simulation: Awaited<ReturnType<typeof connection.simulateTransaction>> | undefined
     for (let attempt = 0; ; attempt++) {
       // First pass uses the freshest hash for the longest validity window. A retry
       // means the pool disagreed about it, so fall back to a finalized hash: older,
@@ -60,12 +60,25 @@ export class ManifestBrowserWallet {
         ? (this.planner ? await this.planner.latestBlockhash() : await connection.getLatestBlockhash('confirmed'))
         : await connection.getLatestBlockhash('finalized')
       tx.recentBlockhash = recent.blockhash
-      simulation = await connection.simulateTransaction(tx)
-      if (!simulation.value.err) break
-      const stale = simulation.value.err === 'BlockhashNotFound'
-      if (!stale || attempt >= 3) throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`)
-      await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)))
+      // web3.js reports a rejected simulation two different ways: older paths
+      // return it as value.err, newer ones throw SendTransactionError. Reading
+      // only value.err meant the retry below never ran for the case it exists
+      // for, and a transient skew or 429 killed the whole trade instead.
+      let failure: string | null = null
+      try {
+        simulation = await connection.simulateTransaction(tx)
+        if (!simulation.value.err) break
+        failure = JSON.stringify(simulation.value.err)
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error)
+      }
+      // Node skew and provider throttling are both transient and both worth
+      // another pass; anything else is a real rejection and must surface now.
+      const transient = /blockhash not found|blockhashnotfound|429|rate limit/i.test(failure)
+      if (!transient || attempt >= 3) throw new Error(`Transaction simulation failed: ${failure}`)
+      await new Promise(resolve => setTimeout(resolve, 600 * 2 ** attempt))
     }
+    if (!simulation) throw new Error('Transaction simulation did not complete')
     const consumed = simulation.value.unitsConsumed ?? 200_000
     tx.instructions[tx.instructions.length - 1] = ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(1_400_000, Math.max(50_000, Math.ceil(consumed * 1.15) + 5_000)) })
     const expected = Buffer.from(tx.serializeMessage())
