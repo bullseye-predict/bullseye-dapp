@@ -1,3 +1,6 @@
+// The dock and toast styling live here, so this owns them rather than relying
+// on whichever sibling panel happens to import the stylesheet first.
+import '../../../styles/home-console.css'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Toaster } from 'sonner'

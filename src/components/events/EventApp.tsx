@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { DynamicSolanaSession, type DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
+import { OverlayLayer } from '../home/alerts/OverlayLayer'
 import { useHomeData } from '../home/useHomeData'
 import { resolveQuestionEvent, useReservedSolanaQuestions, type ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
@@ -37,7 +38,13 @@ export function EventApp({ environmentId, ...props }: Props) {
   // can open a standalone question exactly like a match-backed market.
   const solanaVenue = useSolanaVenue(props.apiUrl ?? '')
   const reserved = useReservedSolanaQuestions(props.apiUrl ?? '', solanaVenue)
-  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={props.apiUrl}>{(session) => <EventShell {...props} reserved={reserved} solanaVenue={solanaVenue} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+  return <>
+    {/* Per-transaction toasts and the alert log. TradeTicket and
+        MarketErrorBoundary raise both, and without this host they were being
+        raised into nothing on this page while the home page showed them. */}
+    <OverlayLayer />
+    <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={props.apiUrl}>{(session) => <EventShell {...props} reserved={reserved} solanaVenue={solanaVenue} session={session} source={source} snapshot={snapshot} error={error} retry={retry} walletControl={session.walletControl}/>}</DynamicSolanaSession>
+  </>
 }
 
 type ReservedCatalogue = ReturnType<typeof useReservedSolanaQuestions>
