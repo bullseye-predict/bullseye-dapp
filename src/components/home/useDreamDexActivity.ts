@@ -24,5 +24,9 @@ export function useDreamDexActivity(market: ArenaMarket, enabled: boolean) {
     void load()
     return () => { controller.abort(); clearTimeout(timer) }
   }, [key, enabled, revision])
-  return state.key === key ? state : { rows: [], error: '', loading: true }
+  // A venue this hook cannot read is not "loading" — it will never load. The
+  // stale-key sentinel claimed otherwise, so a Solana question sat on "Loading
+  // market activity…" forever instead of showing an honest empty state. A
+  // DreamDEX market switching questions still reports loading, as intended.
+  return state.key === key ? state : { rows: [], error: '', loading: Boolean(enabled && binding) }
 }

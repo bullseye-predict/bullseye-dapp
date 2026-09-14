@@ -1,11 +1,10 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
-import type { DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
 const Terminal = lazy(async () => {
   await import('../../../packages/adapters/solana/manifest/runtime')
   return { default: (await import('./ManifestTerminal')).ManifestTerminal }
 })
-export function ManifestTerminal(props: { venue: PublicPredictionVenue; session: DynamicSolanaSessionValue; apiUrl: string }) {
+export function ManifestTerminal(props: { venue: PublicPredictionVenue; apiUrl: string }) {
   return <ManifestBoundary><Suspense fallback={<p role="status" className="pt-empty">Loading Solana trading…</p>}><Terminal {...props}/></Suspense></ManifestBoundary>
 }
 

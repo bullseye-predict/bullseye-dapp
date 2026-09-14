@@ -38,4 +38,5 @@ export function setSession(next: SessionState) {
 export const useSolanaWallet = () => useSessionStore(state => state.solanaWallet)
 export const useEvmWallet = () => useSessionStore(state => state.evmWallet)
 export const useWalletReady = () => useSessionStore(state => state.walletReady)
+export const useWalletAddress = () => useSessionStore(state => state.walletAddress)
 export const getSession = () => useSessionStore.getState()

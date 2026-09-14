@@ -37,7 +37,7 @@ export function EventStage({ simulation = true, referenceMarket, view, match, ma
           {message && <p className="sh-fullscreen-error" role="status">{message}</p>}
         </div>
       </TabPanel>}
-      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}}/></TabPanel>
+      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}} showTitle={false} historyPicker={false}/></TabPanel>
     </div>
 
   </section>

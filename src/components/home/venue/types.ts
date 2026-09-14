@@ -3,6 +3,21 @@ import type { DepthLevel } from '../LiveOrderBook'
 /** Which venue a market lives on. The UI must branch on this and nothing else. */
 export type VenueFamily = 'DREAMDEX' | 'SOLANA'
 
+/** One row of market activity, in the shape the renderer already consumes.
+ *  Field-compatible with the DreamDEX indexer's MarketActivity so that path
+ *  passes through unchanged. `block` is an EVM block number on DreamDEX and a
+ *  Solana slot here; both only ever order rows against their own venue. */
+export type VenueActivityRow = {
+  id: string
+  at: number
+  hash: string
+  label: string
+  detail: string
+  owner?: string
+  kind: 'fill' | 'order' | 'cancel'
+  block: bigint
+}
+
 /** Fields every venue binding exposes. Chain-specific fields live on the
  *  variants below and must never be read outside that venue's own hook. */
 export type VenueBindingBase = {
@@ -12,6 +27,8 @@ export type VenueBindingBase = {
   tradingLocksAt: number
   creationTxHash?: string
   sponsoredTransactions?: { label: string; hash: string }[]
+  /** Lifetime matched collateral reported by the venue market accounts. */
+  volume?: { amount: string; decimals: number }
   volume24h?: { amount: string; decimals: number; trades: number }
   /** Enough for explorerTxUrl() to build a link on the right chain. */
   explorer?: { family?: string; chainId?: string; explorerUrl?: string }
@@ -41,8 +58,13 @@ export type SolanaBinding = VenueBindingBase & {
 
 export type VenueBinding = DreamDexBinding | SolanaBinding
 
-/** The order book as the UI renders it, in the venue's own collateral atoms. */
+/** The order book as the UI renders it, in the venue's own collateral atoms.
+ *  Each DepthLevel is one aggregated price level, never one resting order. */
 export type VenueBook = { yesAsks: DepthLevel[]; yesBids: DepthLevel[]; noAsks: DepthLevel[]; noBids: DepthLevel[] }
+
+/** Best executable prices for one outcome, in the venue's collateral atoms.
+ *  `mid` is present only when both sides exist: a lone bid is not a market. */
+export type VenueQuote = { bid?: bigint; ask?: bigint; mid?: bigint; crossed?: boolean }
 
 /** Everything a market view needs, with no venue-specific field left in it.
  *  A component receiving this cannot tell which chain it is rendering. */
@@ -52,7 +74,13 @@ export type VenueMarketView = {
   opened: boolean
   book: VenueBook | null
   decimals: number
-  last?: number
+  /** Most recent executed trade, per outcome, in that outcome's own terms.
+   *  Per-side rather than scalar because one LiveOrderBook is mounted per
+   *  outcome; a single `last` printed the other book's price in half of them.
+   *  These are historical executions, not current complementary quotes. */
+  last?: { yes?: number; no?: number }
+  /** Best bid/ask/mid per outcome, in collateral atoms. */
+  quote?: { yes?: VenueQuote; no?: VenueQuote }
   finalized: boolean
   /** Milliseconds; the timestamp the data was read at. */
   now: number

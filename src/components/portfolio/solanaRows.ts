@@ -1,3 +1,4 @@
+import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
 import { isClosedPosition, marketLifecycle, positionState, type PositionState } from './model'
 import type { ManifestOutcomeHolding, ManifestPortfolio, ManifestQuestionHolding, ManifestRestingOrder } from './solanaPortfolio'
@@ -7,6 +8,7 @@ import type { ManifestOutcomeHolding, ManifestPortfolio, ManifestQuestionHolding
  *  out of the catalogue is named by its own on-chain address instead of being
  *  dropped from the portfolio. */
 export type SolanaIdentity = {
+  presentation?: Presentation
   marketId: string
   label: string
   outcomeLabels: [string, string]
@@ -21,8 +23,9 @@ const shortId = (marketId: string) => `${marketId.slice(0, 4)}…${marketId.slic
 
 export function solanaIdentity(marketId: string, question?: ReservedSolanaQuestion): SolanaIdentity {
   if (!question) return { marketId, label: `Question ${shortId(marketId)}`, outcomeLabels: ['YES', 'NO'], listed: false }
-  const [yes = 'YES', no = 'NO'] = question.outcomes
-  return { marketId, label: question.label, outcomeLabels: [yes, no], eventId: question.eventId, questionId: question.questionId, scheduledStartAt: question.scheduledStartAt, listed: true }
+  const presentation = parsePresentation(question.presentation)
+  const [yes = 'YES', no = 'NO'] = presentation?.outcomes.map(o => o.label) ?? question.outcomes
+  return { marketId, presentation, label: question.label, outcomeLabels: [yes, no], eventId: question.eventId, questionId: question.questionId, scheduledStartAt: question.scheduledStartAt, listed: true }
 }
 
 /** Where a row's shares sit, in the order a trader has to move them to exit. */
@@ -107,7 +110,9 @@ export function solanaOrderRows(portfolio: ManifestPortfolio, questions: readonl
   return portfolio.questions.flatMap(holding => {
     const identity = solanaIdentity(holding.marketId, byMarket.get(holding.marketId))
     const lifecycle = lifecycleOf(holding, portfolio.now)
-    const expired = portfolio.now >= holding.locksAt || holding.status >= 2
+    // A question whose market account could not be decoded has locksAt 0, and
+    // calling every live order on it expired would strand a trader in a false alarm.
+    const expired = holding.status >= 2 || (holding.locksAt > 0 && portfolio.now >= holding.locksAt)
     return ([0, 1] as const).flatMap(outcome => holding.outcomes[outcome].orders.map(order => ({
       id: `${holding.marketId}:${outcome}:${order.sequence}`, identity, holding, outcome: outcome as 0 | 1, order, lifecycle, expired,
     })))
@@ -169,16 +174,24 @@ export function mergeSolanaActive(positions: readonly SolanaPositionRow[], order
   return merged
 }
 
-/** Positions marked at the best bid. Orders are never added: an ask's shares are
- *  already counted in its position and a bid's shares are not owned yet. A book
- *  with no bid is not worth zero, so one unpriced row withholds the whole total
- *  rather than under-reporting it. */
+/**
+ * Open positions marked at the best bid.
+ *
+ * Only a Trading row is marked. A settled question's book is stale or gone, and
+ * a winning share is redeemed at face rather than sold into whatever bid is
+ * still resting, so marking one there would under-report the account — those
+ * rows are what the claim count beside this total is for.
+ *
+ * Orders are never added: an ask's shares are already counted in its position
+ * and a bid's shares are not owned yet. A book with no bid is not worth zero, so
+ * one unpriced row withholds the whole total rather than under-reporting it.
+ */
 export function markedValue(rows: readonly SolanaPositionRow[]) {
+  const marked = rows.filter(row => row.state === 'Trading' && row.quantity > 0n)
   let total = 0n, unpriced = 0
-  for (const row of rows) {
-    if (row.quantity === 0n) continue
+  for (const row of marked) {
     if (row.value === undefined) unpriced++
     else total += row.value
   }
-  return { total: unpriced ? undefined : total, unpriced, priced: rows.filter(row => row.quantity > 0n).length - unpriced }
+  return { total: unpriced ? undefined : total, unpriced, priced: marked.length - unpriced }
 }

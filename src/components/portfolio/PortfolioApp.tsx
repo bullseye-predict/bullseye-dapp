@@ -1,8 +1,8 @@
+import { SolanaProfile } from './SolanaProfile'
 import { encodeStored } from '../../../packages/prediction-core/serialization'
 import { useEvmWallet, useSolanaWallet } from '../session/store'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, Search, WalletCards } from 'lucide-react'
-import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { AppShell } from '../solz/AppShell'
 import { formatUnitsExact } from '../prediction/amounts'
 import { MatchAvatar, matchLabel, matchStartedAt } from './matchIdentity'
@@ -20,9 +20,9 @@ import { SolanaActiveTable, SolanaPositionsTable } from './SolanaPositions'
 import '../../styles/home.css'
 import './portfolio.css'
 
-type Props = { environmentId: string; apiUrl: string; matchApiUrl?: string; profile?: ProfileRoute }
-export function PortfolioApp({ environmentId, apiUrl, matchApiUrl = '', profile }: Props) {
-  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl}>{session => <Portfolio matchApiUrl={matchApiUrl} apiUrl={apiUrl} walletControl={session.walletControl} profile={profile}/>}</DynamicSolanaSession>
+type Props = { apiUrl: string; matchApiUrl?: string; profile?: ProfileRoute }
+export function PortfolioApp({ apiUrl, matchApiUrl = '', profile }: Props) {
+  return <Portfolio matchApiUrl={matchApiUrl} apiUrl={apiUrl} profile={profile}/>
 }
 type DreamOrder = NonNullable<PortfolioMarket['snapshot']['orders'][number]>
 type Row = { id: string; entry: PortfolioMarket; outcome?: 0 | 1; quantity: bigint; state: PositionState; order?: DreamOrder }
@@ -62,7 +62,7 @@ const orderExpired = (row: Row) => {
   const { snapshot: s, binding: b } = row.entry
   return s.now >= b.tradingLocksAt || s.market.finalized || row.order!.expireTimestampNs <= BigInt(s.now) * 1_000_000n
 }
-export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: { apiUrl: string; matchApiUrl?: string; walletControl: ReactNode; profile?: ProfileRoute }) {
+export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: string; matchApiUrl?: string; profile?: ProfileRoute }) {
   // PositionAction still takes the wallet as a prop: Portfolio has already
   // proven it non-null before rendering it, and narrowing is the point.
   const wallet = useEvmWallet()
@@ -89,6 +89,9 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
   const isSelf = solana
     ? sameProfileAddress(solanaWallet?.address, owner, 'solana')
     : Boolean(wallet && owner && sameProfileAddress(wallet.address, owner))
+  // Owner detection is the same on both chains. What differs is where a trade is
+  // signed: EVM signs in the side panel here, Solana signs on the question's own
+  // market page, so its actions are links rather than buttons.
   const canManage = isSelf && !solana
   const data = usePortfolio(apiUrl, chain, solana ? undefined : owner, retry, matchApiUrl)
 
@@ -96,7 +99,7 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
   // base rather than being called conditionally.
   const { questions: questionViews, loaded: questionsLoaded } = useReservedSolanaQuestions(solana && owner ? apiUrl : '', solanaVenue)
   const questions = useMemo(() => questionViews.map(view => view.question), [questionViews])
-  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, questions, retry)
+  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, questions, retry, false)
   const solDecimals = solanaVenue?.collateralDecimals ?? 6
   const solRows = useMemo(() => sol.portfolio ? solanaPositionRows(sol.portfolio, questions, solDecimals) : [], [sol.portfolio, questions, solDecimals])
   const solOrders = useMemo(() => sol.portfolio ? solanaOrderRows(sol.portfolio, questions) : [], [sol.portfolio, questions])
@@ -128,7 +131,7 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
     .filter(row => (!matchFilter || row.entry.binding.eventId === matchFilter) && `${row.entry.binding.label} ${row.entry.binding.eventId} ${label(row.entry)}`.toLowerCase().includes(search.toLowerCase()))
     // Orders sort after the position they qualify, so a repeated number reads as
     // a breakdown of the row above rather than as a second holding.
-    .sort((a, b) => (sort === 'name' ? a.entry.binding.label.localeCompare(b.entry.binding.label) : sort === 'oldest' ? kickoff(a.entry) - kickoff(b.entry) : kickoff(b.entry) - kickoff(a.entry)) || (a.order ? 1 : 0) - (b.order ? 1 : 0))
+    .sort((a, b) => (sort === 'name' ? a.entry.binding.label.localeCompare(b.entry.binding.label) : sort === 'oldest' ? kickoff(a.entry) - kickoff(b.entry) : kickoff(b.entry) - kickoff(a.entry)) || a.entry.binding.marketId.localeCompare(b.entry.binding.marketId) || (a.order ? 1 : 0) - (b.order ? 1 : 0))
   const dreamBid = (row: Row) => row.outcome === 0 ? row.entry.snapshot.book?.yesBids[0]?.price : row.entry.snapshot.book?.noBids[0]?.price
 
   // Solana rows carry their own identity, so the same filter, search and sort
@@ -151,10 +154,17 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
     ? (sol.portfolio?.failures ?? 0) > 0 || sol.historyLimited || sol.historyError
     : data.failures > 0 || data.markets.some(m => m.historyError || m.historyLimited)
   const symbol = solana ? (solanaVenue?.collateralSymbol ?? 'USDC') : chain === '50312' ? 'tUSDC' : 'USDso'
-  const decimals = solana ? solDecimals : 6
+  // Somnia mainnet settles in 18dp USDso, so the EVM scale is read from the
+  // markets rather than assumed; `mixed` below still guards a genuinely
+  // heterogeneous set.
+  const decimals = solana ? solDecimals : data.markets[0]?.snapshot.market.decimals ?? 6
   const loading = solana ? sol.loading || sol.historyLoading || (!questionsLoaded && !sol.portfolio) : data.loading
+  // Balances are all the summary needs. The executed-fill scan behind the chart
+  // runs for tens of seconds, and gating the stats on it blanked the card while
+  // the table beside it was already showing rows.
+  const balancesLoading = solana ? sol.loading || (!questionsLoaded && !sol.portfolio) : data.loading
   const error = solana ? sol.error : data.error
-  const ready = Boolean(owner) && !loading && !error
+  const ready = Boolean(owner) && !balancesLoading && !error
   const networkLabel = solanaVenue?.label ?? 'Solana'
   // The network, the collateral symbol and whether this page is somebody else's
   // are stated here and nowhere else on the page.
@@ -166,7 +176,7 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
   const evmMarked = (): MarkedValue => {
     let total = 0n, unpriced = 0, priced = 0, mixed = false
     for (const row of dreamActive) {
-      if (row.order || row.quantity === 0n || row.outcome === undefined) continue
+      if (row.order || row.state !== 'Trading' || row.quantity === 0n || row.outcome === undefined) continue
       const bid = dreamBid(row)
       if (row.entry.snapshot.market.decimals !== decimals) mixed = true
       if (bid === undefined) unpriced++
@@ -193,11 +203,12 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
     setChain(next); setSelection(null); setMatchFilter('')
     if (profile?.chain === 'somnia') window.location.assign(profileHref('somnia', next === '5031' ? 'mainnet' : 'testnet', profile.address))
   }
-  return <AppShell className="solz-home pf-page" active="profile" walletControl={walletControl} skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
+  if (solana) return <SolanaProfile apiUrl={apiUrl} venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} retry={retry} onRefresh={() => setRetry(n => n + 1)}/>
+  return <AppShell className="solz-home pf-page" active="profile" skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
     <main id="portfolio" className="pf-main">
       <div className="pf-heading"><h1>{isSelf ? 'My portfolio' : 'Portfolio'}</h1>{!solana && <label className="pf-network">Network<select value={chain} onChange={e => selectNetwork(e.target.value as typeof chain)}><option value="50312">Somnia testnet · tUSDC</option><option value="5031">Somnia mainnet · USDso</option></select></label>}</div>
       <div className="pf-hero">
-        <PortfolioSummary owner={owner} meta={meta} value={value} claimable={claimableCount} orders={{ total: orderRows.length, expired: expiredOrders }} collateral={solana ? solFunds : null} decimals={decimals} symbol={symbol} ready={ready} copyStatus={copyStatus} refreshing={loading || !owner}
+        <PortfolioSummary owner={owner} meta={meta} value={value} claimable={claimableCount} orders={{ total: orderRows.length, expired: expiredOrders }} collateral={solana ? solFunds : null} decimals={decimals} symbol={symbol} ready={ready} copyStatus={copyStatus} refreshing={balancesLoading || !owner}
           onCopy={() => void navigator.clipboard.writeText(owner!).then(() => setCopyStatus('Address copied')).catch(() => setCopyStatus('Could not copy address'))}
           onRefresh={() => { setSelection(null); setRetry(n => n + 1) }}/>
         <PortfolioChart markets={solana ? solChart : filteredMarkets.map(chartMarket)} loading={loading} connected={!!owner} symbol={symbol} unavailable={!!error || (solana ? false : data.failures > 0)}/>
@@ -218,13 +229,13 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
       {incomplete && owner && !error && <p className="pf-notice" role="status">{solana ? 'Some on-chain reads or executed-trade history are incomplete. Counts and the chart may be partial; refresh to retry.' : 'Some market reads or historical records are unavailable or incomplete. Counts may be incomplete; refresh to retry.'}</p>}
       <div className={`pf-content ${selected ? 'has-action' : ''}`}>
         <section className="pf-list" aria-label={`${tab} positions`} aria-busy={loading}>
-          {!owner ? <div className="pf-empty"><WalletCards size={32}/><h2>Make this portfolio yours.</h2><p>Log in with the wallet you used to trade. Your active positions, closed history, and available claims will appear here.</p>{walletControl}</div>
+          {!owner ? <div className="pf-empty"><WalletCards size={32}/><h2>Make this portfolio yours.</h2><p>Connect in the header with the wallet you used to trade. Your active positions, closed history, and available claims will appear here.</p></div>
             : loading && !(solana ? sol.portfolio : data.markets.length) ? <div className="pf-loading" role="status">Loading on-chain positions…<div/><div/><div/></div>
             : error ? <div className="pf-empty"><h2>Portfolio temporarily unavailable</h2><p>We couldn’t load these positions. No empty balance has been assumed.</p></div>
             : solana
               ? (tab === 'active' ? solVisibleActive.length : solVisibleClosed.length) === 0
                 ? <div className="pf-empty"><h2>{search ? 'No matching positions' : tab === 'active' ? 'No open positions yet' : 'No closed positions yet'}</h2><p>{search ? 'Try another question or event id.' : tab === 'active' ? 'Shares you hold and orders you leave resting on a book appear here once you trade.' : 'Questions you have fully exited or lost appear here.'}</p><a href="/markets">Explore the markets <ArrowUpRight size={15}/></a></div>
-                : tab === 'active' ? <SolanaActiveTable rows={solVisibleActive} decimals={decimals} symbol={symbol}/> : <SolanaPositionsTable rows={solVisibleClosed} decimals={decimals} symbol={symbol}/>
+                : tab === 'active' ? <SolanaActiveTable rows={solVisibleActive} decimals={decimals} symbol={symbol} manage={isSelf}/> : <SolanaPositionsTable rows={solVisibleClosed} decimals={decimals} symbol={symbol}/>
             : visible.length === 0 ? <div className="pf-empty"><h2>{search ? 'No matching positions' : incomplete ? 'No positions in the available records' : tab === 'active' ? 'No active positions yet' : 'No closed positions yet'}</h2><p>{search ? 'Try another market name or match ID.' : tab === 'active' ? 'Holdings, unclaimed winnings and resting orders appear here after trading.' : 'Fully exited markets and losing settled positions appear here.'}</p><a href="/">Explore the arena <ArrowUpRight size={15}/></a></div>
             : <div className="pf-table-scroll"><table className="pf-list-actions">
               <thead><tr><th>Market / outcome</th><th>Shares</th><th>Price ({symbol})</th><th>Value ({symbol})</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
@@ -234,12 +245,12 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
                 const expired = row.order ? orderExpired(row) : false
                 const bid = dreamBid(row)
                 return <tr key={row.id} className={row.order ? 'is-order' : ''}>
-                  <td><div className="pf-market-identity"><MatchAvatar id={b.eventId}/><div><strong>{b.label}</strong><small>{marketLifecycle(s.market, s.now, b.tradingLocksAt)}</small></div></div><details className="pf-match-details"><summary>Match details</summary><code>{b.eventId}</code><small>{new Date(kickoff(row.entry)).toLocaleString()} · {label(row.entry)}</small>{row.entry.metadata?.status && <small>Game: {row.entry.metadata.status}</small>}</details>{row.outcome !== undefined && <span className={row.outcome === 0 ? 'pf-outcome pf-yes' : 'pf-outcome pf-no'}>{row.outcome === 0 ? 'YES' : 'NO'}</span>}</td>
+                  <td><div className="pf-market-identity"><MatchAvatar id={b.eventId}/><div><div className="pf-row-title"><strong>{b.label}</strong>{row.outcome !== undefined && <span className={row.outcome === 0 ? 'pf-chip pf-yes' : 'pf-chip pf-no'}>{row.outcome === 0 ? 'YES' : 'NO'}</span>}</div><small title={b.eventId}>{label(row.entry)} · {marketLifecycle(s.market, s.now, b.tradingLocksAt)}{row.entry.metadata?.status ? ` · ${row.entry.metadata.status}` : ''}</small></div></div></td>
                   {row.order
-                    ? <><td>{formatUnitsExact(row.order.quantityRemaining, s.market.decimals, 6)}<small>escrowed by the pool</small></td>
+                    ? <><td>{formatUnitsExact(row.order.quantityRemaining, s.market.decimals, 6)}<small>{view!.side ? (view!.buy ? 'if it fills' : 'escrowed by the pool') : 'unfilled size'}</small></td>
                       <td>{view!.limit === undefined ? '—' : formatUnitsExact(view!.limit, s.market.decimals, 6)}<small>{view!.side ? 'Limit' : 'Order side syncing'}</small></td>
                       <td>{view!.escrow !== undefined ? <>{formatUnitsExact(view!.escrow, s.market.decimals, 6)}<small>escrowed</small></> : view!.side ? <>—<small>shares escrowed</small></> : '—'}</td>
-                      <td><span className={view!.side ? (view!.buy ? 'pf-yes' : 'pf-no') : ''}>{view!.side ? view!.side.split('_')[0] : 'Order'}</span> order<small>{expired ? 'Expired · escrow still reserved' : 'Resting'}</small></td></>
+                      <td>{view!.side ? <><span className={view!.buy ? 'pf-yes' : 'pf-no'}>{view!.side.split('_')[0]}</span> order</> : 'Order'}<small>{expired ? 'Expired · escrow still reserved' : view!.side ? 'Resting' : 'Resting · side syncing'}</small></td></>
                     : <><td>{formatUnitsExact(row.quantity, s.market.decimals, 6)}</td>
                       <td>{bid === undefined ? '—' : formatUnitsExact(bid, s.market.decimals, 6)}</td>
                       <td>{bid === undefined || row.quantity === 0n ? '—' : formatUnitsExact(row.quantity * bid / 10n ** BigInt(s.market.decimals), s.market.decimals, 6)}</td>
@@ -254,7 +265,7 @@ export function Portfolio({ apiUrl, walletControl, matchApiUrl = '', profile }: 
         )}
       </div>
       <p className="pf-footnote">{solana
-        ? 'Holdings are read from the chain across every configured question: shares on the venue seat, shares reserved by your resting orders, claim tokens in your wallet, and complete sets held in the prediction vault. Shares are marked at the best bid, which is not a guaranteed sale price. Selling, cancelling an order and claiming a settled payout all need your wallet signature and are done on the question’s own market page.'
+        ? 'Holdings are read from the chain across every configured question: shares on the venue seat, shares reserved by your resting orders, claim tokens in your wallet, and complete sets held in the prediction vault. Shares are marked at the best bid, which is not a guaranteed sale price. Selling, cancelling an order and claiming a settled payout all need your wallet signature, so on your own profile each row links to the question’s market page where it is signed.'
         : 'Holdings are read from the chain across configured DreamDEX events. Shares are marked at the best bid, which is not a guaranteed sale price, and shares reserved by an open order have left your balance until it is cancelled. Selling depends on buyers and market cutoff; claims require confirmed settlement and your wallet signature.'}</p>
     </main>
   </AppShell>

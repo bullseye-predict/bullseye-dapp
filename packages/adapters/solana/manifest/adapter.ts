@@ -39,6 +39,49 @@ export class ManifestAdapter {
     if (!b.program.equals(this.deployment.manifestProgram)||!b.collateral.equals(this.deployment.collateralMint)) throw new Error('Wrong Manifest deployment binding')
     return b
   }
+  /** Many bindings in one round trip. `binding()` costs one getAccountInfo, so a
+   *  twelve-question event priced one outcome at a time was 24 sequential reads
+   *  and a rate limit; this is one request. Entries that are missing or fail
+   *  validation come back null rather than throwing, because an unactivated
+   *  outcome is the normal pre-first-trade state and must not blank its siblings. */
+  async bindings(requests: readonly { question: PublicKey; outcome: Outcome }[]): Promise<(ManifestBinding|null)[]> {
+    if (!requests.length) return []
+    await this.verifyDeployment()
+    const keys=requests.map(r=>bindingAddress(this.deployment.predictionProgram,r.question,r.outcome))
+    const records=await this.accounts(keys)
+    return records.map((record,index)=>{
+      if(!record)return null
+      try{
+        const b=decodeBinding(this.deployment.predictionProgram,keys[index]!,record.owner,record.data)
+        return b.program.equals(this.deployment.manifestProgram)&&b.collateral.equals(this.deployment.collateralMint)?b:null
+      }catch{return null}
+    })
+  }
+  /** The book accounts for many bindings in one round trip, with the same owner
+   *  and asset assertions readBook() makes. Null for an unreadable book. */
+  async books(bindings: readonly (ManifestBinding|null)[]): Promise<(ManifestMarket|null)[]> {
+    const present=bindings.map((b,index)=>({b,index})).filter((entry): entry is {b:ManifestBinding;index:number}=>entry.b!==null)
+    if(!present.length)return bindings.map(()=>null)
+    const records=await this.accounts(present.map(entry=>entry.b.venue))
+    const result: (ManifestMarket|null)[]=bindings.map(()=>null)
+    present.forEach((entry,position)=>{
+      const record=records[position]
+      if(!record?.owner.equals(this.deployment.manifestProgram))return
+      try{
+        const book=ManifestMarket.loadFromBuffer({address:entry.b.venue,buffer:record.data})
+        if(!book.baseMint().equals(entry.b.mint)||!book.quoteMint().equals(entry.b.collateral)||book.baseDecimals()!==6||book.quoteDecimals()!==6)return
+        result[entry.index]=book
+      }catch{/* A book that cannot be decoded reads as absent, never as empty. */}
+    })
+    return result
+  }
+  /** web3.js turns a >100-key read into a JSON-RPC batch, which public Solana
+   *  endpoints reject outright. Chunk so every request stays singular. */
+  private async accounts(keys: readonly PublicKey[]) {
+    const out: Awaited<ReturnType<Connection['getMultipleAccountsInfo']>>=[]
+    for(let offset=0;offset<keys.length;offset+=96) out.push(...await this.connection.getMultipleAccountsInfo(keys.slice(offset,offset+96) as PublicKey[],'confirmed'))
+    return out
+  }
   private async validate(b: ManifestBinding,trading: boolean) {
     const current=await this.binding(b.question,b.outcome)
     if (!current.venue.equals(b.venue)||!current.mint.equals(b.mint)||!current.recipient.equals(b.recipient)||current.bps!==b.bps) throw new Error('Binding changed')

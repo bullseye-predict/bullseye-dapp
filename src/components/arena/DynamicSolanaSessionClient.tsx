@@ -11,7 +11,7 @@ import { SolanaWalletBalances } from '../home/SolanaWalletBalances'
 import { profileHref } from '../portfolio/profileRoute'
 import { getWallets } from '@wallet-standard/app'
 import type { Wallet } from '@wallet-standard/base'
-import { compatibleSolanaWallets, connectStandardSolanaWallet, type DirectSolanaSession } from './walletStandardSolana'
+import { compatibleSolanaWallets, connectStandardSolanaWallet, withWalletMetadataRecovery, type DirectSolanaSession } from './walletStandardSolana'
 import { PublicKey } from '@solana/web3.js'
 
 type SessionValue = {
@@ -183,7 +183,7 @@ function DynamicSessionContent({ children, allowEvm, predictionApiUrl }: Pick<Pr
   const solanaAddress = primaryWallet && syncedSolana?.walletId === primaryWallet.id ? syncedSolana.address : undefined
   const dynamicWallet = useMemo<LiveArenaWalletPort | null>(() => {
     if (sessionState !== 'ready' || !primaryWallet || !isSolanaWallet(primaryWallet) || !solanaAddress) return null
-    return { address: solanaAddress, getConnection: () => primaryWallet.getConnection(), getSigner: () => primaryWallet.getSigner() }
+    return { address: solanaAddress, getConnection: () => primaryWallet.getConnection(), getSigner: async () => withWalletMetadataRecovery(await primaryWallet.getSigner(), primaryWallet.connector.name) }
   }, [primaryWallet, sessionState, solanaAddress])
   const wallet = dynamicWallet ?? directSession?.port ?? null
   const evmWallet = useMemo<DynamicEvmWalletPort | null>(() => {

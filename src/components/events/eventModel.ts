@@ -24,6 +24,39 @@ export function eventAnswerMarket(market: ArenaMarket, answer: ArenaMarketOutcom
   }
 }
 
+export function eventMarketVolume(market: ArenaMarket) {
+  const venue = market.onchain?.volume
+  if (!venue) return market.volume.COOLA
+  try { return Number(BigInt(venue.amount)) / 10 ** venue.decimals }
+  catch { return market.volume.COOLA }
+}
+
+/** One chart series per linked answer while every answer keeps its own binary
+ *  market, order book and position identity. */
+export function linkedEventMarket(markets: readonly ArenaMarket[]): ArenaMarket | undefined {
+  const first = markets[0]
+  if (!first || markets.length < 2 || !markets.every((market) => market.presentation?.kind === 'linked')) return undefined
+  return {
+    ...first,
+    id: `${first.matchId ?? first.id}:linked-overview`,
+    title: first.presentation?.eventTitle ?? first.title,
+    volume: { SOL: 0, COOLA: markets.reduce((sum, market) => sum + eventMarketVolume(market), 0) },
+    onchain: undefined,
+    outcomes: markets.map((market) => {
+      const yes = market.outcomes[0]!
+      const answer = market.presentation?.answer
+      return {
+        ...yes,
+        id: market.id,
+        label: answer?.label ?? market.title,
+        detail: market.title,
+        participantId: answer?.participantId,
+        teamId: answer?.teamId,
+      }
+    }),
+  }
+}
+
 export const relativeTime = (at: number, now: number) => {
   const seconds = Math.max(0, Math.floor((now - at) / 1000))
   return seconds < 60 ? `${seconds}s ago` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ago` : `${Math.floor(seconds / 3600)}h ago`

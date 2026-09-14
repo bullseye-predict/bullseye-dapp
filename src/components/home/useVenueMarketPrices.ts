@@ -19,7 +19,7 @@ export function unpricedMarkets(markets: ArenaMarket[]) {
     ...market,
     onchain: market.onchain?.family === 'SOLANA' ? market.onchain : undefined,
     volume: { SOL: 0, COOLA: 0 },
-    outcomes: market.outcomes.map((outcome) => ({ ...outcome, probability: .5, priceHistory: [], quoteHistory: [], historyStatus: undefined })),
+    outcomes: market.outcomes.map((outcome) => ({ ...outcome, probability: .5, marketQuote: undefined, indicative: true, priceHistory: [], quoteHistory: [], historyStatus: undefined })),
   }))
 }
 
@@ -93,6 +93,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
                 observed.set(market.id, quoteHistory)
               }
               const probability = history.at(-1)?.probability ?? quotePrice ?? .5
+              const indicative = history.length === 0 && quotePrice === undefined
               return {
                 ...boundMarket,
                 onchain: {
@@ -102,6 +103,7 @@ export function useSomniaMarketPrices(apiUrl: string, chainId: SomniaChain, sour
                 outcomes: market.outcomes.map((outcome, index) => ({
                   ...outcome,
                   probability: index === 0 ? probability : 1 - probability,
+                  indicative,
                   historyStatus: candles === null ? 'unavailable' as const : 'ready' as const,
                   quoteHistory: quoteHistory.map(point => ({ ...point, probability: index === 0 ? point.probability : 1 - point.probability })),
                   priceHistory: history.map((point) => ({ ...point, probability: index === 0 ? point.probability : 1 - point.probability })),

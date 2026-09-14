@@ -12,8 +12,7 @@ import {
   Radio,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { DynamicSolanaSession } from "../arena/DynamicSolanaSession";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createSolzDataSource } from "../solz/solzDataSource";
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from "../solz/model";
 import { useHomeData } from "./useHomeData";
@@ -36,14 +35,14 @@ import {
   type SolanaCluster,
   type SomniaChain,
 } from "./MarketSourceControls";
-import { unpricedMarkets, useSomniaMarketPrices } from "./useVenueMarketPrices";
+import { useSomniaMarketPrices } from "./useVenueMarketPrices";
+import { useSolanaMarketPrices } from "./useSolanaMarketPrices";
 import { useReservedSolanaQuestions } from "./solanaQuestionMarkets";
 import { useSolanaVenue } from "./useSolanaVenue";
 
 type Props = {
   apiUrl?: string;
   dreamDexApiUrl?: string;
-  environmentId: string;
   demoHref: string;
   liveHref: string;
   eventBasePath: string;
@@ -123,7 +122,6 @@ export function MatchHeading({
 }
 
 export function HomeApp({
-  environmentId,
   apiUrl = "",
   dreamDexApiUrl = "",
   demoHref,
@@ -136,19 +134,14 @@ export function HomeApp({
     {/* Toasts and the alert log, hosted so that a modal trade dialog cannot
         bury them in the top layer. */}
     <OverlayLayer />
-    <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={marketSources.includes('SOMNIA')}>
-      {(session) => (
-        <Home
-          apiUrl={apiUrl}
-          dreamDexApiUrl={dreamDexApiUrl}
-          demoHref={demoHref}
-          liveHref={liveHref}
-          eventBasePath={eventBasePath}
-          marketSources={marketSources}
-          walletControl={session.walletControl}
-        />
-      )}
-    </DynamicSolanaSession>
+    <Home
+      apiUrl={apiUrl}
+      dreamDexApiUrl={dreamDexApiUrl}
+      demoHref={demoHref}
+      liveHref={liveHref}
+      eventBasePath={eventBasePath}
+      marketSources={marketSources}
+    />
     </>
   );
 }
@@ -160,8 +153,7 @@ function Home({
   liveHref,
   eventBasePath,
   marketSources,
-  walletControl,
-}: Omit<Props, "environmentId"> & { walletControl: ReactNode }) {
+}: Props) {
   const [marketSource, setMarketSource] = useState<MarketSource>(() =>
     marketSources.includes("SOMNIA")
       ? "SOMNIA"
@@ -275,15 +267,20 @@ function Home({
     marketSource === "SOMNIA",
     dreamDexRefresh,
   );
-  const solanaMarkets = useMemo(
-    () => unpricedMarkets(predictionMarkets),
-    [predictionMarkets],
+  // One pricing producer for the whole page, batching every Solana question's
+  // books into two account reads. It calls unpricedMarkets itself, so the arena
+  // feed's simulated probabilities are still blanked before chain data lands.
+  const solana = useSolanaMarketPrices(
+    predictionMarkets,
+    solanaVenue,
+    marketSource === "SOLANA",
+    marketId,
   );
   const sourcedMarkets =
     marketSource === "SOMNIA"
       ? somnia.markets
       : marketSource === "SOLANA"
-        ? solanaMarkets
+        ? solana.markets
         : predictionMarkets;
   const preparingMatch =
     match?.phase === "countdown" ||
@@ -292,14 +289,26 @@ function Home({
   const activeMarkets = useMemo(
     () =>
       preparingMatch
-        ? sourcedMarkets.map((item) => ({
-            ...item,
-            outcomes: item.outcomes.map((entry) => ({
-              ...entry,
-              probability: 0.5,
-              priceHistory: [],
-            })),
-          }))
+        ? sourcedMarkets.map((item) =>
+            // Per market, not wholesale. The pre-game placeholder is for
+            // markets with nothing behind them; blanking one that carries a
+            // real venue series reads to a trader as the market having moved
+            // back to 50/50 between rounds.
+            item.outcomes.some(
+              (entry) =>
+                (entry.quoteHistory?.length ?? 0) > 0 ||
+                (entry.priceHistory?.length ?? 0) > 0,
+            )
+              ? item
+              : {
+                  ...item,
+                  outcomes: item.outcomes.map((entry) => ({
+                    ...entry,
+                    probability: 0.5,
+                    priceHistory: [],
+                  })),
+                },
+          )
         : sourcedMarkets,
     [preparingMatch, sourcedMarkets],
   );
@@ -333,7 +342,10 @@ function Home({
           : reservedSolanaMatch
             ? reservedSolanaMatch.question.status === "live"
               ? `${solanaCluster.toUpperCase()} · LIVE · ${reservedSolana.filter(item => item.match.id === reservedSolanaMatch.match.id).length} LAZY QUESTIONS`
-            : `${solanaCluster.toUpperCase()} · RESERVED · 50/50 INDICATIVE`
+            // The books, not a guess: a reserved question stops being 50/50 the
+            // moment anyone rests an order on it, and the producer knows how
+            // many of its books are actually readable.
+            : `${solanaCluster.toUpperCase()} · ${solana.status.replace(/^DEVNET · /, "")}`
           : `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
         : somnia.status;
   const collateralSymbol =
@@ -457,7 +469,6 @@ function Home({
     <AppShell
       className="solz-home ch-home"
       marketsHref="/markets"
-      walletControl={walletControl}
       active={view === "market" ? "markets" : "highlight"}
       onArena={() => setView("live")}
       skipTo="#highlight"
@@ -510,6 +521,7 @@ function Home({
                     />
                   }
                   marketSourceLabel={sourceLabel}
+                  collateralSymbol={collateralSymbol}
                   referenceMarkets={
                     marketAvailable ? referenceSnapshot?.markets : undefined
                   }

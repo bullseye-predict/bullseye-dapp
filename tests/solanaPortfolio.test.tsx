@@ -210,9 +210,11 @@ describe('Solana profile identity and presentation', () => {
     ] })] }), [question], 6)
     const html = renderToStaticMarkup(<SolanaPositionsTable rows={rows} decimals={6} symbol="fUSDC"/>)
     expect(html).toContain('Will genesis-01 win?')
-    expect(html).toContain('On the venue seat')
-    expect(html).toContain('Reserved in sell orders')
-    expect(html).not.toContain('In your wallet')
+    // The split is one grey line rather than a disclosure, and a custodian
+    // holding nothing is not named at all.
+    expect(html).toContain('3 on seat · 1 in sell orders')
+    expect(html).not.toContain('in wallet')
+    expect(html).not.toContain('in vault')
     // The unit is stated once per column, so the cells carry bare numbers.
     expect(html).toContain('Price (fUSDC)')
     expect(html).toContain('Value (fUSDC)')
@@ -236,6 +238,11 @@ describe('Solana profile identity and presentation', () => {
     expect(html).toContain('escrowed')
     expect(html).toContain('of your 4')
     expect(html).toContain('counted above')
+    // The grouped row is a breakdown of the row above, so it does not repeat its
+    // title, details or outcome chip. Two identity blocks remain: the position and
+    // the standalone bid, which has no position row to sit under.
+    expect(html.match(/Your resting order/g)).toHaveLength(1)
+    expect(html.match(/Will genesis-01 win\?/g)).toHaveLength(2)
     expect(html).toContain('Resting')
     // The ask's two shares are inside the position's four and must not be marked
     // a second time: the total is the position alone, 4 shares at 0.5.
@@ -251,6 +258,25 @@ describe('Solana profile identity and presentation', () => {
     const merged = mergeSolanaActive([], solanaOrderRows(bid, [question]))
     expect(merged.map(entry => entry.kind)).toEqual(['order'])
     expect(renderToStaticMarkup(<SolanaActiveTable rows={merged} decimals={6} symbol="fUSDC"/>)).toContain('if it fills')
+  })
+
+  test('a settled position is never marked at the dead book’s residual bid', () => {
+    // 100 winning shares redeem at face; a stale 0.30 bid would report 30.
+    const settled = solanaPositionRows(portfolio({ questions: [holding({ status: 3, winningOutcome: 0, outcomes: [
+      outcome({ walletShares: 100_000_000n, bestBid: 300_000n }), outcome({}, 1),
+    ] })] }), [question], 6)
+    expect(settled.map(row => row.state)).toEqual(['Claim winnings'])
+    expect(markedValue(settled)).toMatchObject({ total: 0n, unpriced: 0, priced: 0 })
+    // And a settled question with no bid at all does not withhold the whole total.
+    const noBook = solanaPositionRows(portfolio({ questions: [holding({ status: 3, winningOutcome: 0, outcomes: [outcome({ walletShares: 5n }), outcome({}, 1)] })] }), [question], 6)
+    expect(markedValue(noBook)).toMatchObject({ total: 0n, unpriced: 0 })
+  })
+
+  test('an undecodable question does not report its live orders as expired', () => {
+    const unreadable = solanaOrderRows(portfolio({ questions: [holding({ opened: true, status: 0, locksAt: 0, outcomes: [
+      outcome({ orders: [{ sequence: '1', side: 'BUY', price: 500_000n, quantity: 1n, reserved: 1n, lastValidSlot: 10 }] }), outcome({}, 1),
+    ] })] }), [question])
+    expect(unreadable.map(row => row.expired)).toEqual([false])
   })
 
   test('one unpriced book withholds the marked total instead of counting it as zero', () => {

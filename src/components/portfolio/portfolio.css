@@ -7,7 +7,7 @@
 
 /* Hero: the profile card and the net-flow chart, side by side. Every fact on
    this page is stated in exactly one of them. */
-.pf-hero { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 14px; align-items: stretch; margin-bottom: 22px; }
+.pf-hero { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 14px; align-items: stretch; margin-bottom: 22px; }
 .pf-card, .pf-chart { background: var(--sh-panel); border: 1px solid var(--sh-line); border-radius: 10px; padding: 20px; }
 .pf-profile { display: flex; flex-direction: column; gap: 18px; }
 .pf-identity { display: flex; gap: 12px; align-items: start; }
@@ -17,13 +17,13 @@
 .pf-identity p { color: var(--sh-muted); font-size: 10px; margin-top: 5px; overflow-wrap: anywhere; }
 .pf-identity [role='status']:not(:empty) { display: block; color: var(--sh-lime); font-size: 9px; margin-top: 5px; }
 .pf-page .pf-icon { margin-left: auto; flex-shrink: 0; padding: 7px; line-height: 0; color: var(--sh-muted); background: transparent; }
-.pf-hero-stats { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pf-hero-stats { margin: 0; display: grid; grid-template-columns: 1.35fr 1fr 1fr; }
 .pf-hero-stats > div { display: flex; flex-direction: column-reverse; gap: 6px; padding-right: 12px; border-right: 1px solid var(--sh-line); }
 .pf-hero-stats > div + div { padding-left: 12px; }
 .pf-hero-stats > div:last-child { border-right: 0; padding-right: 0; }
 .pf-hero-stats dt { color: var(--sh-muted); font-size: 9px; line-height: 1.35; }
-.pf-hero-stats dd { margin: 0; font-size: 20px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.pf-hero-stats dd small { font-size: 9px; color: var(--sh-muted); margin-left: 4px; }
+.pf-hero-stats dd { margin: 0; font-size: 19px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.pf-hero-stats dd small { display: block; font-size: 9px; color: var(--sh-muted); margin-top: 3px; }
 /* The four custodians are one disclosure rather than four cards: the split only
    matters when a trader is working out which balance they have to move first. */
 .pf-collateral { border-top: 1px solid var(--sh-line); padding-top: 14px; font-size: 10px; color: var(--sh-muted); }
@@ -63,28 +63,39 @@
    table is later dropped onto. */
 .pf-list table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
 .pf-list th { color: var(--sh-muted); font-size: 9px; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; padding: 12px; border-bottom: 1px solid var(--sh-line); }
-.pf-list td { padding: 15px 12px; font-size: 11px; vertical-align: top; background: var(--sh-bg); }
-.pf-list tbody tr:nth-child(even) td { background: var(--sh-panel); }
+.pf-list td { padding: 10px 12px; font-size: 11px; vertical-align: middle; background: var(--sh-bg); }
+.pf-list tbody tr:nth-child(even) td { background: #1c1d23; }
 .pf-list td:first-child { border-radius: 8px 0 0 8px; min-width: 210px; }
 .pf-list td:last-child { border-radius: 0 8px 8px 0; }
 .pf-list :is(th, td):is(:nth-child(2), :nth-child(3), :nth-child(4)) { text-align: right; font-variant-numeric: tabular-nums; }
 .pf-list :is(th, td):not(:first-child) { white-space: nowrap; }
 .pf-list-actions :is(th, td):last-child { text-align: right; }
-@media (hover: hover) { .pf-list tbody tr:hover td { background: #202128; } }
+@media (hover: hover) { .pf-list tbody tr:hover td { background: #26272e; } }
 /* An order row is a claim on the position above it, not a second holding. */
-.pf-list tr.is-order td:first-child { padding-left: 30px; }
+.pf-list tr.is-order td:first-child { padding-left: 26px; }
 .pf-list tr.is-order .pf-match-avatar { opacity: .5; }
-.pf-list td strong { display: block; font-size: 12px; max-width: 340px; }
-.pf-list small { display: block; color: var(--sh-muted); margin-top: 5px; font-size: 9px; overflow-wrap: anywhere; }
+.pf-order-line { color: var(--sh-muted); }
+/* Two lines per row and nothing that can expand: a disclosure widget is a row
+   that is always tall, so the market id and the custody split are titles. */
+.pf-row-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pf-row-title a { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pf-row-title a:hover strong { color: var(--sh-lime); }
+.pf-list td strong { font-size: 12px; max-width: 330px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-chip { font-size: 9px; font-weight: 600; letter-spacing: .04em; flex-shrink: 0; }
+.pf-tag { font-size: 8px; color: var(--sh-muted); border: 1px solid var(--sh-line); border-radius: 3px; padding: 1px 5px; flex-shrink: 0; }
+.pf-list small { display: block; color: var(--sh-muted); margin-top: 3px; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pf-list small.pf-yes { color: #6ce5a7; }.pf-list small.pf-no { color: #ff8c96; }
 .pf-list td small + small { margin-top: 3px; }
-.pf-outcome { display: inline-block; margin-top: 9px; font-size: 10px; font-weight: 600; }
-.pf-market-identity { display: flex; align-items: center; gap: 12px; }
-.pf-match-avatar { width: 34px; height: 34px; flex-shrink: 0; image-rendering: pixelated; }
-.pf-match-details { font-size: 9px; color: var(--sh-muted); margin-top: 8px; }
-.pf-match-details code { display: block; overflow-wrap: anywhere; max-width: 300px; margin-top: 8px; }
-.pf-match-details summary { cursor: pointer; white-space: nowrap; }
-.pf-page .pf-open-market { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--sh-lime); text-decoration: none; }
+.pf-market-identity { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.pf-market-identity > div { min-width: 0; }
+.pf-match-avatar { width: 30px; height: 30px; flex-shrink: 0; image-rendering: pixelated; border-radius: 5px; }
+/* The owner's actions are links, because the signing control lives on the
+   question's market page; they are styled as the buttons they stand in for. */
+.pf-page .pf-act { display: inline-block; border: 1px solid var(--sh-line); border-radius: 6px; background: #24252b; color: var(--sh-text); padding: 7px 12px; font-size: 10px; }
+.pf-page .pf-act:hover { background: #33353c; }
+.pf-page .pf-act.pf-primary { color: #6ce5a7; border-color: #355f48; background: #1b3025; }
+.pf-page .pf-act.pf-sell { color: #ff8c96; border-color: #683b42; background: #341f25; }
+.pf-act-none { color: var(--sh-muted); }
 
 .pf-empty { min-height: 290px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; border-block: 1px solid var(--sh-line); text-align: center; padding: 40px 24px; }
 .pf-empty > svg { color: var(--sh-muted); }.pf-empty h2 { font-size: 22px; }.pf-empty p { max-width: 54ch; color: var(--sh-muted); }.pf-empty a { color: var(--sh-lime); display: flex; align-items: center; gap: 8px; }
@@ -124,7 +135,7 @@
   .pf-toolbar { gap: 8px; }.pf-tabs { flex: 1 1 100%; }.pf-page .pf-tabs button { flex: 1; padding-inline: 10px; }.pf-toolbar > select { flex: 1 1 140px; }
   .pf-chart header { flex-direction: column; gap: 14px; }.pf-chart-total { font-size: 22px; }
   .pf-claim-banner { align-items: start; flex-direction: column; }
-  .pf-list td { padding: 13px 10px; }.pf-list td:first-child { min-width: 190px; }
+  .pf-list td { padding: 13px 10px; }.pf-list td:first-child { min-width: 190px; }.pf-list tr.is-order td:first-child { padding-left: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .pf-page button { transition: none; } }
 .pf-page .sz-site-menu { padding: 0; }

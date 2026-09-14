@@ -1,28 +1,15 @@
 import { Connection, PublicKey } from '@solana/web3.js'
-import { FillLog, genAccDiscriminator } from '@bonasa-tech/manifest-sdk'
+import { FillLog } from '@bonasa-tech/manifest-sdk'
+import { MANIFEST_LOG, manifestProgramFrames } from '../../../packages/adapters/solana/manifest/logs'
 import type { CashFlow } from './cashFlow'
 
-const INVOKE = /^Program ([1-9A-HJ-NP-Za-km-z]+) invoke \[\d+\]$/
-const EXIT = /^Program ([1-9A-HJ-NP-Za-km-z]+) (?:success|failed(?::.*)?)$/
-const DATA = 'Program data: '
-const FILL_DISCRIMINATOR = Buffer.from(genAccDiscriminator('manifest::logs::FillLog'))
+const FILL_DISCRIMINATOR = MANIFEST_LOG.fill
 
-/** Program data emitted while `target` was the active invocation frame. A CPI
- *  into another program logs under that program, so frame tracking is what keeps
- *  a guarded Manifest fill from being read as someone else's event. */
+/** Program data emitted while `target` was the active invocation frame.
+ *  The frame walker now lives beside the Manifest wire format so the activity
+ *  feed can share it without src/components/home reaching into the portfolio. */
 export function manifestProgramData(messages: readonly string[], target: string): string[] {
-  const frames: string[] = []
-  const found: string[] = []
-  for (const message of messages) {
-    const invoke = message.match(INVOKE)
-    if (invoke) { frames.push(invoke[1]!); continue }
-    const exit = message.match(EXIT)
-    // A frame that closes out of order means the log was truncated; drop the
-    // stack rather than attributing the rest of the transaction to this program.
-    if (exit) { if (frames.at(-1) === exit[1]) frames.pop(); else frames.length = 0; continue }
-    if (frames.at(-1) === target && message.startsWith(DATA)) found.push(message.slice(DATA.length))
-  }
-  return found
+  return manifestProgramFrames(messages, target).map(frame => frame.encoded)
 }
 
 export type ManifestFill = {

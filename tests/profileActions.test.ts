@@ -1,0 +1,13 @@
+import { expect, test } from 'bun:test'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import type { ManifestAdapter } from '../packages/adapters/solana/manifest/adapter'
+import type { ManifestBrowserWallet } from '../packages/adapters/solana/manifest/browser'
+import type { ManifestBinding } from '../packages/adapters/solana/manifest/wire'
+import { cancelProfileOrder, submitProfileSale } from '../src/components/portfolio/profileActions'
+const owner=new PublicKey(new Uint8Array(32).fill(1)),other=new PublicKey(new Uint8Array(32).fill(2))
+const binding={outcome:1} as ManifestBinding
+function fixture(){let sent=0;const requests:unknown[]=[];const adapter={readBook:async()=>({bids:()=>[{trader:owner,sequenceNumber:77n},{trader:other,sequenceNumber:88n}],asks:()=>[]}),cancel:async(_owner:PublicKey,b:ManifestBinding,ids:bigint[])=>{requests.push({b,ids});return new Transaction()},holdings:async()=>({venueAvailableClaims:5n}),order:async(_owner:PublicKey,b:ManifestBinding,input:unknown)=>{requests.push({b,input});return new Transaction()}} as unknown as ManifestAdapter;const wallet={owner,send:async()=>{sent++;return 'signature'}} as unknown as ManifestBrowserWallet;return {adapter,wallet,requests,sent:()=>sent}}
+test('cancel selects exactly the owner’s order and handles a stale order without signing',async()=>{const f=fixture();expect(await cancelProfileOrder(f.adapter,f.wallet,binding,'77')).toEqual({status:'confirmed',signature:'signature'});expect(f.requests).toEqual([{b:binding,ids:[77n]}]);await cancelProfileOrder(f.adapter,f.wallet,binding,'88');expect(f.sent()).toBe(1)})
+test('reserved/unavailable shares cannot enter a profile sale',async()=>{const f=fixture();await expect(submitProfileSale(f.adapter,f.wallet,binding,{side:'SELL',quantity:6n,priceMicros:500000n,lastValidSlot:0,kind:'IOC',maxFeeAtoms:1n})).rejects.toThrow('Reserved shares');expect(f.sent()).toBe(0)})
+test('sale preserves the selected outcome, quantity and partial-fill policy',async()=>{const f=fixture();const input={side:'SELL' as const,quantity:5n,priceMicros:500000n,lastValidSlot:0,kind:'IOC' as const,maxFeeAtoms:1n};expect(await submitProfileSale(f.adapter,f.wallet,binding,input)).toBe('signature');expect(f.requests).toEqual([{b:binding,input}])})
+test('wallet rejection and uncertain confirmation propagate without another send',async()=>{const f=fixture();let attempts=0;f.wallet.send=async()=>{attempts++;throw new Error('Check transaction signature before retrying: confirmation unavailable')};await expect(cancelProfileOrder(f.adapter,f.wallet,binding,'77')).rejects.toThrow('before retrying');expect(attempts).toBe(1)})

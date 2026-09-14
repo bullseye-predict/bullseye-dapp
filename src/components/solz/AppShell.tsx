@@ -1,35 +1,42 @@
-import type { ComponentProps, ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { setChrome, type HeaderActive } from '../session/chrome'
 import { SiteFooter } from './SiteFooter'
-import { SiteHeader } from './SiteHeader'
 
-/** The one place the site chrome is assembled.
+/** The page half of the site chrome.
  *
- *  Every page is its own Astro island, so there is no single React root to
- *  hang a header on, and the header cannot live in SiteLayout.astro: it needs
- *  `walletControl`, which only exists inside each island's DynamicSolanaSession.
- *  This wrapper is the equivalent — it is the only module that renders
- *  SiteHeader or SiteFooter, so changing the chrome here changes every page.
+ *  The header and the skip link are not rendered here: they live in SiteChrome,
+ *  one persisted island in SiteLayout that outlives every page, so the wallet
+ *  session and its balances survive navigation instead of being rebuilt. What
+ *  the header needs to know about the page on screen is published to the chrome
+ *  store, so each page still declares it in exactly one place — here.
  *
- *  The root carries `sz-shell`, which is where the shared header layout tokens
- *  (--site-header-height, --site-gutter, --site-content-width, --z-site-header)
- *  are defined; page classes stay on the same element for page-specific rules. */
-type Props = Omit<ComponentProps<typeof SiteHeader>, 'homeHref'> & {
+ *  The footer stays in the page: it holds no state worth persisting and its
+ *  back-to-top target is per page. */
+type Props = {
   /** Page-specific root classes, e.g. `solz-home ev-app`. */
   className: string
   id?: string
   homeHref?: string
+  marketsHref?: string
+  active: HeaderActive
   /** Fragment link to this page's <main>. Renders the skip link when set. */
   skipTo?: string
   skipLabel?: string
   /** Falls through to SiteFooter's own `${homeHref}#highlight` default. */
   backToTopHref?: string
+  onArena?: () => void
+  onMarkets?: () => void
   children: ReactNode
 }
 
-export function AppShell({ className, id, homeHref = '/', marketsHref, walletControl, active, onArena, onMarkets, skipTo, skipLabel = 'Skip to content', backToTopHref, children }: Props) {
-  return <div className={`sz-shell ${className}`} id={id}>
-    {skipTo && <a className="sh-skip-link" href={skipTo}>{skipLabel}</a>}
-    <SiteHeader homeHref={homeHref} marketsHref={marketsHref} walletControl={walletControl} active={active} onArena={onArena} onMarkets={onMarkets} />
+export function AppShell({ className, id, homeHref = '/', marketsHref, active, skipTo, skipLabel, backToTopHref, onArena, onMarkets, children }: Props) {
+  // Effect rather than render, so the header is never asked to update while
+  // this tree is mid-render. setChrome ignores a publish that changes nothing,
+  // so re-rendering the page does not churn the header.
+  useEffect(() => {
+    setChrome({ active, marketsHref, skipTo, skipLabel }, onArena, onMarkets)
+  })
+  return <div className={className} id={id}>
     {children}
     <SiteFooter homeHref={homeHref} backToTopHref={backToTopHref} />
   </div>

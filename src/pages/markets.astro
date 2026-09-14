@@ -6,5 +6,5 @@ const apiUrl = new URL('/api/prediction', Astro.url).toString()
 ---
 
 <SiteLayout title="All match markets · ColaCat" description="Browse live, upcoming, and settled ColaCat arena markets.">
-  <MarketsDirectoryApp apiUrl={apiUrl} environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} client:only="react" />
+  <MarketsDirectoryApp apiUrl={apiUrl} client:only="react" />
 </SiteLayout>

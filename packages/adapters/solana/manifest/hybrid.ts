@@ -1,15 +1,15 @@
 import { fromLegacyPublicKey } from '@solana/compat'
 import { createSolanaRpc, type Address } from '@solana/kit'
-import { Connection, PublicKey } from '@solana/web3.js'
+import { PublicKey } from '@solana/web3.js'
+import { manifestConnection } from './rpc'
 import { ManifestAdapter, type ManifestDeployment } from './adapter'
 import type { ManifestBinding, Outcome } from './wire'
 
 /**
  * App-facing Solana client for a Manifest venue.
  *
- * Kit owns RPC identity and app-level address types. The pinned Manifest SDK
- * still requires web3.js v1 classes, so those are created only in this module
- * and never escape into React feature code.
+ * Kit supplies app-level address types. Identity, blockhash and SDK reads use
+ * the shared connection so one rate-limit policy covers the whole trade.
  */
 export type ManifestHybridClient = {
   adapter: ManifestAdapter
@@ -34,13 +34,13 @@ export function createManifestHybridClient(rpcUrl: string, deployment: ManifestH
     manifestProgram: new PublicKey(deployment.manifestProgram),
     collateralMint: new PublicKey(deployment.collateralMint),
   }
-  const adapter = new ManifestAdapter(new Connection(rpcUrl, 'confirmed'), legacyDeployment)
+  const adapter = new ManifestAdapter(manifestConnection(rpcUrl), legacyDeployment)
   let networkCheck: Promise<void> | undefined
 
   const toAddress = (value: string) => fromLegacyPublicKey(new PublicKey(value))
   const assertNetwork = () => {
     if (!networkCheck) {
-      networkCheck = kitRpc.getGenesisHash().send().then(genesisHash => {
+      networkCheck = adapter.connection.getGenesisHash().then(genesisHash => {
         if (genesisHash !== legacyDeployment.genesisHash) throw new Error('Wrong Solana genesis identity')
       }).catch(error => {
         networkCheck = undefined
@@ -57,10 +57,10 @@ export function createManifestHybridClient(rpcUrl: string, deployment: ManifestH
     assertNetwork,
     async latestBlockhash() {
       await assertNetwork()
-      const response = await kitRpc.getLatestBlockhash({ commitment: 'confirmed' }).send()
-      const lastValidBlockHeight = Number(response.value.lastValidBlockHeight)
+      const response = await adapter.connection.getLatestBlockhash('confirmed')
+      const lastValidBlockHeight = response.lastValidBlockHeight
       if (!Number.isSafeInteger(lastValidBlockHeight)) throw new Error('Invalid Solana block height')
-      return { blockhash: String(response.value.blockhash), lastValidBlockHeight }
+      return { blockhash: response.blockhash, lastValidBlockHeight }
     },
     async binding(question, outcome) {
       const legacyQuestion = new PublicKey(toAddress(question))

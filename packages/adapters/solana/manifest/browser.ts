@@ -7,7 +7,7 @@ export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; late
 /** Per-transaction progress. The first trade on a question sends several
  *  transactions and the wallet prompts for each one; without a label the user
  *  cannot tell which prompt is which. */
-export type SolanaTransactionStage = { step: string; status: 'signing' | 'sent' | 'failed'; signature?: string; error?: string }
+export type SolanaTransactionStage = { step: string; status: 'preparing' | 'signing' | 'sent' | 'failed'; signature?: string; error?: string }
 export interface SolanaTransactionNotifier { (stage: SolanaTransactionStage): void }
 import { ManifestAdapter } from './adapter'
 import { activateBook, bindingAddress, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
@@ -30,7 +30,7 @@ export class ManifestBrowserWallet {
     return signer
   }
   async send(tx: Transaction, step = 'Solana transaction'): Promise<string> {
-    this.notify?.({ step, status: 'signing' })
+    this.notify?.({ step, status: 'preparing' })
     try {
       return await this.submit(tx, step)
     } catch (error) {
@@ -82,7 +82,9 @@ export class ManifestBrowserWallet {
     const consumed = simulation.value.unitsConsumed ?? 200_000
     tx.instructions[tx.instructions.length - 1] = ComputeBudgetProgram.setComputeUnitLimit({ units: Math.min(1_400_000, Math.max(50_000, Math.ceil(consumed * 1.15) + 5_000)) })
     const expected = Buffer.from(tx.serializeMessage())
-    const signed = await (await this.signer()).signTransaction(tx)
+    const signer = await this.signer()
+    this.notify?.({ step, status: 'signing' })
+    const signed = await signer.signTransaction(tx)
     await this.signer()
     if (!Buffer.from(signed.serializeMessage()).equals(expected)) throw new Error('Wallet changed transaction contents')
     const signature = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
@@ -157,7 +159,10 @@ export class ManifestBrowserWallet {
   async prepare(b: ManifestBinding) {
     const p = this.adapter.deployment.predictionProgram, vault = vaultAddress(p, this.owner)
     const position = positionAddress(p, b.question, vault)
-    const accounts = await this.adapter.connection.getMultipleAccountsInfo([vault, position])
+    const ownerQuote = getAssociatedTokenAddressSync(b.collateral, this.owner)
+    const recipientQuote = getAssociatedTokenAddressSync(b.collateral, b.recipient)
+    const ownerClaims = getAssociatedTokenAddressSync(b.mint, this.owner)
+    const accounts = await this.adapter.connection.getMultipleAccountsInfo([vault, position, ownerQuote, recipientQuote, ownerClaims])
     const tx = new Transaction()
     if (!accounts[0]) tx.add(initializeVault(p, this.owner, b.collateral, 1n))
     if (!accounts[1]) tx.add(initializePosition(p, this.owner, b.question, vault))
@@ -165,12 +170,27 @@ export class ManifestBrowserWallet {
     // account to already be an initialised SPL account; a missing one is System-owned
     // and fails the check as Custom(8100) on the first order that actually fills.
     // Idempotent, so it is a no-op once any trader has paid the one-time rent.
-    tx.add(
-      createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, this.owner), this.owner, b.collateral),
-      createAssociatedTokenAccountIdempotentInstruction(this.owner, getAssociatedTokenAddressSync(b.collateral, b.recipient), b.recipient, b.collateral),
-      prepareClaimAccount(this.owner, this.owner, b.mint),
+    if (!accounts[2]) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, ownerQuote, this.owner, b.collateral))
+    if (!accounts[3]) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, recipientQuote, b.recipient, b.collateral))
+    if (!accounts[4]) tx.add(prepareClaimAccount(this.owner, this.owner, b.mint))
+    return tx.instructions.length ? this.send(tx, 'Preparing your trading accounts') : undefined
+  }
+  /** Atomic complete-set purchase: collateralize both outcomes, sell the
+   * opposite one with an on-chain minimum return, retain the selected claim.
+   * A failed sale rolls back the deposit, split and export together. */
+  async completeSetBuy(opposite: ManifestBinding, quantity: bigint, maximumCost: bigint, maximumFee: bigint) {
+    if (quantity <= 0n || maximumCost <= 0n || maximumCost >= quantity) throw new Error('Invalid complete-set quote')
+    const p = this.adapter.deployment.predictionProgram
+    const tx = new Transaction().add(
+      moveVaultCollateral(p, this.owner, getAssociatedTokenAddressSync(opposite.collateral, this.owner), quantity, 'deposit'),
+      changePosition(p, this.owner, opposite.question, vaultAddress(p, this.owner), 'split', quantity),
+      moveClaims(p, this.owner, opposite, quantity, 'export'),
     )
-    return this.send(tx, 'Preparing your trading accounts')
+    const sale = await this.adapter.swap(this.owner, opposite, {
+      side: 'SELL', inputAtoms: quantity, minimumOutputAtoms: quantity - maximumCost, maxFeeAtoms: maximumFee,
+    })
+    tx.add(...sale.instructions)
+    return this.send(tx, `Buying ${opposite.outcome === 0 ? 'NO' : 'YES'} through the opposite bids`)
   }
   async collateral(b: ManifestBinding, action: 'deposit' | 'withdraw' | 'split' | 'merge' | 'redeem', atoms?: bigint) {
     const p = this.adapter.deployment.predictionProgram

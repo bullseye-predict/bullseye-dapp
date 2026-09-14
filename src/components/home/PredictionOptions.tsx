@@ -9,12 +9,17 @@ import { matchIdLabel, outcomeColor } from './heroMarket'
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { PredictionDetail } from './PredictionDetail'
 import { MarketErrorBoundary } from './MarketErrorBoundary'
+import { buyQuoteLabel, midpointLabel } from './venue/quoteLabels'
 import { MatchAvatar } from '../portfolio/matchIdentity'
 
 type Props = {
   markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot
   answer?: PredictionAnswer; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void
   simulation: boolean; referenceMarkets?: ArenaMarket[]; sourceLabel?: string
+  /** The venue's own collateral symbol. Derived from the venue config, never
+   *  guessed from the display label — which fell through to the literal word
+   *  "collateral" for every source it did not know by name, Solana included. */
+  collateral?: string
   match?: SolzMatch
 }
 export function PredictionOptions(props: Props) {
@@ -24,8 +29,8 @@ export function PredictionOptions(props: Props) {
     <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id}/>)}</div>
   </div>
 }
-function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, sourceLabel }: Props & { item: ArenaMarket }) {
-  const collateral = simulation ? 'COOLA' : sourceLabel === 'SOMNIA TESTNET' ? 'tUSDC' : sourceLabel === 'SOMNIA MAINNET' ? 'USDso' : 'collateral'
+function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, collateral: symbol }: Props & { item: ArenaMarket }) {
+  const collateral = simulation ? 'COOLA' : symbol ?? 'collateral'
   const active = item.id === market.id
   const [open, setOpen] = useState(active)
   const [nestedOpen, setNestedOpen] = useState<string[]>([])
@@ -40,6 +45,7 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   const choose = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => { setLastOutcome(pick.id); setAnswers((previous) => ({ ...previous, [pick.id]: value })); onSelect(item, pick, value) }
   const selectedAnswer = active ? answer : answers[selected.id] ?? 'yes'
   const displayedPrice = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => {
+    if (item.onchain?.family === 'SOLANA' && value === 'yes') return buyQuoteLabel(pick, true)
     const probability = value === 'yes' ? pick.probability : 1 - pick.probability
     return `${Math.round(probability * 100)}¢`
   }
@@ -58,7 +64,7 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   return <section className={`ch-option ${active ? 'is-selected' : ''}`}>
     <div className="ch-option-row">
       <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{volumeLabel}{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
-      {!multiple && <div className="ch-option-actions"><div className="ch-option-probability" aria-label={`${selected.label} market probability`}><strong>{selected.probability > 0 && selected.probability < .01 ? '<1' : Math.round(selected.probability * 100)}%</strong><span className={movement(selected).startsWith('↑') ? 'is-up' : movement(selected).startsWith('↓') ? 'is-down' : ''}>{movement(selected)}</span></div><div className="ch-option-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={active && outcome.id === pick.id} onClick={() => choose(pick)}><span>{pick.label}</span><b>{displayedPrice(pick)}</b></button>)}</div></div>}
+      {!multiple && <div className="ch-option-actions"><div className="ch-option-probability" aria-label={`${selected.label} market probability`}><strong>{item.onchain?.family === 'SOLANA' ? midpointLabel(selected) : `${selected.probability > 0 && selected.probability < .01 ? '<1' : Math.round(selected.probability * 100)}%`}</strong><span className={movement(selected).startsWith('↑') ? 'is-up' : movement(selected).startsWith('↓') ? 'is-down' : ''}>{movement(selected)}</span></div><div className="ch-option-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={active && outcome.id === pick.id} onClick={() => choose(pick)}><span>{pick.label}</span><b>{displayedPrice(pick)}</b></button>)}</div></div>}
     </div>
     <AnimatedCollapse id={`option-${item.id}`} labelledBy={`option-${item.id}-button`} open={open}>
       {multiple ? <div className="ch-outcome-list">{item.outcomes.map((pick, index) => {

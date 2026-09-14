@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { PredictionPublicConfig, PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClient";
-import type { DynamicSolanaSessionValue } from "../arena/DynamicSolanaSession";
 import { DreamDexTerminal } from "./DreamDexTerminal";
 import { ManifestTerminal } from "./LazyManifestTerminal";
 import { ManifestTerminalPreview } from "./ManifestTerminalPreview";
@@ -57,7 +56,6 @@ export function NetworkTabs({
 export function NetworkTrading({
   apiUrl,
   network,
-  session,
   eventId,
   subjectId,
   somniaChainId,
@@ -68,7 +66,6 @@ export function NetworkTrading({
 }: {
   apiUrl: string;
   network: TradingNetwork;
-  session: DynamicSolanaSessionValue;
   eventId?: string;
   subjectId?: string;
   somniaChainId?: '5031' | '50312';
@@ -203,7 +200,6 @@ export function NetworkTrading({
           <ManifestTerminal
             key={`${venue.chainId}:${venue.programId}`}
             venue={scopedVenue!}
-            session={session}
             apiUrl={apiUrl}
           />
         ) : (

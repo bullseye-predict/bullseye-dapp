@@ -23,7 +23,6 @@ import {
   Target,
   Trophy,
   UsersRound,
-  WalletCards,
   X,
   Zap,
 } from 'lucide-react'
@@ -35,7 +34,6 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type SubmitEvent,
 } from 'react'
 import { MarketProbabilityChart } from './MarketProbabilityChart'
@@ -63,7 +61,6 @@ type Props = {
   adapter: ArenaAdapter
   walletAddress?: string
   walletReady: boolean
-  walletControl?: ReactNode
 }
 
 function tokenAmount(value: number, token: SettlementToken, compact = false) {
@@ -518,7 +515,7 @@ function SeriesLines({
   )
 }
 
-export function SolzPredictionArena({ adapter, walletAddress, walletReady, walletControl }: Props) {
+export function SolzPredictionArena({ adapter, walletAddress, walletReady }: Props) {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<ArenaSnapshot | null>(null)
@@ -825,7 +822,7 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady, walle
   }, [adapter.mode, loadState, snapshot])
 
   return (
-    <AppShell className="arena-app" active="highlight" walletControl={walletControl ?? <button className="arena-wallet-button" type="button" disabled><WalletCards size={15} aria-hidden="true" /> Login unavailable</button>}>
+    <AppShell className="arena-app" active="highlight">
       <div className="arena-mode-strip"><ModeNav mode={adapter.mode} /></div>
 
       <div className="arena-ticker"><span><Radio size={13} aria-hidden="true" /><b>{adapter.mode === 'demo' ? 'SIMULATION' : 'REGIONAL LIVE'}</b></span><span>{snapshot?.matches.filter((item) => item.phase === 'live').length ?? 0} matches on air</span><span>{match ? `${match.title} · ${match.participants.filter((item) => item.status === 'active').length || '—'} active` : 'Waiting for next match'}</span><span className="ticker-end">SOL + SOLZ only</span></div>

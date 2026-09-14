@@ -58,10 +58,14 @@ export type ArenaMarketOutcome = {
   label: string
   detail: string
   probability: number
+  /** Executable prices are separate from indicative probability/last trade. */
+  marketQuote?: { bid?: number; ask?: number; mid?: number; crossed?: boolean }
   priceHistory?: ArenaPricePoint[]
   /** Observed exchange quotes, kept distinct from executed trade prices. */
   quoteHistory?: ArenaPricePoint[]
   historyStatus?: 'ready' | 'unavailable'
+  /** True when probability is an order-entry seed, not an observed venue price. */
+  indicative?: boolean
   participantId?: string
   teamId?: string
 }
@@ -82,11 +86,14 @@ export type ArenaMarket = {
   volume: Record<SettlementToken, number>
   outcomes: ArenaMarketOutcome[]
   rules: string
+  /** Display-only event/question taxonomy. It never changes market identity or
+   *  settlement and is safe to omit for older catalogue rows. */
+  presentation?: import('../../../packages/prediction-core/portfolio/model').Presentation
   /** Verified public identity for a venue-backed question; never contains a signer or key. */
   // Venue-tagged binding. DreamDEX records predate the tag and are treated as
   // family DREAMDEX by venueBinding(); read it through useVenueMarket, never by
   // reaching for a chain-specific field in a component.
-  onchain?: ({ family?: 'DREAMDEX'; chainId: '5031' | '50312'; marketId: `0x${string}`; oracleQuestionId: string; voidPolicy: 0 | 2; indexerUrl: string; wsRpcUrl: string } | { family: 'SOLANA'; marketId: string; rpcUrl: string; genesisHash: string; predictionProgram: string; manifestProgram: string; collateralMint: string; collateralDecimals: number }) & { tradingStartsAt: number; tradingLocksAt: number; creationTxHash?: string; sponsoredTransactions?: { label: string; hash: string }[]; volume24h?: { amount: string; decimals: number; trades: number }; explorer?: { family?: string; chainId?: string; explorerUrl?: string } }
+  onchain?: ({ family?: 'DREAMDEX'; chainId: '5031' | '50312'; marketId: `0x${string}`; oracleQuestionId: string; voidPolicy: 0 | 2; indexerUrl: string; wsRpcUrl: string } | { family: 'SOLANA'; marketId: string; rpcUrl: string; genesisHash: string; predictionProgram: string; manifestProgram: string; collateralMint: string; collateralDecimals: number }) & { tradingStartsAt: number; tradingLocksAt: number; creationTxHash?: string; sponsoredTransactions?: { label: string; hash: string }[]; volume?: { amount: string; decimals: number }; volume24h?: { amount: string; decimals: number; trades: number }; explorer?: { family?: string; chainId?: string; explorerUrl?: string } }
 }
 
 export type ArenaFeedEvent = {

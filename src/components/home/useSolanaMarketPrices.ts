@@ -1,0 +1,203 @@
+import { binaryQuotes } from '../../../packages/adapters/solana/manifest/quotes'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { PublicKey } from '@solana/web3.js'
+import { ManifestCandleReader } from '../../../packages/adapters/solana/manifest/history'
+import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
+import type { ArenaMarket, ArenaPricePoint } from '../solz/model'
+import { manifestClient } from './venue/manifestClients'
+import { solanaScope, useVenueRevisions } from './venue/revision'
+import type { SolanaBinding, VenueQuote } from './venue/types'
+import { levels } from './venue/useSolanaMarket'
+import { unpricedMarkets } from './useVenueMarketPrices'
+
+type Result = { markets: ArenaMarket[]; status: string }
+
+/** Collateral atoms per share map onto probability directly: one share redeems
+ *  for exactly one collateral unit, so a 500000-atom price at 6dp is 50%. */
+const fraction = (atoms: bigint, decimals: number) => Math.min(1, Math.max(0, Number(atoms) / 10 ** decimals))
+
+/** A crossed interval has no probability midpoint. Only a known execution
+ * can provide a reference price until the crossing orders are consumed. */
+export function outcomeProbability(quote: VenueQuote | undefined, decimals: number, lastTrade?: number) {
+  const price = quote?.crossed ? undefined : quote?.mid ?? quote?.ask ?? quote?.bid
+  if (price !== undefined) return { probability: fraction(price, decimals), indicative: false }
+  if (lastTrade !== undefined) return { probability: Math.min(1, Math.max(0, lastTrade)), indicative: false }
+  return { probability: .5, indicative: true }
+}
+
+/** Quote series survive a panel collapsing and remounting, so a chart does not
+ *  restart from empty every time the user closes and reopens a question. */
+const observed = new Map<string, ArenaPricePoint[]>()
+const seriesKey = (binding: SolanaBinding, outcome: number) => `${solanaScope(binding.rpcUrl, binding.marketId)}:${outcome}`
+
+/** Appends one observation, unless the price has not moved. The DreamDEX
+ *  producer appends on every tick, which on a dormant market is thousands of
+ *  identical points a day for a flat line. */
+export function appendQuote(series: readonly ArenaPricePoint[], at: number, probability: number, cap = 1200): ArenaPricePoint[] {
+  const previous = series.at(-1)
+  if (previous && previous.probability === probability) return series as ArenaPricePoint[]
+  return [...series.filter(point => point.at !== at), { at, probability }].sort((a, b) => a.at - b.at).slice(-cap)
+}
+
+const solanaBindingOf = (market: ArenaMarket) =>
+  market.onchain?.family === 'SOLANA' ? market.onchain as SolanaBinding : null
+
+/**
+ * Live prices for every Solana question on the page, from the chain.
+ *
+ * One hook, mounted once per page — never one per market panel. Book reads are
+ * batched by account, so twelve questions are two `getMultipleAccountsInfo`
+ * requests rather than twenty-four sequential reads; that is the same discipline
+ * the per-panel gating in useVenueMarket was added to protect.
+ *
+ * Executed-trade candles cost a signature page plus a serial `getTransaction`
+ * each, so they are read for the focused market only. Everything else prices
+ * from resting quotes.
+ */
+export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: PublicPredictionVenue | null | undefined, enabled: boolean, focusMarketId?: string): Result {
+  // Blank first, then overwrite with chain data. The arena feed hands these
+  // markets simulated probabilities and history, and unpricedMarkets is what
+  // stops that fabricated series rendering as live devnet prices. It preserves
+  // the Solana binding on purpose, so the batch below can still find its books.
+  const base = useMemo<ArenaMarket[]>(() => unpricedMarkets(sourceMarkets), [sourceMarkets])
+  const bindings = useMemo<{ market: ArenaMarket; binding: SolanaBinding | null }[]>(
+    () => base.map(market => ({ market, binding: solanaBindingOf(market) })),
+    [base],
+  )
+  const scopes = useMemo(
+    () => bindings.flatMap(({ binding }) => binding ? [solanaScope(binding.rpcUrl, binding.marketId)] : []),
+    [bindings],
+  )
+  const revision = useVenueRevisions(scopes)
+  const scope = `${venue?.publicRpcUrl ?? ''}:${scopes.join('|')}:${focusMarketId ?? ''}`
+  const [result, setResult] = useState<Result & { scope: string }>({ scope: '', markets: [], status: 'NOT CONNECTED' })
+  // One reader per venue keeps the decoded-transaction cache across polls; a new
+  // one each tick would re-fetch the entire signature page every time.
+  const historyCache = useRef(new Map<string, Awaited<ReturnType<ManifestCandleReader['read']>>[]>())
+  const candles = useRef<{ rpcUrl: string; reader: ManifestCandleReader } | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    const bound = bindings.filter((item): item is { market: ArenaMarket; binding: SolanaBinding } => item.binding !== null)
+    if (!venue?.publicRpcUrl || !bound.length) {
+      setResult({ scope, markets: base, status: venue?.publicRpcUrl ? 'DEVNET · 0 BOUND' : 'DEVNET · NOT CONFIGURED' })
+      return
+    }
+    let active = true
+    let timer: ReturnType<typeof setTimeout>
+    // Constructed inside the guard: the adapter constructor throws on a
+    // malformed deployment, and a throw from an effect body escapes React and
+    // blanks the page rather than this one section.
+    let client: ReturnType<typeof manifestClient>
+    try {
+      client = manifestClient(venue.publicRpcUrl, { genesisHash: venue.chainId, predictionProgram: venue.programId!, manifestProgram: venue.manifestProgramId!, collateralMint: venue.collateralToken })
+    } catch (reason) {
+      setResult({ scope, markets: base, status: reason instanceof Error ? reason.message.toUpperCase() : 'DEVNET · MISCONFIGURED' })
+      return
+    }
+    const adapter = client.adapter
+    if (candles.current?.rpcUrl !== venue.publicRpcUrl) candles.current = { rpcUrl: venue.publicRpcUrl, reader: new ManifestCandleReader(adapter.connection) }
+    const reader = candles.current.reader
+
+    const load = async () => {
+      try {
+        const requests = bound.flatMap(({ binding }) => [0, 1].map(outcome => ({ question: new PublicKey(binding.marketId), outcome: outcome as 0 | 1 })))
+        const decoded = await adapter.bindings(requests)
+        const books = await adapter.books(decoded)
+        if (!active) return
+        const at = Date.now()
+        let opened = 0
+
+        // Candles only for the question actually on screen. Reading them for
+        // every question on a twelve-question event would be a signature page
+        // plus serial getTransaction calls per question, per tick.
+        const focus = bound.findIndex(({ market }) => market.id === focusMarketId)
+        let focusCandles = historyCache.current.get(scope) ?? []
+        const publish = () => {
+        opened = 0
+        const markets = bound.map(({ market, binding }, index) => {
+          const pair = [0, 1].map(outcome => {
+            const book = books[index * 2 + outcome]
+            if (book) opened++
+            return { asks: book ? levels(book.asks() as never[]) : [], bids: book ? levels(book.bids() as never[]) : [] }
+          })
+          const binary = binaryQuotes(pair[0]!.asks, pair[0]!.bids, pair[1]!.asks, pair[1]!.bids)
+          const quotes = pair.some(p => p.asks.length || p.bids.length) || books[index * 2] || books[index * 2 + 1] ? [binary.yes, binary.no] : []
+          const history = index === focus ? focusCandles : []
+          const outcomes = market.outcomes.map((outcome, side) => {
+            // Outcomes beyond the binary pair have no book of their own; leave
+            // them on the blank the base markets already carry.
+            if (side > 1) return outcome
+            const trades = (history[side]?.candles ?? []).map(candle => ({ at: candle.timestamp, probability: fraction(candle.close, binding.collateralDecimals) }))
+            const { probability, indicative } = outcomeProbability(quotes[side], binding.collateralDecimals, trades.at(-1)?.probability)
+            const key = seriesKey(binding, side)
+            // Only while the question can still trade: a locked market must not
+            // keep extending a flat line past its own cutoff.
+            const series = at < binding.tradingLocksAt && !indicative ? appendQuote(observed.get(key) ?? [], at, probability) : observed.get(key) ?? []
+            observed.set(key, series)
+            return {
+              ...outcome,
+              probability,
+              indicative,
+              marketQuote: quotes[side] ? {
+                crossed: quotes[side]?.crossed,
+                bid: quotes[side]?.bid === undefined ? undefined : fraction(quotes[side]!.bid!, binding.collateralDecimals),
+                ask: quotes[side]?.ask === undefined ? undefined : fraction(quotes[side]!.ask!, binding.collateralDecimals),
+                mid: quotes[side]?.mid === undefined ? undefined : fraction(quotes[side]!.mid!, binding.collateralDecimals),
+              } : undefined,
+              quoteHistory: series,
+              priceHistory: trades,
+              historyStatus: index === focus ? (history[side]?.partial && !trades.length ? 'unavailable' as const : 'ready' as const) : outcome.historyStatus,
+            }
+          })
+          const executed = history.flatMap(item => item.candles).filter(candle => at - candle.timestamp <= 86_400_000)
+          const lifetimeVolume = [books[index * 2], books[index * 2 + 1]].reduce((sum, book) => {
+            if (!book || typeof (book as { quoteVolume?: unknown }).quoteVolume !== 'function') return sum
+            try { return sum + BigInt((book as { quoteVolume(): { toString(): string } }).quoteVolume().toString()) }
+            catch { return sum }
+          }, 0n)
+          return {
+            ...market,
+            status: (at >= binding.tradingLocksAt ? 'closed' : 'open') as ArenaMarket['status'],
+            onchain: {
+              ...market.onchain!,
+              volume: { amount: lifetimeVolume.toString(), decimals: binding.collateralDecimals },
+              ...(executed.length ? { volume24h: { amount: executed.reduce((sum, candle) => sum + candle.collateralVolume, 0n).toString(), decimals: binding.collateralDecimals, trades: executed.length } } : {}),
+            },
+            outcomes,
+          }
+        })
+        // Markets with no Solana binding pass through unpriced rather than being
+        // dropped from the page.
+        const byId = new Map(markets.map(market => [market.id, market]))
+        if (active) setResult({ scope, markets: base.map(market => byId.get(market.id) ?? market), status: `DEVNET · ${opened} / ${bound.length * 2} BOOKS` })
+        }
+        // Quotes must render before slow receipt backfills complete.
+        publish()
+        if (focus >= 0) {
+          focusCandles = await Promise.all([0, 1].map(async outcome => {
+            const binding = decoded[focus * 2 + outcome]
+            if (!binding) return { candles: [], partial: false }
+            try { return await reader.read(binding) }
+            catch { return { candles: focusCandles[outcome]?.candles ?? [], partial: true } }
+          }))
+          if (!active) return
+          historyCache.current.set(scope, focusCandles)
+          publish()
+        }
+      } catch (reason) {
+        // Keep the last good prices through a transient RPC failure; replacing
+        // them with 50/50 would read as the market having moved.
+        if (active) setResult(previous => ({ scope, markets: previous.scope === scope ? previous.markets : base, status: reason instanceof Error && /429|rate/i.test(reason.message) ? 'DEVNET · THROTTLED' : 'DEVNET · DATA UNAVAILABLE' }))
+      } finally {
+        if (active) timer = setTimeout(() => void load(), 10_000)
+      }
+    }
+    void load()
+    return () => { active = false; clearTimeout(timer) }
+  }, [scope, enabled, revision])
+
+  return enabled
+    ? result.scope === scope ? result : { markets: base, status: 'DEVNET · LOADING' }
+    : { markets: sourceMarkets, status: '' }
+}

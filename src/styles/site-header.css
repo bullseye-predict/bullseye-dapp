@@ -1,6 +1,16 @@
-/* Defined once on the AppShell root, so every page gets the same header
-   geometry instead of each app root redeclaring its own copy. */
-.sz-shell { --site-content-width: 1600px; --site-gutter: 32px; --site-header-height: 80px; --z-site-header: 20; }
+/* The layout wrapper around the persisted chrome island and the page. The
+   header sits here rather than inside a page root, so its geometry AND its
+   palette are declared once: previously .solz-home, .arena-app and .ah-root
+   each set their own, and the header was a different colour on each. */
+.sz-shell {
+  --site-content-width: 1600px; --site-gutter: 32px; --site-header-height: 80px; --z-site-header: 20;
+  --sh-bg: #111215; --sh-line: #33343a; --sh-text: #eeeef0; --sh-muted: #a1a2ac; --sh-lime: #c7ff00;
+  --sh-mono: 'Geist Mono', monospace;
+  color: var(--sh-text); font: 400 12px/1.5 var(--sh-mono);
+}
+/* The header used to inherit this from .solz-home, which is no longer an
+   ancestor of it. Without it every nav link renders underlined. */
+.sz-shell a { color: inherit; text-decoration: none; }
 .sz-site-header { position: sticky; top: 0; z-index: var(--z-site-header); background: var(--sh-bg); border-bottom: 1px solid var(--sh-line); }
 .sz-site-header-inner { display: flex; align-items: center; gap: 40px; height: var(--site-header-height); max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); margin-inline: auto; }
 .sz-site-header .sh-logo-colacat { display: block; width: 150px; color: var(--sh-text) !important; text-decoration: none; }
@@ -24,7 +34,7 @@
 .sz-games-popover svg { grid-column: 2; grid-row: 1 / span 2; align-self: center; width: 15px; }
 .sz-games-popover > div { color: #777c84; border-top: 1px solid #393d45; }
 .sz-site-header nav > .sh-wallet { margin-left: auto; flex-shrink: 0; }
-.sz-site-menu { display: none; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--sh-line); border-radius: 6px; color: var(--sh-text); background: transparent; }
+.sz-site-menu { display: none; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; width: 40px; height: 40px; border: 1px solid var(--sh-line); border-radius: 6px; color: var(--sh-text); background: transparent; }
 .sz-activity-marquee { display: flex; overflow: hidden; height: 30px; border-top: 1px solid #292c31; background: #0d0f12; color: #c4cad3; white-space: nowrap; }
 .sz-ticker-preview, .sz-ticker-toggle { flex-shrink: 0; padding: 0 12px; align-content: center; background: #171b21; color: #c4cad3; font: 500 9px var(--sh-mono); }
 .sz-ticker-toggle { border: 0; cursor: pointer; }

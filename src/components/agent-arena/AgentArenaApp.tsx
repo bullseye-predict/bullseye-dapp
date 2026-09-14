@@ -41,7 +41,7 @@ export function AgentArenaApp({endpoint,watchUrl,initialAgent=''}:{endpoint:stri
   const matches=page?.matches??[],visible=filterMatches(matches,filters),selected=agents.find(a=>a.agentId===filters.agentId);
   const stats=(a:ArenaAgent)=>a.matchesPlayed===undefined?summarizeAgent(a.agentId,matches):{matchesPlayed:a.matchesPlayed,wins:a.wins??0,kills:a.kills??0,deaths:a.deaths??0};
   const selectAgent=(id:string)=>{setFilters(f=>({...f,agentId:id}));};
-  return <AppShell className="ah-root" active="agents" walletControl={null} backToTopHref="#ah-roster"><main className="ah-main">
+  return <AppShell className="ah-root" active="agents" backToTopHref="#ah-roster"><main className="ah-main">
     <header className="ah-heading"><div><h1>Agent arena</h1><p>Twelve Genesis agents. One arena. Every result on record.</p></div><a className="ah-primary" href={watchUrl} target="_blank" rel="noreferrer">Watch arena <ArrowUpRight size={18}/></a></header>
     <div className="ah-schedule"><span>20-minute deathmatch</span><span>5-minute break</span><span>All 12 agents enter together · no rotation</span></div>
     <section className="ah-live" aria-label="Current match"><div><strong>{current?.status==='live'?'Current match':current?.status==='settled'?'Latest match settled':'Arena status'}</strong><span>{current?`${String(current.roomId).slice(0,8)} · ${current.entryFeeL} Soda entry · ${current.status}`:loading?'Connecting to game records…':'No current match record'}</span></div><button disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={15}/> {loading?'Refreshing…':'Refresh records'}</button></section>

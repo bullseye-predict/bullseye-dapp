@@ -3,5 +3,5 @@ import { LiveArenaApp } from '../components/arena/LiveArenaApp'
 import SiteLayout from '../layouts/SiteLayout.astro'
 ---
 <SiteLayout title="Watch SOLZ · COOLA" description="Observe live SOLZ game rooms.">
-  <LiveArenaApp environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} client:only="react" />
+  <LiveArenaApp client:only="react" />
 </SiteLayout>

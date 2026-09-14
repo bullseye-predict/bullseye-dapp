@@ -7,6 +7,9 @@ export type MarkedValue = { total?: bigint; unpriced: number; priced: number; mi
 export type Collateral = { wallet: bigint; seat: bigint; reserved: bigint; vault: bigint; total: bigint }
 
 type Props = {
+  compact?: boolean
+  publicView?: boolean
+  valuationLabel?: string
   owner?: string
   /** One grey line: network, collateral symbol and whether this page is read-only. */
   meta: string
@@ -35,15 +38,15 @@ const count = (ready: boolean, value: number) => ready ? String(value) : '—'
  * page, the collateral split is one disclosure rather than four cards, and the
  * Active/Closed counts are left to the tabs that filter by them.
  */
-export function PortfolioSummary({ owner, meta, value, claimable, orders, collateral, decimals, symbol, ready, copyStatus, onCopy, onRefresh, refreshing }: Props) {
+export function PortfolioSummary({ compact = false, publicView = false, valuationLabel, owner, meta, value, claimable, orders, collateral, decimals, symbol, ready, copyStatus, onCopy, onRefresh, refreshing }: Props) {
   const hue = matchGlyph(owner ?? 'unconnected').hue
   const marked = !ready ? '—' : value.total === undefined ? '—' : formatUnitsExact(value.total, decimals, 2)
   // One unpriced book withholds the whole total: an outcome no one is bidding on
   // is not worth zero, and summing only the priced rows would under-report it.
   const markedLabel = !ready || value.total !== undefined ? 'Positions value'
     : value.mixed ? 'Positions use more than one collateral'
-    : `${value.unpriced} of ${value.unpriced + value.priced} ${value.unpriced + value.priced === 1 ? 'position has' : 'positions have'} no bid`
-  return <section className="pf-card pf-profile" aria-label="Account summary">
+    : `${value.unpriced} of ${value.unpriced + value.priced} positions have ${valuationLabel ?? 'no bid'}`
+  return <section className={`pf-card pf-profile ${publicView ? 'is-public' : ''}`} aria-label="Account summary">
     <div className="pf-identity">
       <div className="pf-avatar" style={{ background: `hsl(${hue} 30% 16%)`, color: `hsl(${hue} 70% 72%)` }}><WalletCards size={21}/></div>
       <div>
@@ -55,16 +58,16 @@ export function PortfolioSummary({ owner, meta, value, claimable, orders, collat
     </div>
     <dl className="pf-hero-stats">
       <div><dt>{markedLabel}</dt><dd>{marked}<small>{symbol}</small></dd></div>
-      <div><dt>Ready to claim</dt><dd className={ready && claimable > 0 ? 'pf-yes' : ''}>{count(ready, claimable)}</dd></div>
-      <div><dt>{ready && orders.expired > 0 ? `Resting orders · ${orders.expired} expired` : 'Resting orders'}</dt><dd className={ready && orders.expired > 0 ? 'pf-alert' : ''}>{count(ready, orders.total)}</dd></div>
+      {!publicView && <><div><dt>Ready to claim</dt><dd className={ready && claimable > 0 ? 'pf-yes' : ''}>{count(ready, claimable)}</dd></div>
+      <div><dt>{ready && orders.expired > 0 ? `Resting orders · ${orders.expired} expired` : 'Resting orders'}</dt><dd className={ready && orders.expired > 0 ? 'pf-alert' : ''}>{count(ready, orders.total)}</dd></div></>}
     </dl>
-    {collateral && ready && <details className="pf-collateral">
-      <summary>Collateral<b>{formatUnitsExact(collateral.total, decimals, 2)} {symbol}</b></summary>
+    {collateral && ready && <details className="pf-collateral" open={!compact}>
+      <summary>Collateral<b>{formatUnitsExact(collateral.total, decimals, 6)} {symbol}</b></summary>
       <dl>
-        <div><dt>In your wallet</dt><dd>{formatUnitsExact(collateral.wallet, decimals, 2)}</dd></div>
-        <div><dt>On venue seats</dt><dd>{formatUnitsExact(collateral.seat, decimals, 2)}</dd></div>
-        <div><dt>Reserved in buy orders</dt><dd>{formatUnitsExact(collateral.reserved, decimals, 2)}</dd></div>
-        <div><dt>In the prediction vault</dt><dd>{formatUnitsExact(collateral.vault, decimals, 2)}</dd></div>
+        <div><dt>In your wallet</dt><dd>{formatUnitsExact(collateral.wallet, decimals, 6)}</dd></div>
+        <div><dt>On venue seats</dt><dd>{formatUnitsExact(collateral.seat, decimals, 6)}</dd></div>
+        <div><dt>Reserved in buy orders</dt><dd>{formatUnitsExact(collateral.reserved, decimals, 6)}</dd></div>
+        <div><dt>In the prediction vault</dt><dd>{formatUnitsExact(collateral.vault, decimals, 6)}</dd></div>
       </dl>
     </details>}
     <button className="pf-refresh" disabled={refreshing || !owner} onClick={onRefresh}><RefreshCw size={14}/>Refresh</button>

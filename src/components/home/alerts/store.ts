@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, type PersistStorage } from 'zustand/middleware'
 
 export type AlertLevel = 'error' | 'warning' | 'info' | 'success'
-export type AlertRecord = { id: string; level: AlertLevel; title: string; detail?: string; href?: string; at: number }
+export type AlertRecord = { id: string; level: AlertLevel; title: string; detail?: string; href?: string; marketScope?: string; at: number }
 
 /** A durable, reviewable log of what happened, separate from toasts. A toast is
  *  transient and easy to miss behind a dialog; this keeps every record — not
@@ -39,6 +39,7 @@ function restore(value: unknown): AlertRecord | null {
     level: LEVELS.includes(record.level as AlertLevel) ? record.level as AlertLevel : 'info',
     ...(typeof record.detail === 'string' ? { detail: record.detail } : {}),
     ...(href ? { href } : {}),
+    ...(typeof record.marketScope === 'string' ? { marketScope: record.marketScope } : {}),
   }
 }
 

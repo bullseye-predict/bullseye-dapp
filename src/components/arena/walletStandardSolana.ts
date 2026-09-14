@@ -36,6 +36,29 @@ function unsignedBytes(transaction: Transaction | VersionedTransaction) {
     : transaction.serialize()
 }
 
+/** Some injected wallets restore accounts before initializing site metadata.
+ * Recover only this pre-signing error, using the exact connected wallet; never
+ * select another account, retry a rejected approval, or broadcast here. */
+export function withWalletMetadataRecovery(signer: ISolana, name: string, wallets = () => getWallets().get()): ISolana {
+  const wrapped = Object.create(signer) as ISolana
+  wrapped.signTransaction = async <T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> => {
+    try { return await signer.signTransaction(transaction) }
+    catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      if (message !== 'Incorrect metadata') throw reason
+      const address = (signer.publicKey ? new PublicKey(signer.publicKey.toBytes()).toBase58() : undefined)
+      const wallet = wallets().find(candidate => candidate.name === name && candidate.accounts.some(account => account.address === address))
+      const feature = wallet?.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect] | undefined
+      if (!address || !feature) throw new Error('Wallet site session expired. Reconnect this wallet on the current page before retrying.')
+      const connected = await feature.connect({ silent: true })
+      if (!connected.accounts.some(account => account.address === address) || (signer.publicKey ? new PublicKey(signer.publicKey.toBytes()).toBase58() : undefined) !== address)
+        throw new Error('Wallet account changed. Reconnect the intended account before trading.')
+      return signer.signTransaction(transaction)
+    }
+  }
+  return wrapped
+}
+
 export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcUrl = solanaRpcEndpoint()): Promise<DirectSolanaSession> {
   const connect = wallet.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect]
   const connected = await connect.connect()
@@ -60,7 +83,7 @@ export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcU
   } as unknown as ISolana
   return {
     name: wallet.name,
-    port: { address: account.address, getConnection: async () => new Connection(rpcUrl, 'confirmed'), getSigner: async () => signer },
+    port: { address: account.address, getConnection: async () => new Connection(rpcUrl, 'confirmed'), getSigner: async () => withWalletMetadataRecovery(signer, wallet.name) },
     async disconnect() {
       signer.isConnected = false
       const feature = wallet.features[StandardDisconnect] as StandardDisconnectFeature[typeof StandardDisconnect] | undefined

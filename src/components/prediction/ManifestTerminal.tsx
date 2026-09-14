@@ -7,22 +7,25 @@ import { createManifestHybridClient } from '../../../packages/adapters/solana/ma
 import { recentManifestCandles } from '../../../packages/adapters/solana/manifest/history'
 import { takerFee, type ManifestBinding } from '../../../packages/adapters/solana/manifest/wire'
 import { decodeMarket } from '../../../packages/adapters/solana/accounts'
-import type { DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
+import { useSolanaWallet } from '../session/store'
 import { ConfirmedPriceChart } from './ConfirmedPriceChart'
 import { formatUnitsExact, parseUnitsExact, priceLabel } from './amounts'
 
-type Props = { venue: PublicPredictionVenue; session: DynamicSolanaSessionValue; apiUrl: string }
+type Props = { venue: PublicPredictionVenue; apiUrl: string }
 const format = (n: bigint) => formatUnitsExact(n, 6, 6)
 type Holdings = Awaited<ReturnType<ManifestAdapter['holdings']>>
 type Question = ReturnType<typeof decodeMarket>
-export function ManifestTerminal({ venue, session, apiUrl }: Props) {
+export function ManifestTerminal({ venue, apiUrl }: Props) {
   if (!venue.programId || !venue.manifestProgramId || !venue.publicRpcUrl) return <div className="pt-empty" role="status">Solana deployment configuration is incomplete. Trading will be available after the prediction and guarded Manifest programs are connected.</div>
-  return <ConfiguredManifest key={`${venue.chainId}:${venue.programId}:${venue.manifestProgramId}:${session.walletAddress ?? ''}`} venue={venue} session={session} apiUrl={apiUrl}/>
+  return <ConfiguredManifest key={`${venue.chainId}:${venue.programId}:${venue.manifestProgramId}`} venue={venue} apiUrl={apiUrl}/>
 }
-function ConfiguredManifest({ venue, session, apiUrl }: Props) {
+function ConfiguredManifest({ venue, apiUrl }: Props) {
+  // The wallet arrives from the store now, so it can change under this tree
+  // instead of remounting it through a key.
+  const solanaWallet = useSolanaWallet()
   const client = useMemo(() => createManifestHybridClient(venue.publicRpcUrl!, { genesisHash: venue.chainId, predictionProgram: venue.programId!, manifestProgram: venue.manifestProgramId!, collateralMint: venue.collateralToken! }), [venue])
   const adapter = client.adapter
-  const wallet = useMemo(() => session.wallet ? new ManifestBrowserWallet(adapter, session.wallet, client) : null, [adapter, client, session.wallet])
+  const wallet = useMemo(() => solanaWallet ? new ManifestBrowserWallet(adapter, solanaWallet, client) : null, [adapter, client, solanaWallet])
   useEffect(() => () => wallet?.dispose(), [wallet])
   const [address, setAddress] = useState(venue.manifestMarkets?.[0]?.address ?? '')
   const [drafts, setDrafts] = useState<LazyQuestion[]>([]), [draftError, setDraftError] = useState(''), [activated, setActivated] = useState<LiveQuestion[]>([])
@@ -43,9 +46,9 @@ function ConfiguredManifest({ venue, session, apiUrl }: Props) {
     return () => controller.abort()
   }, [apiUrl])
   const markets = [...drafts.filter(draft => ![...(venue.manifestMarkets ?? []), ...activated].some(market => market.address === draft.marketId)).map(draft => ({ value:draft.marketId, label:`New · ${draft.label}` })), ...(venue.manifestMarkets ?? []).map(market => ({ value:market.address, label:market.label })), ...activated.map(market => ({ value:market.address, label:market.label }))]
-  return <><div className="pt-toolbar"><label>Solana market<select aria-label="Solana market" value={address} onChange={e => setAddress(e.target.value)}>{markets.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></label><span>{venue.label} · {venue.collateralSymbol} · Manifest + Solana Kit</span>{session.walletControl}</div>
+  return <><div className="pt-toolbar"><label>Solana market<select aria-label="Solana market" value={address} onChange={e => setAddress(e.target.value)}>{markets.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></label><span>{venue.label} · {venue.collateralSymbol} · Manifest + Solana Kit</span></div>
     {draftError && <p className="pt-error" role="status">New question catalogue: {draftError}</p>}
-    {selectedLive ? <QuestionTerminal key={`${address}:${session.walletAddress ?? ''}`} client={client} adapter={adapter} wallet={wallet} labels={selectedLive.outcomes} address={address} matchId={selectedLive.matchId} apiUrl={apiUrl}/>
+    {selectedLive ? <QuestionTerminal key={`${address}:${solanaWallet?.address ?? ''}`} client={client} adapter={adapter} wallet={wallet} labels={selectedLive.outcomes} address={address} matchId={selectedLive.matchId} apiUrl={apiUrl}/>
       : selectedDraft ? <LazyQuestionActivation draft={selectedDraft} wallet={wallet} apiUrl={apiUrl} collateralSymbol={venue.collateralSymbol} onReady={() => setActivated(current => [...current.filter(market => market.address !== selectedDraft.marketId), { address:selectedDraft.marketId, matchId:selectedDraft.matchId, label:selectedDraft.label, outcomes:selectedDraft.outcomes }])}/>
       : <div className="pt-empty"><h3>No Solana markets configured</h3><p>There are no active or reserved devnet questions right now.</p></div>}</>
 }
@@ -115,16 +118,19 @@ function OutcomeTerminal({ client, adapter, wallet: sessionWallet, question, out
     return () => { current = false; clearInterval(timer) }
   }, [adapter, client, question, outcome, refresh])
   useEffect(() => setReview(null), [side, kind, quantity, price])
-  const run = async (operation: () => Promise<string>) => {
+  // prepare() returns undefined when every account already exists, so nothing
+  // was signed. Reporting that as "Finalized transaction: undefined" would be a
+  // lie about a transaction that never happened.
+  const run = async (operation: () => Promise<string | undefined>) => {
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setFeedback('')
-    try { const result = await operation(); if (active.current) { setFeedback(`Finalized transaction: ${result}`); setRefresh(n => n + 1); setReview(null) } }
+    try { const result = await operation(); if (active.current) { setFeedback(result ? `Finalized transaction: ${result}` : 'Your trading accounts were already prepared. Nothing to sign.'); setRefresh(n => n + 1); setReview(null) } }
     catch (e) { if (active.current) setFeedback(e instanceof Error ? e.message : 'Transaction failed') }
     finally { inFlight.current = false; if (active.current) setBusy(false) }
   }
   const closed = !data || data.state.paused || data.state.status > 1 || BigInt(data.now) < data.state.startsAtSeconds || BigInt(data.now) >= data.state.locksAtSeconds
   const unavailable = !wallet || busy || !!error || !data
-  const action = (fn: (w: ManifestBrowserWallet, b: ManifestBinding, amount: bigint) => Promise<string>, amountRequired = true) => void run(async () => { if (!wallet || !data || error) throw new Error('Connect a wallet and refresh the market first'); return fn(wallet, data.binding, amountRequired ? parseUnitsExact(funds, 6) : 0n) })
+  const action = (fn: (w: ManifestBrowserWallet, b: ManifestBinding, amount: bigint) => Promise<string | undefined>, amountRequired = true) => void run(async () => { if (!wallet || !data || error) throw new Error('Connect a wallet and refresh the market first'); return fn(wallet, data.binding, amountRequired ? parseUnitsExact(funds, 6) : 0n) })
   const h = data?.holdings
   return <fieldset className="pt-session" disabled={busy} aria-label={`${label} Solana trading`}><div className="pt-market-status"><span>{error ? 'Market data unavailable' : !data ? 'Loading Solana market…' : closed ? 'Closed to new trades' : 'Trading open'}</span>{data && <span>Cutoff {new Date(Number(data.state.locksAtSeconds) * 1000).toLocaleString()}</span>}</div>
     {error && <p className="pt-error" role="alert">{error}</p>}

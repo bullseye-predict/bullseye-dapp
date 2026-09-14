@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions'
+import { SiteChrome } from '../components/solz/SiteChrome'
 import '../styles/global.css'
 import '../styles/arena.css'
 import '../styles/events.css'
@@ -22,6 +23,12 @@ interface Props {
 }
 
 const { title, description } = Astro.props
+// One wallet session for the whole app, created by the persisted chrome island
+// rather than by each page, so navigating does not tear it down. The same-origin
+// route is used on every page; PUBLIC_PREDICTION_API_URL is a server concern.
+const chromeApiUrl = new URL('/api/prediction', Astro.url).toString()
+const environmentId = String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()
+const allowEvm = String(import.meta.env.PUBLIC_ARENA_MARKET_SOURCES ?? '').toUpperCase().includes('SOMNIA')
 const trustedOrigin = Astro.site ?? Astro.url.origin
 const canonicalUrl = new URL(Astro.url.pathname, trustedOrigin)
 const socialImageUrl = new URL('/og.png', trustedOrigin)
@@ -54,6 +61,12 @@ const socialImageUrl = new URL('/og.png', trustedOrigin)
     <style is:global>html,body{min-width:320px;min-height:100%;margin:0;background:#111215;color:#eeeef0}</style>
   </head>
   <body>
-    <slot />
+    <!-- sz-shell carries the header layout tokens and now wraps the chrome and
+         the page together, because the header is no longer inside the page's
+         own root element. -->
+    <div class="sz-shell">
+      <SiteChrome environmentId={environmentId} apiUrl={chromeApiUrl} allowEvm={allowEvm} client:only="react" transition:persist="site-chrome" />
+      <slot />
+    </div>
   </body>
 </html>

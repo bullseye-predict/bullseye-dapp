@@ -38,7 +38,11 @@ export function LiveOrderBook({ market, view, isNo, label, collateral }: { marke
   const { book, error, refreshing, decimals, finalized, now, refresh } = view
   const data = book ? { book, market: { decimals, finalized }, now } : null
   const viewport = useRef<HTMLDivElement>(null), centerRow = useRef<HTMLTableRowElement>(null), initialCenter = useRef('')
-  const last = (isNo ? market.outcomes[1] : market.outcomes[0])?.priceHistory?.at(-1)?.probability
+  // The venue's own executed price wins; priceHistory is the fallback that keeps
+  // DreamDEX working, where Last is populated by the pricing producer instead.
+  // Still venue-neutral: a view field and a model field, no chain branch.
+  const last = (isNo ? view.last?.no : view.last?.yes)
+    ?? (isNo ? market.outcomes[1] : market.outcomes[0])?.priceHistory?.at(-1)?.probability
   const recenter = () => {
     const container = viewport.current, row = centerRow.current
     if (!container || !row) return
@@ -51,12 +55,17 @@ export function LiveOrderBook({ market, view, isNo, label, collateral }: { marke
       initialCenter.current = key
     }
   }, [data, isNo, market.id])
+  const quote = isNo ? view.quote?.no : view.quote?.yes
+  const directAsks = isNo ? book?.noAsks : book?.yesAsks
+  const oppositePrice = quote?.ask !== undefined && !directAsks?.some(row => row.price <= quote.ask!) ? quote.ask : undefined
   const volume = market.onchain?.volume24h
     ? `${number(BigInt(market.onchain.volume24h.amount), market.onchain.volume24h.decimals)} ${collateral} Vol.`
     : 'Volume unavailable'
   return <div className="ch-live-book">
     <div className="ch-book-toolbar"><strong className={isNo ? 'is-no' : 'is-yes'}>{label} order book</strong><span>{volume}</span><button type="button" aria-label="Recenter order book on last trade" disabled={!data} onClick={recenter}><Crosshair size={15}/><span className="sr-only">Recenter</span></button><button type="button" aria-label={`Refresh ${label} order book`} disabled={refreshing} onClick={refresh}><RefreshCw size={15}/><span className="sr-only">Refresh</span></button></div>
     {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book?.noAsks : data.book?.yesAsks) ?? []} bids={(isNo ? data.book?.noBids : data.book?.yesBids) ?? []} decimals={data.market.decimals} last={last} label={label} centerRowRef={centerRow}/></div> : <p className="ch-book-message" role="status">{error ?? 'Loading order book…'}</p>}
+    {oppositePrice !== undefined && <p className="ch-sample-note">Buy {label} from {(Number(oppositePrice) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢ through opposite-outcome bids. The table shows orders posted directly in this book.</p>}
+    {quote?.crossed && <p className="ch-sample-note">Crossed outcome bids: the combined bids exceed 1 {collateral}. These orders need matching; they do not establish a probability midpoint.</p>}
     {data && <div className="ch-book-footer"><span>{data.market.finalized || data.now >= market.closesAt ? 'Trading closed' : refreshing ? 'Refreshing…' : 'Auto-refresh · 10s'}</span><span>Updated {new Date(data.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>}
     <p className="ch-sample-note">Last is the most recent trade. Depth and totals are cumulative from the best price.</p>
   </div>

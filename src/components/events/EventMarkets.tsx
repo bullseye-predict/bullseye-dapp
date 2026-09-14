@@ -1,11 +1,12 @@
-import { ArrowUpRight, ChevronDown, FileText, Layers } from 'lucide-react'
+import { ArrowUpRight, ChevronDown } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
-import { AgentPortrait, amountLabel, compact, percent, TeamMark } from '../home/HomePrimitives'
+import { AgentPortrait, compact, percent, TeamMark } from '../home/HomePrimitives'
 import { outcomeColor } from '../home/heroMarket'
-import { eventAnswerMarket } from './eventModel'
+import { eventAnswerMarket, eventMarketVolume } from './eventModel'
 import { PredictionDetail } from '../home/PredictionDetail'
 import { MarketErrorBoundary } from '../home/MarketErrorBoundary'
+import { buyQuoteLabel, midpointLabel } from '../home/venue/quoteLabels'
 import { baseOutcomeId } from '../solz/predictionContracts'
 
 type Props = { actions?: ReactNode; markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string; simulation?: boolean; collateral?: string }
@@ -21,10 +22,12 @@ function MarketDetail({ market, selected, snapshot, onSelect, simulation, collat
 }
 
 export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref, simulation = true, collateral = 'COOLA' }: Props) {
-  const [expanded, setExpanded] = useState<string[]>(prediction || market.outcomes.length > 2 ? [] : [market.id])
+  const linked = !prediction && markets.length > 1 && markets.every((item) => item.presentation?.kind === 'linked')
+  const headToHead = !prediction && markets.some((item) => item.presentation?.kind === 'head-to-head')
+  const [expanded, setExpanded] = useState<string[]>(prediction || linked || market.outcomes.length > 2 ? [] : [market.id])
   const toggle = (id: string) => setExpanded((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id])
   return <section className={`ev-markets ${prediction ? 'ev-prediction-answers' : ''}`} id="event-markets" aria-labelledby="event-markets-title">
-    <div className="ev-section-title"><h2 id="event-markets-title">{prediction ? 'Choose your answer' : 'Series markets'} <span>{prediction ? prediction.outcomes.length : markets.length}</span></h2>{actions}</div>
+    <div className="ev-section-title"><h2 id="event-markets-title">{prediction || linked ? 'Choose your answer' : headToHead ? 'Match markets' : 'Event questions'} <span>{prediction ? prediction.outcomes.length : markets.length}</span></h2>{actions}</div>
     {prediction ? <>
       <div className="ev-answer-columns"><span>ANSWER</span><span>CHANCE</span><span>YOUR CALL</span></div>
       {prediction.outcomes.map((answer, index) => {
@@ -46,16 +49,38 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
           <div id={`answer-detail-${answer.id}`} hidden={!open}><MarketDetail market={binary} selected={contract} snapshot={snapshot} simulation={simulation} collateral={collateral} active={open} onSelect={(pick) => onSelect(prediction, pick, false)}/></div>
         </section>
       })}
+    </> : linked ? <>
+      <div className="ev-answer-columns"><span>ANSWER</span><span>{markets.some(item => item.onchain?.family === 'SOLANA') ? 'YES PRICE / STATE' : 'CHANCE'}</span><span>BUY PRICE</span></div>
+      {markets.map((item, index) => {
+        const answer = item.presentation?.answer
+        const selected = item.id === market.id
+        const selectedOutcome = selected ? outcome : item.outcomes[0]!
+        const open = expanded.includes(item.id)
+        const volume = eventMarketVolume(item)
+        return <section className={`ev-market ev-answer ${selected ? 'is-selected' : ''}`} key={item.id} id={`event-${item.id}`}>
+          <div className="ev-answer-summary">
+            <h3><button aria-expanded={open} aria-controls={`answer-detail-${item.id}`} onClick={() => { toggle(item.id); if (!selected) onSelect(item, item.outcomes[0]!, false) }}>
+              {answer?.imageUrl ? <img className="ev-answer-image" src={answer.imageUrl} alt=""/> : answer?.participantId ? <AgentPortrait number={Number(answer.participantId.split('-')[1])}/> : <TeamMark id={answer?.teamId ?? item.id} color={outcomeColor(item.outcomes[0]!, snapshot, index)}/>}
+              <span>{answer?.label ?? item.title}<small>{volume > 0 ? `${compact(volume)} ${collateral} Vol.` : `0 ${collateral} Vol.`}</small></span><ChevronDown size={15}/>
+            </button></h3>
+            <strong className="ev-answer-chance">{item.onchain?.family === 'SOLANA' ? midpointLabel(item.outcomes[0]) : item.outcomes[0]?.indicative ? '—' : percent(item.outcomes[0]?.probability ?? .5)}</strong>
+            <div className="ev-answer-picks" aria-label={`Trade ${answer?.label ?? item.title}`}>
+              {item.outcomes.slice(0, 2).map((pick, side) => <button key={pick.id} className={side === 0 ? 'is-yes' : 'is-no'} aria-label={`${pick.label} on ${answer?.label ?? item.title}`} aria-pressed={selected && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{buyQuoteLabel(pick, item.onchain?.family === 'SOLANA')}</b></button>)}
+            </div>
+          </div>
+          <div id={`answer-detail-${item.id}`} hidden={!open}><MarketDetail market={item} selected={selectedOutcome} snapshot={snapshot} simulation={simulation} collateral={collateral} active={open} onSelect={(pick) => onSelect(item, pick, false)}/></div>
+        </section>
+      })}
     </> : markets.map((item) => {
       if (item.outcomes.length > 2) return <a className="ev-prediction-link" key={item.id} id={`event-${item.id}`} href={predictionHref(item)}>
-        <div><span className="ev-prediction-kind">{item.outcomes.length} ANSWERS</span><h3>{item.title}</h3><p>{compact(item.volume.COOLA)} COOLA VOL.</p></div>
+        <div><span className="ev-prediction-kind">{item.outcomes.length} ANSWERS</span><h3>{item.title}</h3><p>{compact(eventMarketVolume(item))} {collateral} VOL.</p></div>
         <div className="ev-prediction-preview">{[...item.outcomes].sort((a, b) => b.probability - a.probability).slice(0, 3).map((pick, index) => <span key={pick.id}><i style={{ background: outcomeColor(pick, snapshot, index) }}/>{pick.label}<b>{percent(pick.probability)}</b></span>)}</div>
         <span className="ev-open-prediction">Open prediction <ArrowUpRight size={15}/></span>
       </a>
       const open = expanded.includes(item.id)
       const selected = item.id === market.id ? outcome : item.outcomes[0]
       return <section key={item.id} id={`event-${item.id}`} className={`ev-market ${item.id === market.id ? 'is-selected' : ''}`}>
-        <div className="ev-market-summary"><h3><button aria-expanded={open} aria-controls={`event-market-${item.id}`} onClick={() => toggle(item.id)}><span>{item.title}<small>{compact(item.volume.COOLA)} COOLA VOL.</small></span><ChevronDown size={16}/></button></h3><div className="ev-market-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={item.id === market.id && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{percent(pick.probability)}</b></button>)}</div></div>
+        <div className="ev-market-summary"><h3><button aria-expanded={open} aria-controls={`event-market-${item.id}`} onClick={() => toggle(item.id)}><span>{item.title}<small>{compact(eventMarketVolume(item))} {collateral} VOL.</small></span><ChevronDown size={16}/></button></h3><div className="ev-market-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={item.id === market.id && outcome.id === pick.id} onClick={() => onSelect(item, pick)}><span>{pick.label}</span><b>{item.onchain?.family === 'SOLANA' ? buyQuoteLabel(pick, true) : pick.indicative ? 'OPEN' : percent(pick.probability)}</b></button>)}</div></div>
         <div id={`event-market-${item.id}`} hidden={!open}><MarketDetail market={item} selected={selected} snapshot={snapshot} simulation={simulation} collateral={collateral} active={open} onSelect={(pick) => onSelect(item, pick, false)}/></div>
       </section>
     })}

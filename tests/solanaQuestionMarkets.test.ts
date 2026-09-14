@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
@@ -107,13 +107,39 @@ describe('linked questions group into one event', () => {
 
   test('the event title is the shared tail of its linked questions', () => {
     expect(linkedQuestionTitle(views.map((view) => view.market.title)))
-      .toBe('Finish Season 01 with the most kills?')
+      .toBe('Which Genesis agent will finish Season 01 with the most kills?')
+  })
+
+  test('legacy linked rows infer a short answer identity without changing their market ids', () => {
+    const resolved = resolveQuestionEvent(views, views[0]!.question.eventId)!
+    expect(resolved.markets.map((market) => market.presentation?.answer?.label)).toEqual(['genesis-01', 'genesis-02', 'genesis-03'])
+    expect(resolved.markets.map((market) => market.id)).toEqual(views.map((view) => view.market.id))
+    expect(linkedAnswerLabel(agentQuestion(1).label, 'Finish Season 01 with the most kills?')).toBe('genesis-01')
   })
 
   test('a lone question keeps its own label, and unrelated questions do not invent one', () => {
     expect(linkedQuestionTitle(['Will it rain?'])).toBe('Will it rain?')
     expect(linkedQuestionTitle(['Will it rain?', 'Who wins the cup?'])).toBe('Will it rain?')
     expect(linkedQuestionTitle([])).toBe('')
+  })
+})
+
+describe('head-to-head presentation', () => {
+  test('builds a scheduled matchup with a direct two-team moneyline', () => {
+    const matchup: ReservedSolanaQuestion = {
+      eventId: 'jup-ansem', matchId: '0x534f4c5a01010014000000006abc510048db8621b407e9609db4854d98e14593',
+      questionId: '0x515545530102935a11a11e5f2b9189719486a1e222cb074320eeab8b77b3e0b2', marketId: 'market-jup-ansem',
+      label: 'Who will win: JUP or ANSEM?', outcomes: ['JUP', 'ANSEM'], scheduledStartAt: '2026-09-30T00:00:00.000Z', status: 'reserved',
+      presentation: { kind: 'head-to-head', eventTitle: 'JUP vs ANSEM', outcomes: [{ id: 0, label: 'JUP', teamId: 'team-jup', color: '#3fdcff' }, { id: 1, label: 'ANSEM', teamId: 'team-ansem', color: '#ff7a1a' }] },
+    }
+    const { match, market } = reservedSolanaView(matchup, Date.parse('2026-09-14T00:00:00Z'))
+    expect(match.teams.map((team) => team.symbol)).toEqual(['JUP', 'ANSEM'])
+    expect(match.startedAt).toBe(Date.parse('2026-09-30T00:00:00Z'))
+    expect(match.round).toBe('MONEYLINE')
+    expect(market.presentation?.eventTitle).toBe('JUP vs ANSEM')
+    expect(market.title).toBe('Who will win: JUP or ANSEM?')
+    expect(market.outcomes.every((outcome) => outcome.indicative)).toBe(true)
+    expect(market.outcomes.map((outcome) => outcome.label)).toEqual(['JUP', 'ANSEM'])
   })
 })
 

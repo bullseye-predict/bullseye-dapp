@@ -25,6 +25,54 @@ export function manifestCandles(logs: string[], binding: ManifestBinding, timest
   if (logs.some(line => /log truncated/i.test(line))) throw new Error('Trade history contains truncated logs')
   return result
 }
+/**
+ * Paging, caching, non-throwing candle reader for the market pages.
+ *
+ * `recentManifestCandles` below stays the strict variant the standalone /live
+ * terminal wants: it throws so that terminal can show "trade history
+ * unavailable" as its whole chart. A market page cannot use those semantics —
+ * its chart sits beside a live order book, and one transaction missing
+ * `blockTime`, or one truncated log, must not blank both. So every failure here
+ * is a skipped transaction, and the caller is told whether the answer is
+ * partial rather than being handed an exception.
+ *
+ * Cost control: one `getSignaturesForAddress` page per read, and at most
+ * `perPass` *singular* `getTransaction` calls — never the plural batch form,
+ * which public Solana endpoints reject. A cold book backfills over several
+ * polls instead of firing a hundred round trips at once.
+ */
+export class ManifestCandleReader {
+  private readonly decoded = new Map<string, Candle[]>()
+  constructor(private readonly connection: Connection, private readonly perPass = 2, private readonly cacheLimit = 600) {}
+  async read(binding: ManifestBinding, limit = 100): Promise<{ candles: Candle[]; partial: boolean }> {
+    const signatures = await this.connection.getSignaturesForAddress(binding.venue, { limit }, 'confirmed')
+    let fetched = 0, partial = false
+    const collected: Candle[] = []
+    // Newest first, so a bounded backfill always knows the latest price rather
+    // than a non-deterministic slice of the middle of the book's history.
+    for (const entry of signatures) {
+      if (entry.err) continue
+      const key = `${binding.venue.toBase58()}:${entry.signature}`
+      let rows = this.decoded.get(key)
+      if (!rows) {
+        if (fetched >= this.perPass) { partial = true; continue }
+        fetched++
+        try {
+          const tx = await this.connection.getTransaction(entry.signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 })
+          if (!tx?.meta || tx.blockTime == null || tx.meta.err) { partial = true; continue }
+          rows = manifestCandles(tx.meta.logMessages ?? [], binding, tx.blockTime * 1000)
+        } catch { partial = true; continue }
+        this.decoded.set(key, rows)
+        if (this.decoded.size > this.cacheLimit) this.decoded.delete(this.decoded.keys().next().value as string)
+      }
+      collected.push(...rows)
+    }
+    // Every fill in one transaction carries that transaction's block time, so
+    // sort explicitly rather than relying on signature order to be price order.
+    return { candles: collected.sort((a, b) => a.timestamp - b.timestamp), partial }
+  }
+}
+
 /** Recent finalized history only. No fabricated points or claim of complete P&L. */
 export async function recentManifestCandles(connection: Connection, binding: ManifestBinding): Promise<Candle[]> {
   const signatures = await connection.getSignaturesForAddress(binding.venue, { limit: 4 }, 'finalized')

@@ -1,3 +1,4 @@
+import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import { useEffect, useMemo, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
 import type { ArenaMarket, SolzMatch } from '../solz/model'
@@ -5,6 +6,7 @@ import type { PublicPredictionVenue } from '../../../packages/prediction-core/ma
 import type { SolanaBinding } from './venue/types'
 
 export type ReservedSolanaQuestion = {
+  presentation?: Presentation
   eventId: string
   matchId: string
   questionId: string
@@ -62,20 +64,33 @@ export function solanaBinding(question: ReservedSolanaQuestion, venue: PublicPre
 export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now(), venue?: PublicPredictionVenue | null): { match: SolzMatch; market: ArenaMarket } {
   const kickoff = Date.parse(question.scheduledStartAt)
   const closesAt = solanaQuestionLocksAt(question)
+  const presentation = parsePresentation(question.presentation)
+  const headToHead = presentation?.kind === 'head-to-head'
+  const teams: SolzMatch['teams'] = headToHead ? presentation.outcomes.map((outcome, index) => ({
+    teamId: outcome.teamId ?? `side-${index}`,
+    symbol: outcome.label,
+    name: outcome.label,
+    color: outcome.color ?? (index === 0 ? '#3fdcff' : '#ff7a1a'),
+    glyph: outcome.label.replace(/^\$/, '').slice(0, 3).toUpperCase(),
+    score: 0,
+    agentIds: [],
+  })) : []
+  const displayedOutcomes = presentation?.outcomes ?? ([{ id: 0, label: question.outcomes[0] }, { id: 1, label: question.outcomes[1] }] as const)
   return {
     match: {
-      id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: 'PREDICTION', map: 'MANIFEST DEVNET',
+      id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: headToHead ? 'HEAD-TO-HEAD' : 'PREDICTION', map: 'MANIFEST DEVNET',
       // A reserved market has a real settlement cutoff, but it is not a
       // running match or a five-minute break. Treat its clock as open-ended
       // so a future scheduled start is never rendered as a multi-day timer.
-      round: question.status === 'live' ? 'LIVE LAZY MARKET' : 'MARKET RESERVED', phase: question.status === 'live' ? 'live' : 'countdown', startedAt: question.status === 'live' ? kickoff : now, endsAt: closesAt, timingType: question.status === 'live' ? 'countdown' : 'open-ended', timingEstimated: false,
-      viewers: 0, marketId: question.marketId, volume: { SOL: 0, COOLA: 0 }, teams: [], roster: [],
+      round: headToHead ? 'MONEYLINE' : question.status === 'live' ? 'LIVE LAZY MARKET' : 'MARKET RESERVED', phase: question.status === 'live' ? 'live' : 'countdown', startedAt: headToHead ? kickoff : question.status === 'live' ? kickoff : now, endsAt: closesAt, timingType: question.status === 'live' || headToHead ? 'countdown' : 'open-ended', timingEstimated: false,
+      viewers: 0, marketId: question.marketId, volume: { SOL: 0, COOLA: 0 }, teams, roster: [],
     },
     market: {
       id: question.questionId, matchId: question.eventId, kind: 'match-winner', title: question.label,
       description: 'Canonical Solana question reserved for first-trader activation on Manifest.', status: 'indicative', closesAt,
-      volume: { SOL: 0, COOLA: 0 }, outcomes: question.outcomes.map((label, index) => ({ id: index === 0 ? 'yes' : 'no', label, detail: index === 0 ? 'Pays if the recorded answer is YES.' : 'Pays if the recorded answer is NO.', probability: .5, priceHistory: [] })),
+      volume: { SOL: 0, COOLA: 0 }, outcomes: displayedOutcomes.map((item, index) => ({ id: index === 0 ? 'yes' : 'no', label: item.label, detail: `Pays if ${item.label} is the recorded outcome.`, probability: .5, indicative: true, priceHistory: [], ...('teamId' in item && typeof item.teamId === 'string' ? { teamId: item.teamId } : {}) })),
       rules: 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
+      presentation,
       onchain: solanaBinding(question, venue) as ArenaMarket['onchain'],
     },
   }
@@ -93,7 +108,15 @@ export function resolveQuestionEvent(views: readonly ReservedSolanaView[], event
   // The question travels with the match: the trade ticket needs it to open the
   // market on-chain, not just to render a title.
   const linked = views.filter((item) => item.match.id === view.match.id)
-  return { match: view.match, question: view.question, questions: linked.map((item) => item.question), markets: linked.map((item) => item.market) }
+  const inferredTitle = linkedQuestionTitle(linked.map((item) => item.question.label))
+  const markets = linked.map((item) => {
+    if (item.market.presentation || linked.length < 2) return item.market
+    const answer = linkedAnswerLabel(item.question.label, inferredTitle)
+    const agent = /^GENESIS-(\d{2})$/i.exec(answer)
+    const presentation: Presentation = { kind: 'linked', eventTitle: inferredTitle, answer: { label: answer, ...(agent ? { participantId: `genesis-${agent[1]}` } : {}) }, outcomes: [{ id: 0, label: 'Yes' }, { id: 1, label: 'No' }] }
+    return { ...item.market, title: inferredTitle, presentation }
+  })
+  return { match: view.match, question: view.question, questions: linked.map((item) => item.question), markets }
 }
 
 /** The canonical QUES v1 kind byte: 01 is a question about one arena match, 02
@@ -128,7 +151,7 @@ export function questionEvents(views: readonly ReservedSolanaView[]) {
 
 /** The shared tail of a set of linked question labels, which is the event they
  *  all ask about ("Will genesis-07 finish Season 01 with the most kills?" ->
- *  "Finish Season 01 with the most kills?"). Falls back to the first label when
+ *  "Which Genesis agent will finish Season 01 with the most kills?"). Falls back to the first label when
  *  the questions share nothing substantial, rather than inventing a title. */
 export function linkedQuestionTitle(labels: readonly string[]) {
   const [first, ...rest] = labels
@@ -144,7 +167,19 @@ export function linkedQuestionTitle(labels: readonly string[]) {
   // Start at a word boundary so the title never opens mid-word.
   const trimmed = shared.replace(/^[^ ]*\s+/, '').trim()
   if (trimmed.length < 12) return first
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+  const subject = labels.every((label) => /^Will\s+genesis-\d{2}\b/i.test(label)) ? 'Which Genesis agent will ' : ''
+  return subject + (subject ? trimmed.charAt(0).toLowerCase() : trimmed.charAt(0).toUpperCase()) + trimmed.slice(1)
+}
+
+/** The answer is the part that varies between linked binary questions. Explicit
+ *  presentation metadata wins; this parser only keeps old catalogues readable. */
+export function linkedAnswerLabel(label: string, eventTitle: string) {
+  const withoutQuestion = label.replace(/^Will\s+/i, '').replace(/[?]\s*$/, '').trim()
+  const tail = eventTitle.replace(/[?]\s*$/, '').replace(/^Will\s+/i, '').trim()
+  const answer = tail && withoutQuestion.toLowerCase().endsWith(tail.toLowerCase())
+    ? withoutQuestion.slice(0, -tail.length).trim()
+    : withoutQuestion.replace(/\s+finish\b.*$/i, '').trim()
+  return answer || label
 }
 
 export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {

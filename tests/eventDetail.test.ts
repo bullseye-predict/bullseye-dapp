@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createSolzDataSource } from '../src/components/solz/solzDataSource'
-import { eventActivity, eventAnswerMarket, eventHoldings, eventHref, resolveEvent, resolveEventPrediction, sampleOrderBook } from '../src/components/events/eventModel'
+import { eventActivity, eventAnswerMarket, eventHoldings, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, sampleOrderBook } from '../src/components/events/eventModel'
 
 describe('event detail data isolation', () => {
   test('resolves match and market links without falling back for unknown events', async () => {
@@ -22,6 +22,21 @@ describe('event detail data isolation', () => {
     for (const base of ['/events', '/events-2', '/events-3']) {
       expect(eventHref(base, matchId, prediction.id)).toBe(`${base}/${matchId}/${prediction.id}`)
     }
+  })
+
+  test('a linked overview charts candidate probabilities without merging their binary markets', async () => {
+    const snapshot = await createSolzDataSource().load()
+    const base = snapshot.markets[0]!
+    const linked = [1, 2].map((number) => ({
+      ...base, id: `question-${number}`, title: 'Who gets the most kills?',
+      presentation: { kind: 'linked' as const, eventTitle: 'Who gets the most kills?', answer: { label: `GENESIS-0${number}`, participantId: `genesis-0${number}` }, outcomes: [{ id: 0 as const, label: 'Yes' }, { id: 1 as const, label: 'No' }] },
+      outcomes: [{ ...base.outcomes[0]!, id: 'yes', probability: number === 1 ? .7 : .3 }, { ...base.outcomes[1]!, id: 'no', probability: number === 1 ? .3 : .7 }],
+    }))
+    const overview = linkedEventMarket(linked)!
+    expect(overview.outcomes.map((outcome) => [outcome.id, outcome.label, outcome.probability])).toEqual([
+      ['question-1', 'GENESIS-01', .7], ['question-2', 'GENESIS-02', .3],
+    ])
+    expect(linked.map((market) => market.id)).toEqual(['question-1', 'question-2'])
   })
 
   test('a nested answer trades No on the authoritative market and isolates its holdings', async () => {

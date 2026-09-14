@@ -167,6 +167,7 @@
 .ch-trade { color: #d6deeb; display: flex; flex-direction: column; flex: 1; min-width: 0; background: #1b2026; border: 1px solid #414952; padding: 15px 16px 12px; }
 .ch-trade-title { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-height: 43px; }
 .ch-trade-title .sh-portrait { width: 35px; height: 42px; flex-shrink: 0; border: 1px solid #545d6c; }
+.ch-trade-answer-image { width: 35px; height: 42px; flex-shrink: 0; object-fit: cover; border: 1px solid #545d6c; }
 .ch-trade-title .sh-team-mark { width: 30px; height: 32px; flex-shrink: 0; }
 .ch-trade-title > div { min-width: 0; }
 .ch-trade-title span { color: #aeb9c9; font: 400 11px/1.4 var(--sh-heading); display: block; }

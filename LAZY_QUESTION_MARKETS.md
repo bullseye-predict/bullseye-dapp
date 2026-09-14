@@ -10,7 +10,29 @@ A match and a tradable question are different identities:
 
 The UI already knows `questionId` when a user selects “Will PEPSI win?”, so no separate `agentId` argument is required.
 
-The 12 agent-winner questions use question kind `1`. They are linked members of one mutually-exclusive winner group in Neon and the UI. A proposition such as “Will an agent reach 12 kills?” uses another kind and has its own chart and order book even though it shares the same `matchId`.
+Question kind is a protocol identity field, not the page layout. Kind `1` is scoped to an arena match; kind `2` is an independently scheduled question. Presentation metadata describes the event, market, and outcomes independently.
+
+## Event and question presentation
+
+Use separate terms for three independent axes:
+
+1. **Event topology** describes participants. A **head-to-head event** has exactly two parties. A **field event** has three or more parties. A **general event** is not defined by competing parties.
+2. **Market or question** describes what settles. A **binary market** has two mutually exclusive, exhaustive answers. A **multi-outcome market** has three or more. A moneyline is the primary winner market and may be two-way (`JUP`, `ANSEM`), three-way (`Torino`, `Draw`, `Roma`), or a larger field. A head-to-head event may also own match props such as first to score or a kill total.
+3. **Venue representation** describes how outcomes trade. A native categorical market can carry all outcomes under one collateralized condition. A **linked-outcome market** exposes every answer as its own binary YES/NO contract and order book, tied to one shared, mutually-exclusive and exhaustive resolution rule. Linked does not mean “three or more”; two answers can also use linked binary contracts.
+
+The Genesis winner event is one linked-outcome moneyline with no sub-questions: `GENESIS-01`, `GENESIS-02`, and so on are answers, not questions in the page hierarchy. A multi-team fight is a field event whose moneyline may be native multi-outcome or linked-outcome depending on venue support. Do not call the two-party model a duel-question, versus-question, or team-question: those names mix participant count with market structure and become ambiguous when draw and match props are added.
+
+Two-answer UI labels follow the question semantics. A proposition naturally uses `YES` / `NO`; a no-draw winner market uses `TEAM A` / `TEAM B`; a threshold can use `OVER` / `UNDER`; and two conditions can use their condition names. When a venue represents each named outcome as a binary contract, the event row still says `DRAW`, while the selected trade ticket may say `YES` / `NO` for “Will Draw happen?”.
+
+Titles have separate jobs. `presentation.eventTitle` names the event once at page level. A linked answer uses `presentation.answer.label` (and optional image) instead of repeating the full binary question. A head-to-head market retains its question title beneath the event title. Charts inside event detail do not repeat the event title.
+
+Probabilities and volume come from each market's live venue books and fills. An unopened market has no market probability or volume; a neutral order-entry seed is not presented as an observed quote. The detail page defaults to the real order book. Quote and trade histories are implementation sources for the chart, not competing product-level market types.
+
+For an exhaustive outcome set, settlement pays exactly one answer `1` collateral unit and every other answer `0`. That payout identity does not require the displayed buy prices to sum to exactly `1.00`. The best asks are the current costs to buy every answer and normally sum above `1.00`; best bids normally sum below it. Spread, tick size, fees, thin liquidity, stale last trades, and independently updating books explain displays such as `0.14 + 0.23 + 0.65 = 1.02`. Midpoint or last-trade probabilities should be treated as estimates, not an accounting invariant.
+
+If linked binary markets are used, the shared resolution and complete-set rules must enforce mutual exclusivity and exhaustiveness. Merely placing unrelated YES/NO markets next to each other does not create the `1.00` payout relationship or guarantee arbitrage convergence.
+
+The current Solana lazy first-trader instruction creates binary questions only. Therefore a three-way moneyline on that path must currently use three linked binary questions with one shared resolution policy. Native three-to-sixteen-outcome settlement exists in the broader core architecture, but it should not be claimed for the lazy Manifest flow until its market creation, order routing, and UI adapters support it end to end.
 
 ## Canonical 32-byte match ID
 
@@ -33,7 +55,7 @@ Encoding kickoff and duration lets the contract derive the trading lock and expi
 |---|---|---|
 | `0..3` | `QUES` | format marker |
 | `4` | version | currently `1` |
-| `5` | kind | `1` = linked agent-winner question; other values are independent proposition types |
+| `5` | kind | `1` = arena-match-scoped question; `2` = independently scheduled question |
 | `6..31` | subject | nonzero canonical agent/proposition identifier |
 
 Neon remains the source for display text, agent details, and group membership. The chain only needs the stable identity and kind.

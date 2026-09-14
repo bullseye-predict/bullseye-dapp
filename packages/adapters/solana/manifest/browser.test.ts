@@ -66,3 +66,44 @@ test('a genuine program rejection is not retried and never broadcasts', async ()
   expect(f.simulations()).toBe(1)
   expect(f.sends()).toBe(0)
 })
+
+test('first-trader preparation creates missing claim and fee token accounts', async () => {
+  const f = setup()
+  const keys = Array.from({ length: 6 }, () => Keypair.generate().publicKey)
+  const binding = { question: keys[0]!, program: keys[1]!, venue: keys[2]!, mint: keys[3]!, collateral: keys[4]!, recipient: keys[5]!, bps: 30, outcome: 1 as const }
+  let prepared: Transaction | undefined
+  f.wallet.adapter.connection.getMultipleAccountsInfo = async () => [null, null, null, null, null]
+  f.wallet.send = async tx => { prepared = tx; return 'preparation-signature' }
+  expect(await f.wallet.prepare(binding)).toBe('preparation-signature')
+  expect(prepared?.instructions).toHaveLength(5)
+  const tokenCreates = prepared!.instructions.filter(ix => ix.programId.toBase58() === 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
+  expect(tokenCreates).toHaveLength(3)
+  expect(tokenCreates.some(ix => ix.keys[2]!.pubkey.equals(binding.recipient) && ix.keys[3]!.pubkey.equals(binding.collateral))).toBe(true)
+  expect(tokenCreates.some(ix => ix.keys[2]!.pubkey.equals(f.wallet.owner) && ix.keys[3]!.pubkey.equals(binding.mint))).toBe(true)
+  prepared = undefined
+  f.wallet.adapter.connection.getMultipleAccountsInfo = async () => Array(5).fill({ data: Buffer.alloc(1) })
+  expect(await f.wallet.prepare(binding)).toBeUndefined()
+  expect(prepared).toBeUndefined()
+})
+
+test('RPC preparation failures do not tell the user a wallet signature is pending', async () => {
+  const f = setup()
+  const stages: string[] = []
+  f.wallet.adapter.connection.getLatestBlockhash = async () => { throw new Error('429 Too Many Requests') }
+  const wallet = new ManifestBrowserWallet(f.wallet.adapter, f.wallet.port, undefined, stage => stages.push(stage.status))
+  await expect(wallet.send(f.transaction())).rejects.toThrow('429')
+  expect(stages).toEqual(['preparing', 'failed'])
+  expect(f.sends()).toBe(0)
+})
+
+test('complete-set buy keeps split and bounded opposite sale in one transaction', async () => {
+  const f = setup(), keys = Array.from({length:6}, () => Keypair.generate().publicKey)
+  const b = { question:keys[0]!,program:keys[1]!,venue:keys[2]!,mint:keys[3]!,collateral:keys[4]!,recipient:keys[5]!,bps:30,outcome:0 as const }
+  let sent: Transaction | undefined, terms: unknown
+  f.wallet.adapter.swap = async (_owner, _binding, input) => { terms = input; return f.transaction() }
+  f.wallet.send = async tx => { sent = tx; return 'atomic' }
+  expect(await f.wallet.completeSetBuy(b,1_000_000n,120_000n,3000n)).toBe('atomic')
+  expect(terms).toEqual({side:'SELL',inputAtoms:1_000_000n,minimumOutputAtoms:880_000n,maxFeeAtoms:3000n})
+  expect(sent!.instructions.map(ix => ix.data[0])).toEqual([4,6,24,2])
+  await expect(f.wallet.completeSetBuy(b,1_000_000n,1_000_000n,3000n)).rejects.toThrow('Invalid complete-set')
+})

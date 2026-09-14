@@ -522,10 +522,11 @@
 .ev-answer h3 > button > span:not(.sh-portrait):not(.sh-team-mark) { min-width: 0; font: 600 14px var(--sh-heading); }
 .ev-answer h3 small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9daaba; font: 400 8px var(--sh-mono); margin-top: 5px; }
 .ev-answer h3 .sh-portrait { width: 34px; height: 40px; flex-shrink: 0; }
+.ev-answer-image { width: 34px; height: 40px; flex-shrink: 0; object-fit: cover; border: 1px solid #505761; }
 .ev-answer h3 .sh-team-mark { width: 28px; height: 33px; flex-shrink: 0; }
 .ev-answer h3 svg { margin-left: auto; flex-shrink: 0; color: #96a2b0; }
 .ev-answer h3 button[aria-expanded='true'] svg { transform: rotate(180deg); }
-.ev-answer-chance { text-align: right; font: 600 21px var(--sh-heading); color: #edf1f5; }
+.ev-answer-chance { min-width: 0; overflow-wrap: anywhere; text-align: right; font: 600 21px var(--sh-heading); color: #edf1f5; }
 .ev-answer-picks { display: flex; gap: 6px; }
 .ev-answer-picks button { display: flex; flex: 1; justify-content: center; align-items: center; gap: 7px; min-height: 40px; padding: 9px 8px; border: 1px solid; font: 600 11px var(--sh-heading); }
 .ev-answer-picks .is-yes { color: #87dfb4; border-color: #36594b; background: #243c33; }

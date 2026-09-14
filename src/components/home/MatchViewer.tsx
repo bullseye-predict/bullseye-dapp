@@ -294,6 +294,7 @@ type Props = {
   simulation?: boolean;
   answer?: PredictionAnswer;
   marketSourceLabel?: string;
+  collateralSymbol?: string;
   heading?: ReactNode;
   onBroadcastState?: (state: ArenaBroadcastStatus["state"] | null) => void;
 };
@@ -340,6 +341,7 @@ export function MatchViewer({
   answer = "yes",
   referenceMarkets,
   marketSourceLabel,
+  collateralSymbol,
   heading,
   onBroadcastState,
 }: Props) {
@@ -666,6 +668,7 @@ export function MatchViewer({
             {boardOutcome ? (
               <HighlightChart
                 sourceLabel={marketSourceLabel}
+                collateral={collateralSymbol}
                 simulation={simulation}
                 key={board.id}
                 market={board}
@@ -700,6 +703,7 @@ export function MatchViewer({
           >
             {markets.length ? (
               <PredictionOptions
+                collateral={collateralSymbol}
                 match={match}
                 sourceLabel={marketSourceLabel}
                 answer={answer}

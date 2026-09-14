@@ -2,8 +2,7 @@
 import { PortfolioApp } from '../components/prediction/TradingEntrypoints'
 import SiteLayout from '../layouts/SiteLayout.astro'
 const apiUrl = String(import.meta.env.PUBLIC_PREDICTION_API_URL ?? '').trim()
-const environmentId = String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()
 ---
 <SiteLayout title="Portfolio · COOLA" description="Manage your active predictions, closed positions, and available payouts.">
-  <PortfolioApp matchApiUrl="/api/agent-arena" apiUrl={apiUrl} environmentId={environmentId} client:only="react" />
+  <PortfolioApp matchApiUrl="/api/agent-arena" apiUrl={apiUrl} client:only="react" />
 </SiteLayout>

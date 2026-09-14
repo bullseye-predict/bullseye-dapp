@@ -18,8 +18,7 @@ const profile = {
 }
 
 const apiUrl = String(import.meta.env.PUBLIC_PREDICTION_API_URL ?? '').trim()
-const environmentId = String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()
 ---
 <SiteLayout title="Profile · COOLA" description="Public prediction profile and positions by wallet address.">
-  <PortfolioApp matchApiUrl="/api/agent-arena" apiUrl={apiUrl} environmentId={environmentId} profile={profile} client:only="react" />
+  <PortfolioApp matchApiUrl="/api/agent-arena" apiUrl={apiUrl} profile={profile} client:only="react" />
 </SiteLayout>

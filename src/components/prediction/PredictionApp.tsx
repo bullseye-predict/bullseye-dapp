@@ -6,7 +6,7 @@ import type { Market, Order } from '../../../packages/prediction-core/types'
 import type { PredictionPublicConfig, PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { MarketExecutionQuote } from '../../../packages/prediction-core/execution'
 import { PredictionTradingClient, getPredictionConfig } from '../../../packages/sdk/PredictionTradingClient'
-import { DynamicSolanaSession, type DynamicSolanaSessionValue } from '../arena/DynamicSolanaSession'
+import { useEvmWallet, useSolanaWallet } from '../session/store'
 import { useTradingMarket } from './useTradingMarket'
 import { connectEvmTradingWallet, connectSolanaTradingWallet, maximumOrderCost, type TradingWallet } from './wallets'
 import { formatUnitsExact, parseUnitsExact, priceLabel } from './amounts'
@@ -16,21 +16,25 @@ import { NetworkTabs, NetworkTrading, type TradingNetwork } from './NetworkTradi
 import type { MarketSource } from '../home/MarketSourceControls'
 import { AppShell } from '../solz/AppShell'
 
-export interface PredictionAppProps { environmentId: string; apiUrl: string; marketSources?: readonly MarketSource[] }
-export function PredictionApp({ environmentId, apiUrl, marketSources = ['SOLANA'] }: PredictionAppProps) {
-  return <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl}>{session => <PredictionHome apiUrl={apiUrl} session={session} marketSources={marketSources}/>}</DynamicSolanaSession>
+export interface PredictionAppProps { apiUrl: string; marketSources?: readonly MarketSource[] }
+export function PredictionApp({ apiUrl, marketSources = ['SOLANA'] }: PredictionAppProps) {
+  return <PredictionHome apiUrl={apiUrl} marketSources={marketSources}/>
 }
 const venueKey = (venue: PublicPredictionVenue) => `${venue.venue}:${venue.chainId}`
 const unavailable = async (): Promise<never> => { throw new Error('Connect a trading wallet first.') }
 
-function PredictionHome({ apiUrl, session, marketSources }: { apiUrl: string; session: DynamicSolanaSessionValue; marketSources: readonly MarketSource[] }) {
+function PredictionHome({ apiUrl, marketSources }: { apiUrl: string; marketSources: readonly MarketSource[] }) {
   const networks: TradingNetwork[] = marketSources.includes('SOMNIA') ? ['SOLANA', 'SOMNIA'] : ['SOLANA']
   const [network,setNetwork]=useState<TradingNetwork>(networks[0] ?? 'SOLANA')
   useEffect(() => { if (!networks.includes(network)) setNetwork(networks[0] ?? 'SOLANA') }, [marketSources, network, networks.join(',')])
-  return <AppShell className="solz-home pt-home" id="top" active="markets" walletControl={session.walletControl} backToTopHref="#top"><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main></AppShell>
+  return <AppShell className="solz-home pt-home" id="top" active="markets" backToTopHref="#top"><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} allowedMarketIds={allowedMarketIds}/>} /></main></AppShell>
 }
 
-export function VenueTerminal({ venue, apiUrl, audience, session, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string; session: DynamicSolanaSessionValue }) {
+export function VenueTerminal({ venue, apiUrl, audience, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string }) {
+  // Read from the store rather than a render prop: the session is created by the
+  // persisted chrome island, which is not an ancestor of this tree.
+  const solanaWallet = useSolanaWallet()
+  const evmWallet = useEvmWallet()
   const [wallet, setWallet] = useState<TradingWallet | null>(null)
   const currentWallet = useRef<TradingWallet | null>(null)
   currentWallet.current = wallet
@@ -50,22 +54,22 @@ export function VenueTerminal({ venue, apiUrl, audience, session, allowedMarketI
     void load(); const timer = setInterval(() => void load(), 5000)
     return () => { active = false; clearInterval(timer) }
   }, [readClient, allowedMarketIds])
-  useEffect(() => { if (venue.family === 'SOLANA') { connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null) } }, [session.wallet, venue.family])
+  useEffect(() => { if (venue.family === 'SOLANA') { connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null) } }, [solanaWallet, venue.family])
   useEffect(() => {
     if (venue.family !== 'EVM') return
     connectionGeneration.current++; currentWallet.current?.dispose(); setWallet(null)
-  }, [session.evmWallet, venue.family])
+  }, [evmWallet, venue.family])
   const connect = async () => {
     const generation = ++connectionGeneration.current
     setConnecting(true); setConnectionError('')
     try {
       if (venue.family === 'SOLANA') {
-        if (!session.wallet) throw new Error('Use the wallet control above to connect your Solana wallet.')
-        const next = await connectSolanaTradingWallet(venue, apiUrl, audience, session.wallet)
+        if (!solanaWallet) throw new Error('Use the wallet control above to connect your Solana wallet.')
+        const next = await connectSolanaTradingWallet(venue, apiUrl, audience, solanaWallet)
         if (generation === connectionGeneration.current) setWallet(next); else next.dispose()
       } else {
-        if (!session.evmWallet) throw new Error('Use the Dynamic wallet control above to connect an EVM wallet.')
-        const next = await connectEvmTradingWallet(venue, apiUrl, audience, session.evmWallet)
+        if (!evmWallet) throw new Error('Use the Dynamic wallet control above to connect an EVM wallet.')
+        const next = await connectEvmTradingWallet(venue, apiUrl, audience, evmWallet)
         if (generation === connectionGeneration.current) setWallet(next); else next.dispose()
       }
     } catch (reason) { if (generation === connectionGeneration.current) setConnectionError(reason instanceof Error ? reason.message : 'Wallet connection failed.') }

@@ -11,14 +11,23 @@ type Props = {
   onOutcome: (outcome: ArenaMarketOutcome) => void
   colors?: Record<string, string>; referenceMarket?: ArenaMarket; focusOnly?: boolean
   collateral?: string; simulation?: boolean; dates?: ArenaMarket[]; onMarket: (market: ArenaMarket) => void; sourceLabel?: string
+  showTitle?: boolean; historyPicker?: boolean
 }
 const timeLabel = (at: number, long: boolean) => new Date(at).toLocaleString('en', long ? { month: 'short', day: 'numeric' } : { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, focusOnly = false, sourceLabel, collateral = 'COOLA' }: Props) {
+export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, onMarket, simulation = true, colors, focusOnly = false, sourceLabel, collateral = 'COOLA', showTitle = true, historyPicker = true }: Props) {
   const displayMarket = market
   const focus = resolvePredictionContract(displayMarket, outcome.id) ?? outcome
-  const [historyMode, setHistoryMode] = useState<'quotes' | 'trades'>(focusOnly ? 'trades' : 'quotes')
+  // Derived, with an explicit override. A plain initialiser latched at mount:
+  // TabPanel renders its children even while hidden and PredictionDetail passes
+  // no key, so a panel that mounted before any data arrived kept showing the
+  // empty state of a mode that never had any, while the other mode had a series.
+  const [modeOverride, setModeOverride] = useState<'quotes' | 'trades' | null>(null)
   const rawSeries = (focusOnly ? [focus] : displayMarket.outcomes).filter((item): item is ArenaMarketOutcome => Boolean(item))
+  const nonEmpty = (mode: 'quotes' | 'trades') => rawSeries.some(item => ((mode === 'trades' ? item.priceHistory : item.quoteHistory)?.length ?? 0) > 0)
+  const preferred = focusOnly ? 'trades' as const : 'quotes' as const
+  const other = focusOnly ? 'quotes' as const : 'trades' as const
+  const historyMode = modeOverride ?? (!simulation && !nonEmpty(preferred) && nonEmpty(other) ? other : preferred)
   const series = rawSeries.map(item => {
     const history = !simulation && historyMode === 'quotes' ? item.quoteHistory ?? [] : item.priceHistory ?? []
     return { ...item, probability: history.at(-1)?.probability ?? item.probability, priceHistory: history }
@@ -60,14 +69,14 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const y = (p: number) => 12 + (upper - p) / Math.max(.05, upper - lower) * plotHeight
   const hoverAt = hover === null ? null : start + hover * duration
   const colorFor = (item: ArenaMarketOutcome, index: number) => colors?.[item.id] ?? (focusOnly ? '#51b6ff' : outcomeColor(item, snapshot, index))
-  const hasPrice = (item: ArenaMarketOutcome) => simulation || (item.priceHistory?.length ?? 0) > 0
+  const hasPrice = (item: ArenaMarketOutcome) => simulation || !item.indicative
   return <div className="ch-chart" aria-label={`${market.title} ${focusOnly ? focus.label : 'all outcomes'} ${simulation ? 'simulated' : 'live'} probability chart`}>
     <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? sourceLabel ?? 'SIMULATION' : hasPriceHistory ? sourceLabel ?? 'LIVE MARKET' : `${sourceLabel ? `${sourceLabel} · ` : ''}AWAITING PRICES`}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
     {dates && <div className="ch-date-tabs" aria-label="Prediction closing date">{dates.map((item) => <button key={item.id} aria-pressed={market.id === item.id} onClick={() => { setRange('ALL'); onMarket(item) }}>{timeLabel(item.closesAt, true)}</button>)}</div>}
-    {!focusOnly && <h2>{market.title}</h2>}
+    {!focusOnly && showTitle && <h2>{market.title}</h2>}
     {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(series[0]) ? `${percent(series[0].probability)} market price` : 'No price yet'}</strong><span>{focus.label}</span></div>}
     {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{hasPrice(item) ? percent(item.probability) : '—'}</b></button>)}</div>}
-    {!simulation && <div className="ch-history-source" role="group" aria-label="Price history source"><button type="button" aria-pressed={historyMode === 'quotes'} onClick={() => setHistoryMode('quotes')}>Quotes</button><button type="button" aria-pressed={historyMode === 'trades'} onClick={() => setHistoryMode('trades')}>Trades</button><span>{historyMode === 'quotes' ? 'Observed exchange quotes · markets at the same price overlap' : 'Executed exchange trades · opening a market is not a trade'}</span></div>}
+    {!simulation && historyPicker && <div className="ch-history-source" role="group" aria-label="Price history source"><button type="button" aria-pressed={historyMode === 'quotes'} onClick={() => setModeOverride('quotes')}>Quotes</button><button type="button" aria-pressed={historyMode === 'trades'} onClick={() => setModeOverride('trades')}>Trades</button><span>{historyMode === 'quotes' ? 'Observed exchange quotes · markets at the same price overlap' : 'Executed exchange trades · opening a market is not a trade'}</span></div>}
     {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><div className="ch-empty-chart-grid" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><strong>{historyMode === 'quotes' ? 'No quotes recorded yet.' : rawSeries.some(item => item.historyStatus === 'unavailable') ? 'Trade history unavailable.' : 'No trades recorded yet.'}</strong><span>{historyMode === 'quotes' ? 'Quotes are recorded while this page is open. Open markets need resting orders to produce a quote.' : 'Choose Quotes to see resting market prices. Trades appear here after actual fills are indexed.'}</span></div> : <>{!simulation && historyMode === 'trades' && historyTimes.length === 1 && <p className="ch-sample-note">One trade recorded. More trades will build the price history.</p>}<div className="ch-chart-controls">
       <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
       <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>

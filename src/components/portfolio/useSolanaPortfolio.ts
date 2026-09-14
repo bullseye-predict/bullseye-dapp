@@ -38,7 +38,7 @@ function deployment(venue: PublicPredictionVenue | null | undefined) {
  * fill reader's cache, so it runs on mount and on an explicit refresh rather
  * than every thirty seconds.
  */
-export function useSolanaPortfolio(venue: PublicPredictionVenue | null | undefined, owner: string | undefined, questions: readonly ReservedSolanaQuestion[], retry: number): SolanaPortfolioState {
+export function useSolanaPortfolio(venue: PublicPredictionVenue | null | undefined, owner: string | undefined, questions: readonly ReservedSolanaQuestion[], retry: number, historyEnabled = true): SolanaPortfolioState {
   const config = useMemo(() => deployment(venue), [venue?.publicRpcUrl, venue?.chainId, venue?.programId, venue?.manifestProgramId, venue?.collateralToken])
   const marketIds = useMemo(() => [...new Set(questions.map(question => question.marketId))].sort(), [questions])
   const key = `${config?.rpcUrl ?? ''}:${config?.predictionProgram ?? ''}:${config?.manifestProgram ?? ''}:${owner ?? ''}:${marketIds.join(',')}`
@@ -94,8 +94,8 @@ export function useSolanaPortfolio(venue: PublicPredictionVenue | null | undefin
         }
         const portfolio = await reader.read(owner!, [...new Set([...marketIds, ...extra])].sort(), extra)
         if (!active) return
-        setState(current => ({ ...current, key, portfolio, loading: false, error: '', historyLoading: first ? true : current.historyLoading }))
-        if (first) await loadHistory(portfolio)
+        setState(current => ({ ...current, key, portfolio, loading: false, error: '', historyLoading: first && historyEnabled ? true : current.historyLoading }))
+        if (first && historyEnabled) await loadHistory(portfolio)
       } catch (reason) {
         if (active) setState(current => ({ ...current, key, loading: false, historyLoading: false, error: reason instanceof Error ? reason.message : 'Solana positions are unavailable.' }))
       } finally {
@@ -105,7 +105,7 @@ export function useSolanaPortfolio(venue: PublicPredictionVenue | null | undefin
     setState(current => (current.key === key ? { ...current, loading: true } : { key, ...IDLE, loading: true }))
     void load(true)
     return () => { active = false; controller.abort(); clearTimeout(timer) }
-  }, [key, retry])
+  }, [key, retry, historyEnabled])
 
   return state.key === key ? state : { ...IDLE, loading: Boolean(config && owner) }
 }

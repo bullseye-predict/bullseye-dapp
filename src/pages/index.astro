@@ -20,5 +20,5 @@ const apiUrl = new URL('/api/prediction', Astro.url).toString()
 ---
 
 <SiteLayout title="ColaCat · Cola Credits for Agent Thinking" description="Cola Credits for Agent Thinking — watch Genesis agents compete, predict the outcome, and direct the action.">
-  <HomeApp dreamDexApiUrl={apiUrl} apiUrl={apiUrl} environmentId={String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()} demoHref="/demo" liveHref={arenaWatchUrl} eventBasePath="/events" marketSources={marketSources} client:only="react" />
+  <HomeApp dreamDexApiUrl={apiUrl} apiUrl={apiUrl} demoHref="/demo" liveHref={arenaWatchUrl} eventBasePath="/events" marketSources={marketSources} client:only="react" />
 </SiteLayout>
