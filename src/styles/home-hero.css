@@ -541,6 +541,11 @@
 .ch-order-book .is-bid td > span { background: #1c5140; color: #a0f0d1; }
 .ch-order-book .ch-book-spread td { border-block: 1px solid #34414d; color: #8fa8c0; font-size: 9px; padding-block: 11px; background: #1d252d; }
 .ch-topic-graph { height: 310px; }
+/* .ch-chart-empty is min-height 340px, taller than this fixed panel, so a market
+   with no prices spilled its message over the card below. Grow only in that
+   case; a panel holding an actual chart keeps its fixed height. The :has()
+   raises specificity over the responsive heights further down this file. */
+.ch-topic-graph:has(.ch-chart-empty) { height: auto; min-height: 310px; }
 .ch-topic-graph .ch-chart { padding: 15px 14px 10px; background: #181e24; }
 .ch-chart-focus { display: flex; align-items: baseline; gap: 12px; padding: 12px 0 6px; }
 .ch-chart-focus strong { font: 600 24px var(--sh-heading); color: #64bfff; }

@@ -49,7 +49,7 @@ import { toast } from "sonner";
 import { pushAlert } from "./alerts/store";
 import { createToastIds } from "./alerts/toastIds";
 import { useEvmWallet, useSolanaWallet } from "../session/store";
-import { dreamDexBinding } from "./venue/useVenueMarket";
+import { dreamDexBinding, venueBinding } from "./venue/useVenueMarket";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
@@ -200,7 +200,14 @@ export function TradeTicket({
   })();
   // The EVM path needs DreamDEX-specific fields; narrow once, explicitly.
   const evmBinding = dreamDexBinding(market);
-  const indicativeOnly = !simulation && !market.onchain;
+  // livePreview is a DreamDEX pool quote and there is no Solana equivalent in
+  // this ticket, so a Solana order prices from the chosen limit or the
+  // indicative probability. Without this the price fell through to 0, `valid`
+  // went false, and the trade button was silently disabled - with no error -
+  // for every Solana question, including the very first trade, which is the one
+  // that creates the market.
+  const solanaMarket = venueBinding(market)?.family === "SOLANA";
+  const indicativeOnly = !simulation && (!market.onchain || solanaMarket);
   const price = simulation || indicativeOnly
     ? type === "limit"
       ? Number(limitPrice) / 100
