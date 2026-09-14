@@ -27,7 +27,7 @@ export function PortfolioChart({ markets, loading, connected, symbol, unavailabl
   const selected = hover === null ? chart.at(-1)! : chart[Math.min(hover, chart.length - 1)]
   const available = connected && !loading && !incomplete && points.length > 0
   return <section className="pf-chart" aria-label="Net trade flow chart">
-    <header><div><h2>Net trade flow</h2><p>Confirmed sales − purchases · before fees</p></div><div className="pf-chart-ranges" aria-label="Chart time range">{(['1D', '1W', '1M', 'ALL'] as const).map(value => <button key={value} aria-pressed={range === value} onClick={() => { setRange(value); setHover(null) }}>{value}</button>)}</div></header>
+    <header><div><h2><i/>Net trade flow</h2><p>Confirmed sales − purchases · not profit/loss · before fees</p></div><div className="pf-chart-ranges" aria-label="Chart time range">{(['1D', '1W', '1M', 'ALL'] as const).map(value => <button key={value} aria-pressed={range === value} onClick={() => { setRange(value); setHover(null) }}>{value}</button>)}</div></header>
     <strong className="pf-chart-total">{available ? `${formatUnitsExact(selected.balance, decimals, 4)} ${symbol}` : '—'}</strong>
     <span className="pf-chart-date">{available ? new Date(selected.at).toLocaleString() : 'Confirmed trading activity'}</span>
     {available ? <svg viewBox="0 0 700 190" role="img" aria-label={`Net trade flow ${formatUnitsExact(chart.at(-1)!.balance, decimals, 4)} ${symbol} over ${range}`} onPointerLeave={() => setHover(null)} onPointerMove={event => { const r = event.currentTarget.getBoundingClientRect(); const time = start + (((event.clientX - r.left) / r.width * 700 - 28) / 644) * (end - start); let index = 0; chart.forEach((p, i) => { if (Math.abs(p.at - time) < Math.abs(chart[index].at - time)) index = i }); setHover(index) }}>
@@ -36,7 +36,7 @@ export function PortfolioChart({ markets, loading, connected, symbol, unavailabl
       <circle cx={x(selected.at)} cy={y(Number(selected.balance) / 10 ** decimals)} r="4" fill="#eeeef0"/>
       <text x="28" y="184" fill="#a1a2ac" fontSize="10">{new Date(start).toLocaleDateString()}</text><text x="672" y="184" textAnchor="end" fill="#a1a2ac" fontSize="10">{new Date(end).toLocaleDateString()}</text>
     </svg> : <div className="pf-chart-empty" role="status">{!connected ? 'Connect your wallet to load trading history.' : loading ? 'Loading confirmed activity…' : incomplete ? 'Complete trading history is unavailable. The chart cannot be calculated reliably.' : 'No executed trades in the available history.'}</div>}
-    <p>Executed purchases and sales only. This is not profit/loss: minting, merging, redemptions, fees, transfers, holdings and order escrow are excluded.</p>
+    <p>Excludes minting, merging, redemptions, fees, transfers, holdings and order escrow.</p>
     {available && <details><summary>View chart data</summary><div className="pf-chart-data"><table><thead><tr><th>Time</th><th>Net flow ({symbol})</th></tr></thead><tbody>{chart.map((p, i) => <tr key={i}><td>{new Date(p.at).toLocaleString()}</td><td>{formatUnitsExact(p.balance, decimals, 6)}</td></tr>)}</tbody></table></div></details>}
   </section>
 }

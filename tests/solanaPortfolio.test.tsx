@@ -5,8 +5,8 @@ import { PublicKey } from '@solana/web3.js'
 import { FillLog, genAccDiscriminator } from '@bonasa-tech/manifest-sdk'
 import { bidEscrow, type ManifestOutcomeHolding, type ManifestPortfolio, type ManifestQuestionHolding } from '../src/components/portfolio/solanaPortfolio'
 import { decodeTraderFills, fillCashFlow, manifestProgramData } from '../src/components/portfolio/solanaFills'
-import { claimableSolanaRows, closedSolanaRows, markToBid, solanaCollateral, solanaEvents, solanaIdentity, solanaOrderRows, solanaPositionRows, solanaRowMatches } from '../src/components/portfolio/solanaRows'
-import { SolanaOrdersTable, SolanaPositionsTable } from '../src/components/portfolio/SolanaPositions'
+import { activeSolanaRows, claimableSolanaRows, closedSolanaRows, markToBid, markedValue, mergeSolanaActive, solanaCollateral, solanaEvents, solanaIdentity, solanaOrderRows, solanaPositionRows, solanaRowMatches } from '../src/components/portfolio/solanaRows'
+import { SolanaActiveTable, SolanaPositionsTable } from '../src/components/portfolio/SolanaPositions'
 import { sameProfileAddress, solanaNetwork } from '../src/components/portfolio/profileRoute'
 import type { ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 
@@ -212,19 +212,52 @@ describe('Solana profile identity and presentation', () => {
     expect(html).toContain('Will genesis-01 win?')
     expect(html).toContain('On the venue seat')
     expect(html).toContain('Reserved in sell orders')
-    expect(html).toContain('0.5 fUSDC')
-    expect(html).toContain('2 fUSDC')
     expect(html).not.toContain('In your wallet')
+    // The unit is stated once per column, so the cells carry bare numbers.
+    expect(html).toContain('Price (fUSDC)')
+    expect(html).toContain('Value (fUSDC)')
+    expect(html).toContain('Ask 0.6')
+    expect(html).toContain('>0.5<')
+    expect(html).toContain('>2</td>')
   })
 
-  test('the orders table states the escrow a resting order still holds', () => {
-    const rows = solanaOrderRows(portfolio({ questions: [holding({ outcomes: [
+  test('a resting order is active, and a resting ask is a claim on shares already listed', () => {
+    const held = portfolio({ questions: [holding({ outcomes: [
       outcome({ orders: [{ sequence: '1', side: 'BUY', price: 500_000n, quantity: 66_000_000n, reserved: 33_000_000n, lastValidSlot: 10 }] }),
-      outcome({ orders: [{ sequence: '2', side: 'SELL', price: 700_000n, quantity: 2_000_000n, reserved: 0n, lastValidSlot: 10 }] }, 1),
-    ] })] }), [question])
-    const html = renderToStaticMarkup(<SolanaOrdersTable rows={rows} decimals={6} symbol="fUSDC"/>)
-    expect(html).toContain('33 fUSDC')
-    expect(html).toContain('2 shares')
+      outcome({ seatShares: 2_000_000n, reservedShares: 2_000_000n, bestBid: 500_000n, orders: [{ sequence: '2', side: 'SELL', price: 700_000n, quantity: 2_000_000n, reserved: 0n, lastValidSlot: 10 }] }, 1),
+    ] })] })
+    const positions = solanaPositionRows(held, [question], 6)
+    const merged = mergeSolanaActive(activeSolanaRows(positions), solanaOrderRows(held, [question]))
+    // The ask sits under the position it is a claim on; the bid owns no shares,
+    // so it has no position row and is appended on its own.
+    expect(merged.map(entry => [entry.kind, entry.kind === 'order' ? entry.grouped : true])).toEqual([['position', true], ['order', true], ['order', false]])
+    const html = renderToStaticMarkup(<SolanaActiveTable rows={merged} decimals={6} symbol="fUSDC"/>)
+    expect(html).toContain('33')
+    expect(html).toContain('escrowed')
+    expect(html).toContain('of your 4')
+    expect(html).toContain('counted above')
     expect(html).toContain('Resting')
+    // The ask's two shares are inside the position's four and must not be marked
+    // a second time: the total is the position alone, 4 shares at 0.5.
+    expect(markedValue(activeSolanaRows(positions)).total).toBe(2_000_000n)
+  })
+
+  test('a trader whose only stake is a resting bid still sees it', () => {
+    const bid = portfolio({ questions: [holding({ outcomes: [
+      outcome({ orders: [{ sequence: '9', side: 'BUY', price: 400_000n, quantity: 10_000_000n, reserved: 4_000_000n, lastValidSlot: 10 }] }),
+      outcome({}, 1),
+    ] })] })
+    expect(solanaPositionRows(bid, [question], 6)).toEqual([])
+    const merged = mergeSolanaActive([], solanaOrderRows(bid, [question]))
+    expect(merged.map(entry => entry.kind)).toEqual(['order'])
+    expect(renderToStaticMarkup(<SolanaActiveTable rows={merged} decimals={6} symbol="fUSDC"/>)).toContain('if it fills')
+  })
+
+  test('one unpriced book withholds the marked total instead of counting it as zero', () => {
+    const mixed = solanaPositionRows(portfolio({ questions: [holding({ outcomes: [
+      outcome({ seatShares: 1_000_000n, bestBid: 500_000n }), outcome({ seatShares: 3_000_000n }, 1),
+    ] })] }), [question], 6)
+    expect(markedValue(mixed)).toMatchObject({ total: undefined, unpriced: 1, priced: 1 })
+    expect(markedValue(mixed.slice(0, 1)).total).toBe(500_000n)
   })
 })

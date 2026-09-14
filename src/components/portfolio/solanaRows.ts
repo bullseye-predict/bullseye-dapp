@@ -140,3 +140,45 @@ export const solanaRowKickoff = (identity: SolanaIdentity) => Date.parse(identit
 export const solanaRowMatches = (identity: SolanaIdentity, eventFilter: string, search: string) =>
   (!eventFilter || identity.eventId === eventFilter)
   && `${identity.label} ${identity.eventId ?? ''} ${identity.marketId}`.toLowerCase().includes(search.toLowerCase())
+
+/** One line of the Active tab. A resting order is active — it is escrow the
+ *  trader can still act on — but its shares are not a second holding: a resting
+ *  ask's quantity is already inside its position's `quantity` (solanaPortfolio
+ *  sums `reservedShares` into `totalShares`), and a resting bid owns no shares
+ *  at all. `grouped` records whether the position it qualifies is the row above. */
+export type SolanaActiveRow =
+  | { kind: 'position'; key: string; row: SolanaPositionRow }
+  | { kind: 'order'; key: string; row: SolanaOrderRow; grouped: boolean }
+
+export function mergeSolanaActive(positions: readonly SolanaPositionRow[], orders: readonly SolanaOrderRow[]): SolanaActiveRow[] {
+  const pending = new Map<string, SolanaOrderRow[]>()
+  for (const order of orders) {
+    const key = `${order.identity.marketId}:${order.outcome}`
+    pending.set(key, [...(pending.get(key) ?? []), order])
+  }
+  const merged: SolanaActiveRow[] = []
+  for (const row of positions) {
+    merged.push({ kind: 'position', key: row.id, row })
+    for (const order of pending.get(row.id) ?? []) merged.push({ kind: 'order', key: order.id, row: order, grouped: true })
+    pending.delete(row.id)
+  }
+  // A trader whose only stake is a resting bid has no position row at all, so
+  // this pass is what keeps their escrowed collateral on the page rather than
+  // showing them an empty portfolio.
+  for (const list of pending.values()) for (const order of list) merged.push({ kind: 'order', key: order.id, row: order, grouped: false })
+  return merged
+}
+
+/** Positions marked at the best bid. Orders are never added: an ask's shares are
+ *  already counted in its position and a bid's shares are not owned yet. A book
+ *  with no bid is not worth zero, so one unpriced row withholds the whole total
+ *  rather than under-reporting it. */
+export function markedValue(rows: readonly SolanaPositionRow[]) {
+  let total = 0n, unpriced = 0
+  for (const row of rows) {
+    if (row.quantity === 0n) continue
+    if (row.value === undefined) unpriced++
+    else total += row.value
+  }
+  return { total: unpriced ? undefined : total, unpriced, priced: rows.filter(row => row.quantity > 0n).length - unpriced }
+}

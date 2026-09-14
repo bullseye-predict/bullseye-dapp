@@ -5,6 +5,7 @@ import type { PortfolioMarket } from '../src/components/portfolio/usePortfolio'
 import { renderToStaticMarkup } from 'react-dom/server'
 const market = { isResolved: false, isVoided: false, winningOutcome: 0, status: 1 }
 const state = (overrides = {}, outcome: 0 | 1 = 0, quantity = 1n, now = 2000) => positionState({ ...market, ...overrides }, outcome, quantity, now, 1000, 3000)
+const order = { orderId: 1n, price: 0n, quantityRemaining: 0n, expireTimestampNs: 0n }
 
 describe('portfolio settlement and ownership presentation', () => {
   test('default winner field cannot unlock claims before settlement', () => {
@@ -25,7 +26,7 @@ describe('portfolio settlement and ownership presentation', () => {
     const entry = { binding: { marketId: 'one', tradingStartsAt: 1000, tradingLocksAt: 3000 }, snapshot: { balances: [0n, 0n, 0n], orders: [], market, now: 2000 }, participated: false } as unknown as PortfolioMarket
     expect(portfolioRows([entry])).toEqual([])
     expect(portfolioRows([{ ...entry, participated: true }])[0].state).toBe('Closed')
-    const reserved = { ...entry, snapshot: { ...entry.snapshot, orders: [{}] } } as PortfolioMarket
+    const reserved = { ...entry, snapshot: { ...entry.snapshot, orders: [order] } } as PortfolioMarket
     expect(isClosedPosition(portfolioRows([reserved])[0].state)).toBe(false)
   })
   test('a sold outcome appears in Closed while the other outcome stays active', () => {
@@ -61,9 +62,12 @@ describe('portfolio match identity, escrow and chart', () => {
     expect(matchLabel('arena-abc123', 1000, { matchId: '0xabc123', matchNumber: 42 })).toBe('MATCH #42')
     expect(matchLabel('arena-abc123', 1000)).not.toContain('MATCH #')
   })
-  test('finished market escrow is never an active holding', () => {
-    const entry = { binding: { marketId: 'one', tradingStartsAt: 1000, tradingLocksAt: 3000 }, snapshot: { balances: [0n, 0n, 0n], orders: [{}], market: { ...market, isResolved: true }, now: 4000 } } as unknown as PortfolioMarket
-    expect(portfolioRows([entry]).map(row => row.state)).toEqual(['Orders'])
+  test('escrow on a finished market stays an active commitment, one row per order', () => {
+    const entry = { binding: { marketId: 'one', tradingStartsAt: 1000, tradingLocksAt: 3000 }, snapshot: { balances: [0n, 0n, 0n], orders: [order, { ...order, orderId: 2n }], market: { ...market, isResolved: true }, now: 4000 } } as unknown as PortfolioMarket
+    // Each order is cancelled on its own, so each is its own row, and none of
+    // them is closed: the escrow is still reserved until a wallet releases it.
+    expect(portfolioRows([entry]).map(row => row.state)).toEqual(['Orders', 'Orders'])
+    expect(portfolioRows([entry]).every(row => !isClosedPosition(row.state))).toBe(true)
     expect(marketLifecycle(entry.snapshot.market, 4000, 3000)).toBe('Resolved · YES won')
     expect(marketLifecycle(market, 4000, 3000)).toBe('Trading ended · awaiting oracle')
   })

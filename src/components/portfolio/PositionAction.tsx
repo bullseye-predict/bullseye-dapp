@@ -70,7 +70,9 @@ export function PositionAction({ entry, outcome, wallet: source, onClose, orders
     finally { signer.current?.dispose(); signer.current = null; await adapter.close(); pending.current = false; if (active.current) setBusy(false) }
   }
   return <section ref={panel} tabIndex={-1} className="pf-action" aria-label="Manage position">
-    <header><div><span className={outcome === 0 ? 'pf-yes' : 'pf-no'}>{outcome === 0 ? 'YES' : 'NO'}</span><h3>{ordersOnly ? 'Release order escrow' : claim ? state : state === 'Trading' ? 'Sell shares' : 'Manage orders'}</h3></div><button disabled={busy} onClick={onClose} aria-label="Close position controls">✕</button></header>
+    {/* An orders row is opened with a fallback outcome, so naming one here would
+        assert a side this panel does not actually know. */}
+    <header><div>{!ordersOnly && <span className={outcome === 0 ? 'pf-yes' : 'pf-no'}>{outcome === 0 ? 'YES' : 'NO'}</span>}<h3>{ordersOnly ? 'Release order escrow' : claim ? state : state === 'Trading' ? 'Sell shares' : 'Manage orders'}</h3></div><button disabled={busy} onClick={onClose} aria-label="Close position controls">✕</button></header>
     <p>{binding.label}</p>
     {canExit && <><label>Shares<div className="pf-amount"><input aria-label="Shares to sell or claim" inputMode="decimal" value={amount} disabled={busy} onChange={e => setAmount(e.target.value)}/><button disabled={busy} onClick={() => setAmount(formatUnitsExact(balance, decimals))}>Max</button></div></label>
     <p>Available: {formatUnitsExact(balance, decimals)} shares</p>

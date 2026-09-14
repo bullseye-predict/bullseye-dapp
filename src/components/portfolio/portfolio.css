@@ -1,74 +1,130 @@
-.pf-main { max-width: 1440px; margin: 0 auto; padding: 48px var(--site-gutter) 64px; }
-.pf-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
-.pf-heading > div > p { font-size: 10px; color: var(--sh-muted); letter-spacing: .12em; margin-bottom: 10px; }
-.pf-heading h1 { font-size: 44px; line-height: 1.1; letter-spacing: -.03em; }
-.pf-heading h1 span { margin-left: 16px; color: var(--sh-lime); }
+.pf-main { max-width: 1440px; margin: 0 auto; padding: 40px var(--site-gutter) 64px; }
+.pf-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.pf-heading h1 { font-size: 26px; line-height: 1.1; letter-spacing: -.02em; }
 .pf-network { display: grid; gap: 6px; color: var(--sh-muted); font-size: 10px; }
-.pf-page select, .pf-page input { border: 1px solid var(--sh-line); color: var(--sh-text); background: var(--sh-panel); border-radius: 5px; padding: 12px; }
-.pf-overview { border-block: 1px solid var(--sh-line); padding: 32px 0; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
-.pf-identity { display: flex; gap: 18px; align-items: center; }
-.pf-avatar { background: #242b13; color: var(--sh-lime); border-radius: 50%; width: 68px; height: 68px; display: grid; place-items: center; flex-shrink: 0; }
-.pf-identity h2 { font-size: 23px; margin-bottom: 7px; }
-.pf-identity p, .pf-caption, .pf-footnote { color: var(--sh-muted); font-size: 11px; }
-.pf-page .pf-copy { display: inline-flex; align-items: center; gap: 7px; padding: 6px 0; background: none; border: 0; color: var(--sh-muted); margin-top: 7px; }
-.pf-identity [role='status'] { margin-left: 10px; color: var(--sh-lime); }
-.pf-stats { margin: 0; display: flex; gap: 38px; }
-.pf-stats dt { color: var(--sh-muted); font-size: 10px; }
-.pf-stats dd { margin: 6px 0 0; font-size: 32px; }
-.pf-caption { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; }
-.pf-yes { color: #6ce5a7; }.pf-no { color: #ff8c96; }
-.pf-section-heading { display: flex; justify-content: space-between; align-items: center; margin: 42px 0 20px; }
-.pf-section-heading h2 { font-size: 23px; }
-.pf-page button { border: 1px solid var(--sh-line); border-radius: 5px; background: #24252b; color: var(--sh-text); padding: 10px 14px; transition: background 150ms ease-out; }
+.pf-page select, .pf-page input { border: 1px solid var(--sh-line); color: var(--sh-text); background: var(--sh-panel); border-radius: 6px; padding: 11px 12px; }
+.pf-yes { color: #6ce5a7; }.pf-no { color: #ff8c96; }.pf-alert { color: #e9c783; }
+
+/* Hero: the profile card and the net-flow chart, side by side. Every fact on
+   this page is stated in exactly one of them. */
+.pf-hero { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 14px; align-items: stretch; margin-bottom: 22px; }
+.pf-card, .pf-chart { background: var(--sh-panel); border: 1px solid var(--sh-line); border-radius: 10px; padding: 20px; }
+.pf-profile { display: flex; flex-direction: column; gap: 18px; }
+.pf-identity { display: flex; gap: 12px; align-items: start; }
+.pf-avatar { border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex-shrink: 0; }
+.pf-identity > div { min-width: 0; }
+.pf-identity h2 { font-size: 16px; letter-spacing: -.01em; }
+.pf-identity p { color: var(--sh-muted); font-size: 10px; margin-top: 5px; overflow-wrap: anywhere; }
+.pf-identity [role='status']:not(:empty) { display: block; color: var(--sh-lime); font-size: 9px; margin-top: 5px; }
+.pf-page .pf-icon { margin-left: auto; flex-shrink: 0; padding: 7px; line-height: 0; color: var(--sh-muted); background: transparent; }
+.pf-hero-stats { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pf-hero-stats > div { display: flex; flex-direction: column-reverse; gap: 6px; padding-right: 12px; border-right: 1px solid var(--sh-line); }
+.pf-hero-stats > div + div { padding-left: 12px; }
+.pf-hero-stats > div:last-child { border-right: 0; padding-right: 0; }
+.pf-hero-stats dt { color: var(--sh-muted); font-size: 9px; line-height: 1.35; }
+.pf-hero-stats dd { margin: 0; font-size: 20px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pf-hero-stats dd small { font-size: 9px; color: var(--sh-muted); margin-left: 4px; }
+/* The four custodians are one disclosure rather than four cards: the split only
+   matters when a trader is working out which balance they have to move first. */
+.pf-collateral { border-top: 1px solid var(--sh-line); padding-top: 14px; font-size: 10px; color: var(--sh-muted); }
+.pf-collateral summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; }
+.pf-collateral b { color: var(--sh-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.pf-collateral dl { margin: 12px 0 0; display: grid; gap: 8px; }
+.pf-collateral dl > div { display: flex; justify-content: space-between; gap: 10px; }
+.pf-collateral dd { margin: 0; color: var(--sh-text); font-variant-numeric: tabular-nums; }
+.pf-page .pf-refresh { margin-top: auto; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+.pf-page button { border: 1px solid var(--sh-line); border-radius: 6px; background: #24252b; color: var(--sh-text); padding: 10px 14px; transition: background 150ms ease-out; }
 .pf-page button:hover:not(:disabled) { background: #33353c; }
 .pf-page .pf-primary { color: #6ce5a7; border-color: #355f48; background: #1b3025; }
 .pf-page .pf-primary:hover:not(:disabled) { background: #284937; }
 .pf-page .pf-sell { color: #ff8c96; border-color: #683b42; background: #341f25; }
 .pf-page .pf-sell:hover:not(:disabled) { background: #4b2c34; }
-.pf-refresh { display: inline-flex; align-items: center; gap: 8px; }
-.pf-toolbar { display: flex; gap: 16px; margin-bottom: 22px; }
+/* One control row: status, search and the two filters. */
+.pf-toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: stretch; }
 .pf-tabs { display: flex; border: 1px solid var(--sh-line); border-radius: 6px; flex-shrink: 0; overflow: hidden; }
-.pf-page .pf-tabs button { border: 0; border-radius: 0; background: transparent; padding: 12px 18px; color: var(--sh-muted); }
+.pf-page .pf-tabs button { border: 0; border-radius: 0; background: transparent; padding: 11px 18px; color: var(--sh-muted); }
 .pf-page .pf-tabs .is-selected { background: #2c2e34; color: #fff; }
-.pf-tabs span { margin-left: 10px; font-size: 10px; }
-.pf-search { flex: 1; border: 1px solid var(--sh-line); border-radius: 5px; display: flex; align-items: center; padding-left: 14px; color: var(--sh-muted); }
-.pf-page .pf-search input { width: 100%; background: transparent; border: 0; }
+.pf-tabs span { margin-left: 9px; font-size: 10px; }
+.pf-search { flex: 1 1 200px; min-width: 0; border: 1px solid var(--sh-line); border-radius: 6px; display: flex; align-items: center; gap: 8px; padding-left: 13px; color: var(--sh-muted); }
+.pf-page .pf-search input { width: 100%; min-width: 0; background: transparent; border: 0; }
 .pf-page input::placeholder { color: #a1a2ac; }
-.pf-claim-banner { background: #1b2922; border: 1px solid #355f48; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 24px; border-radius: 6px; }
+.pf-toolbar > select { flex: 0 1 175px; min-width: 0; }
+.pf-claim-banner { background: #1b2922; border: 1px solid #355f48; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; border-radius: 8px; }
 .pf-claim-banner strong { color: #6ce5a7; }.pf-claim-banner p { margin-top: 5px; color: #b8c9be; }
 .pf-claim-banner button { display: flex; align-items: center; gap: 8px; }
 .pf-content { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 24px; }
 .pf-content.has-action { grid-template-columns: minmax(0, 1fr) 310px; }
 .pf-list { min-width: 0; }.pf-table-scroll { overflow-x: auto; }
-.pf-list table { width: 100%; border-collapse: collapse; text-align: left; }
-.pf-list th { color: var(--sh-muted); font-size: 10px; font-weight: 400; white-space: nowrap; padding: 15px 12px; border-bottom: 1px solid var(--sh-line); }
-.pf-list td { padding: 22px 12px; border-bottom: 1px solid var(--sh-line); font-size: 11px; }
-.pf-list td:first-child { min-width: 190px; }.pf-list td:last-child { text-align: right; }
-.pf-list td strong { display: block; font-size: 13px; max-width: 360px; }
+
+/* Zebra rows. `separate` is what makes the row-end radii render at all, and the
+   per-cell hairline is gone because the stripe is the row separator now. Cells
+   are painted rather than transparent so the stripe survives any surface this
+   table is later dropped onto. */
+.pf-list table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+.pf-list th { color: var(--sh-muted); font-size: 9px; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; padding: 12px; border-bottom: 1px solid var(--sh-line); }
+.pf-list td { padding: 15px 12px; font-size: 11px; vertical-align: top; background: var(--sh-bg); }
+.pf-list tbody tr:nth-child(even) td { background: var(--sh-panel); }
+.pf-list td:first-child { border-radius: 8px 0 0 8px; min-width: 210px; }
+.pf-list td:last-child { border-radius: 0 8px 8px 0; }
+.pf-list :is(th, td):is(:nth-child(2), :nth-child(3), :nth-child(4)) { text-align: right; font-variant-numeric: tabular-nums; }
+.pf-list :is(th, td):not(:first-child) { white-space: nowrap; }
+.pf-list-actions :is(th, td):last-child { text-align: right; }
+@media (hover: hover) { .pf-list tbody tr:hover td { background: #202128; } }
+/* An order row is a claim on the position above it, not a second holding. */
+.pf-list tr.is-order td:first-child { padding-left: 30px; }
+.pf-list tr.is-order .pf-match-avatar { opacity: .5; }
+.pf-list td strong { display: block; font-size: 12px; max-width: 340px; }
 .pf-list small { display: block; color: var(--sh-muted); margin-top: 5px; font-size: 9px; overflow-wrap: anywhere; }
+.pf-list small.pf-yes { color: #6ce5a7; }.pf-list small.pf-no { color: #ff8c96; }
+.pf-list td small + small { margin-top: 3px; }
 .pf-outcome { display: inline-block; margin-top: 9px; font-size: 10px; font-weight: 600; }
+.pf-market-identity { display: flex; align-items: center; gap: 12px; }
+.pf-match-avatar { width: 34px; height: 34px; flex-shrink: 0; image-rendering: pixelated; }
+.pf-match-details { font-size: 9px; color: var(--sh-muted); margin-top: 8px; }
+.pf-match-details code { display: block; overflow-wrap: anywhere; max-width: 300px; margin-top: 8px; }
+.pf-match-details summary { cursor: pointer; white-space: nowrap; }
+.pf-page .pf-open-market { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--sh-lime); text-decoration: none; }
+
 .pf-empty { min-height: 290px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; border-block: 1px solid var(--sh-line); text-align: center; padding: 40px 24px; }
 .pf-empty > svg { color: var(--sh-muted); }.pf-empty h2 { font-size: 22px; }.pf-empty p { max-width: 54ch; color: var(--sh-muted); }.pf-empty a { color: var(--sh-lime); display: flex; align-items: center; gap: 8px; }
-.pf-footnote { margin-top: 26px !important; max-width: 100ch; line-height: 1.8; }
-.pf-loading { padding: 24px 0; color: var(--sh-muted); }.pf-loading div { height: 54px; background: #222329; border-radius: 4px; margin-top: 15px; }
-.pf-error { color: #ff8c96; padding-block: 12px; overflow-wrap: anywhere; }.pf-notice { color: #e9c783; padding: 12px 0; }
-.pf-action { padding: 22px; background: var(--sh-panel); border: 1px solid var(--sh-line); border-radius: 7px; display: grid; gap: 16px; }
+.pf-footnote { margin-top: 26px !important; max-width: 100ch; line-height: 1.8; color: var(--sh-muted); font-size: 11px; }
+.pf-loading { padding: 24px 0; color: var(--sh-muted); }.pf-loading div { height: 54px; background: #222329; border-radius: 6px; margin-top: 15px; }
+.pf-error { color: #ff8c96; padding-block: 12px; overflow-wrap: anywhere; }.pf-notice { color: #e9c783; padding: 0 0 14px; }
+.pf-action { padding: 22px; background: var(--sh-panel); border: 1px solid var(--sh-line); border-radius: 8px; display: grid; gap: 16px; }
 .pf-action header { display: flex; justify-content: space-between; align-items: start; gap: 12px; }.pf-action h3 { font-size: 18px; }.pf-action p { font-size: 11px; color: #b4b5bf; }.pf-action label { display: grid; gap: 8px; }.pf-amount { display: flex; gap: 8px; }.pf-amount input { width: 100%; min-width: 0; }.pf-orders { display: grid; gap: 12px; border-top: 1px solid var(--sh-line); padding-top: 16px; }.pf-orders > div { display: grid; gap: 8px; overflow-wrap: anywhere; }.pf-action .pf-error { color: #ff8c96; }
-@media (max-width: 1100px) { .pf-overview { align-items: start; flex-direction: column; }.pf-stats { width: 100%; justify-content: space-between; }.pf-content.has-action { grid-template-columns: minmax(0, 1fr); }.pf-action { grid-row: 1; max-width: 520px; width: 100%; }.pf-caption { flex-direction: column; gap: 6px; } }
-@media (max-width: 600px) { .pf-main { padding-top: 28px; }.pf-heading { align-items: start; flex-direction: column; }.pf-heading h1 { font-size: 36px; }.pf-network, .pf-network select { width: 100%; }.pf-toolbar { flex-direction: column; gap: 12px; }.pf-tabs { align-self: start; }.pf-stats { gap: 16px; }.pf-stats dd { font-size: 26px; }.pf-stats dt { font-size: 9px; }.pf-identity h2 { font-size: 20px; }.pf-avatar { width: 50px; height: 50px; }.pf-claim-banner { align-items: start; flex-direction: column; }.pf-section-heading { margin-top: 28px; } }
+
+/* The chart fills the card rather than letterboxing inside it: the viewBox is
+   700x190 and `meet` would otherwise centre it with dead space either side. */
+.pf-chart { display: flex; flex-direction: column; }
+.pf-chart header { display: flex; justify-content: space-between; gap: 20px; }
+.pf-chart h2 { font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.pf-chart h2 i { width: 6px; height: 6px; background: var(--sh-lime); flex-shrink: 0; }
+.pf-chart p { color: var(--sh-muted); font-size: 10px; margin-top: 7px; }
+.pf-chart-ranges { display: flex; gap: 5px; align-items: start; }.pf-chart-ranges button { padding: 7px 9px; font-size: 10px; }
+.pf-chart-ranges button[aria-pressed='true'] { color: var(--sh-lime); border-color: var(--sh-lime); background: #262d15; }
+.pf-chart-total { display: block; font-size: 26px; margin-top: 18px; font-variant-numeric: tabular-nums; }
+.pf-chart-date { display: block; color: var(--sh-muted); font-size: 10px; }
+.pf-chart > svg { width: 100%; height: auto; aspect-ratio: 700 / 190; display: block; margin-top: auto; }
+.pf-chart-empty { min-height: 150px; display: grid; place-items: center; color: var(--sh-muted); text-align: center; margin-top: auto; }
+.pf-chart details { margin-top: 12px; color: var(--sh-muted); }.pf-chart-data { max-height: 220px; overflow: auto; }
+.pf-chart table { width: 100%; text-align: left; border-collapse: collapse; }.pf-chart :is(td, th) { padding: 8px; border-bottom: 1px solid var(--sh-line); }
+
+@media (max-width: 1100px) { .pf-hero { grid-template-columns: minmax(0, 1fr); }.pf-content.has-action { grid-template-columns: minmax(0, 1fr); }.pf-action { grid-row: 1; max-width: 520px; width: 100%; } }
+@media (max-width: 600px) {
+  .pf-main { padding-top: 26px; }
+  .pf-heading { align-items: start; flex-direction: column; gap: 14px; }.pf-heading h1 { font-size: 23px; }.pf-network, .pf-network select { width: 100%; }
+  .pf-card, .pf-chart { padding: 16px; }
+  /* Two up, with the hairlines drawn by the grid gap so no border survives the reflow. */
+  .pf-hero-stats { grid-template-columns: 1fr 1fr; gap: 1px; background: var(--sh-line); }
+  .pf-hero-stats > div { padding: 12px 10px; border-right: 0; background: var(--sh-panel); }
+  .pf-hero-stats > div + div { padding-left: 10px; }
+  .pf-hero-stats > div:last-child { grid-column: 1 / -1; padding-right: 10px; }
+  .pf-hero-stats dd { font-size: 18px; }
+  .pf-toolbar { gap: 8px; }.pf-tabs { flex: 1 1 100%; }.pf-page .pf-tabs button { flex: 1; padding-inline: 10px; }.pf-toolbar > select { flex: 1 1 140px; }
+  .pf-chart header { flex-direction: column; gap: 14px; }.pf-chart-total { font-size: 22px; }
+  .pf-claim-banner { align-items: start; flex-direction: column; }
+  .pf-list td { padding: 13px 10px; }.pf-list td:first-child { min-width: 190px; }
+}
 @media (prefers-reduced-motion: reduce) { .pf-page button { transition: none; } }
 .pf-page .sz-site-menu { padding: 0; }
-.pf-chart { border: 1px solid var(--sh-line); border-radius: 8px; padding: 24px; margin: 16px 0 28px; background: var(--sh-panel); }
-.pf-chart header { display: flex; justify-content: space-between; gap: 20px; }.pf-chart h2 { font-size: 20px; }.pf-chart p { color: var(--sh-muted); font-size: 10px; margin-top: 7px; }.pf-chart-ranges { display: flex; gap: 5px; align-items: start; }.pf-chart-ranges button { padding: 8px 10px; }.pf-chart-ranges button[aria-pressed='true'] { color: var(--sh-lime); border-color: var(--sh-lime); background: #262d15; }
-.pf-chart-total { display: block; font-size: 30px; margin-top: 24px; }.pf-chart-date { display: block; color: var(--sh-muted); font-size: 10px; }.pf-chart > svg { width: 100%; height: 205px; display: block; margin-top: 10px; }.pf-chart-empty { min-height: 170px; display: grid; place-items: center; color: var(--sh-muted); text-align: center; }.pf-chart details { margin-top: 12px; color: var(--sh-muted); }.pf-chart-data { max-height: 220px; overflow: auto; }.pf-chart table { width: 100%; text-align: left; border-collapse: collapse; }.pf-chart :is(td, th) { padding: 8px; border-bottom: 1px solid var(--sh-line); }
-.pf-filters { display: flex; gap: 16px; margin-bottom: 20px; }.pf-filters label { display: grid; gap: 6px; color: var(--sh-muted); font-size: 10px; }.pf-filters label:first-child { flex: 1; }.pf-filters select { width: 100%; min-width: 0; }
-.pf-market-identity { display: flex; align-items: center; gap: 12px; }.pf-match-avatar { width: 40px; height: 40px; flex-shrink: 0; image-rendering: pixelated; }.pf-match-details { font-size: 9px; color: var(--sh-muted); margin-top: 8px; }.pf-match-details code { display: block; overflow-wrap: anywhere; max-width: 300px; margin-top: 8px; }.pf-match-details summary { cursor: pointer; }
-@media (max-width: 600px) { .pf-chart { padding: 18px; }.pf-chart header { flex-direction: column; gap: 14px; }.pf-chart-total { font-size: 24px; }.pf-filters { flex-direction: column; }.pf-filters label { width: 100%; } }
-.pf-network-static { display: grid; gap: 6px; }
-.pf-network-static b { color: var(--sh-text); font-size: 13px; font-weight: 500; }
-.pf-funds { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); border-bottom: 1px solid var(--sh-line); padding: 22px 0; gap: 22px 32px; }
-.pf-funds dd { font-size: 22px; }
-.pf-funds dd span { color: var(--sh-muted); font-size: 11px; margin-left: 3px; }
-.pf-page .pf-open-market { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--sh-lime); text-decoration: none; }
-.pf-list td small + small { margin-top: 3px; }
-@media (max-width: 600px) { .pf-funds { gap: 16px 20px; } .pf-funds dd { font-size: 18px; } }

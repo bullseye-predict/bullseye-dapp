@@ -1,15 +1,17 @@
 import { ArrowUpRight } from 'lucide-react'
 import { formatUnitsExact } from '../prediction/amounts'
 import { MatchAvatar } from './matchIdentity'
-import type { SolanaIdentity, SolanaOrderRow, SolanaPositionRow } from './solanaRows'
+import type { SolanaActiveRow, SolanaIdentity, SolanaOrderRow, SolanaPositionRow } from './solanaRows'
 
 const eventHref = (identity: SolanaIdentity) => identity.eventId
   ? `/events/${encodeURIComponent(identity.eventId)}${identity.questionId ? `#event-${encodeURIComponent(identity.questionId)}` : ''}`
   : undefined
-const price = (value: bigint | undefined, decimals: number, symbol: string) => value === undefined ? '—' : `${formatUnitsExact(value, decimals, 6)} ${symbol}`
+/** Bare numbers: every column states its unit once, in the header. */
+const amount = (value: bigint, decimals: number) => formatUnitsExact(value, decimals, 6)
+const price = (value: bigint | undefined, decimals: number) => value === undefined ? '—' : amount(value, decimals)
 const when = (at: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at)
 
-type RowHead = { identity: SolanaIdentity; outcome: 0 | 1; holding: SolanaPositionRow['holding']; lifecycle: string }
+type RowHead = { identity: SolanaIdentity; outcome: 0 | 1; lifecycle: string; locksAt?: number }
 
 function Identity({ row }: { row: RowHead }) {
   const { identity, outcome } = row
@@ -19,7 +21,7 @@ function Identity({ row }: { row: RowHead }) {
       <MatchAvatar id={identity.eventId ?? identity.marketId}/>
       <div>
         <strong>{identity.label}</strong>
-        <small>{row.holding.locksAt ? `Locks ${when(row.holding.locksAt)} · ` : ''}{row.lifecycle}</small>
+        <small>{row.locksAt ? `Locks ${when(row.locksAt)} · ` : ''}{row.lifecycle}</small>
       </div>
     </div>
     <details className="pf-match-details">
@@ -32,7 +34,7 @@ function Identity({ row }: { row: RowHead }) {
   </>
 }
 
-/** Shares are split across three custodians and only the seat balance is
+/** Shares are split across four custodians and only the seat balance is
  *  immediately sellable, so the split is shown rather than a single total. */
 function Custody({ row, decimals }: { row: SolanaPositionRow; decimals: number }) {
   const parts = [
@@ -41,37 +43,60 @@ function Custody({ row, decimals }: { row: SolanaPositionRow; decimals: number }
     ['In your wallet', row.custody.wallet],
     ['In the prediction vault', row.custody.vault],
   ] as const
-  const shown = parts.filter(([, amount]) => amount > 0n)
+  const shown = parts.filter(([, value]) => value > 0n)
   if (!shown.length) return null
   return <details className="pf-match-details">
     <summary>Where these shares are</summary>
-    {shown.map(([label, amount]) => <small key={label}>{label}: {formatUnitsExact(amount, decimals, 6)}</small>)}
+    {shown.map(([label, value]) => <small key={label}>{label}: {amount(value, decimals)}</small>)}
   </details>
 }
 
-export function SolanaPositionsTable({ rows, decimals, symbol }: { rows: readonly SolanaPositionRow[]; decimals: number; symbol: string }) {
+const headers = (symbol: string) => <thead><tr><th>Question / outcome</th><th>Shares</th><th>Price ({symbol})</th><th>Value ({symbol})</th><th>Status</th></tr></thead>
+
+function PositionCells({ row, decimals }: { row: SolanaPositionRow; decimals: number }) {
+  return <>
+    <td><Identity row={{ ...row, locksAt: row.holding.locksAt }}/></td>
+    <td>{amount(row.quantity, decimals)}<Custody row={row} decimals={decimals}/></td>
+    <td>{price(row.bestBid, decimals)}<small>Ask {price(row.bestAsk, decimals)}</small></td>
+    <td>{row.value === undefined ? '—' : amount(row.value, decimals)}</td>
+    <td><span className={row.state.startsWith('Claim') ? 'pf-yes' : ''}>{row.state}{row.seatCollateral > 0n && <small>{amount(row.seatCollateral, decimals)} on the seat</small>}</span></td>
+  </>
+}
+
+/**
+ * A resting order, rendered as a claim rather than as a second holding.
+ *
+ * An ask's shares are already inside its position's quantity and its marked
+ * value, so the value cell states where they were counted instead of marking
+ * them again. A bid owns no shares at all, so its value cell is the collateral
+ * it has escrowed.
+ */
+function OrderCells({ row, grouped, decimals }: { row: SolanaOrderRow; grouped: boolean; decimals: number }) {
+  const buy = row.order.side === 'BUY'
+  const held = row.holding.outcomes[row.outcome].totalShares
+  return <>
+    <td><Identity row={{ ...row, locksAt: row.holding.locksAt }}/></td>
+    <td>{amount(row.order.quantity, decimals)}<small>{buy ? 'if it fills' : `of your ${amount(held, decimals)}`}</small></td>
+    <td>{amount(row.order.price, decimals)}<small>Limit</small></td>
+    <td>{buy ? <>{amount(row.order.reserved, decimals)}<small>escrowed</small></> : <>—<small>{grouped ? 'counted above' : 'from shares in Closed'}</small></>}</td>
+    <td><span className={buy ? 'pf-yes' : 'pf-no'}>{row.order.side}</span> order<small>{row.expired ? 'Expired · escrow still reserved' : 'Resting'}</small></td>
+  </>
+}
+
+/** Active holdings and the resting orders that qualify them, in one list: an
+ *  order is active because it is escrow the trader can still act on. */
+export function SolanaActiveTable({ rows, decimals, symbol }: { rows: readonly SolanaActiveRow[]; decimals: number; symbol: string }) {
   return <div className="pf-table-scroll"><table>
-    <thead><tr><th>Question / outcome</th><th>Shares</th><th>Status</th><th>Best bid</th><th>Value at bid</th></tr></thead>
-    <tbody>{rows.map(row => <tr key={row.id}>
-      <td><Identity row={row}/></td>
-      <td>{formatUnitsExact(row.quantity, decimals, 6)}<Custody row={row} decimals={decimals}/></td>
-      <td><span className={row.state.startsWith('Claim') ? 'pf-yes' : ''}>{row.state}<small>{row.lifecycle}</small>{row.seatCollateral > 0n && <small>{formatUnitsExact(row.seatCollateral, decimals, 6)} {symbol} on the seat</small>}</span></td>
-      <td>{price(row.bestBid, decimals, symbol)}<small>Ask {price(row.bestAsk, decimals, symbol)}</small></td>
-      <td>{row.value === undefined ? '—' : `${formatUnitsExact(row.value, decimals, 6)} ${symbol}`}</td>
+    {headers(symbol)}
+    <tbody>{rows.map(entry => <tr key={entry.key} className={entry.kind === 'order' ? 'is-order' : ''}>
+      {entry.kind === 'position' ? <PositionCells row={entry.row} decimals={decimals}/> : <OrderCells row={entry.row} grouped={entry.grouped} decimals={decimals}/>}
     </tr>)}</tbody>
   </table></div>
 }
 
-export function SolanaOrdersTable({ rows, decimals, symbol }: { rows: readonly SolanaOrderRow[]; decimals: number; symbol: string }) {
+export function SolanaPositionsTable({ rows, decimals, symbol }: { rows: readonly SolanaPositionRow[]; decimals: number; symbol: string }) {
   return <div className="pf-table-scroll"><table>
-    <thead><tr><th>Question / outcome</th><th>Side</th><th>Price</th><th>Size</th><th>Escrowed</th><th>Status</th></tr></thead>
-    <tbody>{rows.map(row => <tr key={row.id}>
-      <td><Identity row={row}/></td>
-      <td><span className={row.order.side === 'BUY' ? 'pf-yes' : 'pf-no'}>{row.order.side}</span></td>
-      <td>{price(row.order.price, decimals, symbol)}</td>
-      <td>{formatUnitsExact(row.order.quantity, decimals, 6)}</td>
-      <td>{row.order.side === 'BUY' ? `${formatUnitsExact(row.order.reserved, decimals, 6)} ${symbol}` : `${formatUnitsExact(row.order.quantity, decimals, 6)} shares`}</td>
-      <td>{row.expired ? 'Expired · escrow still reserved' : 'Resting'}<small>{row.lifecycle}</small></td>
-    </tr>)}</tbody>
+    {headers(symbol)}
+    <tbody>{rows.map(row => <tr key={row.id}><PositionCells row={row} decimals={decimals}/></tr>)}</tbody>
   </table></div>
 }
