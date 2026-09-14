@@ -1,4 +1,21 @@
 ---
+import { ClientRouter } from 'astro:transitions'
+import '../styles/global.css'
+import '../styles/arena.css'
+import '../styles/events.css'
+import '../styles/genesis.css'
+import '../styles/home-community.css'
+import '../styles/home-console.css'
+import '../styles/home-hero.css'
+import '../styles/home-markets.css'
+import '../styles/home.css'
+import '../styles/site-footer.css'
+import '../styles/site-header.css'
+import '../styles/site-loading.css'
+import '../components/agent-arena/arena-history.css'
+import '../components/portfolio/portfolio.css'
+import '../components/prediction/prediction.css'
+
 interface Props {
   title: string
   description: string
@@ -33,6 +50,7 @@ const socialImageUrl = new URL('/og.png', trustedOrigin)
     <meta name="twitter:image" content={socialImageUrl} />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <ClientRouter />
     <style is:global>html,body{min-width:320px;min-height:100%;margin:0;background:#111215;color:#eeeef0}</style>
   </head>
   <body>

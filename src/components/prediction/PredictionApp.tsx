@@ -14,8 +14,7 @@ import { ConfirmedPriceChart } from './ConfirmedPriceChart'
 import { HermesControls } from './HermesControls'
 import { NetworkTabs, NetworkTrading, type TradingNetwork } from './NetworkTrading'
 import type { MarketSource } from '../home/MarketSourceControls'
-import { SiteFooter } from '../solz/SiteFooter'
-import { SiteHeader } from '../solz/SiteHeader'
+import { AppShell } from '../solz/AppShell'
 
 export interface PredictionAppProps { environmentId: string; apiUrl: string; marketSources?: readonly MarketSource[] }
 export function PredictionApp({ environmentId, apiUrl, marketSources = ['SOLANA'] }: PredictionAppProps) {
@@ -28,7 +27,7 @@ function PredictionHome({ apiUrl, session, marketSources }: { apiUrl: string; se
   const networks: TradingNetwork[] = marketSources.includes('SOMNIA') ? ['SOLANA', 'SOMNIA'] : ['SOLANA']
   const [network,setNetwork]=useState<TradingNetwork>(networks[0] ?? 'SOLANA')
   useEffect(() => { if (!networks.includes(network)) setNetwork(networks[0] ?? 'SOLANA') }, [marketSources, network, networks.join(',')])
-  return <div className="solz-home pt-home" id="top"><SiteHeader homeHref="/" active="markets" walletControl={session.walletControl}/><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main><SiteFooter homeHref="/" backToTopHref="#top"/></div>
+  return <AppShell className="solz-home pt-home" id="top" active="markets" walletControl={session.walletControl} backToTopHref="#top"><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} session={session} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} session={session} allowedMarketIds={allowedMarketIds}/>} /></main></AppShell>
 }
 
 export function VenueTerminal({ venue, apiUrl, audience, session, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string; session: DynamicSolanaSessionValue }) {

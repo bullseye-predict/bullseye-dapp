@@ -7,8 +7,7 @@ import { StatusDot, TeamMark, compact } from '../home/HomePrimitives'
 import { useHomeData } from '../home/useHomeData'
 import { linkedQuestionTitle, questionEvents, standaloneQuestions, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
 import { useSolanaVenue } from '../home/useSolanaVenue'
-import { SiteFooter } from '../solz/SiteFooter'
-import { SiteHeader } from '../solz/SiteHeader'
+import { AppShell } from '../solz/AppShell'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, SolzMatch, SolzSnapshot } from '../solz/model'
 
@@ -150,9 +149,7 @@ function MarketDirectory({ snapshot, questions, error, retry, walletControl }: {
       { title: 'Past markets', detail: 'Completed matches and settled outcomes.', rows: snapshot.matches.filter((match) => match.phase === 'settled').sort((a, b) => b.endsAt - a.endsAt).map(row), empty: 'No settled markets yet.' },
     ]
   }, [snapshot, questions])
-  return <div className="solz-home mk-app">
-    <a className="sh-skip-link" href="#market-directory">Skip to markets</a>
-    <SiteHeader homeHref="/" marketsHref="/markets" active="markets" walletControl={walletControl}/>
+  return <AppShell className="solz-home mk-app" marketsHref="/markets" active="markets" walletControl={walletControl} skipTo="#market-directory" skipLabel="Skip to markets" backToTopHref="#market-directory">
     <main className="mk-main" id="market-directory">
       <header className="mk-heading"><span>ARENA MARKET DIRECTORY</span><h1>ALL MATCH MARKETS</h1><p>Browse every live, scheduled, and settled arena match, plus standalone questions that trade on their own schedule. Open one to watch and trade its available markets.</p></header>
       {error ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot ? <div className="mk-state" role="status">Loading market directory…</div> : <div className="mk-groups">{groups.map((group) => <section key={group.title} className="mk-group" aria-labelledby={group.title.replaceAll(' ', '-').toLowerCase()}>
@@ -160,8 +157,7 @@ function MarketDirectory({ snapshot, questions, error, retry, walletControl }: {
         {group.rows.length ? <div className="mk-card-grid">{group.rows.map((row) => <MarketCard key={row.match.id} row={row} now={snapshot.updatedAt}/>)}</div> : <p className="mk-empty">{group.empty}</p>}
       </section>)}</div>}
     </main>
-    <SiteFooter homeHref="/" backToTopHref="#market-directory"/>
-  </div>
+  </AppShell>
 }
 
 export function MarketsDirectoryApp({ apiUrl = '', environmentId }: Props) {

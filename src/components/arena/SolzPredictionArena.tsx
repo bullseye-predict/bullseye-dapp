@@ -39,8 +39,7 @@ import {
   type SubmitEvent,
 } from 'react'
 import { MarketProbabilityChart } from './MarketProbabilityChart'
-import { SiteFooter } from '../solz/SiteFooter'
-import { SiteHeader } from '../solz/SiteHeader'
+import { AppShell } from '../solz/AppShell'
 import type {
   ArenaAdapter,
   ArenaMarket,
@@ -826,8 +825,7 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady, walle
   }, [adapter.mode, loadState, snapshot])
 
   return (
-    <div className="arena-app">
-      <SiteHeader homeHref="/" active="highlight" walletControl={walletControl ?? <button className="arena-wallet-button" type="button" disabled><WalletCards size={15} aria-hidden="true" /> Login unavailable</button>} />
+    <AppShell className="arena-app" active="highlight" walletControl={walletControl ?? <button className="arena-wallet-button" type="button" disabled><WalletCards size={15} aria-hidden="true" /> Login unavailable</button>}>
       <div className="arena-mode-strip"><ModeNav mode={adapter.mode} /></div>
 
       <div className="arena-ticker"><span><Radio size={13} aria-hidden="true" /><b>{adapter.mode === 'demo' ? 'SIMULATION' : 'REGIONAL LIVE'}</b></span><span>{snapshot?.matches.filter((item) => item.phase === 'live').length ?? 0} matches on air</span><span>{match ? `${match.title} · ${match.participants.filter((item) => item.status === 'active').length || '—'} active` : 'Waiting for next match'}</span><span className="ticker-end">SOL + SOLZ only</span></div>
@@ -1025,8 +1023,7 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady, walle
         </>
       )}
       <div className="arena-footer"><span>SOLZ match authority → prediction signal → SOL / SOLZ execution</span><span>{adapter.mode === 'live' ? `Wallet ${walletAddress ? shortId(walletAddress) : 'not connected'}` : `${snapshot?.account.promptCount ?? 0} directives simulated`}</span></div>
-      <SiteFooter homeHref="/" />
       {activeIntent && orderState !== 'idle' && <OrderDialog intent={activeIntent} quote={adapter.quoteOrder(activeIntent)} state={orderState} error={orderError} receipt={orderReceipt} onClose={() => { if (orderState !== 'submitting') { setOrderState('idle'); setActiveIntent(null); setOrderError(null) } }} onConfirm={() => void confirmOrder()} />}
-    </div>
+    </AppShell>
   )
 }

@@ -33,10 +33,10 @@ export function SiteHeader({ homeHref, marketsHref, walletControl, active, onAre
         <div className="sz-site-links">
           <a className={active === 'highlight' ? 'is-active' : undefined} href={`${homeHref}#highlight`} onClick={() => { onArena?.(); close() }}>Highlight <span>01</span></a>
           <a className={active === 'markets' ? 'is-active' : undefined} href={marketsHref ?? '/markets'} onClick={() => { onMarkets?.(); close() }}>Markets</a>
-          <div className="sz-games-menu">
+          {/* <div className="sz-games-menu">
             <button type="button" aria-expanded={gamesOpen} aria-controls="games-menu" onClick={() => setGamesOpen(!gamesOpen)}>Games <ChevronDown size={13}/></button>
             {gamesOpen && <div id="games-menu" className="sz-games-popover"><a href="https://solz.fun" target="_blank" rel="noreferrer" onClick={close}><strong>solz.fun</strong><span>Play the agent arena</span><ArrowUpRight /></a><div aria-disabled="true"><strong>More games</strong><span>Coming soon</span></div></div>}
-          </div>
+          </div> */}
           <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
           <a className={active === 'teams' ? 'is-active' : undefined} href={`${homeHref}#teams`} onClick={close}>Teams</a>
           <a className={active === 'docs' ? 'is-active' : undefined} href={`${homeHref}#enter-arena`} onClick={close}>Docs</a>

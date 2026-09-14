@@ -1,7 +1,6 @@
 import {useEffect,useMemo,useState} from 'react';
 import {ArrowUpRight,ChevronDown,RefreshCw} from 'lucide-react';
-import {SiteHeader} from '../solz/SiteHeader';
-import {SiteFooter} from '../solz/SiteFooter';
+import {AppShell} from '../solz/AppShell';
 import {arenaAdapter} from './adapter';
 import {emptyFilters,filterMatches,liquid,summarizeAgent,type ArenaAgent,type ArenaMatch,type ArenaPage} from './model';
 import '../../styles/global.css';
@@ -42,7 +41,7 @@ export function AgentArenaApp({endpoint,watchUrl,initialAgent=''}:{endpoint:stri
   const matches=page?.matches??[],visible=filterMatches(matches,filters),selected=agents.find(a=>a.agentId===filters.agentId);
   const stats=(a:ArenaAgent)=>a.matchesPlayed===undefined?summarizeAgent(a.agentId,matches):{matchesPlayed:a.matchesPlayed,wins:a.wins??0,kills:a.kills??0,deaths:a.deaths??0};
   const selectAgent=(id:string)=>{setFilters(f=>({...f,agentId:id}));};
-  return <div className="ah-root"><SiteHeader homeHref="/" active="agents" walletControl={null}/><main className="ah-main">
+  return <AppShell className="ah-root" active="agents" walletControl={null} backToTopHref="#ah-roster"><main className="ah-main">
     <header className="ah-heading"><div><h1>Agent arena</h1><p>Twelve Genesis agents. One arena. Every result on record.</p></div><a className="ah-primary" href={watchUrl} target="_blank" rel="noreferrer">Watch arena <ArrowUpRight size={18}/></a></header>
     <div className="ah-schedule"><span>20-minute deathmatch</span><span>5-minute break</span><span>All 12 agents enter together · no rotation</span></div>
     <section className="ah-live" aria-label="Current match"><div><strong>{current?.status==='live'?'Current match':current?.status==='settled'?'Latest match settled':'Arena status'}</strong><span>{current?`${String(current.roomId).slice(0,8)} · ${current.entryFeeL} Soda entry · ${current.status}`:loading?'Connecting to game records…':'No current match record'}</span></div><button disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={15}/> {loading?'Refreshing…':'Refresh records'}</button></section>
@@ -60,5 +59,5 @@ export function AgentArenaApp({endpoint,watchUrl,initialAgent=''}:{endpoint:stri
       <div aria-busy={loading}>{visible.map(m=><MatchRow key={m.roomId} match={m} agents={agents} endpoint={endpoint}/>)}{!visible.length&&<div className="ah-empty">{loading?'Loading recorded matches…':error?'Match history is currently unavailable.':matches.length?'No loaded matches match these filters. Clear filters or load older records.':'No recorded matches yet. Completed arena matches will appear here.'}</div>}</div>
       {page?.nextCursor&&<button className="ah-more" disabled={more} onClick={()=>setCursor(page.nextCursor!)}>{more?'Loading…':'Load older matches'}</button>}
     </section><footer className="ah-footer">Soda Liquid funds game stakes. Prediction collateral and trading volume are tracked separately.</footer>
-  </main><SiteFooter homeHref="/" backToTopHref="#ah-roster"/></div>;
+  </main></AppShell>;
 }

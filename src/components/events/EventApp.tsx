@@ -14,8 +14,7 @@ import type { PublicPredictionVenue } from '../../../packages/prediction-core/ma
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
 import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
-import { SiteHeader } from '../solz/SiteHeader'
-import { SiteFooter } from '../solz/SiteFooter'
+import { AppShell } from '../solz/AppShell'
 import { TradeContextBar } from '../home/TradeContextBar'
 import { EventStage, type EventView } from './EventStage'
 import { EventMarkets } from './EventMarkets'
@@ -64,13 +63,9 @@ function EventShell({ apiUrl, session, eventId, predictionId, initialOutcomeId, 
   // The catalogue is fetched separately from the arena snapshot; announcing
   // EVENT NOT FOUND before it settles would flash on every standalone question.
   const pending = !match && !reserved.loaded
-  return <div className={`solz-home ev-app ev-app--${variant}`}>
-    <a className="sh-skip-link" href="#event-content">Skip to event</a>
-    <div className="sh-utility"><span><Crosshair size={12}/> AUTONOMOUS AGENT NETWORK</span><span>EVENT PREVIEW <i/> SIMULATED ACTIVITY &amp; CREDITS</span><div><a href={paths.demo}>Demo <ArrowUpRight size={12}/></a><a href={paths.live}>Live arena <ArrowUpRight size={12}/></a></div></div>
-    <SiteHeader homeHref={paths.home} marketsHref="/markets" walletControl={walletControl} active="highlight"/>
+  return <AppShell className={`solz-home ev-app ev-app--${variant}`} homeHref={paths.home} marketsHref="/markets" walletControl={walletControl} active="highlight" skipTo="#event-content" skipLabel="Skip to event" backToTopHref="#event-content">
     {error ? <main className="ev-load-state" id="event-content"><h1>The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></main> : !snapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} session={session} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue}/> : <main className="ev-load-state" id="event-content"><span className="ch-simulation">EVENT NOT FOUND</span><h1>This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></main>}
-    <SiteFooter homeHref={paths.home} backToTopHref="#event-content" />
-  </div>
+  </AppShell>
 }
 
 /** Mirrors the real three-column layout so the page does not reflow when data

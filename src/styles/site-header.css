@@ -1,4 +1,6 @@
-.solz-home { --site-content-width: 1600px; --site-gutter: 32px; --site-header-height: 80px; --z-site-header: 20; }
+/* Defined once on the AppShell root, so every page gets the same header
+   geometry instead of each app root redeclaring its own copy. */
+.sz-shell { --site-content-width: 1600px; --site-gutter: 32px; --site-header-height: 80px; --z-site-header: 20; }
 .sz-site-header { position: sticky; top: 0; z-index: var(--z-site-header); background: var(--sh-bg); border-bottom: 1px solid var(--sh-line); }
 .sz-site-header-inner { display: flex; align-items: center; gap: 40px; height: var(--site-header-height); max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); margin-inline: auto; }
 .sz-site-header .sh-logo-colacat { display: block; width: 150px; color: var(--sh-text) !important; text-decoration: none; }
@@ -39,9 +41,9 @@
 .sz-ticker-event.is-agent { --event-color: #ffa7ce; }
 .sz-ticker-event.is-trade { --event-color: #a9caff; }
 @keyframes sz-marquee { to { transform: translateX(-50%); } }
-.solz-home section[id], .solz-home [id='event-title'], .solz-home main[id] { scroll-margin-top: calc(var(--site-header-height) + 24px); }
+.sz-shell section[id], .sz-shell [id='event-title'], .sz-shell main[id] { scroll-margin-top: calc(var(--site-header-height) + 24px); }
 @media (max-width: 1190px) {
-  .solz-home { --site-gutter: 24px; }
+  .sz-shell { --site-gutter: 24px; }
   .sz-site-header-inner { gap: 24px; }
   .sz-site-header nav a { font-size: 10px; padding-inline: 8px; }
 }
@@ -61,7 +63,7 @@
   .sz-site-links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
-  .solz-home { --site-gutter: 18px; --site-header-height: 68px; }
+  .sz-shell { --site-gutter: 18px; --site-header-height: 68px; }
   .sz-site-header-inner { gap: 16px; }
   .sz-site-header .sh-logo-colacat { width: 132px; }
   .sz-site-header .sh-logo-colacat img { width: 128px; }
@@ -74,7 +76,7 @@
   .sz-site-header nav .sh-wallet .arena-wallet-button { width: 100%; min-height: 42px; }
 }
 @media (max-width: 390px) {
-  .solz-home { --site-gutter: 12px; }
+  .sz-shell { --site-gutter: 12px; }
   .sz-site-header-inner { gap: 10px; }
   .sz-site-header .sh-logo-colacat { width: 112px; }
   .sz-site-header .sh-logo-colacat img { width: 108px; }

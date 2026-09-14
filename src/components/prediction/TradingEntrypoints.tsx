@@ -2,12 +2,11 @@ import { lazy, Suspense, type ComponentProps } from 'react'
 import '../../styles/global.css'
 import '../../styles/home.css'
 import '../../styles/site-loading.css'
-import { SiteFooter } from '../solz/SiteFooter'
-import { SiteHeader } from '../solz/SiteHeader'
+import { AppShell } from '../solz/AppShell'
 const Home = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../home/HomeApp')).HomeApp } })
 const Event = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../events/EventApp')).EventApp } })
 const Prediction = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('./PredictionApp')).PredictionApp } })
-const loading = <div className="solz-home cc-loading-shell"><SiteHeader homeHref="/" active="highlight" walletControl={null}/><main><p className="cc-loading-state" role="status"><i aria-hidden="true"/>Loading arena…</p></main><SiteFooter homeHref="/"/></div>
+const loading = <AppShell className="solz-home cc-loading-shell" active="highlight" walletControl={null}><main><p className="cc-loading-state" role="status"><i aria-hidden="true"/>Loading arena…</p></main></AppShell>
 // The market directory reads the Solana question catalogue, so it needs the same
 // Buffer/process shim the other trading entrypoints load before their component.
 const Markets = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../markets/MarketsDirectoryApp')).MarketsDirectoryApp } })

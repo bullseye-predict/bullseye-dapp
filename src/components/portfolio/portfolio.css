@@ -64,3 +64,11 @@
 .pf-filters { display: flex; gap: 16px; margin-bottom: 20px; }.pf-filters label { display: grid; gap: 6px; color: var(--sh-muted); font-size: 10px; }.pf-filters label:first-child { flex: 1; }.pf-filters select { width: 100%; min-width: 0; }
 .pf-market-identity { display: flex; align-items: center; gap: 12px; }.pf-match-avatar { width: 40px; height: 40px; flex-shrink: 0; image-rendering: pixelated; }.pf-match-details { font-size: 9px; color: var(--sh-muted); margin-top: 8px; }.pf-match-details code { display: block; overflow-wrap: anywhere; max-width: 300px; margin-top: 8px; }.pf-match-details summary { cursor: pointer; }
 @media (max-width: 600px) { .pf-chart { padding: 18px; }.pf-chart header { flex-direction: column; gap: 14px; }.pf-chart-total { font-size: 24px; }.pf-filters { flex-direction: column; }.pf-filters label { width: 100%; } }
+.pf-network-static { display: grid; gap: 6px; }
+.pf-network-static b { color: var(--sh-text); font-size: 13px; font-weight: 500; }
+.pf-funds { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); border-bottom: 1px solid var(--sh-line); padding: 22px 0; gap: 22px 32px; }
+.pf-funds dd { font-size: 22px; }
+.pf-funds dd span { color: var(--sh-muted); font-size: 11px; margin-left: 3px; }
+.pf-page .pf-open-market { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--sh-lime); text-decoration: none; }
+.pf-list td small + small { margin-top: 3px; }
+@media (max-width: 600px) { .pf-funds { gap: 16px 20px; } .pf-funds dd { font-size: 18px; } }

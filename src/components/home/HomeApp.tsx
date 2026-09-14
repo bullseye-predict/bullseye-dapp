@@ -17,8 +17,7 @@ import { DynamicSolanaSession } from "../arena/DynamicSolanaSession";
 import { createSolzDataSource } from "../solz/solzDataSource";
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from "../solz/model";
 import { useHomeData } from "./useHomeData";
-import { SiteHeader } from "../solz/SiteHeader";
-import { SiteFooter } from "../solz/SiteFooter";
+import { AppShell } from "../solz/AppShell";
 import { TradeContextBar } from "./TradeContextBar";
 import { MatchViewer } from "./MatchViewer";
 import { InteractionConsole, type ConsoleSection } from "./InteractionConsole";
@@ -455,17 +454,15 @@ function Home({
   }, [marketSource, marketSources]);
 
   return (
-    <div className="solz-home ch-home">
-      <a className="sh-skip-link" href="#highlight">
-        Skip to the arena
-      </a>
-      <SiteHeader
-        homeHref="/"
-        marketsHref="/markets"
-        walletControl={walletControl}
-        active={view === "market" ? "markets" : "highlight"}
-        onArena={() => setView("live")}
-      />
+    <AppShell
+      className="solz-home ch-home"
+      marketsHref="/markets"
+      walletControl={walletControl}
+      active={view === "market" ? "markets" : "highlight"}
+      onArena={() => setView("live")}
+      skipTo="#highlight"
+      skipLabel="Skip to the arena"
+    >
       <main className="sh-main">
         <NextMatches snapshot={snapshot} eventBasePath={eventBasePath} />
         <section
@@ -715,7 +712,6 @@ function Home({
           </a>
         </div>
       </main>
-      <SiteFooter homeHref="/" />
-    </div>
+    </AppShell>
   );
 }
