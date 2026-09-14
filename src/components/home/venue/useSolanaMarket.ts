@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createManifestHybridClient } from '../../../../packages/adapters/solana/manifest/hybrid'
+import type { createManifestHybridClient } from '../../../../packages/adapters/solana/manifest/hybrid'
+import { manifestClient } from './manifestClients'
 import type { DepthLevel } from '../LiveOrderBook'
 import type { SolanaBinding, VenueBook, VenueMarketView } from './types'
 import { bumpVenue, useVenueRevision } from './revision'
@@ -31,7 +32,7 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean)
     // blanks the entire page rather than just emptying this panel.
     let client: ReturnType<typeof createManifestHybridClient>
     try {
-      client = createManifestHybridClient(binding.rpcUrl, {
+      client = manifestClient(binding.rpcUrl, {
         genesisHash: binding.genesisHash,
         predictionProgram: binding.predictionProgram,
         manifestProgram: binding.manifestProgram,

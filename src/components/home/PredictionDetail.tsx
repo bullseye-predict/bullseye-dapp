@@ -15,13 +15,19 @@ type Props = {
   collateral?: string
   market: ArenaMarket; outcome: ArenaMarketOutcome; answer?: PredictionAnswer; snapshot: SolzSnapshot
   referenceMarket?: ArenaMarket; simulation: boolean; nested?: boolean
+  /** False while this panel is collapsed. A hidden panel still mounts, so
+   *  without it every question on the page polls its books unseen. */
+  active?: boolean
   onSelect: (outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void
 }
-export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, referenceMarket, simulation, nested = false, onSelect, collateral = 'COOLA' }: Props) {
+export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, referenceMarket, simulation, nested = false, active = true, onSelect, collateral = 'COOLA' }: Props) {
   const [tab, setTab] = useState<'book' | 'graph' | 'activity' | 'info'>('book')
   // Every venue branch in this panel goes through one hook. The panel never
   // imports a chain adapter and never reads a chain-specific field.
-  const view = useVenueMarket(market, undefined, !simulation && tab === 'book')
+  // Gated on the panel being open as well as the tab: a twelve-question event
+  // mounts twelve of these, and each poll reads both outcome bindings, so
+  // collapsed panels alone were issuing 24 getAccountInfo calls every 10s.
+  const view = useVenueMarket(market, undefined, active && !simulation && tab === 'book')
   const binding = venueBinding(market)
   const contract = predictionContract(outcome, nested ? answer : 'yes')
   const book = simulation ? sampleOrderBook(contract) : null
@@ -39,7 +45,7 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
     </TabPanel>
     <TabPanel id="graph" idPrefix={prefix} active={tab === 'graph'} className="ch-topic-graph"><HighlightChart collateral={collateral} market={market} outcome={contract} snapshot={snapshot} referenceMarket={referenceMarket} simulation={simulation} focusOnly onOutcome={(item) => onSelect(item, answer)} onMarket={() => {}}/></TabPanel>
     <TabPanel id="activity" idPrefix={prefix} active={tab === 'activity'} className="ch-topic-activity">
-      {!binding ? <div className="ch-market-empty"><strong>No on-chain activity yet.</strong><span>Opening this question will record its DreamDEX creation transaction here. User trades will appear as they are indexed.</span></div> : <OnchainActivity market={market} active={tab === 'activity'}/>}
+      {!binding ? <div className="ch-market-empty"><strong>No on-chain activity yet.</strong><span>Opening this question will record its DreamDEX creation transaction here. User trades will appear as they are indexed.</span></div> : <OnchainActivity market={market} active={active && tab === 'activity'}/>}
     </TabPanel>
     <TabPanel id="info" idPrefix={prefix} active={tab === 'info'} className="ch-topic-info"><h4>Resolution</h4><p>{nested ? `Yes pays the settlement value assigned to ${outcome.label}. No pays the remainder of 1 ${collateral}. ` : ''}{market.rules}</p><p>{market.description}</p>{!simulation && <><h4>Open this market</h4><p>The operator creates this binary YES/NO DreamDEX question with {collateral}, confirms its on-chain receipt, then registers the event contract ID, oracle question ID, and exact trading window for this arena question. Once confirmed, this same ticket receives the live balance, orders, and chart—there is no separate trading UI.</p></>}<dl><div><dt>Closes</dt><dd>{new Date(market.closesAt).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd></div><div><dt>Status</dt><dd>{market.status}</dd></div><div><dt>Settlement</dt><dd>Up to 1 {collateral} per share</dd></div></dl></TabPanel>
   </div>

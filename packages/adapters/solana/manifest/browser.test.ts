@@ -14,8 +14,8 @@ function setup() {
   const transaction = () => new Transaction().add(SystemProgram.transfer({fromPubkey:user.publicKey,toPubkey:keys[0]!,lamports:1}))
   return { wallet,transaction,sends:()=>sends,commitment:()=>commitment,tamper:()=>{mutate=true},changeAccount:()=>{signerUser=Keypair.generate()},leaveDuringSigning:()=>{afterSign=()=>wallet.dispose()} }
 }
-test('wallet adapter checks exact signed contents and waits for finalized receipt',async () => {
-  const f=setup();expect(await f.wallet.send(f.transaction())).toBe('fixture-signature');expect(f.sends()).toBe(1);expect(f.commitment()).toBe('finalized')
+test('wallet adapter checks exact signed contents and waits for a confirmed receipt',async () => {
+  const f=setup();expect(await f.wallet.send(f.transaction())).toBe('fixture-signature');expect(f.sends()).toBe(1);expect(f.commitment()).toBe('confirmed')
 })
 test('wallet mutation cannot change a reviewed transaction',async () => {
   const f=setup();f.tamper();await expect(f.wallet.send(f.transaction())).rejects.toThrow('changed transaction');expect(f.sends()).toBe(0)

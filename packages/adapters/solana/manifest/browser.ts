@@ -74,7 +74,13 @@ export class ManifestBrowserWallet {
     if (!Buffer.from(signed.serializeMessage()).equals(expected)) throw new Error('Wallet changed transaction contents')
     const signature = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
     try {
-      const receipt = await connection.confirmTransaction({ ...recent, signature }, 'finalized')
+      // Confirmed, not finalized. Every read in this adapter is already at
+      // 'confirmed', so waiting for finalization buys no guarantee the rest of
+      // the flow relies on - it only costs ~13-32s of blockhash-expiry polling
+      // per transaction. A first trade is five sequential transactions, so
+      // finalizing each one meant minutes of continuous RPC polling and was
+      // tripping the provider rate limit mid-trade.
+      const receipt = await connection.confirmTransaction({ ...recent, signature }, 'confirmed')
       if (receipt.value.err) throw new Error(`Transaction failed: ${signature}`)
       this.notify?.({ step, status: 'sent', signature })
       return signature
