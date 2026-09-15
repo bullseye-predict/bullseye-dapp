@@ -1,11 +1,44 @@
-import { Crosshair, RefreshCw } from 'lucide-react'
+import { Crosshair } from 'lucide-react'
 import { useEffect, useRef, type CSSProperties, type RefObject } from 'react'
 import type { ArenaMarket } from '../solz/model'
 import type { VenueMarketView } from './venue/types'
 import { formatUnits } from 'viem'
 
-export type DepthLevel = { price: bigint; quantity: bigint }
-export function depthRows(levels: DepthLevel[], side: 'ask' | 'bid', decimals: number) {
+export type DepthLevel = {
+  price: bigint; quantity: bigint
+  /** How much of this level is the viewer's own resting order. Real depth that
+   *  this viewer alone cannot take, so it is drawn and marked rather than
+   *  hidden — placeBinaryLimitBuy already names it when you try to cross it. */
+  own?: bigint
+}
+/** A displayed level, carrying how much of its size is only reachable through
+ *  the opposite outcome's book. */
+export type BookLevel = DepthLevel & { cross: bigint }
+
+/** Sums native depth and cross-book depth into one row per price.
+ *
+ *  A NO bid at 80c is a YES ask at 20c, so both sources can quote the same
+ *  price. They must merge rather than stack: DepthLevel is the aggregated-level
+ *  contract every consumer assumes, and the table keys its rows by price, so two
+ *  20c rows would share one React key. `cross` survives the merge so a row can
+ *  say which part of itself is routed without a second lookup. */
+export function consolidate(native: readonly DepthLevel[], cross: readonly DepthLevel[]): BookLevel[] {
+  const totals = new Map<bigint, BookLevel>()
+  const add = (level: DepthLevel, routed: boolean) => {
+    const row = totals.get(level.price) ?? { price: level.price, quantity: 0n, cross: 0n }
+    row.quantity += level.quantity
+    if (routed) row.cross += level.quantity
+    if (level.own !== undefined) row.own = (row.own ?? 0n) + level.own
+    totals.set(level.price, row)
+  }
+  for (const level of native) add(level, false)
+  for (const level of cross) add(level, true)
+  return [...totals.values()]
+}
+/** A price is bounded to 1–99¢, so a 50¢ level fills half the depth lane.
+ *  Quantity and accumulated value do not affect the visual width. */
+const depthPercent = (price: bigint, decimals: number) => Math.min(99, Math.max(1, Number(price * 10_000n / 10n ** BigInt(decimals)) / 100))
+export function depthRows(levels: readonly (DepthLevel & { cross?: bigint })[], side: 'ask' | 'bid', decimals: number) {
   const sorted = [...levels].sort((a, b) => a.price === b.price ? 0 : (a.price < b.price ? -1 : 1) * (side === 'ask' ? 1 : -1))
   let quantity = 0n, total = 0n
   const rows = sorted.map(level => {
@@ -15,34 +48,159 @@ export function depthRows(levels: DepthLevel[], side: 'ask' | 'bid', decimals: n
   return side === 'ask' ? rows.reverse() : rows
 }
 const number = (value: bigint, decimals: number) => Number(formatUnits(value, decimals)).toLocaleString(undefined, { maximumFractionDigits: 4 })
+/** TOTAL is money, not a share count, so it reads as money. Two decimals
+ *  because collateral here is a dollar stablecoin and a fifth digit of a cent
+ *  is noise beside a four-figure sweep. */
+const money = (value: bigint) => `$${Number(formatUnits(value, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-export function OrderBookTable({ asks, bids, decimals, last, label, centerRowRef }: { asks: DepthLevel[]; bids: DepthLevel[]; decimals: number; last?: number; label: string; centerRowRef?: RefObject<HTMLTableRowElement | null> }) {
-  const askRows = depthRows(asks, 'ask', decimals), bidRows = depthRows(bids, 'bid', decimals)
+/** What one clicked price level hands the trade ticket. */
+export type LevelPick = { side: 'buy' | 'sell'; price: string; cents: string; shares: string }
+
+/** Taking an ask is a buy and taking a bid is a sell, for everything resting
+ *  between the best price and the level chosen — `cumulative`, not the level's
+ *  own quantity. A limit price is a ceiling on a buy and a floor on a sell, so
+ *  a level that is not a whole cent rounds the way that still sweeps it: the
+ *  ticket's field takes whole cents in 1..99 and rejects anything else with no
+ *  message on screen. */
+export function levelPick(price: bigint, cumulative: bigint, side: 'ask' | 'bid', decimals: number): LevelPick {
+  const raw = Number(formatUnits(price * 100n, decimals))
+  const whole = side === 'ask' ? Math.ceil(raw) : Math.floor(raw)
+  return {
+    side: side === 'ask' ? 'buy' : 'sell',
+    price: price.toString(),
+    cents: String(Math.min(99, Math.max(1, whole))),
+    shares: formatUnits(cumulative, 6),
+  }
+}
+
+type TableProps = {
+  asks: DepthLevel[]; bids: DepthLevel[]; decimals: number; last?: number; label: string
+  /** Asks that rest on the opposite outcome's book as bids. Merged into the ask
+   *  ladder because the ticket already fills against them, and marked because a
+   *  trader taking one is routed through a complete set rather than a direct
+   *  fill. Bids have no counterpart: there is no complete-set sell route. */
+  crossAsks?: DepthLevel[]
+  /** The outcome those cross levels rest on, for the row's marker. */
+  crossLabel?: string
+  centerRowRef?: RefObject<HTMLTableRowElement | null>
+  /** Absent on a decorative book — the unopened-market placeholder renders the
+   *  same table and must not offer levels on a market that does not exist. */
+  onPick?: (pick: LevelPick) => void
+  /** "<side>:<price in atoms>" for the picked level, and only while this book
+   *  owns the pick. Side as well as price, because a crossed book can quote the
+   *  same price as both a bid and an ask. */
+  picked?: string
+  onRecenter?: () => void
+}
+
+export function OrderBookTable({ asks, bids, decimals, last, label, crossAsks, crossLabel, centerRowRef, onPick, picked, onRecenter }: TableProps) {
+  const askRows = depthRows(consolidate(asks, crossAsks ?? []), 'ask', decimals), bidRows = depthRows(bids, 'bid', decimals)
   const bestAsk = askRows.at(-1)?.price, bestBid = bidRows[0]?.price
   const spread = bestAsk !== undefined && bestBid !== undefined ? bestAsk - bestBid : undefined
-  const maxDepth = [...askRows, ...bidRows].reduce((max, row) => row.cumulative > max ? row.cumulative : max, 1n)
-  const rows = (levels: ReturnType<typeof depthRows>, side: 'ask' | 'bid') => levels.length ? levels.map((row, index) => <tr className={`is-${side}`} key={row.price.toString()} style={{ '--depth': `${Number(row.cumulative * 10000n / maxDepth) / 100}%` } as CSSProperties}>
-    <td>{(side === 'ask' ? index === levels.length - 1 : index === 0) && <span>{side === 'ask' ? 'Asks' : 'Bids'}</span>}</td><td>{number(row.price * 100n, decimals)}¢</td><td>{number(row.quantity, 6)}</td><td>{number(row.total, 6)}</td>
-  </tr>) : <tr className="ch-book-empty"><td colSpan={4}>No {side === 'ask' ? 'asks' : 'bids'}</td></tr>
-  return <table className="ch-order-book" aria-label={`${label} order book`}><caption className="sr-only">Asks above last trade, bids below. Depth and totals accumulate from the best price.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col"><span className="sr-only">Side</span></th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>
+  // One tab stop for the whole book, arrow keys between levels: twenty tab stops
+  // to cross one panel is why the grid pattern exists. The stop follows the
+  // picked level, so coming back lands on what the ticket is holding.
+  const ids = [...askRows.map(row => `ask:${row.price}`), ...bidRows.map(row => `bid:${row.price}`)]
+  const tabStop = picked !== undefined && ids.includes(picked) ? picked : ids[0]
+  const move = (from: HTMLTableRowElement, delta: number) => {
+    const all = [...(from.closest('tbody')?.querySelectorAll<HTMLTableRowElement>('tr[data-level]') ?? [])]
+    all[all.indexOf(from) + delta]?.focus()
+  }
+  const rows = (levels: ReturnType<typeof depthRows>, side: 'ask' | 'bid') => levels.length ? levels.map((row, index) => {
+    const id = `${side}:${row.price}`
+    const isPicked = picked === id
+    const pick = () => onPick?.(levelPick(row.price, row.cumulative, side, decimals))
+    // Depth that exists only on the other outcome's book must not read as an
+    // ordinary resting order: taking it mints a complete set rather than
+    // filling directly, which is a different transaction with its own
+    // collateral. The price and the sweep are still correct, so the level stays
+    // pickable and the ticket routes it (limit.ts nextBinaryBuy).
+    const routed = row.cross ? (row.cross === row.quantity ? 'is-cross' : 'is-mixed') : ''
+    const boundary = side === 'ask' ? index === levels.length - 1 : index === 0
+    // Drawn, but not yours to take. Saying so is the point of publishing `own`
+    // instead of filtering: a level you cannot fill should not read as depth you
+    // can sweep, and it should not vanish from the book either.
+    const mine = (row.own ?? 0n) > 0n
+    // The table becomes a grid while it is pickable: that is the pattern a
+    // screen reader expects of a focusable row that takes Enter/Space and
+    // reports aria-selected. A crossed book can quote the same price on both
+    // sides, so the row's identity carries the side as well.
+    return <tr
+      className={`is-${side}${onPick ? ' is-pickable' : ''}${isPicked ? ' is-picked' : ''}${routed && ` ${routed}`}${mine ? ' is-mine' : ''}`}
+      key={id}
+      style={{ '--depth': `${depthPercent(row.price, decimals)}%` } as CSSProperties}
+      {...(onPick ? {
+        'data-level': id,
+        tabIndex: id === tabStop ? 0 : -1,
+        'aria-selected': isPicked,
+        'aria-label': `${side === 'ask' ? 'Buy' : 'Sell'} ${number(row.cumulative, 6)} ${label} shares through ${number(row.price * 100n, decimals)}¢${routed ? `. This level is ${routed === 'is-mixed' ? 'partly ' : ''}routed through ${crossLabel ?? 'the opposite'} bids` : ''}${mine ? '. Includes your own resting order, which you cannot fill' : ''}`,
+        onClick: pick,
+        onKeyDown: (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pick(); return }
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          event.preventDefault(); move(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1)
+        },
+      } : {})}
+    >
+      <td>{boundary && <span>{side === 'ask' ? 'Asks' : 'Bids'}</span>}{routed ? <em className="ch-book-cross">via {crossLabel}</em> : null}{mine ? <em className="ch-book-mine">yours</em> : null}</td><td>{number(row.price * 100n, decimals)}¢</td><td>{number(row.quantity, 6)}</td><td>{money(row.total)}</td>
+    </tr>
+  }) : <tr className="ch-book-empty"><td colSpan={4}>No {side === 'ask' ? 'asks' : 'bids'}</td></tr>
+  return <table className="ch-order-book" role={onPick ? 'grid' : undefined} aria-label={`${label} order book`}><caption className="sr-only">Asks above last trade, bids below. Totals accumulate from the best price.{onPick ? ' Choosing a level fills the trade ticket with a limit order for everything between the best price and that level.' : ''}</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr>
+    <th scope="col" className="ch-book-tools">{onRecenter ? <button type="button" onClick={onRecenter} aria-label="Recenter order book on the last trade"><Crosshair size={13}/></button> : <span className="sr-only">Side</span>}</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th>
+  </tr></thead><tbody>
     {rows(askRows, 'ask')}
-    <tr className="ch-book-spread" ref={centerRowRef}><td colSpan={2}>Last: {last === undefined ? '—' : `${(last * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢`}</td><td colSpan={2}>Spread: {spread === undefined ? '—' : `${number(spread * 100n, decimals)}¢`}</td></tr>
+    {/* Spread sits in the PRICE column rather than floating at the far right:
+        it is a price, and it reads against the prices it is measured from. */}
+    <tr className="ch-book-spread" ref={centerRowRef}><td>Last: {last === undefined ? '—' : `${(last * 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢`}</td><td>Spread: {spread === undefined ? '—' : `${number(spread * 100n, decimals)}¢`}</td><td colSpan={2}/></tr>
     {rows(bidRows, 'bid')}
   </tbody></table>
+}
+
+/** The most recent execution, stated in one outcome's terms.
+ *
+ *  The venue's own executed price wins; priceHistory is the fallback that keeps
+ *  DreamDEX working, where Last is populated by the pricing producer instead.
+ *  Still venue-neutral: a view field and a model field, no chain branch.
+ *
+ *  Each outcome keeps its own execution history, though, so the YES and NO
+ *  panels could print 84c and 90c at the same instant: two real trades that
+ *  cannot both be the last price of one question. A NO fill at 90c IS a YES
+ *  execution at 10c, so take whichever executed more recently and complement it
+ *  when it came from the other book. A no-op on DreamDEX, whose two series are
+ *  complementary by construction. */
+export function lastExecution(view: Pick<VenueMarketView, 'last'>, market: Pick<ArenaMarket, 'outcomes'>, isNo: boolean) {
+  const venue = isNo ? view.last?.no : view.last?.yes
+  if (venue !== undefined) return venue
+  const own = (isNo ? market.outcomes[1] : market.outcomes[0])?.priceHistory?.at(-1)
+  const other = (isNo ? market.outcomes[0] : market.outcomes[1])?.priceHistory?.at(-1)
+  return other && (!own || other.at > own.at) ? 1 - other.probability : own?.probability
+}
+
+/** Keep the table geometry in place until the venue returns its first book. */
+export function OrderBookSkeleton({ label }: { label: string }) {
+  const rows = ['ask', 'ask', 'spread', 'bid', 'bid'] as const
+  return <div className="ch-book-skeleton" role="status" aria-busy="true" aria-label={`Loading ${label} order book`}>
+    <span className="sr-only">Loading order book</span>
+    <table className="ch-order-book" aria-hidden="true"><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr>
+      <th scope="col" className="ch-book-tools"><span className="sr-only">Side</span></th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th>
+    </tr></thead><tbody>{rows.map((side, index) => side === 'spread'
+      ? <tr className="ch-book-spread" key={side}><td><i/></td><td><i/></td><td colSpan={2}/></tr>
+      : <tr className={`ch-book-skeleton-row is-${side}`} key={`${side}-${index}`}><td>{index === 0 || index === 3 ? <i className="ch-book-skeleton-tag"/> : null}</td><td><i/></td><td><i/></td><td><i/></td></tr>)}</tbody></table>
+  </div>
 }
 
 /** Pure presentation. It receives a VenueMarketView and cannot tell which chain
  *  produced it: no adapter import, no chain id, no venue branch. Adding a venue
  *  means adding a hook behind useVenueMarket, not editing this file. */
-export function LiveOrderBook({ market, view, isNo, label, collateral }: { market: ArenaMarket; view: VenueMarketView; isNo: boolean; label: string; collateral: string }) {
-  const { book, error, refreshing, decimals, finalized, now, refresh } = view
-  const data = book ? { book, market: { decimals, finalized }, now } : null
+export function LiveOrderBook({ market, view, isNo, label, onPick, picked }: { market: ArenaMarket; view: VenueMarketView; isNo: boolean; label: string; onPick?: (pick: LevelPick) => void; picked?: string }) {
+  const { book, decimals } = view
+  // `finalized` and `now` went with the footer that reported them.
+  const data = book ? { book, decimals } : null
   const viewport = useRef<HTMLDivElement>(null), centerRow = useRef<HTMLTableRowElement>(null), initialCenter = useRef('')
   // The venue's own executed price wins; priceHistory is the fallback that keeps
   // DreamDEX working, where Last is populated by the pricing producer instead.
   // Still venue-neutral: a view field and a model field, no chain branch.
-  const last = (isNo ? view.last?.no : view.last?.yes)
-    ?? (isNo ? market.outcomes[1] : market.outcomes[0])?.priceHistory?.at(-1)?.probability
+  const last = lastExecution(view, market, isNo)
   const recenter = () => {
     const container = viewport.current, row = centerRow.current
     if (!container || !row) return
@@ -56,20 +214,15 @@ export function LiveOrderBook({ market, view, isNo, label, collateral }: { marke
     }
   }, [data, isNo, market.id])
   const quote = isNo ? view.quote?.no : view.quote?.yes
-  const directAsks = isNo ? book?.noAsks : book?.yesAsks
-  const oppositePrice = quote?.ask !== undefined && !directAsks?.some(row => row.price <= quote.ask!) ? quote.ask : undefined
-  const volume = market.onchain?.volume24h
-    ? `${market.onchain.volume24h.partial ? '≥ ' : ''}${number(BigInt(market.onchain.volume24h.amount), market.onchain.volume24h.decimals)} ${collateral} Vol.`
-    : 'Volume unavailable'
+  // The heading, the 24h volume, the refresh control and the standing footnotes
+  // all moved or went: the volume is already on the row above this panel, the
+  // refresh now sits in the tab strip, and the caption carries what the notes
+  // used to say. What is left below the table is only ever a live condition.
   return <div className="ch-live-book">
-    <div className="ch-book-toolbar"><strong className={isNo ? 'is-no' : 'is-yes'}>{label} order book</strong><span>{volume}</span><button type="button" aria-label="Recenter order book on last trade" disabled={!data} onClick={recenter}><Crosshair size={15}/><span className="sr-only">Recenter</span></button><button type="button" aria-label={`Refresh ${label} order book`} disabled={refreshing} onClick={refresh}><RefreshCw size={15}/><span className="sr-only">Refresh</span></button></div>
-    {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book?.noAsks : data.book?.yesAsks) ?? []} bids={(isNo ? data.book?.noBids : data.book?.yesBids) ?? []} decimals={data.market.decimals} last={last} label={label} centerRowRef={centerRow}/></div> : <p className="ch-book-message" role="status">{error ?? 'Loading order book…'}</p>}
-    {oppositePrice !== undefined && <p className="ch-sample-note">Buy {label} from {(Number(oppositePrice) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢ through opposite-outcome bids. The table shows orders posted directly in this book.</p>}
+    {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book.noAsks : data.book.yesAsks) ?? []} bids={(isNo ? data.book.noBids : data.book.yesBids) ?? []} crossAsks={(isNo ? data.book.crossNoAsks : data.book.crossYesAsks) ?? []} crossLabel={isNo ? 'YES' : 'NO'} decimals={data.decimals} last={last} label={label} centerRowRef={centerRow} onPick={onPick} picked={picked} onRecenter={recenter}/></div> : <OrderBookSkeleton label={label}/>}
     {/* `crossed` fires on any overlap of the consolidated interval — a bid above
         an ask on one book, combined bids over 1, or combined asks under 1 — so
         the copy must not name one of those four as the cause. */}
     {quote?.crossed && <p className="ch-sample-note">Crossed outcome quotes: the YES and NO books overlap, so there is no midpoint between them. These orders need matching; they do not establish a probability.</p>}
-    {data && <div className="ch-book-footer"><span>{data.market.finalized || data.now >= market.closesAt ? 'Trading closed' : refreshing ? 'Refreshing…' : 'Auto-refresh · 10s'}</span><span>Updated {new Date(data.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>}
-    <p className="ch-sample-note">Last is the most recent trade. Depth and totals are cumulative from the best price.</p>
   </div>
 }

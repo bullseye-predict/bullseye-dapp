@@ -33,8 +33,11 @@ export function marketBuyQuote(asks: readonly Level[], budget: bigint) {
 
 /** The opposing bid buys the other half of a newly collateralized complete set. */
 export function complementAsks(bids: readonly Level[]): Level[] {
+  // Spread rather than rebuild: a level can carry more than price and size (how
+  // much of it is the viewer's own resting order, say), and that has to survive
+  // the trip to the other outcome's ladder.
   return bids.filter(row => row.price > 0n && row.price < SCALE && row.quantity > 0n)
-    .map(row => ({ price: SCALE - row.price, quantity: row.quantity }))
+    .map(row => ({ ...row, price: SCALE - row.price }))
 }
 
 /** Use the cheapest route, stopping where the other route becomes cheaper.

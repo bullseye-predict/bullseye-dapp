@@ -6,7 +6,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ArenaMarket,
   ArenaMarketOutcome,
@@ -45,7 +45,7 @@ import { parseUnits } from "viem";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { manifestClient } from "./venue/manifestClients";
-import { useSolanaMarket } from "./venue/useSolanaMarket";
+import { executable, useSolanaMarket } from "./venue/useSolanaMarket";
 import { binaryBuyQuote } from "../../../packages/adapters/solana/manifest/quotes";
 import { nextBinaryBuy } from "../../../packages/adapters/solana/manifest/limit";
 import { planSellInventory, quoteSell } from "../../../packages/adapters/solana/manifest/inventory";
@@ -63,6 +63,7 @@ import { useQuestionPresence } from "./venue/useQuestionPresence";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
 import { PRICE_PLACEHOLDER } from "./venue/quoteLabels";
+import { clearBookPick, getBookPick, useBookPick } from "./venue/bookPick";
 import { pickColor, pickInk } from "../markets/moneyline";
 
 /** The countdown badge appears only inside the last five minutes. */
@@ -136,6 +137,28 @@ export function TradeTicket({
   const [limitPrice, setLimitPrice] = useState(
     String(Math.round(contract.probability * 100)),
   );
+  // A price level picked out of the order book. It arrives through a store
+  // rather than a prop because the book sits six components away under a
+  // different parent, and the event page assembles the same pair through
+  // different parents again.
+  const bookPick = useBookPick();
+  const ticketIsNo = multiple ? answer === "no" : outcome.id === "no";
+  /** The contract a live pick speaks for. While it holds, the re-seed effects
+   *  below leave the price and the share count alone: `market.onchain?.marketId`
+   *  resolves seconds after mount with no user action at all, and re-seeding
+   *  then would quietly undo what the trader had just chosen from the book. */
+  const pickedContract = `${market.id}|${contract.id}`;
+  const pickOwner = useRef<string | null>(null);
+  // Seeded from whatever is already in the store, so a pick left behind by a
+  // previous ticket instance counts as spent: a remount must not replay it
+  // into whichever contract happens to be selected now.
+  const appliedPick = useRef(getBookPick()?.nonce ?? 0);
+  /** The trader taking the price back — typing it, stepping it, switching side
+   *  or order type — ends the pick and unmarks the row in the book. */
+  const releasePick = () => {
+    pickOwner.current = null;
+    clearBookPick();
+  };
   const [expiry, setExpiry] = useState("close");
   const [review, setReview] = useState(false);
   const [reviewTerms, setReviewTerms] = useState<{
@@ -151,6 +174,15 @@ export function TradeTicket({
   // `pending`, because a settled run keeps the rail on screen to be read.
   const [liveSteps, setLiveSteps] = useState<LiveStep[]>([]);
   const [settled, setSettled] = useState(false);
+  // Clear the last run when the dialog opens, not only when a new one starts.
+  // These outlive submit() on purpose — a finished trade keeps its rail on
+  // screen to be read — so without this the next trade opened straight into the
+  // previous trade's receipt instead of its own invoice.
+  useEffect(() => {
+    if (!review) return;
+    setLiveSteps([]);
+    setSettled(false);
+  }, [review]);
   const [ordersExpanded, setOrdersExpanded] = useState(false);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -235,8 +267,11 @@ export function TradeTicket({
   })();
   const evmBinding = dreamDexBinding(market);
   const solanaView = useSolanaMarket(solanaBinding, !simulation && solana && !pending, solanaWallet?.address);
+  // `executable` rather than the raw ladder: the book now publishes the viewer's
+  // own resting orders so the panel can mark them, and a route planned over an
+  // order you cannot fill quotes a fill that will not happen.
   const solanaBooks = solana && solanaView.book
-    ? { asks: outcomeIndex === 1 ? solanaView.book.noAsks : solanaView.book.yesAsks, oppositeBids: outcomeIndex === 1 ? solanaView.book.yesBids : solanaView.book.noBids }
+    ? { asks: executable(outcomeIndex === 1 ? solanaView.book.noAsks : solanaView.book.yesAsks), oppositeBids: executable(outcomeIndex === 1 ? solanaView.book.yesBids : solanaView.book.noBids) }
     : null;
   const solanaPreview = (() => {
     if (!solana || type !== "market" || side !== "buy") return { quote: null, error: "" };
@@ -368,14 +403,31 @@ export function TradeTicket({
   const stepFacts = useMemo<StepFacts | null>(() => {
     if (!liveSolana || !solanaVenue || !solanaHoldings.outcomes) return null;
     const selected = outcomeIndex === 1 ? 1 : 0;
-    const quote = solanaReview ?? solanaPreview.quote;
-    const route = quote?.route === "complete-set" ? "complete-set" : "direct";
+    // Only a market order has a reviewed route. solanaReview holds whatever the
+    // last market review produced and is not cleared when the ticket switches to
+    // Limit, so reading it there pointed the plan at the opposite binding and
+    // made a real prepare() arrive as an unplanned step.
+    //
+    // A limit order's route comes from `marketable`, which walks the live books
+    // through the same nextBinaryBuy the flow itself uses. Assuming `direct`
+    // instead made every limit plan promise a funding step, and a first leg that
+    // routed through the opposite bids pays from the wallet rather than the
+    // seat — so that step sat at Waiting for the whole trade and then admitted
+    // it was never needed.
+    // Two different quote shapes, kept apart: binaryBuyQuote carries priceMicros
+    // and the reviewed cost, nextBinaryBuy carries only the next leg's level.
+    const marketQuote = type === "market" ? solanaReview ?? solanaPreview.quote : null;
+    const route = (type === "market" ? marketQuote?.route : marketable?.route) === "complete-set" ? "complete-set" : "direct";
     // The complete-set route prepares the OPPOSITE binding, because that is the
     // book it sells into; every other route prepares the selected one.
-    const preparing = solanaHoldings.outcomes[route === "complete-set" ? (selected === 1 ? 0 : 1) : selected];
+    const other = selected === 1 ? 0 : 1;
+    const preparing = solanaHoldings.outcomes[route === "complete-set" ? other : selected];
+    // A limit buy re-picks its route per leg and prepares whichever binding that
+    // leg uses, so both are in scope for the plan.
+    const alternate = type === "limit" ? solanaHoldings.outcomes[route === "complete-set" ? selected : other] : undefined;
     try {
-      const quantityAtoms = type === "market" ? quote?.quantity ?? 0n : parseUnitsExact(shares, 6);
-      const priceMicros = type === "market" ? quote?.priceMicros ?? 0n : BigInt(Math.round(Number(limitPrice) * 10_000));
+      const quantityAtoms = type === "market" ? marketQuote?.quantity ?? 0n : parseUnitsExact(shares, 6);
+      const priceMicros = type === "market" ? marketQuote?.priceMicros ?? 0n : BigInt(Math.round(Number(limitPrice) * 10_000));
       const amountAtoms = (quantityAtoms * priceMicros + 999_999n) / 1_000_000n;
       const seatUsdc = solanaHoldings.outcomes[selected]?.holdings?.venueAvailableUsdc ?? 0n;
       // Whether a sell will actually match decides which of two differently named
@@ -397,6 +449,7 @@ export function TradeTicket({
         books: booksOpen,
         ...(questionExists === undefined ? {} : { questionExists }),
         accounts: preparing?.holdings?.accounts ?? null,
+        ...(alternate ? { accountsAlternate: alternate.holdings?.accounts ?? null } : {}),
         fundingAtoms: side === "buy" && route === "direct" && amountAtoms > seatUsdc ? amountAtoms - seatUsdc : 0n,
         upfrontAtoms: route === "complete-set" ? quantityAtoms : 0n,
         maxFeeAtoms: solanaMaxFee === null ? 0n : BigInt(Math.round(solanaMaxFee * 10 ** solanaVenue.collateralDecimals)),
@@ -407,7 +460,7 @@ export function TradeTicket({
       // stepper that does not render, never a blank ticket.
       return null;
     }
-  }, [liveSolana, solanaVenue, solanaHoldings.outcomes, outcomeIndex, solanaReview, solanaPreview.quote, type, side, shares, amount, limitPrice, solanaMaxFee, questionExists, booksOpen[0], booksOpen[1], solanaView.book]);
+  }, [liveSolana, solanaVenue, solanaHoldings.outcomes, outcomeIndex, solanaReview, solanaPreview.quote, type, side, shares, amount, limitPrice, solanaMaxFee, questionExists, booksOpen[0], booksOpen[1], solanaView.book, marketable]);
   const tradePlan = useMemo(() => (stepFacts ? planTradeSteps(stepFacts) : null), [stepFacts]);
   const stepRows = useMemo(
     () => (tradePlan ? reconcileSteps(tradePlan, liveSteps, settled) : []),
@@ -448,6 +501,14 @@ export function TradeTicket({
     : 0;
   const buyOutlay = type === "limit" && side === "buy"
     ? (marketable ? Number(marketable.maximumCost) / 1_000_000 : 0) + resting * (Number(limitPrice) / 100)
+    : null;
+  // What must be on hand at submission, which the net Total understates: the
+  // complete-set leg mints a whole set at 1.00 per share and only gets the
+  // difference back when the opposite leg sells, so a wallet holding exactly
+  // the Total comes up short. Today that surfaces only as a thrown error inside
+  // placeBinaryLimitBuy, after the trader has already committed to the flow.
+  const peakOutlay = marketable?.route === "complete-set" && buyOutlay !== null
+    ? Number(marketable.upfrontCollateral) / 1_000_000 + resting * (Number(limitPrice) / 100)
     : null;
   const summaryPrice = price > 0
     ? price
@@ -498,9 +559,14 @@ export function TradeTicket({
   // alone this never fired for a Solana question, whose contract ids are always
   // "yes"/"no" — so the limit kept the previous question's price.
   useEffect(() => {
+    if (pickOwner.current === pickedContract) return;
+    // The ticket has moved to a contract the pick does not speak for, so the
+    // pick owns nothing here. Releasing it now is what lets a later return to
+    // that contract re-seed normally instead of finding the guard still set.
+    pickOwner.current = null;
     setLimitPrice(String(Math.round(contract.probability * 100)));
     setLimitPriceDraft(null);
-  }, [contract.id, market.id, market.onchain?.marketId]);
+  }, [contract.id, market.id, market.onchain?.marketId, pickedContract]);
   useEffect(() => {
     setFeedback(null);
     setReview(false);
@@ -525,11 +591,33 @@ export function TradeTicket({
     return () => window.clearInterval(timer);
   }, [match?.id, match?.phase, match?.timingType]);
   useEffect(() => {
+    if (pickOwner.current === pickedContract) return;
     if (!simulation && ["tUSDC", "fUSDC"].includes(collateralSymbol)) {
       setAmount("1");
       setShares("1");
     }
+    // No pickedContract here: contract.id is not a collateral change, and
+    // adding it made every Yes/No flip reset the amount the trader had typed.
   }, [collateralSymbol, market.id, simulation]);
+  // Declared after both re-seeds so that when one click both selects a contract
+  // and picks a level, this runs last in that commit and the pick survives.
+  useEffect(() => {
+    if (!bookPick || bookPick.nonce === appliedPick.current) return;
+    // Match on the contract, not on the market id: the event page hands the
+    // book a synthesised per-answer market while this ticket holds the parent
+    // prediction, so the two market ids differ for one and the same contract.
+    if (bookPick.outcomeId !== outcome.id || bookPick.no !== ticketIsNo) return;
+    appliedPick.current = bookPick.nonce;
+    pickOwner.current = pickedContract;
+    setType("limit");
+    setSide(bookPick.side);
+    setLimitPrice(bookPick.cents);
+    // The field prefers the draft to the value, so a stale draft would hide the
+    // picked price and then win it back on blur.
+    setLimitPriceDraft(null);
+    setShares(bookPick.shares);
+    setFeedback(null);
+  }, [bookPick, outcome.id, ticketIsNo, pickedContract]);
   const displayedLimitPrice =
     priceFormat === "decimal"
       ? (Number(limitPrice) / 100).toFixed(2)
@@ -954,6 +1042,7 @@ export function TradeTicket({
               className={`is-${value}`}
               aria-pressed={side === value}
               onClick={() => {
+                releasePick();
                 setSide(value);
                 setFeedback(null);
                 if (value === "sell")
@@ -1016,6 +1105,7 @@ export function TradeTicket({
               className="ch-order-type-trigger"
               aria-label={`Order type: ${type === "market" ? "Market" : "Limit"}. Switch to ${type === "market" ? "Limit" : "Market"}.`}
               onClick={() => {
+                releasePick();
                 setType((current) => (current === "market" ? "limit" : "market"));
                 setFeedback(null);
               }}
@@ -1128,6 +1218,7 @@ export function TradeTicket({
                 type="button"
                 aria-label="Decrease limit price"
                 onClick={() => {
+                  releasePick();
                   setLimitPriceDraft(null);
                   setLimitPrice(String(Math.max(1, Number(limitPrice) - 1)));
                 }}
@@ -1142,7 +1233,10 @@ export function TradeTicket({
                 step={priceFormat === "decimal" ? ".01" : "1"}
                 required
                 value={limitPriceDraft ?? displayedLimitPrice}
-                onChange={(event) => setLimitPriceDraft(event.target.value)}
+                onChange={(event) => {
+                  releasePick();
+                  setLimitPriceDraft(event.target.value);
+                }}
                 onBlur={() => {
                   if (limitPriceDraft !== null)
                     updateDisplayedLimitPrice(limitPriceDraft);
@@ -1160,6 +1254,7 @@ export function TradeTicket({
                 type="button"
                 aria-label="Increase limit price"
                 onClick={() => {
+                  releasePick();
                   setLimitPriceDraft(null);
                   setLimitPrice(String(Math.min(99, Number(limitPrice) + 1)));
                 }}
@@ -1203,11 +1298,12 @@ export function TradeTicket({
                   : "any"
               }
               value={side === "buy" && type === "market" ? amount : shares}
-              onChange={(event) =>
-                side === "buy" && type === "market"
+              onChange={(event) => {
+                releasePick();
+                return side === "buy" && type === "market"
                   ? setAmount(event.target.value)
-                  : setShares(event.target.value)
-              }
+                  : setShares(event.target.value);
+              }}
             />
             {/* Only the currency earns a caption. "SHARES" under a field
                 already labelled "Shares" said it twice and pushed the label out
@@ -1221,9 +1317,10 @@ export function TradeTicket({
                 <button
                   type="button"
                   key={value}
-                  onClick={() =>
-                    setShares(String(Math.floor(available * value) / 100))
-                  }
+                  onClick={() => {
+                    releasePick();
+                    setShares(String(Math.floor(available * value) / 100));
+                  }}
                 >
                   {value === 100 ? "Max" : `${value}%`}
                 </button>
@@ -1232,11 +1329,12 @@ export function TradeTicket({
                 <button
                   type="button"
                   key={value}
-                  onClick={() =>
-                    type === "market"
+                  onClick={() => {
+                    releasePick();
+                    return type === "market"
                       ? setAmount(String(value))
-                      : setShares(String(value))
-                  }
+                      : setShares(String(value));
+                  }}
                 >
                   {value}
                 </button>
@@ -1270,6 +1368,11 @@ export function TradeTicket({
                 {resting > 0 && (
                   <small>
                     {safeLabel(resting * (Number(limitPrice) / 100))} {collateralSymbol} reserved if unfilled
+                  </small>
+                )}
+                {peakOutlay !== null && buyOutlay !== null && peakOutlay > buyOutlay && (
+                  <small>
+                    {safeLabel(peakOutlay)} {collateralSymbol} must be in your wallet to start; the opposite sale returns the difference
                   </small>
                 )}
               </strong>
@@ -1495,7 +1598,7 @@ export function TradeTicket({
         total={solanaReview ? Number(solanaReview.estimatedCost) / 1_000_000 : reviewTerms?.total ?? total}
         priceLimit={solanaReview ? Number(solanaReview.priceMicros) / 1_000_000 : undefined}
         maximumTotal={solanaReview ? Number(solanaReview.maximumCost) / 1_000_000 : undefined}
-        upfrontCollateral={solanaReview?.route === "complete-set" ? Number(solanaReview.upfrontCollateral) / 1_000_000 : solana && type === "limit" ? quantity : undefined}
+        upfrontCollateral={solanaReview?.route === "complete-set" ? Number(solanaReview.upfrontCollateral) / 1_000_000 : marketable?.route === "complete-set" ? Number(marketable.upfrontCollateral) / 1_000_000 : undefined}
         maximumFee={solana ? solanaMaxFee ?? undefined : undefined}
         progress={progress}
         plan={tradePlan}

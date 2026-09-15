@@ -18,6 +18,15 @@ export type VenueActivityRow = {
   block: bigint
 }
 
+/** One wallet's holding of one outcome, in that outcome's own shares.
+ *
+ *  `outcomeId` is the market's own outcome id rather than a venue index, so the
+ *  leaderboard can group and colour rows without knowing which chain produced
+ *  them. There is deliberately no average price or P&L here: no account on any
+ *  of these venues stores a cost basis, so a third party's entry price is not
+ *  derivable and must not be rendered. */
+export type VenueHolderRow = { owner: string; outcomeId: string; shares: number; self: boolean }
+
 /** Fields every venue binding exposes. Chain-specific fields live on the
  *  variants below and must never be read outside that venue's own hook. */
 export type VenueBindingBase = {
@@ -60,7 +69,19 @@ export type VenueBinding = DreamDexBinding | SolanaBinding
 
 /** The order book as the UI renders it, in the venue's own collateral atoms.
  *  Each DepthLevel is one aggregated price level, never one resting order. */
-export type VenueBook = { yesAsks: DepthLevel[]; yesBids: DepthLevel[]; noAsks: DepthLevel[]; noBids: DepthLevel[] }
+export type VenueBook = {
+  yesAsks: DepthLevel[]; yesBids: DepthLevel[]; noAsks: DepthLevel[]; noBids: DepthLevel[]
+  /** Levels denominated in THIS outcome but resting on the other outcome's book,
+   *  reachable only through the complete-set route. A NO bid at 80c is a YES ask
+   *  at 20c, and nextBinaryBuy already fills against it, so a ladder that omits
+   *  them contradicts the ticket and the Buy button on the same screen.
+   *
+   *  Empty on any venue whose four sides are already four views of one CLOB:
+   *  DreamDEX derives noBids from yesAsks, so its complement is native and
+   *  applying the transform again would render every level twice at one price.
+   *  That is why this is published per venue rather than derived in the panel. */
+  crossYesAsks: DepthLevel[]; crossNoAsks: DepthLevel[]
+}
 
 /** Best executable prices for one outcome, in the venue's collateral atoms.
  *  `mid` is present only when both sides exist: a lone bid is not a market. */

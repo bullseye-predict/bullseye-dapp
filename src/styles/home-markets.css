@@ -8,43 +8,80 @@
 .solz-home .ch-trade-outcomes > button:hover { filter: brightness(1.14); }
 /* Only the selected outcome carries trading color in the trade panel. */
 .solz-home .ch-trade-outcomes > button.has-pick-color[aria-pressed='false'] { opacity: 1; background: var(--trade-off-fill); color: var(--trade-off-ink); border-color: var(--trade-off-edge); box-shadow: none; }
-/* Depth bands fill the quoted liquidity rather than leaving a blank side column. */
+/* A book's horizontal scale is its 1–99¢ price scale. A 50¢ order occupies
+   half the row; 25¢ occupies a quarter, regardless of share quantity. */
 .solz-home .ch-order-book { font-variant-numeric: tabular-nums; }
-.solz-home .ch-order-book .ch-book-side-column { width: 64px; }
+/* Wide enough for the recenter control in the header and for "Last: 52¢" on
+   the spread line, both of which live in this column. Unscoped, because the
+   simulation copy of this table renders the same two things. */
+.solz-home .ch-order-book .ch-book-side-column { width: 40%; }
 .solz-home .ch-order-book :is(th, td):first-child { width: auto; border-left: 0; }
-.solz-home .ch-order-book :is(th, td) { padding: 7px 13px; }
-.solz-home .ch-order-book th { font-size: 9px; color: #a8b7c4; }
+.solz-home .ch-order-book :is(th, td) { padding: 8px 14px; height: 40px; box-sizing: border-box; border: 0; }
+.solz-home .ch-order-book :is(th, td):nth-child(2) { text-align: center; }
+.solz-home .ch-order-book th { border-bottom: 1px solid #ffffff0d; font-size: 9px; color: #a8b7c4; }
 .solz-home .ch-order-book td { color: #dde5ec; }
-.solz-home .ch-order-book :is(.is-ask, .is-bid) { background-repeat: no-repeat; background-position: right; background-size: var(--depth) 100%; }
-.solz-home .ch-order-book .is-ask { background-image: linear-gradient(#d336531c, #d336531c); }
-.solz-home .ch-order-book .is-bid { background-image: linear-gradient(#15b47a22, #15b47a22); }
+.solz-home .ch-order-book :is(.is-ask, .is-bid) { background-repeat: no-repeat; background-position: right; background-size: var(--depth, 0%) 100%; }
+/* The band grows from the right here and from the left in the live book below,
+   so each anchor gets the gradient that fades on its own leading edge. */
+.solz-home .ch-order-book .is-ask { background-image: linear-gradient(to left, #d3365338, #d3365338 54%, #d3365300); }
+.solz-home .ch-order-book .is-bid { background-image: linear-gradient(to left, #15b47a38, #15b47a38 54%, #15b47a00); }
 .solz-home .ch-order-book .is-ask td:nth-child(2) { color: #ff7385; font-weight: 500; }
 .solz-home .ch-order-book .is-bid td:nth-child(2) { color: #3ce1a0; font-weight: 500; }
 .solz-home .ch-order-book td > span { padding: 3px 6px; }
 .solz-home .ch-order-book .is-ask td > span { background: #bd2940; color: #fff; }
 .solz-home .ch-order-book .is-bid td > span { background: #087447; color: #fff; }
-.solz-home .ch-order-book .ch-book-spread td { color: #b7c9d5; padding-block: 10px; }
-.solz-home .ch-order-book .ch-book-spread td:last-child { text-align: right; }
+/* Only the header and spread separate sections; price levels stay borderless. */
+.solz-home .ch-order-book .ch-book-spread td { color: #a8b7c4; padding-block: 8px; font-size: 10px; border-block: 1px solid #ffffff0d; background: transparent; }
 .ch-book-heading { color: #afc0ce; }
 @media (max-width: 720px) {
   .solz-home .ch-order-book :is(th, td) { padding: 7px 8px; }
-  .solz-home .ch-order-book .ch-book-side-column { width: 49px; }
   .solz-home .ch-order-book th { font-size: 8px; }
 }
 .solz-home .ch-live-book .ch-order-book :is(.is-ask, .is-bid) { background-position: left; }
-.ch-book-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 16px; color: #bdc9d5; font-size: 12px; }
-.ch-book-toolbar > span { margin-left: auto; }
-.ch-book-toolbar strong.is-yes { color: #78e6bc; }
-.ch-book-toolbar strong.is-no { color: #ff91a0; }
-.ch-book-toolbar button { display: grid; place-items: center; background: transparent; color: #ced8e5; border: 0; padding: 6px; cursor: pointer; }
-.ch-book-toolbar button:disabled { opacity: .5; cursor: wait; }
-.solz-home .ch-order-book .ch-book-empty td { text-align: center; color: #b7c9d5; padding: 20px; }
-.ch-order-book-viewport { max-height: 390px; overflow: auto; overscroll-behavior: contain; border-block: 1px solid #33414d; }
+.solz-home .ch-live-book .ch-order-book .is-ask { background-image: linear-gradient(to right, #d3365338, #d3365338 54%, #d3365300); }
+.solz-home .ch-live-book .ch-order-book .is-bid { background-image: linear-gradient(to right, #15b47a38, #15b47a38 54%, #15b47a00); }
+
+/* Picking a level selects only that level. The ticket still receives the
+   cumulative fill amount, but hovering must never make several rows appear
+   selected. */
+/* The column header is sticky and opaque, so a row focused from the keyboard
+   has to stop below it rather than under it. */
+.solz-home .ch-order-book tr.is-pickable { cursor: pointer; scroll-margin-block-start: 30px; }
+.solz-home .ch-order-book tr.is-picked > td { background-color: #ffffff17; }
+.solz-home .ch-order-book tr.is-picked.is-ask > td:first-child { box-shadow: inset 2px 0 0 #ff7385; }
+.solz-home .ch-order-book tr.is-picked.is-bid > td:first-child { box-shadow: inset 2px 0 0 #3ce1a0; }
+.solz-home .ch-order-book tr.is-pickable:focus-visible { outline: 2px solid #9fcef1; outline-offset: -2px; }
+
+/* Depth reachable only through the opposite outcome's book. Marked with a
+   dashed leading edge rather than a colour: on this table red and green mean
+   ask and bid, so recolouring a level would read as changing its side. */
+.solz-home .ch-order-book tr:is(.is-cross, .is-mixed) > td:first-child { box-shadow: inset 2px 0 0 #ffffff1f; }
+.solz-home .ch-order-book tr.is-cross > td { background-image: repeating-linear-gradient(135deg, #ffffff08 0 6px, transparent 6px 12px); }
+.solz-home .ch-order-book .ch-book-cross { margin-left: 6px; font-style: normal; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: #a8b7c4; }
+.solz-home .ch-order-book .ch-book-mine { margin-left: 6px; padding: 1px 5px; border: 1px solid #ffffff24; border-radius: 3px; font-style: normal; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: #cfdae4; }
+.solz-home .ch-order-book th.ch-book-tools { text-align: left; }
+.ch-order-book th.ch-book-tools button { display: inline-grid; place-items: center; padding: 2px; border: 0; background: transparent; color: #ced8e5; cursor: pointer; }
+.ch-order-book th.ch-book-tools button:hover { color: #fff; }
+.ch-order-book th.ch-book-tools button:focus-visible { outline: 2px solid #9fcef1; outline-offset: 2px; }
+
+.solz-home .ch-order-book .ch-book-empty td { text-align: center; color: #b7c9d5; height: 40px; padding: 8px 14px; }
+.ch-book-skeleton { overflow: hidden; }
+.ch-book-skeleton .ch-order-book { width: 100%; }
+.ch-book-skeleton-row i, .ch-book-skeleton .ch-book-spread i { display: inline-block; width: 58%; height: 8px; border-radius: 3px; background: linear-gradient(90deg, #29312f 25%, #3b4744 50%, #29312f 75%) 100% 0 / 300% 100%; animation: ch-book-shimmer 1.35s ease-in-out infinite; }
+.ch-book-skeleton-row td:nth-child(2) i { width: 36%; }
+.ch-book-skeleton-row td:nth-child(3) i { width: 47%; }
+.ch-book-skeleton-tag { width: 44px !important; }
+.ch-book-skeleton .ch-book-spread i { width: 42%; }
+@keyframes ch-book-shimmer { to { background-position: 0 0; } }
+/* Vertical scroll chains natively: the book scrolls to its end and the same
+   gesture then carries the list, instead of the wheel dying inside the box.
+   Horizontal containment stays, because the table is wider than this viewport
+   and a sideways swipe would otherwise navigate the browser out of the page. */
+.ch-order-book-viewport { max-height: 390px; overflow: auto; overscroll-behavior-x: contain; }
 .ch-order-book-viewport .ch-order-book { min-width: 620px; }
-.ch-order-book-viewport thead th { position: sticky; top: 0; z-index: 1; background: #1d2229; }
-.ch-order-book-viewport .ch-book-spread td { background: #202a32; }
-.ch-book-toolbar button:focus-visible { outline: 2px solid #9fcef1; outline-offset: 2px; }
-.ch-book-footer { display: flex; justify-content: space-between; gap: 16px; padding: 12px 16px 0; color: #b7c9d5; font-size: 10px; }
+.ch-order-book-viewport thead th { position: sticky; top: 0; z-index: 1; background: #1e2422; }
+@media (prefers-reduced-motion: reduce) { .ch-book-skeleton-row i, .ch-book-skeleton .ch-book-spread i { animation: none; } }
+
 .ch-book-message { padding: 24px 16px; color: #b7c9d5; }
 .ch-history-source { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 0; color: #b7c9d5; font-size: 11px; }
 .ch-history-source button { padding: 6px 12px; border: 1px solid #465361; background: transparent; color: #cbd9e5; cursor: pointer; }
@@ -101,10 +138,10 @@
 .mk-card-open { flex-shrink: 0; margin-top: 2px; color: var(--sh-muted); }
 .mk-card:hover .mk-card-open { color: var(--sh-lime); }
 .mk-card-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: -4px; }
-.mk-card-status > span { color: var(--sh-muted); font-size: 8px; letter-spacing: .06em; }
-.mk-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--sh-line); color: var(--sh-muted); font-size: 9px; }
+.mk-card-status > span { color: var(--sh-muted); font-size: 11px; letter-spacing: .06em; }
+.mk-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--sh-line); color: var(--sh-muted); font-size: 12px; }
 .mk-card-bottom span { display: inline-flex; align-items: center; gap: 5px; }
-.mk-card-note { display: flex; align-items: center; gap: 6px; color: var(--sh-muted); font-size: 8px; }
+.mk-card-note { display: flex; align-items: center; gap: 6px; color: var(--sh-muted); font-size: 11px; }
 
 /* Two teams: one shared bar carries both sides of the head-to-head. */
 .mk-versus { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

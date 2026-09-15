@@ -32,3 +32,21 @@ test('invalid levels and empty books never manufacture liquidity', () => {
   expect(complementAsks([row(1_000_000n), row(0n), row(-1n), row(500_000n, 0n)])).toEqual([])
   expect(() => binaryBuyQuote([], [], 5_000_000n)).toThrow('No sellers')
 })
+test('the transform is an involution, so it must be applied exactly once', () => {
+  // The panel now draws complementAsks(noBids) as YES asks. That is only safe on a
+  // venue with two independent books: where the four sides are four views of one
+  // CLOB (DreamDEX derives noBids from yesAsks), complementing again returns the
+  // native ladder and would render every level twice at the same price.
+  const bids = [row(800_000n, 132_573_900n), row(500_000n)]
+  expect(complementAsks(complementAsks(bids))).toEqual(bids)
+})
+test('a lone NO bid is the YES ask the ladder draws, and implies no midpoint', () => {
+  // The observed GENESIS-01 book. The Buy button read 20¢ from this and the ticket
+  // filled against it, while the panel reported no asks at all.
+  const quote = binaryQuotes([], [], [], [row(800_000n, 132_573_900n)])
+  expect(quote.yes.ask).toBe(200_000n)
+  expect(quote.yes.bid).toBeUndefined()
+  // One executable price is not two, so it brackets nothing and crosses nothing.
+  expect(quote.yes.mid).toBeUndefined()
+  expect(quote.yes.crossed).toBe(false)
+})

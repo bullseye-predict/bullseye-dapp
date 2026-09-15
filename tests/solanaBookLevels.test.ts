@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { bookQuote, levels } from '../src/components/home/venue/useSolanaMarket'
+import { bookQuote, executable, levels } from '../src/components/home/venue/useSolanaMarket'
 
 /** Raw Manifest resting prices are a 1e18 fixed point of quote atoms per base
  *  atom; the book renders collateral atoms, which is raw / 1e12. */
@@ -44,4 +44,42 @@ test('a one-sided book quotes that side alone and never invents a mid', () => {
   expect(bookQuote([{ price: 550_000n, quantity: 1n }], [])).toEqual({ ask: 550_000n, bid: undefined })
   expect(bookQuote([], [{ price: 450_000n, quantity: 1n }])).toEqual({ ask: undefined, bid: 450_000n })
   expect(bookQuote([{ price: 550_000n, quantity: 1n }], []).mid).toBeUndefined()
+})
+
+/** Manifest hands every resting order its trader; a caller that names one wants
+ *  to know which part of a level is theirs. */
+const by = (trader: string) => ({ toBase58: () => trader })
+
+test('a level records how much of it belongs to the trader who asked', () => {
+  const orders = [
+    { ...order(500_000n, 4_000_000n), trader: by('me') },
+    { ...order(500_000n, 6_000_000n), trader: by('someone') },
+    { ...order(300_000n, 1_000_000n), trader: by('someone') },
+  ]
+  expect(levels(orders, 'me')).toEqual([
+    { price: 500_000n, quantity: 10_000_000n, own: 4_000_000n },
+    { price: 300_000n, quantity: 1_000_000n, own: 0n },
+  ])
+  // Nobody named, nothing claimed: the level keeps the shape it always had, so
+  // the panel and the pricing hook are not forced to care about a trader.
+  expect(levels(orders)).toEqual([
+    { price: 500_000n, quantity: 10_000_000n },
+    { price: 300_000n, quantity: 1_000_000n },
+  ])
+})
+
+test('the ladder keeps your order and the quote does not', () => {
+  // The whole point of marking instead of filtering: one book, drawn in full,
+  // with a single place that decides what can actually be hit. Before this, the
+  // panel (no owner) and the ticket (owner) polled the same market and rendered
+  // two different books on one screen.
+  const rows = [
+    { price: 500_000n, quantity: 10_000_000n, own: 4_000_000n },
+    { price: 300_000n, quantity: 1_000_000n, own: 1_000_000n },
+  ]
+  expect(executable(rows)).toEqual([{ price: 500_000n, quantity: 6_000_000n }])
+  // A level with no owner recorded is entirely takeable.
+  expect(executable([{ price: 400_000n, quantity: 2_000_000n }])).toEqual([{ price: 400_000n, quantity: 2_000_000n }])
+  // And a book that is entirely yours quotes nothing at all.
+  expect(bookQuote(executable([{ price: 400_000n, quantity: 2_000_000n, own: 2_000_000n }]), [])).toEqual({ ask: undefined, bid: undefined })
 })

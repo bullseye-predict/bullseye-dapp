@@ -1,4 +1,4 @@
-import { binaryQuotes } from '../../../../packages/adapters/solana/manifest/quotes'
+import { binaryQuotes, complementAsks } from '../../../../packages/adapters/solana/manifest/quotes'
 import { useEffect, useMemo, useState } from 'react'
 import type { createManifestHybridClient } from '../../../../packages/adapters/solana/manifest/hybrid'
 import { manifestClient } from './manifestClients'
@@ -19,14 +19,31 @@ const atoms = (value: { toString(): string }) => BigInt(value.toString())
  *  identical rows sharing one React key. Keyed on the *post-scale* price so two
  *  raw 1e18 prices that truncate to the same displayed price merge rather than
  *  colliding. */
-export const levels = (orders: { price: unknown; numBaseAtoms: unknown }[]): DepthLevel[] => {
-  const totals = new Map<bigint, bigint>()
+export const levels = (orders: { price: unknown; numBaseAtoms: unknown; trader?: unknown }[], owner?: string): DepthLevel[] => {
+  const totals = new Map<bigint, { quantity: bigint; own: bigint }>()
   for (const order of orders) {
     const price = atoms(order.price as { toString(): string }) / PRICE_SCALE
-    totals.set(price, (totals.get(price) ?? 0n) + atoms(order.numBaseAtoms as { toString(): string }))
+    const quantity = atoms(order.numBaseAtoms as { toString(): string })
+    const row = totals.get(price) ?? { quantity: 0n, own: 0n }
+    row.quantity += quantity
+    if (owner && (order.trader as { toBase58(): string } | undefined)?.toBase58() === owner) row.own += quantity
+    totals.set(price, row)
   }
-  return [...totals].map(([price, quantity]) => ({ price, quantity }))
+  // `own` only means anything once a caller has named a trader, and leaving the
+  // key off otherwise keeps a level exactly the shape it has always been.
+  return [...totals].map(([price, row]) => owner ? { price, quantity: row.quantity, own: row.own } : { price, quantity: row.quantity })
 }
+
+/** The part of the depth this viewer can actually take.
+ *
+ *  Your own resting orders are real size on the book, but nobody can fill their
+ *  own order — placeBinaryLimitBuy raises an error naming the offending bid — so
+ *  a quote or a route built on them promises a fill that cannot happen. Drop
+ *  them here, at the point where depth becomes a price, and nowhere else: the
+ *  ladder keeps drawing them marked as yours, because a panel that hides your
+ *  order contradicts the order you can see in your own Activity. */
+export const executable = (rows: readonly DepthLevel[]): DepthLevel[] =>
+  rows.map(row => ({ price: row.price, quantity: row.quantity - (row.own ?? 0n) })).filter(row => row.quantity > 0n)
 
 /** Best-of-book by reduce, never by array index. The Manifest SDK returns
  *  bids()/asks() least-competitive first (its own bestBidPrice() takes .at(-1))
@@ -83,15 +100,24 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean,
           }
         }))
         if (!active) return
+        // Marked, not filtered. Dropping your own orders here made the panel and
+        // the ticket render two different books side by side, because only one
+        // of them passes an owner; `executable` now draws that line once, where
+        // depth turns into a price.
         const side = (b: { asks(): unknown[]; bids(): unknown[] } | null) =>
-          b ? { asks: levels(b.asks().filter(o => !owner || (o as { trader: { toBase58(): string } }).trader.toBase58() !== owner) as never[]), bids: levels(b.bids().filter(o => !owner || (o as { trader: { toBase58(): string } }).trader.toBase58() !== owner) as never[]) } : { asks: [], bids: [] }
+          b ? { asks: levels(b.asks() as never[], owner), bids: levels(b.bids() as never[], owner) } : { asks: [], bids: [] }
         const y = side(yes as never), n = side(no as never)
         setState({
           key,
           now: Date.now(),
           error: yes || no ? null : 'This question has no Manifest books yet.',
-          book: yes || no ? { yesAsks: y.asks, yesBids: y.bids, noAsks: n.asks, noBids: n.bids } : null,
-          quote: yes || no ? binaryQuotes(y.asks, y.bids, n.asks, n.bids) : null,
+          // The same transform binaryQuotes applies one line below, so the ladder
+          // the panel draws and the quote the Buy button prints cannot disagree
+          // about what is executable. Asks only: there is no complete-set sell
+          // route (inventory.ts nextSell), so a complemented bid ladder would
+          // advertise levels this codebase deliberately cannot fill.
+          book: yes || no ? { yesAsks: y.asks, yesBids: y.bids, noAsks: n.asks, noBids: n.bids, crossYesAsks: complementAsks(n.bids), crossNoAsks: complementAsks(y.bids) } : null,
+          quote: yes || no ? binaryQuotes(executable(y.asks), executable(y.bids), executable(n.asks), executable(n.bids)) : null,
         })
       } catch (reason) {
         // A question whose books are not activated yet is the normal pre-first-trade

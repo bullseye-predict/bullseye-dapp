@@ -16,7 +16,12 @@ export function nextBinaryBuy(asks:readonly Level[], oppositeBids:readonly Level
   const ladder=route==='direct'?direct:complement, other=(route==='direct'?complement:direct)[0]?.price??SCALE
   let filled=0n,worst=0n
   for(const row of ladder){if(row.price>limit||row.price>other)break;const take=row.quantity<quantity-filled?row.quantity:quantity-filled;filled+=take;worst=row.price;if(filled===quantity)break}
-  return filled?{route,quantity:filled,price:worst,maximumCost:cost(filled,worst)}:null
+  // What must be in the wallet at submission, which is not what the order costs:
+  // the complete-set route mints a whole set at 1.00 per share and sells the
+  // opposite leg back, so it needs the full quantity up front even though the
+  // net is `maximumCost`. Mirrors binaryBuyQuote (quotes.ts) so the limit path
+  // and the market path report the same requirement.
+  return filled?{route,quantity:filled,price:worst,maximumCost:cost(filled,worst),upfrontCollateral:route==='complete-set'?filled:cost(filled,worst)}:null
 }
 
 /** Match both books before posting any remainder. A changed book or incomplete

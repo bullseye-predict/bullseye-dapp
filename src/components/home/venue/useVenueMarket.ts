@@ -33,7 +33,7 @@ export function useVenueMarket(market: ArenaMarket, owner?: string, enabled = tr
   // Gated: PredictionDetail mounts one of these per market, so polling every
   // market's books at once multiplied a single refresh into ~96 RPC calls and
   // tripped the provider rate limit. Only the panel on screen polls.
-  const solana = useSolanaMarket(isSolana && enabled ? (binding as SolanaBinding) : null, isSolana && enabled)
+  const solana = useSolanaMarket(isSolana && enabled ? (binding as SolanaBinding) : null, isSolana && enabled, owner)
 
   return useMemo(() => {
     if (isSolana) return solana
@@ -43,7 +43,10 @@ export function useVenueMarket(market: ArenaMarket, owner?: string, enabled = tr
       family: 'DREAMDEX',
       opened: true,
       book: data?.book
-        ? { yesAsks: data.book.yesAsks, yesBids: data.book.yesBids, noAsks: data.book.noAsks, noBids: data.book.noBids }
+        // No complement ladders: DreamDEX's four sides are four views of one
+        // CLOB, with noBids already derived from yesAsks, so its cross-book
+        // depth is native depth and adding it again would double every level.
+        ? { yesAsks: data.book.yesAsks, yesBids: data.book.yesBids, noAsks: data.book.noAsks, noBids: data.book.noBids, crossYesAsks: [], crossNoAsks: [] }
         : null,
       decimals: data?.market.decimals ?? 6,
       finalized: Boolean(data?.market.finalized),
