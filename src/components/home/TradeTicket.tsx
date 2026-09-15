@@ -157,10 +157,16 @@ export function TradeTicket({
   // previous ticket instance counts as spent: a remount must not replay it
   // into whichever contract happens to be selected now.
   const appliedPick = useRef(getBookPick()?.nonce ?? 0);
+  /** Which direction the live pick was last applied for. A picked level survives
+   *  a Buy/Sell switch — the price is still the one the trader chose — so the
+   *  size and the rounding have to be recomputed for the new direction, or the
+   *  panel says "20,490 matching" over a total of zero. */
+  const appliedSide = useRef<"buy" | "sell" | null>(null);
   /** The trader taking the price back — typing it, stepping it, switching side
    *  or order type — ends the pick and unmarks the row in the book. */
   const releasePick = () => {
     pickOwner.current = null;
+    appliedSide.current = null;
     clearBookPick();
   };
   const [expiry, setExpiry] = useState("close");
@@ -537,14 +543,27 @@ export function TradeTicket({
   })();
   const safeLabel = (value: number) =>
     amountLabel(Number.isFinite(value) ? value : 0);
+  /** Devnet's fUSDC and Somnia's tUSDC are dollar stablecoins, so a figure in
+   *  them is a figure in dollars: "$106.86", not "106.859 fUSDC". The ticker
+   *  belongs beside the balance in the wallet, not stamped on every number the
+   *  trader is reading. A collateral that is not a dollar keeps its own symbol
+   *  and its own precision. */
+  const dollarCollateral = /usdc$/i.test(collateralSymbol);
+  const money = (value: number) =>
+    dollarCollateral
+      ? `$${(Number.isFinite(value) ? value : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `${safeLabel(value)} ${collateralSymbol}`;
   const venueWallet = solana ? solanaWallet : evmWallet;
-  // What the field below is actually limited by: collateral when you are
-  // spending it, your own sellable shares when you are selling them.
+  /** A balance in the same unit as the field it sits under: the collateral you
+   *  would spend when the field is an amount of it, your own shares whenever the
+   *  field is a share count — which a limit buy is, just as a sell is. A dollar
+   *  figure under a field labelled "Shares" was answering a question nobody had
+   *  asked, and on a large balance it read as the order size. */
   const balanceCaption = (() => {
-    if (side === "sell") return `${safeLabel(available)} shares`;
+    if (!simulation && !venueWallet) return "Wallet not connected";
+    if (side === "sell" || type === "limit") return `${safeLabel(available)} shares`;
     if (simulation) return `${safeLabel(snapshot.account.balances.COOLA)} COOLA`;
-    if (!venueWallet) return "Wallet not connected";
-    if (collateralBalance !== null) return `${safeLabel(collateralBalance)} ${collateralSymbol}`;
+    if (collateralBalance !== null) return money(collateralBalance);
     if (solana && solanaHoldings.loading) return "Loading…";
     if (solana && solanaHoldings.error) return "Balance unavailable";
     return PRICE_PLACEHOLDER;
@@ -606,17 +625,23 @@ export function TradeTicket({
   // Declared after both re-seeds so that when one click both selects a contract
   // and picks a level, this runs last in that commit and the pick survives.
   useEffect(() => {
-    if (!bookPick || bookPick.nonce === appliedPick.current) return;
+    if (!bookPick) return;
+    if (bookPick.nonce === appliedPick.current && appliedSide.current === side) return;
     // Match on the contract, not on the market id: the event page hands the
     // book a synthesised per-answer market while this ticket holds the parent
     // prediction, so the two market ids differ for one and the same contract.
     if (bookPick.outcomeId !== outcome.id || bookPick.no !== ticketIsNo) return;
     appliedPick.current = bookPick.nonce;
+    appliedSide.current = side;
     pickOwner.current = pickedContract;
-    // A price, and only a price. Buy/Sell stays the trader's, and so does the
-    // share count: the size resting at a level is liquidity to report, not an
-    // order to place. Limit, because a price has nowhere else to live.
+    // Buy/Sell stays the trader's — clicking a bid while buying names a price,
+    // it does not ask to become a seller. The size does follow the level, but
+    // only from the ladder that direction actually takes: buying takes asks,
+    // selling hits bids, and the other ladder matches nothing, so the totals
+    // below read zero rather than quoting a trade that cannot happen.
     setType("limit");
+    const executable = (bookPick.side === "ask") === (side === "buy");
+    setShares(executable ? bookPick.cumulative : "0");
     // A limit is a ceiling on a buy and a floor on a sell, so a level that is
     // not a whole cent rounds toward the side the trader is actually on, and
     // still reaches the level either way.
@@ -641,7 +666,7 @@ export function TradeTicket({
     pickedLevel === null
       ? null
       : (pickedLevel.side === "ask") === (side === "buy")
-        ? Number(pickedLevel.quantity)
+        ? Number(pickedLevel.cumulative)
         : 0;
   const displayedLimitPrice =
     priceFormat === "decimal"
@@ -1338,7 +1363,7 @@ export function TradeTicket({
           {levelLiquidity !== null && type === "limit" && (
             <p className={`ch-level-liquidity${levelLiquidity > 0 ? "" : " is-empty"}`} role="status">
               {levelLiquidity > 0
-                ? `${levelLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${outcome.label} available at ${displayedLimitPrice}${priceFormat === "cents" ? "¢" : ""} to ${side}`
+                ? `${levelLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })} matching at ${displayedLimitPrice}${priceFormat === "cents" ? "¢" : ""}`
                 : `Nothing to ${side} at ${displayedLimitPrice}${priceFormat === "cents" ? "¢" : ""} — this order would rest`}
             </p>
           )}
@@ -1385,39 +1410,53 @@ export function TradeTicket({
                 <strong>Market close</strong>
               </div>
             )}
-            <div>
-              <span>{side === "buy" ? "Total" : "Total proceeds"}</span>
-              <strong>
-                {buyOutlay !== null
-                  ? `${safeLabel(buyOutlay)} ${collateralSymbol}`
-                  : price > 0
-                    ? `${safeLabel(total)} ${collateralSymbol}`
-                    : summaryPrice > 0
-                      ? `${safeLabel(summaryQuantity * summaryPrice)} ${collateralSymbol}`
-                      : PRICE_PLACEHOLDER}
-                {resting > 0 && (
-                  <small>
-                    {safeLabel(resting * (Number(limitPrice) / 100))} {collateralSymbol} reserved if unfilled
-                  </small>
-                )}
-                {peakOutlay !== null && buyOutlay !== null && peakOutlay > buyOutlay && (
-                  <small>
-                    {safeLabel(peakOutlay)} {collateralSymbol} must be in your wallet to start; the opposite sale returns the difference
-                  </small>
-                )}
-              </strong>
-            </div>
+            {/* What the order costs, and what it comes back as. Buying has both:
+                the outlay and the payout if it settles your way. Selling has one
+                figure — the proceeds — so it takes the payout's own treatment
+                rather than being labelled as a cost. */}
             {side === "buy" && (
-              <div className="is-win">
-                <span>To win</span>
+              <div className="is-total">
+                <span>Total</span>
                 <strong>
-                  {summaryPrice > 0
-                    ? `${safeLabel(summaryQuantity)} ${collateralSymbol}`
-                    : PRICE_PLACEHOLDER}
-                  {summaryPrice > 0 && <small>Price {formatOutcomePrice(summaryPrice)}</small>}
+                  {buyOutlay !== null
+                    ? money(buyOutlay)
+                    : price > 0
+                      ? money(total)
+                      : summaryPrice > 0
+                        ? money(summaryQuantity * summaryPrice)
+                        : PRICE_PLACEHOLDER}
+                  {resting > 0 && (
+                    <small>
+                      {money(resting * (Number(limitPrice) / 100))} reserved if unfilled
+                    </small>
+                  )}
+                  {peakOutlay !== null && buyOutlay !== null && peakOutlay > buyOutlay && (
+                    <small>
+                      {money(peakOutlay)} must be in your wallet to start; the opposite sale returns the difference
+                    </small>
+                  )}
                 </strong>
               </div>
             )}
+            <div className="is-win">
+              {/* The price the figure is struck at sits with its label, not
+                  under the number, where it competed with it for the eye. */}
+              <span>
+                {side === "buy" ? "To win" : "You'll win"}
+                {summaryPrice > 0 && <small>@{formatOutcomePrice(summaryPrice)}</small>}
+              </span>
+              <strong>
+                {side === "buy"
+                  ? summaryPrice > 0
+                    ? money(summaryQuantity)
+                    : PRICE_PLACEHOLDER
+                  : price > 0
+                    ? money(total)
+                    : summaryPrice > 0
+                      ? money(summaryQuantity * summaryPrice)
+                      : PRICE_PLACEHOLDER}
+              </strong>
+            </div>
           </div>
         )}
         <div className="ch-trade-action">
@@ -1514,7 +1553,7 @@ export function TradeTicket({
                   </strong>
                   <small>
                     {orderSide
-                      ? `${safeLabel((Number(orderPrice) / Number(scale)) * 100)}¢ · ${isBuy ? `${safeLabel(Number((order.quantityRemaining * orderPrice) / scale) / 1_000_000)} ${collateralSymbol} reserved` : "shares reserved to sell"}`
+                      ? `${safeLabel((Number(orderPrice) / Number(scale)) * 100)}¢ · ${isBuy ? `${money(Number((order.quantityRemaining * orderPrice) / scale) / 1_000_000)} reserved` : "shares reserved to sell"}`
                       : "Live quantity confirmed; side details awaiting indexer"}
                   </small>
                   <small>

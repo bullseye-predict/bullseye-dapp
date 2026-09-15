@@ -41,10 +41,13 @@ export function consolidate(native: readonly DepthLevel[], cross: readonly Depth
 const depthPercent = (total: bigint, maximum: bigint) => Math.max(2, Number(total * 10_000n / maximum) / 100)
 export function depthRows(levels: readonly (DepthLevel & { cross?: bigint })[], side: 'ask' | 'bid', decimals: number) {
   const sorted = [...levels].sort((a, b) => a.price === b.price ? 0 : (a.price < b.price ? -1 : 1) * (side === 'ask' ? 1 : -1))
-  let quantity = 0n, total = 0n
+  let quantity = 0n, total = 0n, own = 0n
   const rows = sorted.map(level => {
-    quantity += level.quantity; total += level.price * level.quantity / 10n ** BigInt(decimals)
-    return { ...level, cumulative: quantity, total }
+    quantity += level.quantity; own += level.own ?? 0n
+    total += level.price * level.quantity / 10n ** BigInt(decimals)
+    // `ownCumulative` shadows `cumulative` all the way down the ladder, so the
+    // matching size a sweep reports can exclude the trader's own resting depth.
+    return { ...level, cumulative: quantity, ownCumulative: own, total }
   })
   return side === 'ask' ? rows.reverse() : rows
 }
@@ -55,22 +58,29 @@ const number = (value: bigint, decimals: number) => Number(formatUnits(value, de
 const money = (value: bigint) => `$${Number(formatUnits(value, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 /** What one clicked price level hands the trade ticket: a price, which ladder it
- *  came from, and what rests there. Not an instruction to buy or to sell. */
-export type LevelPick = { side: 'ask' | 'bid'; price: string; cents: string; quantity: string }
+ *  came from, what rests at it, and what a limit there would sweep in total.
+ *  Not an instruction to buy or to sell — the ticket decides what to do with it
+ *  based on the direction the trader is already in. */
+export type LevelPick = { side: 'ask' | 'bid'; price: string; cents: string; quantity: string; cumulative: string }
 
-/** A row click chooses a price. Which ladder the row sits in is reported so the
- *  ticket can round toward the trader's own side and say whether the level is
- *  executable for them — it never decides their direction, and the level's size
- *  is liquidity to report, not an order quantity to impose.
+/** A row click chooses a price. Which ladder the row sits in travels with it so
+ *  the ticket can round toward the trader's own side and tell whether the level
+ *  is executable for them; it never decides their direction.
  *
- *  `own` is subtracted because a trader cannot fill their own resting order;
- *  offering it as available size would promise depth the venue then refuses. */
-export function levelPick(level: { price: bigint; quantity: bigint; own?: bigint }, side: 'ask' | 'bid', decimals: number): LevelPick {
+ *  `cumulative` is everything a limit at this price would match — the level and
+ *  everything better — which is what a taker actually gets, and what the ticket
+ *  fills the share field with when the level is on the ladder they are taking.
+ *
+ *  Both sizes are net of `own`: a trader cannot fill their own resting order, so
+ *  counting it would promise depth the venue then refuses. */
+export function levelPick(level: { price: bigint; quantity: bigint; own?: bigint; cumulative?: bigint; ownCumulative?: bigint }, side: 'ask' | 'bid', decimals: number): LevelPick {
+  const net = (total: bigint, own: bigint) => formatUnits(total - own > 0n ? total - own : 0n, 6)
   return {
     side,
     price: level.price.toString(),
     cents: formatUnits(level.price * 100n, decimals),
-    quantity: formatUnits(level.quantity - (level.own ?? 0n), 6),
+    quantity: net(level.quantity, level.own ?? 0n),
+    cumulative: net(level.cumulative ?? level.quantity, level.ownCumulative ?? level.own ?? 0n),
   }
 }
 

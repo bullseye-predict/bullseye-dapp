@@ -36,9 +36,14 @@ export type BookPick = {
    *  side, since a limit is a ceiling on a buy and a floor on a sell. */
   cents: string
   /** What rests at this one level, less the trader's own orders, which they
-   *  cannot fill. Shown as available liquidity, never written into the share
-   *  field: how much to trade stays the trader's decision. */
+   *  cannot fill. */
   quantity: string
+  /** Everything a limit at this price would match — this level and every better
+   *  one, again net of the trader's own depth. The ticket fills the share field
+   *  with this when the level is on the ladder the trader is taking, and with
+   *  nothing when it is on the other one: clicking a bid while buying names a
+   *  price, and there is nothing there to buy. */
+  cumulative: string
   /** Re-picking the same level must re-apply, and a pick must apply exactly
    *  once: the ticket remembers the last nonce it consumed. */
   nonce: number

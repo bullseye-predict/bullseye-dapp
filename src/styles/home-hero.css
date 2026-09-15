@@ -172,7 +172,10 @@
 .ch-order-type { position: relative; }
 .ch-trade-order-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; padding-bottom: 6px; }
 .ch-trade-order-actions > * { height: 28px; }
-.ch-order-type-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 7px !important; color: #e2e7ee !important; border: 1px solid transparent !important; border-bottom: 1px solid transparent !important; }
+/* Fixed width: "Market" is wider than "Limit", and with the group right-
+   aligned that difference walked the filter icon sideways every time the
+   order type changed. */
+.ch-order-type-trigger { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; width: 86px; min-height: 28px; padding: 0 7px !important; color: #e2e7ee !important; border: 1px solid transparent !important; border-bottom: 1px solid transparent !important; }
 .ch-order-type-trigger:hover { border-color: #536170 !important; background: #222b34 !important; }
 .ch-trade-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 19px; }
 .ch-trade-outcomes > button { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 7px; min-width: 0; min-height: 58px; padding: 12px 14px; border: 1px solid transparent; background: #2d3540; color: #b6c0cf; font: 600 16px var(--sh-heading); }
@@ -193,10 +196,17 @@
 .ch-price-format-menu button:hover, .ch-price-format-menu button[aria-checked='true'] { border-color: #7097b4; background: #2a3640; }
 .ch-price-format-menu b { font: 600 10px var(--sh-heading); }
 .ch-price-format-menu span { color: #afbbc7; font-size: 9px; }
-.ch-limit-price > div { display: flex; align-items: center; min-height: 44px; background: #222b34; border: 1px solid #414c5b; }
-.ch-limit-price button { display: grid; place-items: center; min-width: 40px; min-height: 42px; color: #bfc7d4; border: 0; background: transparent; padding: 0; font-size: 19px; line-height: 1; }
-.ch-limit-price input { width: 62px; appearance: textfield; background: transparent; color: #f3f5f8; border: 0; text-align: right; font: 600 19px/1.2 var(--sh-heading); padding: 5px 2px; }
-.ch-limit-price span { padding-right: 9px; color: #b6c0cf; font-size: 14px; }
+/* The outcome buttons above are two equal columns with a 7px gap, so the
+   second one starts at 50% + 3.5px. Every field below lines up on that same
+   edge instead of each finding its own width. */
+.ch-limit-price > div { display: flex; align-items: center; width: calc(50% - 3.5px); min-height: 46px; background: #222b34; border: 1px solid #414c5b; }
+/* One descendant deeper than `.solz-home :is(button, input, …) { font: inherit }`
+   in home.css, which ties with a plain `.ch-limit-price input` and wins on
+   order — which is why the price rendered at the container's inherited 11px
+   mono however large this rule asked for. */
+.ch-limit-price > div button { display: grid; place-items: center; min-width: 40px; min-height: 42px; color: #bfc7d4; border: 0; background: transparent; padding: 0; font: 400 21px/1 var(--sh-heading); }
+.ch-limit-price > div input { flex: 1; width: auto; min-width: 0; appearance: textfield; background: transparent; color: #f3f5f8; border: 0; text-align: right; font: 600 23px/1.2 var(--sh-heading); padding: 5px 2px; }
+.ch-limit-price > div span { padding-right: 9px; color: #b6c0cf; font: 500 16px var(--sh-heading); }
 .ch-trade-amount { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 /* What the picked level actually offers in the direction the trader is in.
    Clicking a bid while buying is a price choice with no liquidity behind it,
@@ -204,24 +214,34 @@
 .ch-level-liquidity { width: 100%; margin: 7px 0 0; color: #7fdcae; font: 500 10px var(--sh-mono); }
 .ch-level-liquidity.is-empty { color: #ffa7b6; }
 .ch-trade-amount label { font: 500 14px var(--sh-heading); }
-.ch-trade-amount-label { display: grid; gap: 3px; min-width: 0; }
+/* `.ch-trade-amount > div` right-aligns, which caught this column too and
+   ragged the balance against the label above it. */
+.ch-trade-amount > .ch-trade-amount-label { display: grid; justify-items: start; gap: 3px; min-width: 0; text-align: left; }
 .ch-trade-amount-label small { color: #a7b5c9; font: 500 10px var(--sh-mono); }
 .ch-trade-amount > div { min-width: 0; text-align: right; }
-.ch-trade-amount input { width: 100%; max-width: 145px; min-width: 0; appearance: textfield; background: transparent; color: #e4eaf2; border: 0; border-bottom: 1px solid #4b5b70; border-radius: 0; font: 600 29px/1.2 var(--sh-heading); text-align: right; padding: 0 0 1px; }
-.ch-trade-amount input::-webkit-inner-spin-button, .ch-limit-price input::-webkit-inner-spin-button { appearance: none; }
-.ch-trade-amount > div:last-child > span { display: block; color: #a7b5c9; font-size: 8px; margin-top: 3px; }
-.ch-trade-presets { display: flex; justify-content: flex-end; gap: 5px; padding: 12px 0 17px; }
+.ch-trade-amount > div:not(.ch-trade-amount-label) { width: calc(50% - 3.5px); }
+.ch-trade-amount input { width: 100%; max-width: 100%; min-width: 0; appearance: textfield; background: transparent; color: #e4eaf2; border: 0; border-bottom: 1px solid #4b5b70; border-radius: 0; font: 600 29px/1.2 var(--sh-heading); text-align: right; padding: 0 0 1px; }
+.ch-trade-amount input::-webkit-inner-spin-button, .ch-limit-price > div input::-webkit-inner-spin-button { appearance: none; }
+.ch-trade-amount > div:not(.ch-trade-amount-label) > span { display: block; color: #a7b5c9; font-size: 9px; margin-top: 3px; }
+.ch-trade-presets { display: flex; justify-content: flex-end; gap: 5px; width: calc(50% - 3.5px); margin-left: auto; padding: 12px 0 17px; }
 .ch-trade-presets button { color: #c0cad8; background: #2c3744; padding: 4px 9px; border: 0; font-size: 9px; }
 .ch-trade-presets button:hover { background: #455266; color: #fff; }
 .ch-ticket-summary { display: grid; gap: 8px; padding: 13px 0 12px; margin-top: auto; border-top: 1px solid #424a55; }
 .ch-ticket-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; font-size: 11px; }
 .ch-ticket-summary span { color: #b6c0cf; }
 .ch-ticket-summary strong { color: #edf2f7; font: 600 13px var(--sh-heading); text-align: right; }
+/* Cost and return read as two different things, so they are two colours: what
+   leaves the wallet in blue, what comes back in green. */
+.ch-ticket-summary > div > span { font-size: 12px; }
+.ch-ticket-summary .is-total strong { color: #6fb8ff; font: 700 19px/1.15 var(--sh-heading); }
 .ch-ticket-summary .is-win { align-items: center; }
-.ch-ticket-summary .is-win > span { font-size: 12px; }
+.ch-ticket-summary .is-win > span { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+/* The strike price rides with the label on the left; under the figure it was
+   competing with the figure. */
+.ch-ticket-summary .is-win > span small { color: #93a3b8; font: 500 10px var(--sh-mono); }
 .ch-ticket-summary .is-win strong { color: #78e6bc; font: 700 21px/1.15 var(--sh-heading); }
-.ch-ticket-summary .is-win small { display: block; margin-top: 2px; color: #a7b5c9; font: 500 9px var(--sh-mono); }
-.ch-ticket-summary strong > small { display: block; margin-top: 2px; color: #a7b5c9; font: 500 9px var(--sh-mono); }
+.ch-ticket-summary .is-win strong > small { display: block; margin-top: 3px; color: #a7b5c9; font: 500 11px var(--sh-mono); }
+.ch-ticket-summary strong > small { display: block; margin-top: 3px; color: #a7b5c9; font: 500 11px var(--sh-mono); }
 .ch-submit-trade { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; min-height: 42px; border: 0; border-radius: 0; color: #071b2d; background: #51b6ff; font: 700 13px var(--sh-heading) !important; text-decoration: none; }
 .ch-submit-trade:hover { background: #7ecbff; }
 .ch-sample-note { text-align: center; font-size: 8px; color: #aab7c9; margin-top: 9px !important; }

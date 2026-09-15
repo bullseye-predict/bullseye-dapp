@@ -44,15 +44,18 @@ test('a loading book retains its table structure and exposes one status message'
   expect(html).toContain('class="ch-book-skeleton-row is-bid"')
 })
 
-test('a level hands over a price and its liquidity, and never a trade direction', () => {
+test('a level hands over a price and its sizes, and never a trade direction', () => {
   const rows = depthRows(asks, 'ask', 6)
-  // No `side: buy`, no share count: clicking a row must not turn the trader
-  // around, and must not write their order size.
-  expect(levelPick(rows[0], 'ask', 6)).toEqual({ side: 'ask', price: '550000', cents: '55', quantity: '10' })
-  expect(levelPick(rows[1], 'bid', 6)).toEqual({ side: 'bid', price: '100000', cents: '10', quantity: '25' })
-  // The reported size is what somebody else is resting there, so a trader's own
-  // order is taken out of it — they cannot fill themselves.
-  expect(levelPick({ price: 200_000n, quantity: 5_000_000n, own: 2_000_000n }, 'ask', 6).quantity).toBe('3')
+  // No `side: buy`: clicking a row must not turn the trader around. `quantity`
+  // is what rests at the level, `cumulative` what a limit there would sweep.
+  expect(levelPick(rows[0], 'ask', 6)).toEqual({ side: 'ask', price: '550000', cents: '55', quantity: '10', cumulative: '35' })
+  expect(levelPick(rows[1], 'bid', 6)).toEqual({ side: 'bid', price: '100000', cents: '10', quantity: '25', cumulative: '25' })
+  // Both sizes come net of the trader's own depth: they cannot fill themselves.
+  const mine = depthRows([{ price: 200_000n, quantity: 5_000_000n, own: 2_000_000n }], 'ask', 6)[0]!
+  expect(levelPick(mine, 'ask', 6)).toMatchObject({ quantity: '3', cumulative: '3' })
+  // A level entirely the trader's own reports nothing rather than a negative.
+  const allMine = depthRows([{ price: 200_000n, quantity: 4_000_000n, own: 4_000_000n }], 'ask', 6)[0]!
+  expect(levelPick(allMine, 'ask', 6).cumulative).toBe('0')
   // The exact price travels; the ticket rounds it toward its own side.
   expect(levelPick({ price: 505_000n, quantity: 1_000_000n }, 'ask', 6).cents).toBe('50.5')
 })
