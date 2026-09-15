@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
-import type { PositionAccounting } from '../../../../packages/prediction-core/portfolio/model'
-import { useProfileAccounting } from '../../portfolio/useProfileAccounting'
+import { useEffect, useMemo, useState } from 'react'
+import { ManifestPortfolioReader } from '../../portfolio/solanaPortfolio'
 import type { ArenaMarket } from '../../solz/model'
 import type { SolanaBinding } from './types'
 import { venueBinding } from './useVenueMarket'
+import { manifestClient } from './manifestClients'
 
 /** One outcome of one market, as the accounting service reports it. Amounts stay
  *  in collateral atoms: a cost basis that has been through a float is not a cost
@@ -48,32 +48,48 @@ export type VenuePositionsView = {
 
 const EMPTY: VenuePositionsView = { rows: null, supported: false, connected: false, complete: true, decimals: 6, error: '', loading: false }
 
-const atoms = (value: string | null | undefined): bigint | null => {
-  if (value == null) return null
-  try { return BigInt(value) } catch { return null }
-}
-
 /**
- * Your own positions in one market — the fourth of the useVenueMarket family.
- *
- * This reads the same portfolio accounting service the profile page reads, for
- * one market instead of all of them. It has to: a position account on this venue
- * carries quantities and nothing else, and the Manifest seat's quoteVolume is a
- * lifetime bidirectional sum, so entry price and P&L cannot be derived from the
- * chain at read time by anyone. They come from replaying this wallet's own fills
- * in order, which is what the indexer behind `/solana/portfolio/:owner` does.
- *
- * Before this hook the Positions tab read the local arena preview's account,
- * which is why it was permanently empty on every Solana question: nothing you
- * ever traded on chain was in it.
+ * Your own positions in one market, read directly from the configured Solana
+ * deployment. Position quantities and the executable best bid are authoritative
+ * on chain; a future indexer may add cost basis and complete P/L.
  */
-export function useVenuePositions(market: ArenaMarket, owner: string | undefined, apiUrl: string, enabled = true): VenuePositionsView {
+export function useVenuePositions(market: ArenaMarket, owner: string | undefined, _apiUrl: string, enabled = true): VenuePositionsView {
   const binding = venueBinding(market)
   const solana = binding?.family === 'SOLANA' ? binding as SolanaBinding : null
-  const active = Boolean(solana && enabled && apiUrl)
-  // useProfileAccounting is inert without an owner, which is how this hook stays
-  // gated without breaking hook order.
-  const { data, error } = useProfileAccounting(active ? apiUrl : '', active ? owner : undefined, '', '', 0)
+  const active = Boolean(solana && enabled && owner)
+  const [holding, setHolding] = useState<Awaited<ReturnType<ManifestPortfolioReader['read']>>['questions'][number] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    if (!active || !solana || !owner) { setHolding(null); setLoading(false); setError(''); return }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    try {
+      const client = manifestClient(solana.rpcUrl, {
+        genesisHash: solana.genesisHash,
+        predictionProgram: solana.predictionProgram,
+        manifestProgram: solana.manifestProgram,
+        collateralMint: solana.collateralMint,
+      })
+      const reader = new ManifestPortfolioReader(client.adapter)
+      void reader.read(owner, [solana.marketId], []).then((portfolio) => {
+        if (cancelled) return
+        setHolding(portfolio.questions.find((question) => question.marketId === solana.marketId) ?? null)
+        setLoading(false)
+      }).catch((reason) => {
+        if (cancelled) return
+        setHolding(null)
+        setLoading(false)
+        setError(reason instanceof Error ? reason.message : 'Solana position is unavailable.')
+      })
+    } catch (reason) {
+      setHolding(null)
+      setLoading(false)
+      setError(reason instanceof Error ? reason.message : 'Solana venue is misconfigured.')
+    }
+    return () => { cancelled = true }
+  }, [active, owner, solana?.marketId, solana?.rpcUrl, solana?.genesisHash, solana?.predictionProgram, solana?.manifestProgram, solana?.collateralMint])
   const outcomeIds = market.outcomes.map(outcome => outcome.id)
 
   return useMemo(() => {
@@ -82,33 +98,37 @@ export function useVenuePositions(market: ArenaMarket, owner: string | undefined
     const base = { supported: true, connected: Boolean(owner), decimals, ...(owner ? { owner } : {}) }
     if (!owner) return { ...EMPTY, ...base, rows: [], loading: false }
     if (error) return { ...EMPTY, ...base, error, loading: false }
-    if (!data) return { ...EMPTY, ...base, loading: true }
-    const mine = data.accounting.positions.filter((position: PositionAccounting) => position.marketId === solana.marketId)
+    if (loading) return { ...EMPTY, ...base, loading: true }
+    if (!holding) return { ...EMPTY, ...base, rows: [], loading: false }
     return {
       ...base,
       loading: false,
       error: '',
-      complete: data.accounting.complete && data.coverage.complete,
-      reason: data.accounting.reason ?? data.coverage.reason,
-      rows: mine.flatMap((position): VenuePositionRow[] => {
-        const outcomeId = outcomeIds[position.outcome]
+      complete: false,
+      reason: 'Holdings are read live from Solana. Cost basis and P/L need a complete fill index.',
+      rows: ([0, 1] as const).flatMap((outcome): VenuePositionRow[] => {
+        const outcomeId = outcomeIds[outcome]
         if (!outcomeId) return []
+        const side = holding.outcomes[outcome]
+        const quantity = side.totalShares
+        if (quantity === 0n && side.seatCollateral === 0n && side.reservedCollateral === 0n) return []
+        const current = side.bestBid ?? null
         return [{
           outcomeId,
-          outcome: position.outcome,
-          quantity: atoms(position.quantity) ?? 0n,
-          costBasis: atoms(position.costBasis),
-          average: atoms(position.average),
-          current: atoms(position.current),
-          value: atoms(position.value),
-          pnl: atoms(position.pnl),
-          realized: atoms(position.realized),
-          disposed: atoms(position.disposed) ?? 0n,
-          complete: position.complete,
-          ...(position.reason ? { reason: position.reason } : {}),
+          outcome,
+          quantity,
+          costBasis: null,
+          average: null,
+          current,
+          value: current === null ? null : quantity * current / 10n ** BigInt(decimals),
+          pnl: null,
+          realized: null,
+          disposed: 0n,
+          complete: false,
+          reason: 'Cost basis and P/L need a complete fill index.',
         }]
       }),
     }
     // outcomeIds is rebuilt every render; join it so the memo tracks its value.
-  }, [solana?.marketId, solana?.collateralDecimals, owner, data, error, outcomeIds.join('|')])
+  }, [solana?.marketId, solana?.collateralDecimals, owner, holding, loading, error, outcomeIds.join('|')])
 }

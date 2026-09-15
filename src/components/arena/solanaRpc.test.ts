@@ -1,9 +1,12 @@
 import { expect, test } from 'bun:test'
 import { solanaRpcEndpoint } from './solanaRpc'
 
-test('falls back to public devnet when VITE_SOLANA_RPC_ENDPOINT is unset', () => {
+// There is no default endpoint on purpose: mainnet and devnet must carry distinct
+// RPC configuration (PREDICTION_PRODUCTION_PLAN.md:120), and a built-in devnet
+// fallback would let a misconfigured mainnet build sign against devnet in silence.
+test('refuses to guess a cluster when VITE_SOLANA_RPC_ENDPOINT is unset', () => {
   delete process.env.VITE_SOLANA_RPC_ENDPOINT
-  expect(solanaRpcEndpoint()).toBe('https://api.devnet.solana.com')
+  expect(() => solanaRpcEndpoint()).toThrow(/is not set/)
 })
 
 test('uses the configured endpoint and keeps its api-key query intact', () => {
@@ -13,9 +16,13 @@ test('uses the configured endpoint and keeps its api-key query intact', () => {
 })
 
 test('refuses embedded credentials, non-https remotes and garbage rather than trusting them', () => {
-  for (const bad of ['https://user:pass@rpc.example.com', 'http://rpc.example.com', 'not a url']) {
+  for (const [bad, reason] of [
+    ['https://user:pass@rpc.example.com', /credentials/],
+    ['http://rpc.example.com', /https/],
+    ['not a url', /valid URL/],
+  ] as const) {
     process.env.VITE_SOLANA_RPC_ENDPOINT = bad
-    expect(solanaRpcEndpoint()).toBe('https://api.devnet.solana.com')
+    expect(() => solanaRpcEndpoint()).toThrow(reason)
   }
   process.env.VITE_SOLANA_RPC_ENDPOINT = 'http://127.0.0.1:8899'
   expect(solanaRpcEndpoint()).toBe('http://127.0.0.1:8899/')

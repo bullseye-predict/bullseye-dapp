@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, Link as LinkIcon, Search } from 'lucide-react'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
-import type { PositionAccounting } from '../../../packages/prediction-core/portfolio/model'
+import type { PortfolioEvent, PositionAccounting } from '../../../packages/prediction-core/portfolio/model'
 import { AppShell } from '../solz/AppShell'
 import { formatUnitsExact, sharePrice } from '../prediction/amounts'
 import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
@@ -17,10 +17,6 @@ import {
 import { MatchAvatar } from './matchIdentity'
 import { PortfolioSummary } from './PortfolioSummary'
 import { SolanaPnlChart } from './SolanaPnlChart'
-import {
-  useProfileAccounting,
-  type ProfileAccounting,
-} from './useProfileAccounting'
 import { SolanaProfileAction, type ProfileAction } from './SolanaProfileAction'
 import {
   instantSellBlocker,
@@ -31,20 +27,13 @@ import { isClosedPosition } from './model'
 import { solanaNetwork } from './profileRoute'
 import './solanaProfile.css'
 type Props = {
-  bootstrap?: {
-    profile: ProfileAccounting
-    history: ProfileAccounting
-    chart: ProfileAccounting
-  }
   initialSection?: 'positions' | 'orders' | 'activity'
-  apiUrl: string
   venue: PublicPredictionVenue | null
   owner?: string
   isSelf: boolean
   network?: string
   questions: ReservedSolanaQuestion[]
   sol: SolanaPortfolioState
-  retry: number
   onRefresh: () => void
 }
 type PositionView = {
@@ -136,16 +125,13 @@ function Gain({
   )
 }
 export function SolanaProfile({
-  bootstrap,
   initialSection,
-  apiUrl,
   venue,
   owner,
   isSelf,
   network,
   questions,
   sol,
-  retry,
   onRefresh,
 }: Props) {
   const [section, setSection] = useState<'positions' | 'orders' | 'activity'>(
@@ -156,66 +142,18 @@ export function SolanaProfile({
     [event, setEvent] = useState(''),
     [sort, setSort] = useState('value'),
     [range, setRange] = useState('ALL'),
-    [cursor, setCursor] = useState(''),
     [copy, setCopy] = useState(''),
     [action, setAction] = useState<ProfileAction | null>(null)
-  const deployment = venue
-    ? `${venue.chainId}:${venue.programId}:${venue.manifestProgramId}:${venue.collateralToken}`
-    : undefined
-  const profileState = useProfileAccounting(
-      venue ? apiUrl : '',
-      owner,
-      '',
-      '',
-      retry,
-      '',
-      deployment,
-    ),
-    historyState = useProfileAccounting(
-      section === 'activity' ? apiUrl : '',
-      owner,
-      'activity',
-      '',
-      retry,
-      cursor,
-      deployment,
-    ),
-    chartState = useProfileAccounting(
-      venue ? apiUrl : '',
-      owner,
-      'pnl',
-      range,
-      retry,
-      '',
-      deployment,
-    )
-  const profile = {
-      ...profileState,
-      data: profileState.data ?? bootstrap?.profile,
-    },
-    history = {
-      ...historyState,
-      data: historyState.data ?? bootstrap?.history,
-    },
-    chart = { ...chartState, data: chartState.data ?? bootstrap?.chart }
   useEffect(() => {
     setAction(null)
-    setCursor('')
     setSection(initialSection ?? 'positions')
   }, [owner, isSelf, venue?.chainId])
   const decimals = venue?.collateralDecimals ?? 6,
     symbol = venue?.collateralSymbol ?? 'collateral'
-  const catalogue = useMemo(
-    () => [
-      ...new Map(
-        [...(profile.data?.questions ?? []), ...questions].map((q) => [
-          q.marketId,
-          q,
-        ]),
-      ).values(),
-    ],
-    [profile.data?.questions, questions],
-  )
+  // The profile never asks the prediction API to replay a cached portfolio.
+  // Holdings, books and open orders below all originate from the browser's
+  // direct finalized-RPC reader. The catalogue only supplies display labels.
+  const catalogue = questions
   const rows = useMemo(
     () =>
       sol.portfolio
@@ -227,12 +165,6 @@ export function SolanaProfile({
     () => (sol.portfolio ? solanaOrderRows(sol.portfolio, catalogue) : []),
     [sol.portfolio, catalogue],
   )
-  const accounting = new Map(
-    (profile.data?.accounting.positions ?? []).map((p) => [
-      `${p.marketId}:${p.outcome}`,
-      p,
-    ]),
-  )
   const positions: PositionView[] = rows
     .filter((r) => r.quantity > 0n)
     .map((row) => ({
@@ -240,28 +172,9 @@ export function SolanaProfile({
       identity: row.identity,
       outcome: row.outcome,
       row,
-      account: accounting.get(row.id),
       quantity: row.quantity,
       closed: isClosedPosition(row.state),
     }))
-  for (const account of accounting.values())
-    if (
-      !positions.some(
-        (p) => p.id === `${account.marketId}:${account.outcome}`,
-      ) &&
-      BigInt(account.acquired) > 0n
-    )
-      positions.push({
-        id: `${account.marketId}:${account.outcome}`,
-        identity: solanaIdentity(
-          account.marketId,
-          catalogue.find((q) => q.marketId === account.marketId),
-        ),
-        outcome: account.outcome,
-        account,
-        quantity: BigInt(account.quantity),
-        closed: BigInt(account.quantity) === 0n,
-      })
   const matches = (identity: SolanaIdentity) =>
     (!event || identity.eventId === event) &&
     `${identity.label} ${identity.outcomeLabels.join(' ')} ${identity.marketId}`
@@ -274,9 +187,7 @@ export function SolanaProfile({
         : 0n
       : p.row?.holding.status === 4
         ? 10n ** BigInt(decimals) / 2n
-        : p.account?.current == null
-          ? null
-          : BigInt(p.account.current)
+        : p.row?.bestBid ?? null
   const value = (p: PositionView) =>
     p.quantity === 0n
       ? 0n
@@ -327,23 +238,14 @@ export function SolanaProfile({
   const instant = useInstantSell(venue, owner, onRefresh)
   const refresh = () => {
     onRefresh()
-    setCursor('')
   }
-  const reason = profile.error || profile.data?.coverage.reason
-  const displayEvents = (history.data?.events ?? []).filter((e) => {
-    const identity = e.marketId
-      ? solanaIdentity(
-          e.marketId,
-          catalogue.find((q) => q.marketId === e.marketId),
-        )
-      : undefined
-    return identity
-      ? matches(identity)
-      : !event &&
-          `${e.kind} ${e.detail ?? ''}`
-            .toLowerCase()
-            .includes(search.toLowerCase())
-  })
+  const reason = sol.historyLimited || sol.historyError
+    ? 'On-chain fill history is incomplete; holdings and order state remain live.'
+    : undefined
+  // The direct reader deliberately does not claim complete account history or
+  // cost-basis accounting. An indexer can add that later without becoming the
+  // authority for a position or market.
+  const displayEvents: PortfolioEvent[] = []
   const transactionHref = (signature: string) => {
     if (!venue?.explorerUrl) return undefined
     try {
@@ -405,12 +307,12 @@ export function SolanaProfile({
             onRefresh={refresh}
           />
           <SolanaPnlChart
-            points={chart.data?.accounting.points ?? []}
+            points={[]}
             symbol={symbol}
             decimals={decimals}
             range={range}
             onRange={setRange}
-            reason={chart.error || chart.data?.coverage.reason}
+            reason="P/L history will be available when the on-chain indexer is enabled."
           />
         </div>
         <nav className="sp-navigation" aria-label="Portfolio sections">
@@ -439,7 +341,6 @@ export function SolanaProfile({
             onClick={() => {
               setSection('activity')
               setAction(null)
-              setCursor('')
             }}
           >
             {isSelf ? 'History' : 'Activity'}
@@ -813,11 +714,6 @@ export function SolanaProfile({
               </>
             ) : (
               <>
-                {history.error && (
-                  <p className="pf-error" role="alert">
-                    {history.error}
-                  </p>
-                )}
                 {displayEvents.length ? (
                   <table className="sp-table">
                     <thead>
@@ -915,23 +811,13 @@ export function SolanaProfile({
                 ) : (
                   <div className="pf-empty">
                     <h2>
-                      {history.data?.coverage.complete
-                        ? 'No matching activity'
-                        : 'Loading account history'}
+                      On-chain activity index unavailable
                     </h2>
                     <p>
-                      {history.data?.coverage.reason ??
-                        'Trades and account operations appear here as history is indexed.'}
+                      Holdings and open orders above are read directly from Solana.
+                      Complete fills and P/L will appear after the indexer is enabled.
                     </p>
                   </div>
-                )}
-                {history.data?.nextCursor && (
-                  <button onClick={() => setCursor(history.data!.nextCursor!)}>
-                    Older activity
-                  </button>
-                )}
-                {cursor && (
-                  <button onClick={() => setCursor('')}>Newest activity</button>
                 )}
               </>
             )}

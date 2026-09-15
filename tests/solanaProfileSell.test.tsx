@@ -3,14 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { SolanaProfile } from '../src/components/portfolio/SolanaProfile'
 import { instantSellBlocker, sellableShares } from '../src/components/portfolio/instantSell'
 import { solanaPositionRows } from '../src/components/portfolio/solanaRows'
-import { bootstrap, owner, questions, sol, venue } from './fixtures/profile'
+import { owner, questions, sol, venue } from './fixtures/profile'
 const row = (mutate?: (p: NonNullable<typeof sol.portfolio>) => void) => {
   const portfolio = structuredClone(sol.portfolio!)
   mutate?.(portfolio)
   return solanaPositionRows(portfolio, questions, 6).find(r => r.id === `${questions[0]!.marketId}:0`)!
 }
 const profile = (isSelf: boolean) => renderToStaticMarkup(
-  <SolanaProfile apiUrl="" bootstrap={bootstrap} owner={owner} venue={venue} isSelf={isSelf} questions={questions} sol={sol} retry={0} onRefresh={() => {}} />)
+  <SolanaProfile owner={owner} venue={venue} isSelf={isSelf} questions={questions} sol={sol} onRefresh={() => {}} />)
 describe('one-click sell', () => {
   test('the position row sells outright instead of opening a panel', () => {
     const html = profile(true)
