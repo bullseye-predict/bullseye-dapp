@@ -6,6 +6,11 @@ import { createPortal } from 'react-dom'
 import { Toaster } from 'sonner'
 import { AlertsDock } from './AlertsDock'
 
+/** Narrow enough that a stack of toasts anchored to the bottom covers the
+ *  trade ticket's own action row. Matches the breakpoint the events page
+ *  already switches its trade rail on (src/styles/events.css). */
+const NARROW = '(max-width: 760px)'
+
 /** Everything that has to stay visible while a trade is being signed: the
  *  per-transaction toasts and the alert log.
  *
@@ -19,6 +24,15 @@ import { AlertsDock } from './AlertsDock'
  *  transform or filter is not a containing block and does not clip them. */
 export function OverlayLayer() {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const [narrow, setNarrow] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia(NARROW)
+    const sync = () => setNarrow(media.matches)
+    sync()
+    media.addEventListener('change', sync)
+    return () => media.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     const element = document.createElement('div')
@@ -64,14 +78,27 @@ export function OverlayLayer() {
   return createPortal(
     <>
       <Toaster
-        position="bottom-center"
+        // Bottom on a wide screen, where the toasts sit clear of the ticket. On
+        // a phone that same corner is the ticket's Trade button and the sticky
+        // action bar, so they move to the top instead.
+        position={narrow ? 'top-center' : 'bottom-center'}
         richColors
         closeButton
         theme="dark"
         // sonner shows three at a time by default and hides the rest, so a first
         // trade — activation, two book activations, funding, the order — pushed
-        // its own earlier steps out of sight.
-        visibleToasts={6}
+        // its own earlier steps out of sight. A large order walks the book in
+        // several confirmed legs on top of that, so the run is longer still.
+        // Six of them fill a phone screen, so a narrow viewport shows the two
+        // most recent and keeps the rest stacked behind them; AlertsDock holds
+        // the full sequence either way.
+        visibleToasts={narrow ? 2 : 6}
+        expand={false}
+        // Clear of the sticky site header (68px on a narrow viewport, declared
+        // in src/styles/site-header.css) without inheriting its custom property,
+        // which is scoped to .sz-shell and does not reach this portal.
+        offset={narrow ? { top: '76px', left: '10px', right: '10px' } : undefined}
+        mobileOffset={narrow ? { top: '76px', left: '10px', right: '10px' } : undefined}
         style={{ zIndex: 2147483000 }}
       />
       <AlertsDock />

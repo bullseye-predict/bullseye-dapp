@@ -25,10 +25,16 @@ export const takerBps = (entry: OutcomeHoldings | undefined) => entry?.bps ?? nu
 
 export const EMPTY_HOLDINGS: SolanaHoldingsView = { outcomes: null, error: '', loading: false }
 
-/** Shares this wallet can actually put behind a sell on one book. Only the
- *  venue seat backs a resting ask: wallet claims need a deposit first, internal
- *  claims need an export, and reserved claims are already committed. */
-export const sellableShares = (entry: OutcomeHoldings | undefined) => entry?.holdings?.venueAvailableClaims ?? 0n
+/** Shares this wallet can put behind a sell, counting the ones the sell path
+ *  moves for it: the seat balance is ready, wallet claims need a deposit and
+ *  position claims need an export first, and the ticket does both before
+ *  ordering. Reserved claims are excluded — they already back a resting ask.
+ *
+ *  This deliberately matches planSellInventory(). Reporting the seat balance
+ *  alone showed a trader 27 shares in one row and refused to sell any of them in
+ *  the next, because a complete-set buy leaves everything in the position PDA. */
+export const sellableShares = (entry: OutcomeHoldings | undefined) =>
+  entry?.holdings ? entry.holdings.venueAvailableClaims + entry.holdings.walletClaims + entry.holdings.internalClaims : 0n
 /** Every share this wallet owns on one outcome, wherever it sits. */
 export const ownedShares = (entry: OutcomeHoldings | undefined) => entry?.holdings?.totalClaims ?? 0n
 

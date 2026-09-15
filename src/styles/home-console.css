@@ -20,7 +20,9 @@
 .solz-home .ch-open-market.is-preparing { border-style: solid; border-color: #69734e; background: #24281f; }
 .solz-home .ch-open-market.is-preparing strong { color: #d7f59c; }
 .solz-home .ch-console .ch-trade-title span { color: var(--ch-muted); }
-.solz-home .ch-console .ch-trade-title strong { color: var(--ch-ink); }
+/* The answer carries its own identity colour; the console theme used to
+   flatten it to plain ink, which is why every answer looked alike. */
+.solz-home .ch-console .ch-trade-title strong { color: var(--team-color, var(--ch-ink)); }
 .solz-home .ch-console .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }
 .solz-home .ch-console .ch-trade-controls { border-color: var(--ch-line); }
 .solz-home .ch-console .ch-trade-controls button.is-buy[aria-pressed='true'] { color: #40df9f; }

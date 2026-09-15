@@ -110,6 +110,8 @@ export function receiptActivity(transaction: Receipt, manifestProgram: string, b
       const input = Buffer.from(sale.data).readBigUInt64LE(1)
       const minimumReturn = Buffer.from(sale.data).readBigUInt64LE(9)
       const exported = instructions.some(ix => keys.get(ix.programIdIndex)?.toBase58() === book.predictionProgram && ix.data[0] === 24 && ix.data.length === 9 && key(ix, 2) === book.question && key(ix, 0) === key(sale, 0) && key(ix, 6) === key(sale, 8) && Buffer.from(ix.data).readBigUInt64LE(1) === quantity)
+      const bothOutcomesSold = instructions.some(ix => keys.get(ix.programIdIndex)?.toBase58() === manifestProgram && ix.data[0] === 4 && ix.data.length >= 19 && ix.data[17] === 1 && key(ix, 1) !== book.address && key(ix, 0) === key(sale, 0))
+      if (bothOutcomesSold) return logged
       if (exported && quantity === input && minimumReturn > 0n && minimumReturn < quantity) return [{
         id: `complete-set:${signature}:${book.address}`, hash: signature, at, block: BigInt(transaction.slot), owner: key(sale, 0), kind: 'fill',
         label: `Buy ${book.oppositeLabel ?? (book.outcome === 0 ? 'NO' : 'YES')} completed`,
@@ -161,7 +163,21 @@ export class ManifestActivityReader {
       let fetched = 0
       if (signal?.aborted) break
       try {
-        const page = await this.connection.getSignaturesForAddress(toKey(book.address), { limit: 40, until: this.newest.get(book.address) }, 'confirmed')
+        // A full page means there are still transactions between its oldest
+        // entry and `until`, so walk back with `before` until the gap closes.
+        // Without this, advancing the cursor to the newest signature left every
+        // transaction past the page limit permanently older than `until` and
+        // therefore never read — a burst while the tab was backgrounded simply
+        // vanished. Bounded: signature pages are cheap, the receipt fetches are
+        // what `perPass` caps, and three pages covers 120 transactions.
+        const until = this.newest.get(book.address)
+        const page: Awaited<ReturnType<Connection['getSignaturesForAddress']>> = []
+        for (let request = 0; request < 3; request++) {
+          const next = await this.connection.getSignaturesForAddress(toKey(book.address), { limit: 40, until, before: page.at(-1)?.signature }, 'confirmed')
+          page.push(...next)
+          if (next.length < 40) break
+          if (request === 2) partial = true
+        }
         let capped = false
         for (const entry of page) {
           if (signal?.aborted) return { rows: sortActivity(rows), partial }

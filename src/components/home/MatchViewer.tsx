@@ -31,7 +31,7 @@ import { needsIframeWarning, useArenaPerformance, type ArenaPerformance } from "
 
 // Stable source identity keeps market ticks independent from playback.
 type ArenaBroadcastStatus = {
-  state: "intermission" | "preparing" | "live" | "unavailable";
+  state: "preview" | "intermission" | "preparing" | "live" | "unavailable";
   endsAt: number | null;
   generatedAt: number;
   matchId: string | null;
@@ -94,7 +94,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
       if (
         value?.type !== "solz:agent-arena-status" ||
         value.version !== 1 ||
-        !["intermission", "preparing", "live", "unavailable"].includes(
+        !["preview", "intermission", "preparing", "live", "unavailable"].includes(
           String(value.state),
         )
       )
@@ -262,8 +262,8 @@ function matchWinnerBoard(
   return {
     ...selected,
     id: `${selected.matchId}:winner-board`,
-    title: "Match winner · all 12 agents",
-    description: "Twelve linked YES/NO winner questions for this one match.",
+    title: `Match winner · all ${outcomes.length} agents`,
+    description: `${outcomes.length} linked YES/NO winner questions for this one match.`,
     outcomes,
   };
 }
@@ -297,6 +297,7 @@ type Props = {
   collateralSymbol?: string;
   heading?: ReactNode;
   onBroadcastState?: (state: ArenaBroadcastStatus["state"] | null) => void;
+  onBroadcastMatchId?: (matchId: string | null) => void;
 };
 
 export function broadcastBelongsToMatch(
@@ -344,6 +345,7 @@ export function MatchViewer({
   collateralSymbol,
   heading,
   onBroadcastState,
+  onBroadcastMatchId,
 }: Props) {
   const frame = useRef<HTMLDivElement>(null);
   const livestreamChip = useRef<HTMLSpanElement>(null);
@@ -376,6 +378,7 @@ export function MatchViewer({
     board.outcomes.find((item) => item.id === market.id) ?? board.outcomes[0];
   const intermission =
     match.phase === "countdown" ||
+    broadcastStatus?.state === "preview" ||
     broadcastStatus?.state === "intermission" ||
     broadcastStatus?.state === "preparing";
   const publicMatchLabel = matchIdLabel(match);
@@ -393,6 +396,9 @@ export function MatchViewer({
   useEffect(() => {
     onBroadcastState?.(broadcastStatus?.state ?? null);
   }, [broadcastStatus?.state, onBroadcastState]);
+  useEffect(() => {
+    onBroadcastMatchId?.(broadcastStatus?.matchId ?? null);
+  }, [broadcastStatus?.matchId, onBroadcastMatchId]);
   useEffect(() => {
     if (match.phase === "settled") return;
     const timer = window.setInterval(() => setClock(Date.now()), 1_000);
@@ -581,7 +587,7 @@ export function MatchViewer({
                       next round. Prediction sides remain visible at 50:50 until
                       live pricing begins.
                     </p>
-                    <strong>{match.roster.length} / 12 AGENTS CONFIRMED</strong>
+                    <strong>{match.roster.length} AGENTS CONFIRMED</strong>
                   </div>
                   <div
                     className="ch-intermission-roster"

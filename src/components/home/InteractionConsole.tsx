@@ -244,12 +244,14 @@ export function InteractionConsole({
                 <span className="is-yes">YES</span>
                 <span className="is-no">NO</span>
               </div>
+              {/* Mirrors the real ticket's rows so the panel keeps its shape
+                  while it has no data. */}
               <dl className="ch-trade-skeleton__fields" aria-hidden="true">
                 <div><dt>Limit price</dt><dd>—</dd></div>
                 <div><dt>Shares</dt><dd>—</dd></div>
-                <div><dt>Available shares</dt><dd>—</dd></div>
                 <div><dt>Expires</dt><dd>—</dd></div>
-                <div><dt>Payout if filled &amp; correct</dt><dd>—</dd></div>
+                <div><dt>Total</dt><dd>—</dd></div>
+                <div><dt>To win</dt><dd>—</dd></div>
               </dl>
               <button type="button" className="ch-trade-skeleton__action" disabled>Trade</button>
             </div>

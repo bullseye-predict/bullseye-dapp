@@ -1,16 +1,18 @@
 import '../../styles/home-markets.css'
-import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { formatUnits } from 'viem'
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
 import type { PredictionAnswer } from '../solz/predictionContracts'
-import { accentStyle, AgentPortrait, compact, TeamMark } from './HomePrimitives'
+import { AgentPortrait, compact, TeamMark } from './HomePrimitives'
 import { matchIdLabel, outcomeColor } from './heroMarket'
-import { AnimatedCollapse } from './AnimatedCollapse'
 import { PredictionDetail } from './PredictionDetail'
 import { MarketErrorBoundary } from './MarketErrorBoundary'
-import { buyQuoteLabel, midpointLabel } from './venue/quoteLabels'
+import { buyQuoteLabel } from './venue/quoteLabels'
+import { chanceText, normalisedChances } from '../markets/chance'
 import { MatchAvatar } from '../portfolio/matchIdentity'
+import { OutcomeRow, type RowPick } from '../markets/OutcomeRow'
+import { outcomeMovement } from '../markets/marketMovement'
+import { marketLineTitle, pickColor } from '../markets/moneyline'
 
 type Props = {
   markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot
@@ -52,34 +54,49 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   const volumeLabel = simulation
     ? `${compact(item.volume.COOLA)} COOLA Vol.`
     : item.onchain?.volume24h
-      ? `${Number(formatUnits(BigInt(item.onchain.volume24h.amount), item.onchain.volume24h.decimals)).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${collateral} 24h Vol.`
+      ? `${item.onchain.volume24h.partial ? '≥ ' : ''}${Number(formatUnits(BigInt(item.onchain.volume24h.amount), item.onchain.volume24h.decimals)).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${collateral} 24h Vol.`
       : item.onchain ? 'Volume unavailable' : 'No market volume yet'
-  const movement = (pick: ArenaMarketOutcome) => {
-    const points = pick.priceHistory?.length ? pick.priceHistory : pick.quoteHistory ?? []
-    const previous = points.at(-2)?.probability
-    if (previous === undefined || previous === pick.probability) return '—'
-    const delta = pick.probability - previous
-    return `${delta > 0 ? '↑' : '↓'} ${Math.abs(delta * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
-  }
-  return <section className={`ch-option ${active ? 'is-selected' : ''}`}>
-    <div className="ch-option-row">
-      <h3><button id={`option-${item.id}-button`} aria-expanded={open} aria-controls={`option-${item.id}`} onClick={() => { setOpen(!open); choose(selected, selectedAnswer) }}><span>{item.title}<small>{volumeLabel}{multiple && ` · ${item.outcomes.length} outcomes`}</small></span><ChevronDown size={16}/></button></h3>
-      {!multiple && <div className="ch-option-actions"><div className="ch-option-probability" aria-label={`${selected.label} market probability`}><strong>{item.onchain?.family === 'SOLANA' ? midpointLabel(selected) : `${selected.probability > 0 && selected.probability < .01 ? '<1' : Math.round(selected.probability * 100)}%`}</strong><span className={movement(selected).startsWith('↑') ? 'is-up' : movement(selected).startsWith('↓') ? 'is-down' : ''}>{movement(selected)}</span></div><div className="ch-option-picks">{item.outcomes.map((pick, index) => <button key={pick.id} className={index === 0 ? 'is-yes' : 'is-no'} aria-pressed={active && outcome.id === pick.id} onClick={() => choose(pick)}><span>{pick.label}</span><b>{displayedPrice(pick)}</b></button>)}</div></div>}
-    </div>
-    <AnimatedCollapse id={`option-${item.id}`} labelledBy={`option-${item.id}-button`} open={open}>
-      {multiple ? <div className="ch-outcome-list">{item.outcomes.map((pick, index) => {
-        const picked = selected.id === pick.id
-        const expanded = nestedOpen.includes(pick.id)
-        const value = picked ? selectedAnswer : answers[pick.id] ?? 'yes'
-        return <section className={`ch-nested-outcome ${active && picked ? 'is-selected' : ''}`} key={pick.id} style={accentStyle(outcomeColor(pick, snapshot, index))}>
-          <div className="ch-outcome-row">
-            <h4><button id={`outcome-${pick.id}-button`} className="ch-outcome-name" aria-expanded={expanded} aria-controls={`outcome-${pick.id}`} onClick={() => { setNestedOpen((previous) => expanded ? previous.filter((id) => id !== pick.id) : [...previous, pick.id]); choose(pick, value) }}>{pick.participantId ? <AgentPortrait number={Number(pick.participantId.split('-')[1])}/> : <TeamMark id={pick.teamId ?? pick.id} color={outcomeColor(pick, snapshot, index)}/>}<span>{pick.label}</span><ChevronDown size={14}/></button></h4>
-            <div className="ch-outcome-quote" aria-label={`${pick.label} market probability`}><b>{pick.probability > 0 && pick.probability < .01 ? '<1' : Math.round(pick.probability * 100)}%</b><small className={movement(pick).startsWith('↑') ? 'is-up' : movement(pick).startsWith('↓') ? 'is-down' : ''}>{movement(pick)}</small></div>
-            <div>{(['yes', 'no'] as const).map((side) => <button className={`ch-answer is-${side}`} key={side} aria-label={`${side === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`} aria-pressed={active && picked && value === side} onClick={() => choose(pick, side)}><span className="ch-buy-label">Buy </span>{side === 'yes' ? 'Yes' : 'No'} <span>{displayedPrice(pick, side)}</span></button>)}</div>
-          </div>
-          <AnimatedCollapse id={`outcome-${pick.id}`} labelledBy={`outcome-${pick.id}-button`} open={expanded}><MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} active={expanded} nested onSelect={choose}/></MarketErrorBoundary></AnimatedCollapse>
-        </section>
-      })}</div> : <MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/></MarketErrorBoundary>}
-    </AnimatedCollapse>
-  </section>
+  const topicPicks: RowPick[] = multiple ? [] : item.outcomes.map((pick, index) => ({
+    key: pick.id, label: pick.label, tone: index === 0 ? 'yes' : 'no',
+    price: displayedPrice(pick),
+    color: pickColor(item, pick, snapshot, index),
+    ariaLabel: `${pick.label} on ${marketLineTitle(item)}`,
+    pressed: active && outcome.id === pick.id,
+    onClick: () => choose(pick),
+  }))
+  const nestedChances = multiple ? normalisedChances(item.outcomes) : []
+  return <OutcomeRow
+    id={`option-${item.id}`} selected={active}
+    accent={outcomeColor(item.outcomes[0], snapshot, 0)}
+    title={marketLineTitle(item)} subtitle={`${volumeLabel}${multiple ? ` · ${item.outcomes.length} outcomes` : ''}`}
+    movement={multiple ? undefined : outcomeMovement(selected)}
+    picks={topicPicks}
+    open={open} onOpenChange={() => { setOpen(!open); choose(selected, selectedAnswer) }}
+  >
+    {multiple ? <div className="ch-outcome-list">{item.outcomes.map((pick, index) => {
+      const picked = selected.id === pick.id
+      const expanded = nestedOpen.includes(pick.id)
+      const value = picked ? selectedAnswer : answers[pick.id] ?? 'yes'
+      const accent = outcomeColor(pick, snapshot, index)
+      // Multi-outcome: the identity colour dresses the answer, never the Buy
+      // controls — each row is its own independent Yes/No book.
+      const picks: RowPick[] = (['yes', 'no'] as const).map((side) => ({
+        key: side, label: side === 'yes' ? 'Yes' : 'No', tone: side,
+        price: displayedPrice(pick, side),
+        ariaLabel: `${side === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`,
+        pressed: active && picked && value === side,
+        onClick: () => choose(pick, side),
+      }))
+      return <OutcomeRow
+        key={pick.id} id={`outcome-${pick.id}`} selected={active && picked} accent={accent}
+        media={pick.participantId ? <AgentPortrait number={Number(pick.participantId.split('-')[1])}/> : <TeamMark id={pick.teamId ?? pick.id} color={accent}/>}
+        title={pick.label}
+        chance={chanceText(nestedChances[index])}
+        chanceLabel={`${pick.label} chance`} movement={outcomeMovement(pick)}
+        picks={picks}
+        open={expanded}
+        onOpenChange={() => { setNestedOpen((previous) => expanded ? previous.filter((id) => id !== pick.id) : [...previous, pick.id]); choose(pick, value) }}
+      ><MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} active={expanded} nested onSelect={choose}/></MarketErrorBoundary></OutcomeRow>
+    })}</div> : <MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/></MarketErrorBoundary>}
+  </OutcomeRow>
 }

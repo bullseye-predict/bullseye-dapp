@@ -27,7 +27,12 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const nonEmpty = (mode: 'quotes' | 'trades') => rawSeries.some(item => ((mode === 'trades' ? item.priceHistory : item.quoteHistory)?.length ?? 0) > 0)
   const preferred = focusOnly ? 'trades' as const : 'quotes' as const
   const other = focusOnly ? 'quotes' as const : 'trades' as const
-  const historyMode = modeOverride ?? (!simulation && !nonEmpty(preferred) && nonEmpty(other) ? other : preferred)
+  // Only ever auto-flip to a series the venue actually produced. Arena markets
+  // carry a seeded priceHistory and no quoteHistory, so with simulation off the
+  // preferred 'quotes' mode is empty and 'trades' is not — flipping there made
+  // the heading read LIVE MARKET over fabricated data.
+  const venueBacked = rawSeries.some(item => item.marketQuote !== undefined || (item.quoteHistory?.length ?? 0) > 0 || item.historyStatus !== undefined)
+  const historyMode = modeOverride ?? (!simulation && venueBacked && !nonEmpty(preferred) && nonEmpty(other) ? other : preferred)
   const series = rawSeries.map(item => {
     const history = !simulation && historyMode === 'quotes' ? item.quoteHistory ?? [] : item.priceHistory ?? []
     return { ...item, probability: history.at(-1)?.probability ?? item.probability, priceHistory: history }
@@ -69,19 +74,22 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   const y = (p: number) => 12 + (upper - p) / Math.max(.05, upper - lower) * plotHeight
   const hoverAt = hover === null ? null : start + hover * duration
   const colorFor = (item: ArenaMarketOutcome, index: number) => colors?.[item.id] ?? (focusOnly ? '#51b6ff' : outcomeColor(item, snapshot, index))
-  const hasPrice = (item: ArenaMarketOutcome) => simulation || !item.indicative
+  // Requires both: the producer's indicative flag AND a surviving series. The
+  // pre-game flatten in HomeApp rewrites probability to 0.5 and empties
+  // priceHistory without clearing `indicative`, so the flag alone let the
+  // placeholder render as a real quote.
+  const hasPrice = (item: ArenaMarketOutcome) => simulation || (!item.indicative && ((item.priceHistory?.length ?? 0) > 0 || (item.quoteHistory?.length ?? 0) > 0 || item.marketQuote !== undefined))
   return <div className="ch-chart" aria-label={`${market.title} ${focusOnly ? focus.label : 'all outcomes'} ${simulation ? 'simulated' : 'live'} probability chart`}>
-    <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? sourceLabel ?? 'SIMULATION' : hasPriceHistory ? sourceLabel ?? 'LIVE MARKET' : `${sourceLabel ? `${sourceLabel} · ` : ''}AWAITING PRICES`}</span><span>{focusOnly ? 'OUTCOME GRAPH' : 'MARKET OVERVIEW'}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>
+    {/* The page header already states that this market is live. Only say
+        something the reader does not already have on screen: the source when a
+        caller names one, and the two states that are not "running normally". */}
+    {(simulation || !hasPriceHistory || sourceLabel || long) && <div className="ch-chart-heading"><span className="ch-simulation">{simulation ? sourceLabel ?? 'SIMULATION' : hasPriceHistory ? sourceLabel : `${sourceLabel ? `${sourceLabel} · ` : ''}AWAITING PRICES`}</span>{long && <span className="ch-long-label">SEASON PREDICTION</span>}</div>}
     {dates && <div className="ch-date-tabs" aria-label="Prediction closing date">{dates.map((item) => <button key={item.id} aria-pressed={market.id === item.id} onClick={() => { setRange('ALL'); onMarket(item) }}>{timeLabel(item.closesAt, true)}</button>)}</div>}
     {!focusOnly && showTitle && <h2>{market.title}</h2>}
     {focusOnly && <div className="ch-chart-focus"><strong>{hasPrice(series[0]) ? `${percent(series[0].probability)} market price` : 'No price yet'}</strong><span>{focus.label}</span></div>}
     {!focusOnly && <div className="ch-chart-legend">{series.map((item, index) => <button key={item.id} aria-pressed={outcome.id === item.id} onClick={() => onOutcome(item)}><i style={{ background: colorFor(item, index) }}/><span>{item.label}</span><b>{hasPrice(item) ? percent(item.probability) : '—'}</b></button>)}</div>}
     {!simulation && historyPicker && <div className="ch-history-source" role="group" aria-label="Price history source"><button type="button" aria-pressed={historyMode === 'quotes'} onClick={() => setModeOverride('quotes')}>Quotes</button><button type="button" aria-pressed={historyMode === 'trades'} onClick={() => setModeOverride('trades')}>Trades</button><span>{historyMode === 'quotes' ? 'Observed exchange quotes · markets at the same price overlap' : 'Executed exchange trades · opening a market is not a trade'}</span></div>}
-    {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><div className="ch-empty-chart-grid" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><strong>{historyMode === 'quotes' ? 'No quotes recorded yet.' : rawSeries.some(item => item.historyStatus === 'unavailable') ? 'Trade history unavailable.' : 'No trades recorded yet.'}</strong><span>{historyMode === 'quotes' ? 'Quotes are recorded while this page is open. Open markets need resting orders to produce a quote.' : 'Choose Quotes to see resting market prices. Trades appear here after actual fills are indexed.'}</span></div> : <>{!simulation && historyMode === 'trades' && historyTimes.length === 1 && <p className="ch-sample-note">One trade recorded. More trades will build the price history.</p>}<div className="ch-chart-controls">
-      <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
-      <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>
-      <span className="ch-chart-domain">{scale === 'focus' ? `Focus ${percent(lower)}–${percent(upper)}` : 'Full 0–100%'}</span>
-    </div>
+    {!hasPriceHistory && !simulation ? <div className="ch-market-empty ch-chart-empty"><div className="ch-empty-chart-grid" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><strong>{historyMode === 'quotes' ? 'No quotes recorded yet.' : rawSeries.some(item => item.historyStatus === 'unavailable') ? 'Trade history unavailable.' : 'No trades recorded yet.'}</strong><span>{historyMode === 'quotes' ? 'Quotes are recorded while this page is open. Open markets need resting orders to produce a quote.' : historyPicker ? 'Choose Quotes to see resting market prices. Trades appear here after actual fills are indexed.' : 'Trades appear here after actual fills are confirmed on chain.'}</span></div> : <>{!simulation && historyMode === 'trades' && historyTimes.length === 1 && <p className="ch-sample-note">One trade recorded. More trades will build the price history.</p>}
     <div className="ch-plot" ref={plot} onPointerMove={(event) => { const box = event.currentTarget.getBoundingClientRect(); setHover(Math.max(0, Math.min(1, (event.clientX - box.left - 8) / plotWidth))) }} onPointerLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" role="img" aria-label={`Probability history for ${series.map((item) => `${item.label}, ${percent(item.probability)}`).join('; ')}`}>
         <defs><clipPath id={clipId}><rect x="5" y="8" width={plotWidth + 6} height={plotHeight + 8}/></clipPath></defs>
@@ -106,6 +114,9 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
         return <span key={item.id}><i style={{ background: colorFor(item, index) }}/>{item.label}<b>{percent(closest?.probability ?? item.probability)}</b></span>
       })}</div>}
     </div>
-    <div className="ch-chart-footer"><span>{simulation ? `${compact(displayMarket.volume.COOLA)} COOLA Vol.` : `${collateral === 'COOLA' ? dreamDexOnly(market)?.chainId === '50312' ? 'tUSDC' : 'Collateral' : collateral} ${historyMode === 'quotes' ? 'quote observations' : 'trade history'}`}</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
+    <div className="ch-chart-footer"><span>{simulation ? `${compact(displayMarket.volume.COOLA)} COOLA Vol.` : `${collateral === 'COOLA' ? dreamDexOnly(market)?.chainId === '50312' ? 'tUSDC' : 'Collateral' : collateral} ${historyMode === 'quotes' ? 'quote observations' : 'trade history'}`}</span><span className="ch-chart-close"><Clock3 size={12}/>{timeLabel(market.closesAt, long)}</span><div className="ch-chart-controls">
+      <div role="group" aria-label="Chart style"><span>Chart</span>{(['line', 'step'] as const).map((value) => <button type="button" key={value} aria-pressed={chartStyle === value} onClick={() => setChartStyle(value)}>{value === 'line' ? 'Line' : 'Step'}</button>)}</div>
+      <div role="group" aria-label="Chart probability scale"><span>Scale</span>{(['focus', 'full'] as const).map((value) => <button type="button" key={value} aria-pressed={scale === value} onClick={() => setScale(value)}>{value === 'focus' ? 'Focus' : '0–100%'}</button>)}</div>
+    </div><div className="ch-chart-range" aria-label="Chart time range">{(long ? ['1D', '1W', 'ALL'] : ['1M', '5M', '15M', 'ALL']).map((value) => <button aria-pressed={range === value} key={value} onClick={() => setRange(value)}>{value}</button>)}</div></div></>}
   </div>
 }

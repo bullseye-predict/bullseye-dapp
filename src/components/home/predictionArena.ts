@@ -19,6 +19,8 @@ function agentColor(index: number) {
   return ['#c7ff00', '#ff579d', '#65cfff', '#ffac57', '#bd9afa', '#f9e071'][index % 6]!
 }
 
+const teamColors = ['#c7ff00', '#65cfff'] as const
+
 function realAgents(feed: ArenaFeed, base: GenesisAgent[]) {
   return feed.agents.map((agent, index) => {
     const existing = base.find(value => value.id === agent.agentId)
@@ -36,9 +38,15 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
   const fallbackStartAt = timestamp(raw.createdAt, now) + 5 * 60_000
   const scheduledStartAt = timestamp(raw.scheduledStartAt, fallbackStartAt)
   const startedAt = timestamp(raw.startedAt ?? raw.scheduledStartAt ?? raw.createdAt, now)
-  const durationMs = raw.matchDurationMs ?? 20 * 60_000
+  const nextMatchAt = timestamp(raw.nextMatchAt, 0)
+  const isIntermission = raw.status === 'settled' && nextMatchAt > now
+  const durationMs = isIntermission
+    ? raw.definition?.breakMs ?? 5 * 60_000
+    : raw.matchDurationMs ?? 5 * 60_000
   const timingType = raw.timingType ?? 'countdown'
-  const endsAt = raw.status === 'reserved'
+  const endsAt = isIntermission
+    ? nextMatchAt
+    : raw.status === 'reserved'
     ? scheduledStartAt
     : raw.status === 'live'
       ? timingType === 'countdown' ? startedAt + durationMs : Number.MAX_SAFE_INTEGER
@@ -52,12 +60,32 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
       x: 0, y: 0, momentum: 0,
     }
   })
+  const declaredTeams = raw.definition?.teams ?? []
+  const teamIds = declaredTeams.length
+    ? declaredTeams.map((team) => team.id)
+    : [...new Set(roster.map((entry) => entry.teamId).filter((teamId) => teamId !== 'genesis-arena'))]
+  const teams = teamIds.length >= 2
+    ? teamIds.map((teamId, index) => {
+        const declared = declaredTeams.find((team) => team.id === teamId)
+        const members = roster.filter((entry) => entry.teamId === teamId)
+        const label = declared?.label ?? `Team ${index + 1}`
+        return {
+          teamId,
+          symbol: label,
+          name: label,
+          color: teamColors[index % teamColors.length]!,
+          glyph: `T${index + 1}`,
+          score: members.reduce((total, entry) => total + entry.kills, 0),
+          agentIds: members.map((entry) => entry.agentId),
+        }
+      })
+    : [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }]
   return {
-    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, roomId: raw.roomId, displayMatchId: raw.displayMatchId, matchNumber: raw.matchNumber, kind: 'highlight', mode: raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
-    round: raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: phase(raw.status), startedAt,
+    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, roomId: raw.roomId, displayMatchId: raw.displayMatchId, matchNumber: raw.matchNumber, kind: 'highlight', mode: raw.definition?.title ?? raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
+    round: isIntermission ? 'INTERMISSION' : raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: isIntermission ? 'countdown' : phase(raw.status), startedAt: isIntermission ? nextMatchAt - durationMs : startedAt,
     endsAt, durationMs, timingType, timingEstimated: raw.status === 'reserved' ? !raw.scheduledStartAt : raw.status === 'live' ? !raw.startedAt : !raw.completedAt,
     viewers: 0, marketId: `arena-${raw.roomId}`,
-    volume: { SOL: 0, COOLA: 0 }, teams: [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }], roster,
+    volume: { SOL: 0, COOLA: 0 }, teams, roster,
   }
 }
 

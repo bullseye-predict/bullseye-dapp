@@ -59,13 +59,16 @@ export function LiveOrderBook({ market, view, isNo, label, collateral }: { marke
   const directAsks = isNo ? book?.noAsks : book?.yesAsks
   const oppositePrice = quote?.ask !== undefined && !directAsks?.some(row => row.price <= quote.ask!) ? quote.ask : undefined
   const volume = market.onchain?.volume24h
-    ? `${number(BigInt(market.onchain.volume24h.amount), market.onchain.volume24h.decimals)} ${collateral} Vol.`
+    ? `${market.onchain.volume24h.partial ? '≥ ' : ''}${number(BigInt(market.onchain.volume24h.amount), market.onchain.volume24h.decimals)} ${collateral} Vol.`
     : 'Volume unavailable'
   return <div className="ch-live-book">
     <div className="ch-book-toolbar"><strong className={isNo ? 'is-no' : 'is-yes'}>{label} order book</strong><span>{volume}</span><button type="button" aria-label="Recenter order book on last trade" disabled={!data} onClick={recenter}><Crosshair size={15}/><span className="sr-only">Recenter</span></button><button type="button" aria-label={`Refresh ${label} order book`} disabled={refreshing} onClick={refresh}><RefreshCw size={15}/><span className="sr-only">Refresh</span></button></div>
     {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book?.noAsks : data.book?.yesAsks) ?? []} bids={(isNo ? data.book?.noBids : data.book?.yesBids) ?? []} decimals={data.market.decimals} last={last} label={label} centerRowRef={centerRow}/></div> : <p className="ch-book-message" role="status">{error ?? 'Loading order book…'}</p>}
     {oppositePrice !== undefined && <p className="ch-sample-note">Buy {label} from {(Number(oppositePrice) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}¢ through opposite-outcome bids. The table shows orders posted directly in this book.</p>}
-    {quote?.crossed && <p className="ch-sample-note">Crossed outcome bids: the combined bids exceed 1 {collateral}. These orders need matching; they do not establish a probability midpoint.</p>}
+    {/* `crossed` fires on any overlap of the consolidated interval — a bid above
+        an ask on one book, combined bids over 1, or combined asks under 1 — so
+        the copy must not name one of those four as the cause. */}
+    {quote?.crossed && <p className="ch-sample-note">Crossed outcome quotes: the YES and NO books overlap, so there is no midpoint between them. These orders need matching; they do not establish a probability.</p>}
     {data && <div className="ch-book-footer"><span>{data.market.finalized || data.now >= market.closesAt ? 'Trading closed' : refreshing ? 'Refreshing…' : 'Auto-refresh · 10s'}</span><span>Updated {new Date(data.now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>}
     <p className="ch-sample-note">Last is the most recent trade. Depth and totals are cumulative from the best price.</p>
   </div>

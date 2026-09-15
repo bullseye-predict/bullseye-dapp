@@ -1,27 +1,13 @@
-/* Outcome colors remain meaningful before selection; the Trade action stays blue. */
-.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-yes,
-.solz-home .ch-answer.is-yes { opacity: .68; background: #102d21; color: #5be5a9; border: 1px solid #256749; }
-.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-no,
-.solz-home .ch-answer.is-no { opacity: .68; background: #371820; color: #ff7b91; border: 1px solid #843847; }
-.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-yes[aria-pressed='true'],
-.solz-home .ch-answer.is-yes[aria-pressed='true'] { opacity: 1; background: #0b8a55; color: #f4fff9; border-color: #48e3a0; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .16); }
-.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > .is-no[aria-pressed='true'],
-.solz-home .ch-answer.is-no[aria-pressed='true'] { opacity: 1; background: #d92e47; color: #fff6f7; border-color: #ff8194; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .16); }
-.solz-home :is(.ch-option-picks, .ch-trade-outcomes) > button:hover { filter: brightness(1.14); }
+/* Trade-panel outcome buttons. `--pick-color` is set inline only on a
+   moneyline, where the two sides are teams rather than Yes/No; everywhere else
+   the green/red fallbacks apply and team identity stays on text and marks. */
+.solz-home .ch-trade-outcomes > .is-yes { opacity: .68; background: var(--trade-yes-rest-fill); color: var(--trade-yes-rest-ink); border: 1px solid var(--trade-yes-rest-edge); }
+.solz-home .ch-trade-outcomes > .is-no { opacity: .68; background: var(--trade-no-rest-fill); color: var(--trade-no-rest-ink); border: 1px solid var(--trade-no-rest-edge); }
+.solz-home .ch-trade-outcomes > .is-yes[aria-pressed='true'] { opacity: 1; background: var(--pick-color, var(--trade-yes-fill)); color: var(--pick-ink, var(--trade-yes-ink)); border-color: var(--pick-color, var(--trade-yes-edge)); }
+.solz-home .ch-trade-outcomes > .is-no[aria-pressed='true'] { opacity: 1; background: var(--pick-color, var(--trade-no-fill)); color: var(--pick-ink, var(--trade-no-ink)); border-color: var(--pick-color, var(--trade-no-edge)); }
+.solz-home .ch-trade-outcomes > button:hover { filter: brightness(1.14); }
 /* Only the selected outcome carries trading color in the trade panel. */
-.solz-home .ch-trade-outcomes > button[aria-pressed='false'] { opacity: 1; background: #2d3540; color: #b6c0cf; border-color: #46515e; box-shadow: none; }
-.ch-answer { gap: 4px; }
-.ch-option-row { position: sticky; top: -2px; z-index: 1; background: #1d2229; }
-.ch-option-actions { display: flex; align-items: stretch; gap: 14px; flex: 0 1 58%; min-width: 0; }
-.ch-option-actions .ch-option-picks { flex: 1; min-width: 0; }
-.ch-home .ch-option-actions .ch-option-picks { flex: 1 1 auto; }
-.ch-option-probability { display: grid; justify-items: center; gap: 3px; min-width: 76px; color: #dce5ee; }
-.ch-option-probability strong { font: 700 21px/1 var(--sh-heading); letter-spacing: -.02em; }
-.ch-option-probability span, .ch-outcome-quote small { color: #aab8c5; font: 600 10px var(--sh-mono); }
-.ch-option-probability .is-up, .ch-outcome-quote .is-up { color: #5be5a9; }
-.ch-option-probability .is-down, .ch-outcome-quote .is-down { color: #ff8b9d; }
-.ch-outcome-quote { display: grid; justify-items: end; gap: 3px; min-width: 58px; }
-.ch-outcome-quote b { color: #e4ebf2; font-size: 13px; }
+.solz-home .ch-trade-outcomes > button.has-pick-color[aria-pressed='false'] { opacity: 1; background: var(--trade-off-fill); color: var(--trade-off-ink); border-color: var(--trade-off-edge); box-shadow: none; }
 /* Depth bands fill the quoted liquidity rather than leaving a blank side column. */
 .solz-home .ch-order-book { font-variant-numeric: tabular-nums; }
 .solz-home .ch-order-book .ch-book-side-column { width: 64px; }
@@ -44,8 +30,6 @@
   .solz-home .ch-order-book :is(th, td) { padding: 7px 8px; }
   .solz-home .ch-order-book .ch-book-side-column { width: 49px; }
   .solz-home .ch-order-book th { font-size: 8px; }
-  .ch-buy-label { display: none; }
-  .ch-option-actions { flex-basis: 100%; }
 }
 .solz-home .ch-live-book .ch-order-book :is(.is-ask, .is-bid) { background-position: left; }
 .ch-book-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 16px; color: #bdc9d5; font-size: 12px; }

@@ -10,6 +10,7 @@ export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; late
 export type SolanaTransactionStage = { step: string; status: 'preparing' | 'signing' | 'sent' | 'failed'; signature?: string; error?: string }
 export interface SolanaTransactionNotifier { (stage: SolanaTransactionStage): void }
 import { ManifestAdapter } from './adapter'
+import { TRADE_STEPS } from './steps'
 import { activateBook, bindingAddress, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
 import { buildCreateQuestionMarket, changePosition, initializePosition, initializeVault, moveVaultCollateral, positionAddress, questionCreationDigest, questionMarketAddress, vaultAddress } from '../wire'
 
@@ -130,7 +131,7 @@ export class ManifestBrowserWallet {
       const authority = await crypto.subtle.importKey('raw', Uint8Array.from(config.oracle.toBytes()).buffer, { name: 'Ed25519' }, false, ['verify'])
       if (!await crypto.subtle.verify('Ed25519', authority, Uint8Array.from(signature).buffer, Uint8Array.from(digest).buffer)) throw new Error('Invalid backend question permit signature')
       const create = buildCreateQuestionMarket(deployment.predictionProgram, this.owner, deployment.collateralMint, matchId, questionId, { authority: config.oracle, expirySeconds: BigInt(value.expiresAt as number), digest, signature })
-      signatures.push(await this.send(new Transaction().add(...create), 'Creating the on-chain question'))
+      signatures.push(await this.send(new Transaction().add(...create), TRADE_STEPS.question))
     }
     for (const outcome of [0, 1] as const) {
       const bindingKey = bindingAddress(deployment.predictionProgram, question, outcome)
@@ -151,7 +152,7 @@ export class ManifestBrowserWallet {
       if (!bindingRecord) transaction.add(registerBinding(deployment.predictionProgram, this.owner, question, deployment.manifestProgram, outcome))
       if (!mintRecord) transaction.add(initializeClaimMint(deployment.predictionProgram, this.owner, binding))
       if (!venueRecord) transaction.add(activateBook(deployment.predictionProgram, this.owner, binding))
-      if (transaction.instructions.length) signatures.push(await this.send(transaction, `Opening the ${outcome === 0 ? 'YES' : 'NO'} order book`))
+      if (transaction.instructions.length) signatures.push(await this.send(transaction, TRADE_STEPS.book(outcome)))
     }
     for (const outcome of [0, 1] as const) await this.adapter.readBook(await this.adapter.binding(question, outcome))
     return signatures
@@ -173,7 +174,7 @@ export class ManifestBrowserWallet {
     if (!accounts[2]) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, ownerQuote, this.owner, b.collateral))
     if (!accounts[3]) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, recipientQuote, b.recipient, b.collateral))
     if (!accounts[4]) tx.add(prepareClaimAccount(this.owner, this.owner, b.mint))
-    return tx.instructions.length ? this.send(tx, 'Preparing your trading accounts') : undefined
+    return tx.instructions.length ? this.send(tx, TRADE_STEPS.accounts) : undefined
   }
   /** Atomic complete-set purchase: collateralize both outcomes, sell the
    * opposite one with an on-chain minimum return, retain the selected claim.
@@ -190,7 +191,7 @@ export class ManifestBrowserWallet {
       side: 'SELL', inputAtoms: quantity, minimumOutputAtoms: quantity - maximumCost, maxFeeAtoms: maximumFee,
     })
     tx.add(...sale.instructions)
-    return this.send(tx, `Buying ${opposite.outcome === 0 ? 'NO' : 'YES'} through the opposite bids`)
+    return this.send(tx, TRADE_STEPS.completeSet(opposite.outcome))
   }
   async collateral(b: ManifestBinding, action: 'deposit' | 'withdraw' | 'split' | 'merge' | 'redeem', atoms?: bigint) {
     const p = this.adapter.deployment.predictionProgram
@@ -199,7 +200,10 @@ export class ManifestBrowserWallet {
     else tx.add(changePosition(p, this.owner, b.question, vaultAddress(p, this.owner), action, atoms))
     return this.send(tx)
   }
-  async claims(b: ManifestBinding, atoms: bigint, direction: 'export' | 'import') {
-    return this.send(new Transaction().add(moveClaims(this.adapter.deployment.predictionProgram, this.owner, b, atoms, direction)))
+  /** `step` names the wallet prompt. A trade must pass one: the stepper joins a
+   *  stage onto a planned step by this string, and toast identity is keyed on it
+   *  too, so two unlabelled sends in one flow would share an identity. */
+  async claims(b: ManifestBinding, atoms: bigint, direction: 'export' | 'import', step = 'Solana transaction') {
+    return this.send(new Transaction().add(moveClaims(this.adapter.deployment.predictionProgram, this.owner, b, atoms, direction)), step)
   }
 }

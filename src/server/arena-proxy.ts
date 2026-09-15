@@ -1,4 +1,4 @@
-const paths:Record<string,string>={agents:'/api/v1/genesis-agents',matches:'/api/v1/agent-arena/matches',current:'/api/v1/agent-arena'};
+const paths:Record<string,string>={agents:'/api/v1/genesis-agents',matches:'/api/v1/agent-arena/matches',current:'/api/v1/agent-arena',schedule:'/api/v1/agent-arena/schedule'};
 export async function proxyArena(request:Request,origin:string,fetcher:(input:string|URL,init?:RequestInit)=>Promise<Response>=fetch) {
   const url=new URL(request.url),kind=url.searchParams.get('kind')??'';
   let path=paths[kind];

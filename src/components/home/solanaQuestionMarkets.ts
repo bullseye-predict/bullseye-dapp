@@ -76,6 +76,11 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
     agentIds: [],
   })) : []
   const displayedOutcomes = presentation?.outcomes ?? ([{ id: 0, label: question.outcomes[0] }, { id: 1, label: question.outcomes[1] }] as const)
+  // The identity colour has to travel on the outcome. These teams are synthetic
+  // — they exist on this match only, never in the arena snapshot — so a
+  // snapshot lookup can never resolve them.
+  const identityColor = (item: (typeof displayedOutcomes)[number], index: number) =>
+    'color' in item && typeof item.color === 'string' ? item.color : teams[index]?.color
   return {
     match: {
       id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: headToHead ? 'HEAD-TO-HEAD' : 'PREDICTION', map: 'MANIFEST DEVNET',
@@ -88,7 +93,7 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
     market: {
       id: question.questionId, matchId: question.eventId, kind: 'match-winner', title: question.label,
       description: 'Canonical Solana question reserved for first-trader activation on Manifest.', status: 'indicative', closesAt,
-      volume: { SOL: 0, COOLA: 0 }, outcomes: displayedOutcomes.map((item, index) => ({ id: index === 0 ? 'yes' : 'no', label: item.label, detail: `Pays if ${item.label} is the recorded outcome.`, probability: .5, indicative: true, priceHistory: [], ...('teamId' in item && typeof item.teamId === 'string' ? { teamId: item.teamId } : {}) })),
+      volume: { SOL: 0, COOLA: 0 }, outcomes: displayedOutcomes.map((item, index) => ({ id: index === 0 ? 'yes' : 'no', label: item.label, detail: `Pays if ${item.label} is the recorded outcome.`, probability: .5, indicative: true, priceHistory: [], ...('teamId' in item && typeof item.teamId === 'string' ? { teamId: item.teamId } : {}), ...(identityColor(item, index) ? { color: identityColor(item, index) } : {}) })),
       rules: 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
       presentation,
       onchain: solanaBinding(question, venue) as ArenaMarket['onchain'],

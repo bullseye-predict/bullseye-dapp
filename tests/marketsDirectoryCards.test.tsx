@@ -4,7 +4,7 @@ import { MarketCard, type DirectoryRow } from '../src/components/markets/Markets
 import { reservedSolanaView, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 import type { ArenaMarket, SolzMatch } from '../src/components/solz/model'
 
-const team = (symbol: string, color: string) => ({ teamId: `team-${symbol}`, symbol, color, score: 0, agentIds: ['a1'] })
+const team = (symbol: string, color: string) => ({ teamId: `team-${symbol}`, symbol, name: symbol, glyph: symbol, color, score: 0, agentIds: ['a1'] })
 const baseMatch = (teams: SolzMatch['teams']): SolzMatch => ({
   id: `match-${teams.length}`, displayMatchId: 'ARENA', kind: 'highlight', mode: 'DEATHMATCH', map: 'GENESIS ARENA',
   round: 'MATCH LIVE', phase: 'live', startedAt: 0, endsAt: 1, timingEstimated: false, viewers: 1200,
@@ -70,5 +70,20 @@ test('a single-team match uses the ranked field, not a lopsided head-to-head', (
   const teams = [team('GENESIS', '#c7ff00')]
   const html = renderToStaticMarkup(<MarketCard row={{ match: baseMatch(teams), market: market([1], teams), title: 'GENESIS' }} now={0}/>)
   expect(html).toContain('mk-card--ffa')
+  expect(html).not.toContain('mk-split')
+})
+
+// A missing market is not evidence of a certain winner, even with one team.
+test('unpriced arena cards never manufacture odds from team count', () => {
+  const row: DirectoryRow = { match: baseMatch([team('GENESIS', '#c7ff00')]) }
+  const html = renderToStaticMarkup(<MarketCard row={row} now={0}/>)
+  expect(html).not.toContain('100%')
+  expect(html).toContain('—')
+})
+
+test('unpriced head-to-head cards do not draw fabricated split odds', () => {
+  const row: DirectoryRow = { match: baseMatch([team('A', '#111'), team('B', '#222')]) }
+  const html = renderToStaticMarkup(<MarketCard row={row} now={0}/>)
+  expect(html).not.toContain('50%')
   expect(html).not.toContain('mk-split')
 })

@@ -1,4 +1,4 @@
-import {filterMatches, type ArenaAgent, type ArenaFilters, type ArenaMatch, type ArenaPage} from './model';
+import {filterMatches, type ArenaAgent, type ArenaDefinition, type ArenaFilters, type ArenaMatch, type ArenaPage, type ArenaScheduleEntry, type ArenaTeam} from './model';
 function object(value: unknown): Record<string, any> {
   const v=typeof value==='string'?JSON.parse(value):value;
   if (!v || typeof v!=='object' || Array.isArray(v)) throw Error('The arena returned an invalid record.');
@@ -12,14 +12,74 @@ export function parseAgents(value: unknown): ArenaAgent[] {
     return a as ArenaAgent;
   });
 }
-export function parseMatch(value: unknown, agents: ArenaAgent[]): ArenaMatch {
+const positive=(raw:unknown):number|undefined=>typeof raw==='number'&&Number.isSafeInteger(raw)&&raw>0?raw:undefined;
+/** The catalog rows a room capsule is completed from, keyed by definition id.
+ *  `/agent-arena` returns them on `policy.definitions`. */
+export function arenaCatalog(policy: unknown): Map<string, Record<string, any>> {
+  const rows=policy&&typeof policy==='object'&&Array.isArray((policy as {definitions?:unknown}).definitions)?(policy as {definitions:unknown[]}).definitions:[];
+  const catalog=new Map<string,Record<string,any>>();
+  for(const raw of rows){
+    if(!raw||typeof raw!=='object')continue;
+    const entry=raw as Record<string,any>;
+    if(typeof entry.id==='string'&&entry.id)catalog.set(entry.id,entry);
+  }
+  return catalog;
+}
+/** Two shapes reach this: the SCHEDULE returns a full catalog definition, while
+ *  a live room persists a signed presentation capsule that carries the match's
+ *  own timings but none of the roster shape — an FFA room ships `teams: []`,
+ *  no `teamCount`, no `playersPerTeam` and no `requiredPlayers`. Those live in
+ *  the catalog, which the capsule names through `definitionId`. Completing the
+ *  capsule from the catalog is the normalisation this comment always promised;
+ *  without it every live FFA room failed validation and took the whole arena
+ *  snapshot — and therefore every page — down with it. */
+export function parseArenaDefinition(value: unknown, catalog?: Map<string, Record<string, any>>): ArenaDefinition {
+  const capsule=object(value);
+  const id=typeof capsule.id==='string'&&capsule.id?capsule.id:capsule.definitionId;
+  if(typeof id!=='string'||!id)throw Error('Invalid arena definition.');
+  // The capsule wins on anything it states; the catalog fills the rest.
+  const definition={...(catalog?.get(id)??{}),...capsule};
+  const teams:Array<ArenaTeam>=Array.isArray(definition.teams)?definition.teams.map((raw:unknown)=>{
+    const team=object(raw);
+    if(typeof team.id!=='string'||typeof team.label!=='string'||!Array.isArray(team.members))throw Error('Invalid arena team.');
+    return {id:team.id,label:team.label,members:team.members.map((member:unknown)=>{const value=object(member);if(typeof value.agentId!=='string'||typeof value.actorId!=='string'||typeof value.name!=='string')throw Error('Invalid arena team member.');return {agentId:value.agentId,actorId:value.actorId,name:value.name};})};
+  }):[];
+  const objectiveKind=definition.objective&&typeof definition.objective==='object'&&typeof definition.objective.kind==='string'?definition.objective.kind:'';
+  const teamFormatRaw=typeof definition.teamFormat==='string'&&definition.teamFormat?definition.teamFormat:'';
+  // A free-for-all is one side of many players, so an empty `teams` array is
+  // its correct shape rather than a missing roster. Reading teamCount off
+  // teams.length rejected every FFA room ever persisted.
+  const ffa=teamFormatRaw==='ffa'||(!teamFormatRaw&&!teams.length);
+  const teamCount=positive(definition.teamCount)??(teams.length||(ffa?1:undefined));
+  const playersPerTeam=positive(definition.playersPerTeam)??(teams.length&&teams.every(team=>team.members.length===teams[0]!.members.length)?teams[0]!.members.length:ffa?1:undefined);
+  const requiredPlayers=positive(definition.requiredPlayers)??(teams.reduce((total,team)=>total+team.members.length,0)||undefined);
+  // The catalog states durations as {development, production}; a capsule states
+  // the one the room actually runs on.
+  const durations=definition.durationMs&&typeof definition.durationMs==='object'?definition.durationMs as Record<string,unknown>:{};
+  const matchDurationMs=positive(definition.matchDurationMs)??positive(durations.production)??positive(durations.development);
+  const breakMs=positive(definition.breakMs),previewMs=positive(definition.previewMs);
+  if(typeof definition.title!=='string'||!definition.title||typeof definition.summary!=='string'||!definition.summary||!teamCount||!playersPerTeam||!requiredPlayers||!matchDurationMs||!breakMs||!previewMs)throw Error('Invalid arena definition.');
+  const gameMode=typeof definition.gameMode==='string'&&definition.gameMode?definition.gameMode:objectiveKind==='time_control'?'hotzone':'deathmatch';
+  const teamFormat=teamFormatRaw||(teamCount===2?`${playersPerTeam}v${playersPerTeam}`:'ffa');
+  return {id,title:definition.title,summary:definition.summary,gameMode,teamFormat,teamCount,playersPerTeam,requiredPlayers,matchDurationMs,breakMs,previewMs,teams};
+}
+export function parseMatch(value: unknown, agents: ArenaAgent[], catalog?: Map<string, Record<string, any>>): ArenaMatch {
   const m=object(value),r=m.result?object(m.result):{};
   if(typeof m.roomId!=='string'||!['reserved','live','settled','cancelled'].includes(m.status)||!Number.isFinite(m.entryFeeL)) throw Error('Invalid match record.');
   const participants=m.participants??r.participants??[];
   if(!Array.isArray(participants)) throw Error('Invalid participation record.');
-  const matchDurationMs=Number(m.matchDurationMs??m.policy?.matchDurationMs),matchNumber=Number(m.matchNumber);
+  const definition=(()=>{
+    if(m.definition==null)return undefined;
+    try{return parseArenaDefinition(m.definition,catalog);}
+    // Enrichment, not the record. The match itself is still valid and every
+    // field the UI reads has its own source; a capsule this build cannot parse
+    // must degrade to "no definition", never to a blank page.
+    catch{return undefined;}
+  })();
+  const matchDurationMs=Number(m.matchDurationMs??m.policy?.matchDurationMs??definition?.matchDurationMs),matchNumber=Number(m.matchNumber);
   return {...m,gameMode:m.gameMode??'deathmatch',teamFormat:m.teamFormat??'ffa',
     matchNumber:Number.isSafeInteger(matchNumber)&&matchNumber>0?matchNumber:undefined,
+    definition,
     matchDurationMs:Number.isFinite(matchDurationMs)&&matchDurationMs>0?matchDurationMs:undefined,
     timingType:m.timingType==='open-ended'?'open-ended':Number.isFinite(matchDurationMs)&&matchDurationMs>0?'countdown':undefined,
     participants:participants.map((raw:unknown)=>{
@@ -29,6 +89,19 @@ export function parseMatch(value: unknown, agents: ArenaAgent[]): ArenaMatch {
     if(p.won!=null&&typeof p.won!=='boolean')throw Error('Invalid participant outcome.');
     return {agentId,actorId:p.actorId,teamId:p.teamId??null,kills:p.kills??null,deaths:p.deaths??null,won:p.won??null};
   })} as ArenaMatch;
+}
+export function parseArenaSchedule(value: unknown): ArenaScheduleEntry[] {
+  const data=object(value);
+  if(data.ok!==true||!Array.isArray(data.upcoming))throw Error('Arena schedule is unavailable.');
+  const catalog=arenaCatalog(data.policy);
+  return data.upcoming.map((raw:unknown)=>{
+    const entry=object(raw);
+    if(!['planned','reserved','live'].includes(entry.state))throw Error('Invalid arena schedule entry.');
+    if(entry.roomId!=null&&typeof entry.roomId!=='string')throw Error('Invalid arena schedule entry.');
+    if(entry.matchId!=null&&typeof entry.matchId!=='string')throw Error('Invalid arena schedule entry.');
+    if(entry.scheduledStartAt!=null&&typeof entry.scheduledStartAt!=='string')throw Error('Invalid arena schedule entry.');
+    return {state:entry.state,definition:parseArenaDefinition(entry.definition,catalog),...(typeof entry.roomId==='string'?{roomId:entry.roomId}:{}),...(typeof entry.matchId==='string'?{matchId:entry.matchId}:{}),...(typeof entry.scheduledStartAt==='string'?{scheduledStartAt:entry.scheduledStartAt}:{})};
+  });
 }
 export function arenaAdapter(endpoint: string, fetcher: (input:string|URL,init?:RequestInit)=>Promise<Response> = fetch) {
   async function read(kind: string, params: Record<string,string>, signal: AbortSignal) {
@@ -60,6 +133,7 @@ export function arenaAdapter(endpoint: string, fetcher: (input:string|URL,init?:
       }
     },
     async current(signal:AbortSignal){return read('current',{},signal);},
+    async schedule(signal:AbortSignal){return parseArenaSchedule(await read('schedule',{},signal));},
     async logs(roomId:string,signal:AbortSignal){const d=await read('logs',{roomId},signal);if(!Array.isArray(d.events))throw Error('Match logs unavailable.');return d.events.map((v:unknown)=>object(object(v).event));},
   };
 }

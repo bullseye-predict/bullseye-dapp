@@ -3,11 +3,22 @@ export interface ArenaAgent {
   matchesPlayed?: number; wins?: number; kills?: number; deaths?: number;
 }
 export interface Participation { agentId: string; actorId: string; teamId: string | null; kills: number | null; deaths: number | null; won: boolean | null }
+export interface ArenaTeamMember { agentId: string; actorId: string; name: string }
+export interface ArenaTeam { id: string; label: string; members: ArenaTeamMember[] }
+export interface ArenaDefinition {
+  id: string; title: string; summary: string; gameMode: string; teamFormat: string;
+  teamCount: number; playersPerTeam: number; requiredPlayers: number;
+  matchDurationMs: number; breakMs: number; previewMs: number; teams: ArenaTeam[];
+}
+export interface ArenaScheduleEntry {
+  state: 'planned' | 'reserved' | 'live'; definition: ArenaDefinition;
+  roomId?: string; matchId?: string; scheduledStartAt?: string;
+}
 export interface ArenaMatch {
   roomId: string; status: 'reserved'|'live'|'settled'|'cancelled'; entryFeeL: number;
   matchId?: string; displayMatchId?: string; matchNumber?: number; scheduledStartAt?: string;
-  createdAt?: string; startedAt?: string; completedAt?: string; gameMode: string; teamFormat: string;
-  matchDurationMs?: number; timingType?: 'countdown'|'open-ended';
+  createdAt?: string; startedAt?: string; completedAt?: string; nextMatchAt?: string; gameMode: string; teamFormat: string;
+  definition?: ArenaDefinition; matchDurationMs?: number; timingType?: 'countdown'|'open-ended';
   participants: Participation[];
 }
 export interface ArenaFilters { agentId: string; gameMode: string; teamFormat: string; status: string }

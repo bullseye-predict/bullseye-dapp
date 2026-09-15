@@ -141,11 +141,20 @@ export class ManifestAdapter {
     const reservedClaims=asks.reduce((sum,o)=>sum+atoms(o.numBaseAtoms),0n)
     const reservedUsdc=bids.reduce((sum,o)=>sum+(atoms(o.numBaseAtoms)*atoms(o.price)+scale-1n)/scale,0n)
     const vault=vaultAddress(this.deployment.predictionProgram,owner)
-    const keys=[getAssociatedTokenAddressSync(b.mint,owner),getAssociatedTokenAddressSync(b.collateral,owner),positionAddress(this.deployment.predictionProgram,b.question,vault),vault]
+    // The venue's own fee account is the fifth key purely so the trade ticket can
+    // tell whether prepare() still has anything to create. It is one more entry in
+    // a read this call already makes, so it costs no round trip, and without it the
+    // one-time setup rent could only ever be shown as a guess.
+    const keys=[getAssociatedTokenAddressSync(b.mint,owner),getAssociatedTokenAddressSync(b.collateral,owner),positionAddress(this.deployment.predictionProgram,b.question,vault),vault,getAssociatedTokenAddressSync(b.collateral,b.recipient)]
     const records=await this.connection.getMultipleAccountsInfo(keys,'confirmed')
     const token=(i:number)=>records[i]?unpackAccount(keys[i]!,records[i]!,TOKEN_PROGRAM_ID).amount:0n
     const internalClaims=records[2]?decodePosition({...records[2],address:keys[2]!},this.deployment.predictionProgram).balances[b.outcome]!:0n
     const availableClaims=seat?atoms(seat.baseBalance):0n
-    return {walletClaims:token(0),venueAvailableClaims:availableClaims,venueReservedClaims:reservedClaims,internalClaims,totalClaims:token(0)+availableClaims+reservedClaims+internalClaims,walletUsdc:token(1),venueAvailableUsdc:seat?atoms(seat.quoteBalance):0n,venueReservedUsdc:reservedUsdc,sharedPredictionVaultUsdc:records[3]?decodeVault({...records[3],address:keys[3]!},this.deployment.predictionProgram).available:0n}
+    // Which of these exist, not just what they hold. A zero balance and a missing
+    // account read identically off the amounts above, and that difference is
+    // exactly what decides whether a trade has to send prepare() first and how
+    // much SOL rent that costs.
+    const accounts={walletClaims:Boolean(records[0]),walletQuote:Boolean(records[1]),position:Boolean(records[2]),vault:Boolean(records[3]),venueQuote:Boolean(records[4]),seat:Boolean(seat)}
+    return {walletClaims:token(0),venueAvailableClaims:availableClaims,venueReservedClaims:reservedClaims,internalClaims,totalClaims:token(0)+availableClaims+reservedClaims+internalClaims,walletUsdc:token(1),venueAvailableUsdc:seat?atoms(seat.quoteBalance):0n,venueReservedUsdc:reservedUsdc,sharedPredictionVaultUsdc:records[3]?decodeVault({...records[3],address:keys[3]!},this.deployment.predictionProgram).available:0n,accounts}
   }
 }

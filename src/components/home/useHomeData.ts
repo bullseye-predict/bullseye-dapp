@@ -5,6 +5,7 @@ import {
   currentMatchDrafts,
   type ArenaFeed,
 } from "./arenaFeed";
+import type { ArenaScheduleEntry } from "../agent-arena/model";
 import { applyPredictionArena } from "./predictionArena";
 import { predictionUrl } from "../../../packages/sdk/prediction-url";
 
@@ -18,6 +19,7 @@ export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
   const arena = useRef<ArenaFeed | null>(null);
   const events = useRef<unknown>(null);
   const [predictionFeed, setPredictionFeed] = useState(false);
+  const [arenaSchedule, setArenaSchedule] = useState<ArenaScheduleEntry[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -27,65 +29,72 @@ export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
       base.current = next;
       if (arena.current && events.current)
         setSnapshot(applyPredictionArena(next, arena.current, events.current));
-      else setSnapshot(next);
+      // The local source is a reference fixture, not public market inventory.
+      // Wait for the authoritative arena before publishing any visible snapshot.
+    };
+    const armScheduleRefresh = (feed: ArenaFeed) => {
+      const current = feed.current;
+      if (!current) return;
+      const now = Date.now();
+      const duration = current.matchDurationMs ?? current.definition?.matchDurationMs ?? 0;
+      const started = Date.parse(current.startedAt ?? current.scheduledStartAt ?? '');
+      const next = Date.parse(current.nextMatchAt ?? '');
+      const boundary = current.status === 'live' && Number.isFinite(started) && duration > 0
+        ? started + duration
+        : current.status === 'settled' && Number.isFinite(next)
+          ? next
+          : current.status === 'reserved'
+            ? Date.parse(current.scheduledStartAt ?? '')
+            : NaN;
+      if (!Number.isFinite(boundary) || boundary <= now) return;
+      // The server is read once at startup and once at the persisted schedule
+      // boundary. The local countdown supplies the seconds in between, so an
+      // open prediction page cannot become a 15-second Neon polling client.
+      timer = setTimeout(() => void refreshArena(), Math.max(500, boundary - now + 500));
     };
     const refreshArena = async () => {
-      if (!predictionApiUrl) return;
       const controller = new AbortController();
       try {
-        const [nextArena, response] = await Promise.all([
-          createArenaFeed(
-            "/api/agent-arena",
-            fetch,
-            predictionApiUrl,
-          )(controller.signal),
-          fetch(predictionUrl("/arena/events", predictionApiUrl), {
+        // Elysia's public schedule is the only source allowed to control the
+        // arena clock. The prediction backend owns tradability, but it may be
+        // unavailable or delayed and must never substitute a stale five-minute
+        // sample for the live 20-minute / five-minute-break programme.
+        const nextArena = await createArenaFeed(
+          "/api/agent-arena",
+          fetch,
+          "",
+          true,
+        )(controller.signal);
+        let nextEvents = currentMatchDrafts(nextArena);
+        let feedAvailable = false;
+        if (predictionApiUrl) {
+          const response = await fetch(predictionUrl("/arena/events", predictionApiUrl), {
             signal: controller.signal,
             headers: { accept: "application/json" },
-          }),
-        ]);
-        if (!response.ok)
-          throw Error(`Prediction events could not load (${response.status}).`);
-        const nextEvents = await response.json();
+          });
+          if (response.ok) {
+            nextEvents = await response.json();
+            feedAvailable = true;
+          }
+        }
         if (!active) return;
         arena.current = nextArena;
+        setArenaSchedule(nextArena.upcoming);
         events.current = nextEvents;
-        setPredictionFeed(true);
+        setPredictionFeed(feedAvailable);
         if (base.current)
           setSnapshot(
             applyPredictionArena(base.current, nextArena, nextEvents),
           );
+        setError("");
+        armScheduleRefresh(nextArena);
       } catch (reason) {
-        // Keep the real arena visible if the independent prediction importer
-        // is restarting or unavailable. This direct game read is view-only;
-        // it cannot enable trading or mutate prediction records.
-        try {
-          const gameFeed = await createArenaFeed(
-            "/api/agent-arena",
-            fetch,
-            "",
-            true,
-          )(controller.signal);
-          if (!active) return;
-          arena.current = gameFeed;
-          events.current = currentMatchDrafts(gameFeed);
-          setPredictionFeed(true);
-          if (base.current)
-            setSnapshot(
-              applyPredictionArena(base.current, gameFeed, events.current),
-            );
-          setError("");
-        } catch {
-          if (active)
-            setError(
-              reason instanceof Error
-                ? reason.message
-                : "Prediction event catalogue could not load.",
-            );
-        }
-      } finally {
-        if (active && predictionApiUrl)
-          timer = setTimeout(() => void refreshArena(), 15_000);
+        if (active)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Arena schedule could not load.",
+          );
       }
     };
     setError("");
@@ -118,6 +127,7 @@ export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
     referenceSnapshot,
     error,
     predictionFeed,
+    arenaSchedule,
     retry: () => setAttempt((value) => value + 1),
   };
 }

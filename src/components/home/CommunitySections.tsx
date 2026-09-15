@@ -4,6 +4,7 @@ import type { QueueSlot, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
 import { amountLabel, StatusDot, TeamMark } from './HomePrimitives'
 import type { SolzWatchMatch } from './useSolzWatchMatches'
+import type { ArenaScheduleEntry } from '../agent-arena/model'
 import '../../styles/home-community.css'
 
 function matchTeams(match: SolzMatch) {
@@ -25,18 +26,25 @@ function matchGradient(match: SolzMatch) {
 }
 
 /** Scheduled matches remain a horizontal browse surface so the arena stays the page focus. */
-export function NextMatches({ snapshot, eventBasePath }: { snapshot: SolzSnapshot | null; eventBasePath: string }) {
+export function NextMatches({ snapshot, schedule, eventBasePath }: { snapshot: SolzSnapshot | null; schedule: ArenaScheduleEntry[]; eventBasePath: string }) {
   const matches = (snapshot?.matches ?? [])
     .filter((match) => match.phase === 'countdown' || match.phase === 'queued')
     .sort((a, b) => a.startedAt - b.startedAt)
     .slice(0, 8)
+  const planned = schedule.filter((entry) =>
+    entry.state === 'planned' || !matches.some((match) => match.roomId === entry.roomId),
+  ).slice(0, Math.max(0, 8 - matches.length))
   return <section className="sh-next-matches" aria-label="Upcoming match markets">
     <div className="sh-next-match-rail" role="list">
       {matches.map((match) => <a key={match.id} role="listitem" className="sh-next-match" style={{ '--next-match-gradient': matchGradient(match) } as CSSProperties} href={`${eventBasePath}/${encodeURIComponent(match.id)}`} aria-label={`Open early prediction market for ${matchTeams(match)}`}>
         <div><span className="sh-next-status">UP NEXT · {matchStart(match, snapshot!.updatedAt)}</span><ArrowUpRight size={15}/></div>
         <div className="sh-next-matchup"><span className="sh-next-teams" aria-hidden="true">{match.teams.map((team) => <TeamMark key={team.teamId} id={team.teamId} color={team.color}/>)}</span><strong>{matchTeams(match)}</strong></div>
       </a>)}
-      {Array.from({ length: Math.max(0, 5 - matches.length) }, (_, index) => <div key={`pending-${index}`} role="listitem" className="sh-next-match sh-next-match--empty">
+      {planned.map((entry, index) => <div key={`${entry.definition.id}:${entry.roomId ?? entry.state}:${index}`} role="listitem" className="sh-next-match" style={{ '--next-match-gradient': 'linear-gradient(105deg, #c7ff00, #65cfff)' } as CSSProperties} aria-label={`Upcoming ${entry.definition.title}: ${entry.definition.requiredPlayers} agents, ${formatClock(entry.definition.matchDurationMs)}`}>
+        <div><span className="sh-next-status">UP NEXT · {entry.definition.title}</span></div>
+        <div className="sh-next-matchup"><span className="sh-next-teams" aria-hidden="true"><TeamMark id="team-1" color="#c7ff00"/><TeamMark id="team-2" color="#65cfff"/></span><strong>{entry.definition.teamFormat === 'ffa' ? `${entry.definition.requiredPlayers} AGENTS FFA` : `${entry.definition.playersPerTeam}V${entry.definition.playersPerTeam} TEAM MATCH`}</strong></div>
+      </div>)}
+      {Array.from({ length: Math.max(0, 5 - matches.length - planned.length) }, (_, index) => <div key={`pending-${index}`} role="listitem" className="sh-next-match sh-next-match--empty">
         <span className="sh-next-status">UP NEXT · TO BE ANNOUNCED</span>
         <strong>COMING NEXT</strong>
       </div>)}

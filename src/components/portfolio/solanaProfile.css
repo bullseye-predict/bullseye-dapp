@@ -220,6 +220,11 @@
 .sp-action select {
   width: 100%;
 }
+/* A one-click sale must look blocked when it is blocked. */
+.sp-page button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .sp-page button:focus-visible,
 .sp-page a:focus-visible,
 .sp-page input:focus-visible,

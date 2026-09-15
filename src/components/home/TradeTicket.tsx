@@ -1,11 +1,12 @@
+import { placeBinaryLimitBuy } from '../../../packages/adapters/solana/manifest/limit'
 import {
+  ArrowLeftRight,
   ArrowUpRight,
   Check,
-  ChevronDown,
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   ArenaMarket,
   ArenaMarketOutcome,
@@ -46,17 +47,26 @@ import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 import { manifestClient } from "./venue/manifestClients";
 import { useSolanaMarket } from "./venue/useSolanaMarket";
 import { binaryBuyQuote } from "../../../packages/adapters/solana/manifest/quotes";
+import { nextBinaryBuy } from "../../../packages/adapters/solana/manifest/limit";
+import { planSellInventory, quoteSell } from "../../../packages/adapters/solana/manifest/inventory";
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
 import { toast } from "sonner";
 import { pushAlert as pushGlobalAlert } from "./alerts/store";
 import { createToastIds } from "./alerts/toastIds";
 import { useEvmWallet, useSolanaWallet } from "../session/store";
 import { dreamDexBinding, venueBinding } from "./venue/useVenueMarket";
-import { ownedShares, sellableShares, takerBps, useSolanaHoldings } from "./venue/useSolanaHoldings";
+import { sellableShares, takerBps, useSolanaHoldings } from "./venue/useSolanaHoldings";
 import type { SolanaBinding } from "./venue/types";
 import { ManifestBrowserWallet } from "../../../packages/adapters/solana/manifest/browser";
+import { applyStage, planTradeSteps, reconcileSteps, TRADE_STEPS, type LiveStep, type StepFacts } from "../../../packages/adapters/solana/manifest/steps";
+import { useQuestionPresence } from "./venue/useQuestionPresence";
 import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
+import { PRICE_PLACEHOLDER } from "./venue/quoteLabels";
+import { pickColor, pickInk } from "../markets/moneyline";
+
+/** The countdown badge appears only inside the last five minutes. */
+const COUNTDOWN_VISIBLE_MS = 5 * 60_000;
 
 type Props = {
   source: SolzDataSource;
@@ -108,7 +118,6 @@ export function TradeTicket({
   const pushAlert = (alert: Parameters<typeof pushGlobalAlert>[0]) => pushGlobalAlert({ ...alert, marketScope: solanaBinding ? `${solanaBinding.rpcUrl}:${solanaBinding.marketId}` : undefined });
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [type, setType] = useState<"market" | "limit">("market");
-  const [orderTypeMenuOpen, setOrderTypeMenuOpen] = useState(false);
   const [priceFormat, setPriceFormat] = useState<
     "cents" | "decimal" | "percent"
   >("cents");
@@ -137,6 +146,11 @@ export function TradeTicket({
   } | null>(null);
   const [solanaReview, setSolanaReview] = useState<ReturnType<typeof binaryBuyQuote> | null>(null);
   const [progress, setProgress] = useState("");
+  // What the wallet has actually been asked for so far, and whether the run
+  // has finished. Both drive the dialog's second pane; neither is derived from
+  // `pending`, because a settled run keeps the rail on screen to be read.
+  const [liveSteps, setLiveSteps] = useState<LiveStep[]>([]);
+  const [settled, setSettled] = useState(false);
   const [ordersExpanded, setOrdersExpanded] = useState(false);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -144,7 +158,6 @@ export function TradeTicket({
     error?: boolean;
     hash?: string;
   } | null>(null);
-  const color = outcomeColor(outcome, snapshot);
   const account = useDreamDexSnapshot(
     market,
     simulation ? undefined : evmWallet?.address,
@@ -222,13 +235,31 @@ export function TradeTicket({
   })();
   const evmBinding = dreamDexBinding(market);
   const solanaView = useSolanaMarket(solanaBinding, !simulation && solana && !pending, solanaWallet?.address);
+  const solanaBooks = solana && solanaView.book
+    ? { asks: outcomeIndex === 1 ? solanaView.book.noAsks : solanaView.book.yesAsks, oppositeBids: outcomeIndex === 1 ? solanaView.book.yesBids : solanaView.book.noBids }
+    : null;
   const solanaPreview = (() => {
     if (!solana || type !== "market" || side !== "buy") return { quote: null, error: "" };
     if (!solanaView.now) return { quote: null, error: "Loading executable prices…" };
-    if (!solanaView.book) return { quote: null, error: "No sell liquidity yet. Choose Limit to open the market and place the first order." };
+    if (!solanaBooks) return { quote: null, error: "No sell liquidity yet. Choose Limit to open the market and place the first order." };
     try {
-      return { quote: binaryBuyQuote(outcomeIndex === 1 ? solanaView.book.noAsks : solanaView.book.yesAsks, outcomeIndex === 1 ? solanaView.book.yesBids : solanaView.book.noBids, parseUnitsExact(amount, 6)), error: "" };
+      return { quote: binaryBuyQuote(solanaBooks.asks, solanaBooks.oppositeBids, parseUnitsExact(amount, 6)), error: "" };
     } catch (reason) { return { quote: null, error: reason instanceof Error ? reason.message : "Market quote unavailable." }; }
+  })();
+  // A limit price is a ceiling, not a target: a limit at 80¢ fills against 50¢
+  // offers at 50¢, exactly as placeBinaryLimitBuy walks the ladder. Previewing
+  // only "reserved if unfilled" described the resting case while the marketable
+  // case was what actually happened, so a fill at half the quoted price read as
+  // a bug rather than as price improvement.
+  const marketable = (() => {
+    if (!solana || type !== "limit" || side !== "buy" || !solanaBooks) return null;
+    try { return nextBinaryBuy(solanaBooks.asks, solanaBooks.oppositeBids, parseUnitsExact(shares, 6), BigInt(Math.round(Number(limitPrice) * 10_000))); }
+    catch { return null; }
+  })();
+  const restingShares = (() => {
+    if (!marketable) return null;
+    try { return Math.max(0, Number(parseUnitsExact(shares, 6) - marketable.quantity) / 1_000_000); }
+    catch { return null; }
   })();
   const indicativeOnly = !simulation && (!market.onchain || solana);
   const price = solana && type === "market"
@@ -250,21 +281,34 @@ export function TradeTicket({
   // parseUnitsExact both throw on malformed input, and this sits in the bare
   // render body — an unguarded call would blank the whole ticket while someone
   // is still typing an amount.
-  const solanaTakerBps = takerBps((solanaReview ?? solanaPreview.quote)?.route === "complete-set"
-    ? solanaHoldings.outcomes?.[outcomeIndex === 1 ? 0 : 1] : selectedHoldings);
+  const solanaTakerBps = type === "limit" && solanaHoldings.outcomes?.every(entry => entry.bps !== null)
+    ? Math.max(...solanaHoldings.outcomes.map(entry => entry.bps!))
+    : takerBps((solanaReview ?? solanaPreview.quote)?.route === "complete-set"
+      ? solanaHoldings.outcomes?.[outcomeIndex === 1 ? 0 : 1] : selectedHoldings);
   const linkedAnswer = market.presentation?.kind === "linked" ? market.presentation.answer : undefined;
+  // The header names the ANSWER, so it takes the answer's identity. The Yes/No
+  // contract underneath has no colour of its own — reading it gave every answer
+  // in a twelve-row prediction the same palette entry.
+  const color =
+    (linkedAnswer?.participantId && snapshot.agents.find((agent) => agent.id === linkedAnswer.participantId)?.color) ||
+    linkedAnswer?.color ||
+    outcomeColor(outcome, snapshot, Math.max(0, outcomeIndex));
   const solanaMaxFee = (() => {
     if (!solana || solanaTakerBps === null || !solanaVenue) return null;
     try {
       const decimals = solanaVenue.collateralDecimals;
+      const quote = solanaReview ?? solanaPreview.quote;
+      // The submitted order bounds its fee by what it can actually execute:
+      // `quantity` for the complete-set route, `maximumCost` for a direct fill.
+      // Reading the typed budget instead overstated the cap by the whole
+      // unfilled remainder whenever the book was thinner than the amount box.
       const notional =
         type === "market"
-          ? (solanaReview ?? solanaPreview.quote)?.route === "complete-set" ? (solanaReview ?? solanaPreview.quote)!.quantity : parseUnitsExact(amount, decimals)
-          : (parseUnitsExact(shares, 6) * BigInt(Math.round(price * 1_000_000)) +
-              999_999n) /
-            1_000_000n;
+          ? quote ? (quote.route === "complete-set" ? quote.quantity : quote.maximumCost) : null
+          : parseUnitsExact(shares, 6);
+      if (notional === null) return null;
       if (notional <= 0n) return null;
-      return Number(takerFee(notional, solanaTakerBps)) / 10 ** decimals;
+      return Number(takerFee(notional, solanaTakerBps) + (type === "limit" ? 8n : 0n)) / 10 ** decimals;
     } catch {
       return null;
     }
@@ -280,25 +324,6 @@ export function TradeTicket({
           account.data.now,
         )
       : [];
-  // On Manifest the escrow is on the seat, not in an order list this ticket
-  // holds, so it reads from holdings; the DreamDEX reduce below is permanently
-  // zero on that venue and kept the row hidden.
-  const reservedYes = solana
-    ? solanaHoldings.outcomes?.[0]?.holdings?.venueReservedClaims ?? 0n
-    : ownOrders
-        .filter(
-          (order) =>
-            account.data?.orderSides[order.orderId.toString()] === "SELL_YES",
-        )
-        .reduce((sum, order) => sum + order.quantityRemaining, 0n);
-  const reservedNo = solana
-    ? solanaHoldings.outcomes?.[1]?.holdings?.venueReservedClaims ?? 0n
-    : ownOrders
-        .filter(
-          (order) =>
-            account.data?.orderSides[order.orderId.toString()] === "SELL_NO",
-        )
-        .reduce((sum, order) => sum + order.quantityRemaining, 0n);
   const positions = (simulation ? snapshot.account.positions : []).filter(
     (position) => position.marketId === market.id && position.token === "COOLA",
   );
@@ -326,6 +351,69 @@ export function TradeTicket({
     (simulation && side === "sell" && available < 0.01) ||
     (liveDreamDex && (!evmWallet || !account.data || !!account.error)) ||
     (liveSolana && !solanaWallet);
+
+  // What this trade is about to ask the wallet to sign.
+  //
+  // Every fact below is already on screen; the one exception is whether the
+  // question account exists, which is read only when neither book is activated,
+  // because that is the only case where the answer changes the SOL figure.
+  const booksOpen: [boolean, boolean] = [
+    (solanaHoldings.outcomes?.[0]?.holdings ?? null) !== null,
+    (solanaHoldings.outcomes?.[1]?.holdings ?? null) !== null,
+  ];
+  const questionExists = useQuestionPresence(
+    solanaBinding,
+    review && liveSolana && !booksOpen[0] && !booksOpen[1] && Boolean(solanaHoldings.outcomes),
+  );
+  const stepFacts = useMemo<StepFacts | null>(() => {
+    if (!liveSolana || !solanaVenue || !solanaHoldings.outcomes) return null;
+    const selected = outcomeIndex === 1 ? 1 : 0;
+    const quote = solanaReview ?? solanaPreview.quote;
+    const route = quote?.route === "complete-set" ? "complete-set" : "direct";
+    // The complete-set route prepares the OPPOSITE binding, because that is the
+    // book it sells into; every other route prepares the selected one.
+    const preparing = solanaHoldings.outcomes[route === "complete-set" ? (selected === 1 ? 0 : 1) : selected];
+    try {
+      const quantityAtoms = type === "market" ? quote?.quantity ?? 0n : parseUnitsExact(shares, 6);
+      const priceMicros = type === "market" ? quote?.priceMicros ?? 0n : BigInt(Math.round(Number(limitPrice) * 10_000));
+      const amountAtoms = (quantityAtoms * priceMicros + 999_999n) / 1_000_000n;
+      const seatUsdc = solanaHoldings.outcomes[selected]?.holdings?.venueAvailableUsdc ?? 0n;
+      // Whether a sell will actually match decides which of two differently named
+      // transactions it sends, so it is read off the book rather than assumed
+      // from the order type: a marketable limit sell labelled "Rest offer" would
+      // leave that step stranded as "Not needed" beside an unplanned twin.
+      const sellBids = solana && solanaView.book ? (outcomeIndex === 1 ? solanaView.book.noBids : solanaView.book.yesBids) : [];
+      const floor = type === "limit" ? BigInt(Math.round(Number(limitPrice) * 10_000)) : 1n;
+      const sell = side === "sell" && quantityAtoms > 0n && preparing?.holdings
+        ? (() => {
+            const made = planSellInventory(preparing.holdings!, quantityAtoms);
+            return { exportAtoms: made.exportAtoms, depositAtoms: made.depositAtoms, matched: sellBids.some(level => level.quantity > 0n && level.price >= floor) };
+          })()
+        : undefined;
+      return {
+        side, type, route,
+        outcome: selected as 0 | 1,
+        collateralSymbol: solanaVenue.collateralSymbol,
+        books: booksOpen,
+        ...(questionExists === undefined ? {} : { questionExists }),
+        accounts: preparing?.holdings?.accounts ?? null,
+        fundingAtoms: side === "buy" && route === "direct" && amountAtoms > seatUsdc ? amountAtoms - seatUsdc : 0n,
+        upfrontAtoms: route === "complete-set" ? quantityAtoms : 0n,
+        maxFeeAtoms: solanaMaxFee === null ? 0n : BigInt(Math.round(solanaMaxFee * 10 ** solanaVenue.collateralDecimals)),
+        ...(sell ? { sell } : {}),
+      };
+    } catch {
+      // An amount still being typed throws in parseUnitsExact. No plan is a
+      // stepper that does not render, never a blank ticket.
+      return null;
+    }
+  }, [liveSolana, solanaVenue, solanaHoldings.outcomes, outcomeIndex, solanaReview, solanaPreview.quote, type, side, shares, amount, limitPrice, solanaMaxFee, questionExists, booksOpen[0], booksOpen[1], solanaView.book]);
+  const tradePlan = useMemo(() => (stepFacts ? planTradeSteps(stepFacts) : null), [stepFacts]);
+  const stepRows = useMemo(
+    () => (tradePlan ? reconcileSteps(tradePlan, liveSteps, settled) : []),
+    [tradePlan, liveSteps, settled],
+  );
+
   const solanaUnavailableMessage = !solana
     ? null
     : closed
@@ -341,12 +429,61 @@ export function TradeTicket({
             : !solanaWallet
               ? `Connect a Solana wallet to trade. SOL pays network fees and first-trader rent; the order itself uses ${collateralSymbol}.`
               : null;
-  const gameRemainingMs =
-    preparing || match?.phase !== "live" || match.timingType === "open-ended"
-      ? null
-      : Math.max(0, match.endsAt - clock);
+  // A countdown is urgency, not a calendar. `endsAt` is the trading lock on a
+  // reserved question, which can be six weeks out — rendering it as "64124
+  // MINS" beside the Trade button told nobody anything, and announced the same
+  // to a screen reader.
+  const gameRemainingMs = (() => {
+    if (preparing || match?.phase !== "live" || match.timingType === "open-ended") return null;
+    const remaining = match.endsAt - clock;
+    return remaining > COUNTDOWN_VISIBLE_MS ? null : Math.max(0, remaining);
+  })();
+  // One balance for the whole ticket: the Amount field and any summary row read
+  // the same number, so they cannot drift.
+  // A limit buy can do both at once: fill what is marketable now and reserve
+  // the rest. `restingShares` is null when nothing is marketable, which means
+  // the WHOLE order rests — not that none of it does.
+  const resting = type === "limit" && side === "buy"
+    ? restingShares ?? (Number(shares) || 0)
+    : 0;
+  const buyOutlay = type === "limit" && side === "buy"
+    ? (marketable ? Number(marketable.maximumCost) / 1_000_000 : 0) + resting * (Number(limitPrice) / 100)
+    : null;
+  const summaryPrice = price > 0
+    ? price
+    : solana && side === "buy"
+      ? contract.marketQuote?.ask ?? outcome.marketQuote?.ask ?? 0
+      : 0;
+  const summaryQuantity = price > 0
+    ? quantity
+    : summaryPrice > 0 && side === "buy" && type === "market"
+      ? Number(amount) / summaryPrice
+      : summaryPrice > 0
+        ? Number(shares)
+        : 0;
+  const collateralBalance = (() => {
+    if (solana) {
+      const holdings = selectedHoldings?.holdings;
+      return holdings
+        ? Number(holdings.venueAvailableUsdc + holdings.walletUsdc) / 10 ** (solanaVenue?.collateralDecimals ?? 6)
+        : null;
+    }
+    return balances && account.data ? Number(balances[0]) / 10 ** account.data.market.decimals : null;
+  })();
   const safeLabel = (value: number) =>
     amountLabel(Number.isFinite(value) ? value : 0);
+  const venueWallet = solana ? solanaWallet : evmWallet;
+  // What the field below is actually limited by: collateral when you are
+  // spending it, your own sellable shares when you are selling them.
+  const balanceCaption = (() => {
+    if (side === "sell") return `${safeLabel(available)} shares`;
+    if (simulation) return `${safeLabel(snapshot.account.balances.COOLA)} COOLA`;
+    if (!venueWallet) return "Wallet not connected";
+    if (collateralBalance !== null) return `${safeLabel(collateralBalance)} ${collateralSymbol}`;
+    if (solana && solanaHoldings.loading) return "Loading…";
+    if (solana && solanaHoldings.error) return "Balance unavailable";
+    return PRICE_PLACEHOLDER;
+  })();
   const formatOutcomePrice = (probability: number) => {
     const cents = Math.round(Math.max(0, Math.min(1, probability)) * 100);
     return priceFormat === "decimal"
@@ -356,19 +493,23 @@ export function TradeTicket({
         : `${cents}¢`;
   };
 
+  // Seeding the limit price from the newly picked side is wanted; resetting the
+  // order type and the menu on the same change is not. Keyed on contract.id
+  // alone this never fired for a Solana question, whose contract ids are always
+  // "yes"/"no" — so the limit kept the previous question's price.
   useEffect(() => {
     setLimitPrice(String(Math.round(contract.probability * 100)));
+    setLimitPriceDraft(null);
+  }, [contract.id, market.id, market.onchain?.marketId]);
+  useEffect(() => {
     setFeedback(null);
     setReview(false);
-    setOrderTypeMenuOpen(false);
     setPriceFormatMenuOpen(false);
-    setLimitPriceDraft(null);
   }, [
     market.matchId,
     market.id,
     market.onchain?.marketId,
     evmBinding?.chainId,
-    contract.id,
   ]);
   useEffect(() => {
     if (!simulation) setReview(false);
@@ -413,6 +554,11 @@ export function TradeTicket({
     setPending(true);
     setFeedback(null);
     setProgress("Checking your order…");
+    setLiveSteps([]);
+    setSettled(false);
+    // Set by the stage notifier below, read by the catch: both live outside the
+    // live-Solana branch that declares the wallet.
+    let solanaFailureReported = false;
     try {
       if (liveDreamDex) {
         const binding = evmBinding!;
@@ -469,7 +615,6 @@ export function TradeTicket({
       } else if (liveSolana) {
         if (!solanaWallet || !solanaVenue?.programId || !solanaVenue.manifestProgramId || !solanaVenue.publicRpcUrl || !solanaQuestion)
           throw Error("Connect a Solana wallet and wait for the Manifest deployment configuration.");
-        if (side !== "buy") throw Error("Buy an outcome first; selling requires available claim shares.");
         setProgress("Preparing the Pinocchio question and guarded Manifest books…");
         const client = manifestClient(solanaVenue.publicRpcUrl, {
           genesisHash: solanaVenue.chainId,
@@ -482,6 +627,7 @@ export function TradeTicket({
         // four anonymous approvals in a row.
         const toasts = createToastIds("solana-tx");
         const wallet = new ManifestBrowserWallet(client.adapter, solanaWallet, client, (stage) => {
+          setLiveSteps((rows) => applyStage(rows, stage));
           const id = toasts.idFor(stage.step);
           if (stage.status === "preparing") {
             toast.loading(stage.step, { id, description: "Checking the transaction on Solana" });
@@ -493,9 +639,11 @@ export function TradeTicket({
           }
           else if (stage.status === "failed") {
             toasts.settle(stage.step);
-            // A failure stays until it is dismissed by hand. Everything else here
-            // is worth glancing at; this is worth reading.
-            toast.error(stage.step, { id, description: stage.error, duration: Infinity });
+            solanaFailureReported = true;
+            // Transient like every other toast. The failure is not lost when it
+            // fades: the step keeps it on the dialog's rail, and AlertsDock holds
+            // the record until the trader clears it.
+            toast.error(stage.step, { id, description: stage.error, duration: 12_000 });
             pushAlert({ level: "error", title: stage.step, detail: stage.error });
           }
           else {
@@ -515,16 +663,84 @@ export function TradeTicket({
           // made balance/history reads compete with the next transaction.
           const invalidate = () => refreshSolana(solanaVenue.publicRpcUrl!, solanaQuestion.marketId);
 
-          setProgress(`Funding this outcome book with ${solanaVenue.collateralSymbol}…`);
           const selected = market.outcomes.findIndex((item) => item.id === outcome.id) === 1 ? 1 : 0;
           const binding = await client.binding(solanaQuestion.marketId, selected);
+
+          if (side === "sell") {
+            // Selling is the only way an ask ever reaches these books, so this
+            // path is what gives the market a two-sided spread at all. It is
+            // direct-only: selling YES through the NO book means buying NO and
+            // merging a complete set, which is a different transaction shape.
+            setProgress("Checking where your shares are held…");
+            const quantityAtoms = parseUnitsExact(shares, 6);
+            const custody = await client.adapter.holdings(wallet.owner, binding);
+            const plan = planSellInventory(custody, quantityAtoms);
+            if (plan.shortfall > 0n)
+              throw Error(`You hold ${Number(plan.sellable) / 1_000_000} sellable ${outcome.label} shares. Cancel a resting ask to free reserved shares, or sell less.`);
+            // A market sell needs a floor; a limit sell already has one.
+            const floor = type === "limit" ? BigInt(Math.round(Number(limitPrice) * 10_000)) : 1n;
+            /** Quoted twice: once before any wallet prompt, so a sell that
+             * cannot be submitted costs the trader nothing, and again right
+             * before submitting, because the custody prompts in between take as
+             * long as the trader needs and the book moves meanwhile. */
+            const quote = async () => {
+              const { match, crossing } = quoteSell((await client.adapter.readBook(binding)).bids()
+                .map((order) => ({ own: order.trader.equals(wallet.owner), price: BigInt(order.price.toString()) / 10n ** 12n, quantity: BigInt(order.numBaseAtoms.toString()) })), quantityAtoms, floor);
+              if (!match && type === "market") throw Error("No buyer is available for this outcome. Choose Limit to rest an offer instead.");
+              // The guard rejects the whole transaction as Custom(8100) when
+              // this happens on chain, which says nothing the trader can act on.
+              if (crossing !== undefined)
+                throw Error(`Your own ${outcome.label} bid at ${(Number(crossing) / 10_000).toFixed(2)}¢ would fill this offer instead of resting it. Cancel that order first, or price this offer above it.`);
+              return match;
+            };
+            await quote();
+            // The claim account must exist before anything can be exported into it.
+            if (plan.exportAtoms > 0n || plan.depositAtoms > 0n) await wallet.prepare(binding);
+            if (plan.exportAtoms > 0n) {
+              setProgress("Moving shares out of your prediction position…");
+              await wallet.claims(binding, plan.exportAtoms, "export", TRADE_STEPS.release);
+            }
+            if (plan.depositAtoms > 0n) {
+              setProgress("Depositing shares to the order book…");
+              await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "claims", plan.depositAtoms, "deposit"), TRADE_STEPS.deposit);
+            }
+            const match = await quote();
+            // A sell is quoted in shares, but the taker fee is charged on the
+            // collateral that actually changes hands.
+            const proceeds = match ? match.estimatedProceeds : (quantityAtoms * floor + 999_999n) / 1_000_000n;
+            setProgress(match ? "Selling into the best bids…" : "Resting your offer on the book…");
+            const hash = await wallet.send(await client.adapter.order(wallet.owner, binding, {
+              side: "SELL",
+              quantity: match ? match.quantity : quantityAtoms,
+              priceMicros: match ? match.price : floor,
+              lastValidSlot: 0,
+              kind: match ? "IOC" : "LIMIT",
+              maxFeeAtoms: takerFee(proceeds, binding.bps),
+            }), match ? TRADE_STEPS.sell : TRADE_STEPS.offer);
+            invalidate();
+            const summary = match
+              ? `Sold ${Number(match.quantity) / 1_000_000} ${outcome.label} shares at ${(Number(match.price) / 10_000).toFixed(2)}¢`
+              : `Offer resting: ${shares} ${outcome.label} shares at ${limitPrice}¢`;
+            const href = explorerTxUrl(solanaVenue, hash);
+            toast.success(summary, { id: `solana-sell:${hash}`, duration: 12_000, ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}) });
+            pushAlert({ level: "success", title: summary, detail: match ? "Proceeds are on your book seat; withdraw them to your wallet." : "It stays until it is filled, cancelled, or the question closes.", href });
+            setFeedback({ text: `${summary}.`, hash });
+            return;
+          }
+
+          setProgress(`Funding this outcome book with ${solanaVenue.collateralSymbol}…`);
           if (type === "market" && !solanaReview) throw Error("Review an executable market quote before submitting.");
           const priceMicros = type === "market" ? solanaReview!.priceMicros : BigInt(Math.round(price * 1_000_000));
           const quantityAtoms = type === "market" ? solanaReview!.quantity : parseUnitsExact(shares, 6);
           const amountAtoms = (quantityAtoms * priceMicros + 999_999n) / 1_000_000n;
           let hash: string;
           const complementary = type === "market" && solanaReview?.route === "complete-set";
-          if (complementary) {
+          let limitResult: Awaited<ReturnType<typeof placeBinaryLimitBuy>> | undefined;
+          if (type === "limit") {
+            const opposite = await client.binding(solanaQuestion.marketId, selected === 0 ? 1 : 0);
+            limitResult = await placeBinaryLimitBuy(wallet, binding, opposite, quantityAtoms, priceMicros);
+            hash = limitResult.signatures.at(-1)!;
+          } else if (complementary) {
             const opposite = await client.binding(solanaQuestion.marketId, selected === 0 ? 1 : 0);
             const book = await client.adapter.readBook(opposite);
             const bids = book.bids().filter(order => !order.trader.equals(wallet.owner));
@@ -555,7 +771,7 @@ export function TradeTicket({
             if (holdings.walletUsdc < missing + maximumFee)
                 throw Error(`Not enough ${solanaVenue.collateralSymbol}. Keep the order amount plus up to ${Number(maximumFee) / 10 ** solanaVenue.collateralDecimals} ${solanaVenue.collateralSymbol} for an executed taker fee.`);
             if (missing > 0n) {
-              await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "USDC", missing, "deposit"), `Funding the book with ${solanaVenue.collateralSymbol}`);
+              await wallet.send(await client.adapter.moveTokens(wallet.owner, binding, "USDC", missing, "deposit"), TRADE_STEPS.fundBook(solanaVenue.collateralSymbol));
             }
             setProgress("Submitting your Manifest trade order…");
             hash = await wallet.send(await client.adapter.order(wallet.owner, binding, {
@@ -563,9 +779,9 @@ export function TradeTicket({
               quantity: quantityAtoms,
               priceMicros,
               lastValidSlot: 0,
-              kind: type === "market" ? "IOC" : "LIMIT",
+              kind: "IOC",
               maxFeeAtoms: maximumFee,
-            }), "Submitting your order");
+            }), TRADE_STEPS.submit);
           }
           invalidate();
           const summary = `${activation.length ? "Market activated and " : ""}trade order submitted on Manifest`;
@@ -574,11 +790,11 @@ export function TradeTicket({
           // below the fold once the ticket is scrolled.
           toast.success(summary, {
             id: `solana-order:${hash}`,
-            description: complementary ? "Purchased through opposite bids. Your selected shares are in your prediction position; sale proceeds returned to your wallet." : type === "market" ? "Only matched shares were purchased. Any unfilled remainder was cancelled; unused funds remain in your book balance." : "Unmatched shares remain in your limit order. Check Activity for fills.",
+            description: complementary ? "Purchased through opposite bids. Your selected shares are in your prediction position; sale proceeds returned to your wallet." : type === "market" ? "Only matched shares were purchased. Any unfilled remainder was cancelled; unused funds remain in your book balance." : `Matched ${Number(limitResult?.matched ?? 0n) / 1_000_000} shares; ${Number(limitResult?.resting ?? 0n) / 1_000_000} shares remain in your limit order. Check Activity for fills.`,
             duration: 12_000,
             ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
           });
-          pushAlert({ level: "success", title: summary, detail: complementary ? "Purchased through opposite bids. Your selected shares are in your prediction position; sale proceeds returned to your wallet." : type === "market" ? "Only matched shares were purchased. Any unfilled remainder was cancelled; unused funds remain in your book balance." : "Unmatched shares remain in your limit order. Check Activity for fills.", href });
+          pushAlert({ level: "success", title: summary, detail: complementary ? "Purchased through opposite bids. Your selected shares are in your prediction position; sale proceeds returned to your wallet." : type === "market" ? "Only matched shares were purchased. Any unfilled remainder was cancelled; unused funds remain in your book balance." : `Matched ${Number(limitResult?.matched ?? 0n) / 1_000_000} shares; ${Number(limitResult?.resting ?? 0n) / 1_000_000} shares remain in your limit order. Check Activity for fills.`, href });
           setFeedback({ text: `${summary}.`, hash });
         } finally {
           wallet.dispose();
@@ -618,7 +834,7 @@ export function TradeTicket({
           text: `Sold ${safeLabel(quantity)} ${contract.label} shares.`,
         });
       }
-      setReview(false);
+      if (!liveSolana) setReview(false);
     } catch (reason) {
       const selfMatch =
         reason instanceof Error &&
@@ -628,10 +844,15 @@ export function TradeTicket({
         : `Trade not completed: ${reason instanceof Error ? reason.message : "Please check your wallet and try again."}`;
       setFeedback({ text, error: true });
       const detail = text.replace("Trade not completed: ", "");
-      toast.error("Trade not completed", { description: detail, duration: Infinity });
-      pushAlert({ level: "error", title: "Trade not completed", detail });
+      if (!solanaFailureReported) {
+        toast.error("Trade not completed", { description: detail, duration: 12_000 });
+        pushAlert({ level: "error", title: "Trade not completed", detail });
+      }
       setOrdersExpanded(true);
-      setReview(false);
+      // A live Solana trade keeps its dialog: the rail is where the trader reads
+      // which steps confirmed before the failure and which never ran, and
+      // closing it would leave a fading toast as the only account of that.
+      if (!liveSolana) setReview(false);
       if (evmBinding) refreshDreamDex(evmBinding.chainId);
       // A failed trade can still have landed its earlier transactions, so the
       // read model is stale either way. This branch never fired for Solana.
@@ -639,6 +860,7 @@ export function TradeTicket({
     } finally {
       setPending(false);
       setProgress("");
+      setSettled(true);
     }
   }
 
@@ -694,8 +916,13 @@ export function TradeTicket({
           <TeamMark id={linkedAnswer?.teamId ?? outcome.teamId ?? outcome.id} color={color} />
         )}
         <div>
-          <span>{linkedAnswer ? market.presentation?.eventTitle ?? market.title : market.title}</span>
-          <strong>{linkedAnswer ? `${linkedAnswer.label} · ${outcome.label}` : outcome.label}</strong>
+          {/* A head-to-head names its fixture, exactly as the page H1 does —
+              gating this on `linked` left the ticket headed by the raw question
+              while the page above it said "JUP vs ANSEM". A linked answer needs
+              no kicker at all: the question is already the H1 and the section
+              heading, and the answer is the only thing this ticket is about. */}
+          {!linkedAnswer && <span>{market.presentation?.eventTitle ?? market.title}</span>}
+          <strong>{linkedAnswer ? linkedAnswer.label : outcome.label}</strong>
         </div>
         {gameRemainingMs !== null && (
           <div
@@ -781,56 +1008,29 @@ export function TradeTicket({
             )}
           </div>
           <div className="ch-order-type">
+            {/* A two-value control does not need a menu: the button states the
+                order type and switches it. The menu was one extra click and one
+                extra thing to dismiss for a choice with two options. */}
             <button
               type="button"
               className="ch-order-type-trigger"
-              aria-haspopup="menu"
-              aria-expanded={orderTypeMenuOpen}
-              onClick={() => setOrderTypeMenuOpen((open) => !open)}
+              aria-label={`Order type: ${type === "market" ? "Market" : "Limit"}. Switch to ${type === "market" ? "Limit" : "Market"}.`}
+              onClick={() => {
+                setType((current) => (current === "market" ? "limit" : "market"));
+                setFeedback(null);
+              }}
             >
               {type === "market" ? "Market" : "Limit"}
-              <ChevronDown size={13} />
+              <ArrowLeftRight size={12} />
             </button>
-            {orderTypeMenuOpen && (
-              <div
-                className="ch-order-type-menu"
-                role="menu"
-                aria-label="Order type"
-              >
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={type === "market"}
-                  onClick={() => {
-                    setType("market");
-                    setFeedback(null);
-                    setOrderTypeMenuOpen(false);
-                  }}
-                >
-                  <b>Market</b>
-                  <span>Fill against the best live quote.</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={type === "limit"}
-                  onClick={() => {
-                    setType("limit");
-                    setFeedback(null);
-                    setOrderTypeMenuOpen(false);
-                  }}
-                >
-                  <b>Limit</b>
-                  <span>Choose a price in whole cents.</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
       <div className="ch-trade-outcomes" aria-label="Trade outcome">
         {multiple
-          ? (["yes", "no"] as const).map((value) => (
+          ? // A multi-outcome answer is its own Yes/No book: the identity colour
+            // stays on the header above, never on these two controls.
+            (["yes", "no"] as const).map((value) => (
               <button
                 type="button"
                 className={`is-${value}`}
@@ -852,15 +1052,36 @@ export function TradeTicket({
           : market.outcomes.map((item, index) => (
               <button
                 type="button"
-                className={index === 0 ? "is-yes" : "is-no"}
+                className={`${index === 0 ? "is-yes" : "is-no"}${pickColor(market, item, snapshot, index) ? " has-pick-color" : ""}`}
                 key={item.id}
+                style={(() => {
+                  // Both vars or neither: the fill alone left near-white text
+                  // on a bright team colour at about 1.7:1.
+                  const fill = pickColor(market, item, snapshot, index);
+                  return fill ? { "--pick-color": fill, "--pick-ink": pickInk(fill) } as React.CSSProperties : undefined;
+                })()}
                 aria-pressed={outcome.id === item.id}
                 onClick={() => onOutcome(item)}
               >
                 <span>{item.label}</span>
                 <b>
                   {solana
-                    ? (() => { const quote = index === 1 ? solanaView.quote?.no : solanaView.quote?.yes; const value = side === "buy" ? quote?.ask : quote?.bid; return value === undefined ? (solanaView.now ? (side === "buy" ? "No asks" : "No bids") : "…") : formatOutcomePrice(Number(value) / 1_000_000); })()
+                    ? (() => {
+                        const quote = index === 1 ? solanaView.quote?.no : solanaView.quote?.yes;
+                        const value = side === "buy" ? quote?.ask : quote?.bid;
+                        if (value !== undefined) return formatOutcomePrice(Number(value) / 1_000_000);
+                        // The ticket's own book read is still in flight, but the
+                        // market list already published this outcome's quote —
+                        // the same book, the same number. Showing it is not a
+                        // stale read; blanking to "…" on every answer switch was
+                        // a loading state over data already in hand.
+                        const known = side === "buy" ? item.marketQuote?.ask : item.marketQuote?.bid;
+                        if (known !== undefined) return formatOutcomePrice(known);
+                        // "No asks" on a market nobody has opened yet read as a
+                        // failure. The reason belongs in the help text below,
+                        // which already explains what to do about it.
+                        return solanaView.now ? PRICE_PLACEHOLDER : "…";
+                      })()
                     : formatOutcomePrice(item.probability)}
                 </b>
                 {item.id === outcome.id && <Check size={12} />}
@@ -949,9 +1170,14 @@ export function TradeTicket({
           </div>
         )}
         <div className="ch-trade-amount">
-          <label htmlFor="trade-quantity">
-            {side === "buy" && type === "market" ? "Amount" : "Shares"}
-          </label>
+          <div className="ch-trade-amount-label">
+            <label htmlFor="trade-quantity">
+              {side === "buy" && type === "market" ? "Amount" : "Shares"}
+            </label>
+            {/* The balance belongs beside the field it constrains, not eleven
+                rows below it. */}
+            <small>{balanceCaption}</small>
+          </div>
           <div>
             <input
               id="trade-quantity"
@@ -983,11 +1209,10 @@ export function TradeTicket({
                   : setShares(event.target.value)
               }
             />
-            <span>
-              {side === "buy" && type === "market"
-                ? collateralSymbol
-                : "SHARES"}
-            </span>
+            {/* Only the currency earns a caption. "SHARES" under a field
+                already labelled "Shares" said it twice and pushed the label out
+                of alignment with the number. */}
+            {side === "buy" && type === "market" && <span>{collateralSymbol}</span>}
           </div>
         </div>
         <div className="ch-trade-presets">
@@ -1020,112 +1245,43 @@ export function TradeTicket({
         {(liveDreamDex || indicativeOnly) && (
           <div
             className="ch-ticket-summary"
-            aria-label="Position and order summary"
+            aria-label="Order summary"
           >
-            <div>
-              <span>Available shares</span>
-              <strong>
-                {balances
-                  ? `${safeLabel(Number(balances[1]) / 1_000_000)} YES · ${safeLabel(Number(balances[2]) / 1_000_000)} NO`
-                  : /* Four states, not two. "Loading…" forever was the old
-                       behaviour for every one of the last three. */
-                    !solana
-                    ? "Loading…"
-                    : !solanaWallet
-                      ? "Connect a wallet"
-                      : solanaHoldings.loading
-                        ? "Loading…"
-                        : solanaHoldings.error
-                          ? "Balances unavailable"
-                          : !solanaHoldings.outcomes
-                            ? "—"
-                            : solanaHoldings.outcomes.every((entry) => !entry.holdings)
-                              ? "No books opened yet"
-                              : `${safeLabel(Number(ownedShares(solanaHoldings.outcomes[0])) / 1_000_000)} YES · ${safeLabel(Number(ownedShares(solanaHoldings.outcomes[1])) / 1_000_000)} NO`}
-              </strong>
-            </div>
-            {(reservedYes > 0n || reservedNo > 0n) && (
-              <div>
-                <span>Reserved to sell</span>
-                <strong>
-                  {safeLabel(Number(reservedYes) / 1_000_000)} YES ·{" "}
-                  {safeLabel(Number(reservedNo) / 1_000_000)} NO
-                </strong>
-              </div>
-            )}
-            {liveDreamDex && balances && (
-              <div>
-                <span>Available funds</span>
-                <strong>
-                  {safeLabel(
-                    Number(balances[0]) / 10 ** account.data!.market.decimals,
-                  )}{" "}
-                  {collateralSymbol}
-                </strong>
-              </div>
-            )}
-            {/* Its own branch: the DreamDEX body above asserts account.data,
-                which is null on Solana. The seat and the wallet are separate
-                custodians, and the submit path deposits the shortfall itself. */}
-            {solana && selectedHoldings?.holdings && (
-              <div>
-                <span>Available funds</span>
-                <strong>
-                  {safeLabel(
-                    Number(
-                      selectedHoldings.holdings.venueAvailableUsdc +
-                        selectedHoldings.holdings.walletUsdc,
-                    ) /
-                      10 ** (solanaVenue?.collateralDecimals ?? 6),
-                  )}{" "}
-                  {collateralSymbol}
-                </strong>
-              </div>
-            )}
+            {/* Balances moved up beside the Amount field, and the fee moved to
+                the review dialog where it is disclosed before signing. What is
+                left is what a trader decides on: when it expires, what it
+                costs, what it returns. */}
             {type === "limit" && (
               <div>
                 <span>Expires</span>
                 <strong>Market close</strong>
               </div>
             )}
-            {/* Its own row, never folded into the total: the fee applies to
-                executed notional only, so an order that rests pays nothing.
-                `fee` above is hard-zero on every live path, which meant the
-                only rate this ticket ever showed was the simulation's. */}
-            {solana && side === "buy" && (
-              <div>
-                <span>
-                  Max taker fee
-                  {solanaTakerBps !== null && ` · ${solanaTakerBps / 100}%`}
-                </span>
-                <strong>
-                  {solanaTakerBps === null
-                    ? "Set when the market opens"
-                    : solanaMaxFee === null
-                      ? "—"
-                      : `${safeLabel(solanaMaxFee)} ${collateralSymbol}`}
-                </strong>
-              </div>
-            )}
             <div>
-              <span>
-                {side === "buy"
-                  ? type === "market"
-                    ? "Estimated cost"
-                    : "Reserved if unfilled"
-                  : "Estimated proceeds"}
-              </span>
+              <span>{side === "buy" ? "Total" : "Total proceeds"}</span>
               <strong>
-                {price > 0 ? `${safeLabel(total)} ${collateralSymbol}` : "—"}
+                {buyOutlay !== null
+                  ? `${safeLabel(buyOutlay)} ${collateralSymbol}`
+                  : price > 0
+                    ? `${safeLabel(total)} ${collateralSymbol}`
+                    : summaryPrice > 0
+                      ? `${safeLabel(summaryQuantity * summaryPrice)} ${collateralSymbol}`
+                      : PRICE_PLACEHOLDER}
+                {resting > 0 && (
+                  <small>
+                    {safeLabel(resting * (Number(limitPrice) / 100))} {collateralSymbol} reserved if unfilled
+                  </small>
+                )}
               </strong>
             </div>
             {side === "buy" && (
               <div className="is-win">
-                <span>Payout if filled & correct</span>
+                <span>To win</span>
                 <strong>
-                  {price > 0
-                    ? `${safeLabel(quantity)} ${collateralSymbol}`
-                    : "—"}
+                  {summaryPrice > 0
+                    ? `${safeLabel(summaryQuantity)} ${collateralSymbol}`
+                    : PRICE_PLACEHOLDER}
+                  {summaryPrice > 0 && <small>Price {formatOutcomePrice(summaryPrice)}</small>}
                 </strong>
               </div>
             )}
@@ -1339,9 +1495,14 @@ export function TradeTicket({
         total={solanaReview ? Number(solanaReview.estimatedCost) / 1_000_000 : reviewTerms?.total ?? total}
         priceLimit={solanaReview ? Number(solanaReview.priceMicros) / 1_000_000 : undefined}
         maximumTotal={solanaReview ? Number(solanaReview.maximumCost) / 1_000_000 : undefined}
-        upfrontCollateral={solanaReview?.route === "complete-set" ? Number(solanaReview.upfrontCollateral) / 1_000_000 : undefined}
+        upfrontCollateral={solanaReview?.route === "complete-set" ? Number(solanaReview.upfrontCollateral) / 1_000_000 : solana && type === "limit" ? quantity : undefined}
         maximumFee={solana ? solanaMaxFee ?? undefined : undefined}
         progress={progress}
+        plan={tradePlan}
+        steps={stepRows}
+        settled={settled}
+        collateralDecimals={solanaVenue?.collateralDecimals ?? 6}
+        explorerUrl={solanaVenue ? (signature: string) => explorerTxUrl(solanaVenue, signature) : undefined}
         expiry={expiry}
         onExpiry={setExpiry}
         simulation={simulation}

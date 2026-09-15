@@ -1,8 +1,9 @@
-import { arenaAdapter, parseAgents, parseMatch } from "../agent-arena/adapter";
+import { arenaAdapter, arenaCatalog, parseAgents, parseMatch } from "../agent-arena/adapter";
 import {
   emptyFilters,
   type ArenaAgent,
   type ArenaMatch,
+  type ArenaScheduleEntry,
 } from "../agent-arena/model";
 import { predictionUrl } from "../../../packages/sdk/prediction-url";
 
@@ -10,15 +11,15 @@ export interface ArenaFeed {
   agents: ArenaAgent[];
   current: ArenaMatch | null;
   matches: ArenaMatch[];
+  upcoming: ArenaScheduleEntry[];
   historyError: string | null;
   readAt: number;
 }
 
 /**
- * The Genesis arena is a fixed twelve-agent channel. Older game responses for
- * a reserved or live room omit the participant projection even though that
- * fixed channel already contains every Genesis agent. Keep this reconstruction
- * confined to the documented twelve-agent Genesis channel.
+ * Only the pre-catalog twelve-agent room lacked a persisted participant list.
+ * A team reservation must carry its own signed roster; inferring six entrants
+ * from the wider Genesis pool would display people who are not actually funded.
  */
 function reservedGenesisRoster(
   match: ArenaMatch,
@@ -30,6 +31,8 @@ function reservedGenesisRoster(
   if (
     !["reserved", "live"].includes(match.status) ||
     match.participants.length ||
+    match.definition ||
+    match.teamFormat !== "ffa" ||
     participantCount !== 12 ||
     agents.length !== 12
   )
@@ -79,11 +82,14 @@ export function createArenaFeed(
       const agents = parseAgents(feed);
       if (!Array.isArray(feed.matches))
         throw Error("Invalid prediction match feed.");
+      // A live room's definition capsule carries no roster shape; the catalog
+      // on the policy is where teamCount/playersPerTeam/requiredPlayers live.
+      const catalog = arenaCatalog(feed.policy);
       const current = feed.current
-        ? withMatchPolicy(parseMatch(feed.current, agents), feed.policy)
+        ? withMatchPolicy(parseMatch(feed.current, agents, catalog), feed.policy)
         : null;
       const matches = feed.matches
-        .map((m: unknown) => parseMatch(m, agents))
+        .map((m: unknown) => parseMatch(m, agents, catalog))
         .map((item: ArenaMatch) =>
           current?.roomId === item.roomId ? { ...item, ...current } : item,
         );
@@ -91,18 +97,20 @@ export function createArenaFeed(
         agents,
         current,
         matches,
+        upcoming: [],
         historyError: null,
         readAt: Date.now(),
       };
     }
-    const [agents, current] = await Promise.all([
+    const [agents, current, upcoming] = await Promise.all([
       api.agents(signal),
       api.current(signal),
+      api.schedule(signal),
     ]);
     const match = current.match
       ? withMatchPolicy(
           reservedGenesisRoster(
-            parseMatch(current.match, agents),
+            parseMatch(current.match, agents, arenaCatalog(current.policy)),
             agents,
             current.policy,
           ),
@@ -114,6 +122,7 @@ export function createArenaFeed(
         agents,
         current: match,
         matches: match ? [match] : [],
+        upcoming,
         historyError: null,
         readAt: Date.now(),
       };
@@ -140,6 +149,7 @@ export function createArenaFeed(
       agents,
       current: match,
       matches,
+      upcoming,
       historyError,
       readAt: Date.now(),
     };

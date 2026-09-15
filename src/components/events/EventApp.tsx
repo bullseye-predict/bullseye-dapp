@@ -22,6 +22,7 @@ import { EventComments, EventCommunity } from './EventCommunity'
 import { EventAgentRail, EventMarketRail } from './EventRails'
 import { eventAnswerMarket, eventHref, eventMarketVolume, linkedEventMarket, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
 import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predictionContracts'
+import { matchLabel } from '../home/heroMarket'
 
 type Props = { apiUrl?: string; eventId: string; predictionId?: string; initialOutcomeId?: string; variant: EventVariant; paths: EventPaths }
 
@@ -155,12 +156,17 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   const heading = market.presentation?.eventTitle ?? (!match.teams.length
     ? linkedOverview?.title ?? market.title
     : match.teams.length > 2 ? `${match.teams.length}-TEAM FREE FOR ALL` : match.teams.map((team) => team.symbol).join(' vs. '))
+  // The H1 and the breadcrumb's middle crumb are the same string whenever the
+  // event resolved from the question catalogue rather than the arena, because
+  // both fall back to presentation.eventTitle. A crumb that links to the page
+  // you are already on is not navigation.
+  const parentCrumb = prediction && prediction.title !== heading ? heading : null
   return <main className="ev-main" id="event-content">
     <div className="ev-layout-bar"><a href={prediction ? eventHref(paths.variants[variant], match.id) : '/markets'}><ArrowLeft size={13}/>{prediction ? 'BACK TO MATCH' : 'ALL MARKETS'}</a></div>
     <div className="ev-mobile-actions"><button onClick={() => setMobileRail(!mobileRail)} aria-expanded={mobileRail} aria-controls="event-left-rail">{variant === 'community' ? 'Comments' : variant === 'agents' ? 'Agents & prompts' : 'Explore events'}<ChevronRight size={14}/></button><button onClick={() => setMobileTrade(!mobileTrade)} aria-expanded={mobileTrade} aria-controls="event-trade-rail">Trade {market.outcomes.length > 2 ? `${answer.label} · ${outcome.label}` : outcome.label} <span>{percent(outcome.probability)}</span></button></div>
     <div className="ev-layout" id="event-detail" aria-label="Event details">
       <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail">{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</div></aside>
-      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{heading}</a><ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div><p><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE NOW' : match.phase.toUpperCase()}</StatusDot><span>{match.map}</span><span>{compact(linkedOverview?.volume.COOLA ?? eventMarketVolume(market))} {solanaQuestions?.length ? 'fUSDC' : 'COOLA'} VOL.</span><span>{match.roster.length ? `${match.roster.length} agents · ${match.round}` : match.round}</span></p></div>
+      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div><p><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE NOW' : match.phase.toUpperCase()}</StatusDot><span>{match.map}</span><span>{compact(linkedOverview?.volume.COOLA ?? eventMarketVolume(market))} {solanaQuestions?.length ? 'fUSDC' : 'COOLA'} VOL.</span>{match.roster.length ? <span>{match.roster.length} agents · {match.round}</span> : !match.round.startsWith('LIVE') && <span>{match.round}</span>}</p></div>
       <TradeContextBar simulation={simulation} onSimulationChange={setSimulation} liveMatchCount={snapshot.matches.filter((item) => item.phase === 'live').length}/>
       <div className="ev-center">
         <EventStage simulation={simulation} referenceMarket={linkedOverview ? undefined : referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={linkedOverview ?? market} snapshot={snapshot} outcome={linkedOverview?.outcomes.find((item) => item.id === market.id) ?? answer} onOutcome={(pick) => { const linkedMarket = linkedOverview && markets.find((item) => item.id === pick.id); if (linkedMarket) select(linkedMarket, linkedMarket.outcomes[0]!, false); else { setOutcomeId(pick.id); setSection('trade') } }} prediction={!!prediction} broadcast={hasBroadcast}/>
@@ -178,8 +184,19 @@ function RelatedEvents({ snapshot, match, prefix }: { snapshot: SolzSnapshot; ma
   const matches = snapshot.matches.filter((item) => item.id !== match.id).slice(0, 3)
   return <section className="ev-related" aria-labelledby="related-events-title"><div className="ev-section-title"><h2 id="related-events-title">Elsewhere in the arena <span>{matches.filter((item) => item.phase === 'live').length} LIVE</span></h2><ArrowUpRight size={16}/></div><div className="ev-related-grid">{matches.map((item) => {
     const market = snapshot.markets.find((row) => row.id === item.marketId)
+    // A free-for-all has no two sides to put either end of a "VS" — an FFA
+    // arena room ships no teams at all, and destructuring a second one out of
+    // that array crashed the whole page the moment such a room appeared.
     const [home, away] = item.teams
     const chance = market?.outcomes[0]?.probability ?? .5
-    return <a href={eventHref(prefix, item.id)} className="sh-match-card" key={item.id}><div className="sh-match-card-top"><StatusDot pink={item.phase !== 'live'}>{item.phase === 'live' ? 'LIVE' : 'UP NEXT'}</StatusDot><ArrowUpRight size={15}/></div><div className="ev-related-teams"><div><TeamMark id={home.teamId} color={home.color}/><strong>{home.symbol}</strong></div><span>VS</span><div><TeamMark id={away.teamId} color={away.color}/><strong>{away.symbol}</strong></div></div><div className="sh-match-odds"><span style={{ color: home.color }}>{percent(chance)}</span><span style={{ color: away.color }}>{percent(1 - chance)}</span></div><div className="sh-odds-bar" style={{ background: away.color }}><i style={{ width: percent(chance), background: home.color }}/></div><div className="sh-match-card-bottom"><span>{compact(item.volume.COOLA)} VOL.</span><span><Eye size={12}/>{compact(item.viewers)}</span></div></a>
+    return <a href={eventHref(prefix, item.id)} className="sh-match-card" key={item.id}><div className="sh-match-card-top"><StatusDot pink={item.phase !== 'live'}>{item.phase === 'live' ? 'LIVE' : 'UP NEXT'}</StatusDot><ArrowUpRight size={15}/></div>
+      {home && away
+        ? <>
+          <div className="ev-related-teams"><div><TeamMark id={home.teamId} color={home.color}/><strong>{home.symbol}</strong></div><span>VS</span><div><TeamMark id={away.teamId} color={away.color}/><strong>{away.symbol}</strong></div></div>
+          <div className="sh-match-odds"><span style={{ color: home.color }}>{percent(chance)}</span><span style={{ color: away.color }}>{percent(1 - chance)}</span></div>
+          <div className="sh-odds-bar" style={{ background: away.color }}><i style={{ width: percent(chance), background: home.color }}/></div>
+        </>
+        : <div className="ev-related-field"><strong>{matchLabel(item.teams) || item.map}</strong><span>{item.roster.length ? `${item.roster.length} agents · ${item.mode}` : item.mode}</span></div>}
+      <div className="sh-match-card-bottom"><span>{compact(item.volume.COOLA)} VOL.</span><span><Eye size={12}/>{compact(item.viewers)}</span></div></a>
   })}</div></section>
 }

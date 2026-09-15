@@ -11,7 +11,11 @@ type Bid = { price: bigint; quantity: bigint }
 /** Cross only funded, strictly profitable bids. Exact $1 pairs are already a
  * coherent quote; a keeper must not spend its own balance paying fees on them. */
 export function complementaryMatch(yes: readonly Bid[], no: readonly Bid[], capital: bigint, yesBps: number, noBps: number): ComplementaryMatch | null {
-  const best = (rows: readonly Bid[]) => rows.filter(r => r.quantity > 0n && r.price > 0n && r.price < SCALE).slice().sort((a,b) => a.price > b.price ? -1 : a.price < b.price ? 1 : 0)[0]
+  const best = (rows: readonly Bid[]) => {
+    const levels = new Map<bigint,bigint>()
+    for(const row of rows)if(row.quantity>0n&&row.price>0n&&row.price<SCALE)levels.set(row.price,(levels.get(row.price)??0n)+row.quantity)
+    return [...levels].map(([price,quantity])=>({price,quantity})).sort((a,b)=>a.price>b.price?-1:a.price<b.price?1:0)[0]
+  }
   const y = best(yes), n = best(no)
   if (!y || !n || capital <= 0n || y.price + n.price <= SCALE) return null
   const quantity = [capital,y.quantity,n.quantity].reduce((a,b) => a < b ? a : b)

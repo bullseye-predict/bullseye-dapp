@@ -1,0 +1,167 @@
+/* The transaction rail inside the trade dialog.
+
+   Everything here is scoped under .ch-trade-dialog so that cascade order with
+   home-hero.css cannot decide who wins: that stylesheet styles `.ch-event-dialog
+   p` and `.ch-event-dialog dl` generically, and both apply inside this subtree.
+
+   No transform, filter, backdrop-filter or contain anywhere in this file. The
+   sonner toast host and the alert dock are appended as children of the open
+   <dialog> and position themselves fixed; any of those properties on an
+   ancestor would make the dialog their containing block, at which point the
+   dialog's own overflow: auto clips every trade toast with no error. */
+
+.ch-trade-dialog .ch-tx { display: grid; gap: 10px; }
+
+.ch-trade-dialog .ch-tx-summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; margin: 0; font-size: 11px; }
+.ch-trade-dialog .ch-tx-summary strong { font: 600 12px var(--sh-heading); color: #edf0f5; }
+.ch-trade-dialog .ch-tx-summary span { color: #a9b5c6; font-size: 10px; line-height: 1.6; }
+.ch-trade-dialog .ch-tx-summary.is-done strong { color: #5fc98a; }
+.ch-trade-dialog .ch-tx-summary.is-error strong { color: #f08a82; }
+.ch-trade-dialog .ch-tx-summary.is-warning strong { color: #e8c368; }
+
+.ch-trade-dialog .ch-tx-quiet { margin: 0; font-size: 10px; line-height: 1.7; color: #96a2b4; }
+
+/* The count and cost, on the invoice tray. Two facts on one line. */
+.ch-trade-dialog .ch-tx-brief { display: grid; gap: 5px; padding: 11px 12px; border: 1px solid #434e5f; border-radius: var(--radius-control, 4px); background: #1d232c; }
+.ch-trade-dialog .ch-tx-brief.is-opening { border-color: #3f5a46; background: #1a2620; }
+.ch-trade-dialog .ch-tx-brief > p { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; margin: 0; }
+.ch-trade-dialog .ch-tx-brief strong { font: 600 12px var(--sh-heading); color: #e6edf7; }
+.ch-trade-dialog .ch-tx-brief > p > span { font: 400 10px var(--sh-mono); color: #9fb0c4; }
+.ch-trade-dialog .ch-tx-brief.is-opening strong { color: #8fe0b4; }
+
+/* The failure, directly under the rail and next to the button that retries it. */
+.ch-trade-dialog .ch-tx-stopped { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid #6a3b38; border-left-width: 3px; border-radius: var(--radius-control, 4px); background: #241a1a; }
+.ch-trade-dialog .ch-tx-stopped.is-warning { border-color: #6a5a30; background: #232017; }
+.ch-trade-dialog .ch-tx-stopped > strong { font: 600 11px var(--sh-heading); color: #f5a8a1; }
+.ch-trade-dialog .ch-tx-stopped.is-warning > strong { color: #e8c368; }
+.ch-trade-dialog .ch-tx-stopped p { margin: 0; font-size: 10px; line-height: 1.7; color: #dcc6c4; overflow-wrap: anywhere; }
+.ch-trade-dialog .ch-tx-stopped .ch-tx-quiet { color: #a7969a; }
+.ch-trade-dialog .ch-tx-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 3px; }
+.ch-trade-dialog .ch-tx-actions button { padding: 7px 14px; border: 1px solid #b4635c; border-radius: var(--radius-control, 4px); background: #3a2422; color: #ffd9d5; font: 600 11px var(--sh-heading); cursor: pointer; }
+.ch-trade-dialog .ch-tx-actions button:hover:not(:disabled) { background: #4a2c29; border-color: #d8837a; }
+.ch-trade-dialog .ch-tx-actions button:disabled { opacity: .5; }
+.ch-trade-dialog .ch-tx-actions a { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #7ecbff; }
+
+/* Desktop: a horizontal rail. The longest run this flow can produce is six
+   steps, and at the dialog's 760px that leaves ~716px of content, so the floor
+   is set low enough that six fit without scrolling; fewer steps simply share
+   the width. The track still scrolls rather than wrapping, so an unplanned
+   seventh keeps the reading order left to right instead of folding a row. */
+.ch-trade-dialog .ch-tx-steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(110px, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ch-trade-dialog .ch-tx-steps > li { min-width: 0; }
+.ch-trade-dialog .ch-tx-steps > li > button {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  border: 1px solid #3a4454;
+  border-radius: var(--radius-control, 4px);
+  background: #212832;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.ch-trade-dialog .ch-tx-steps > li > button:hover { border-color: #66738a; }
+.ch-trade-dialog .ch-tx-steps > li > button:focus-visible { outline: 2px solid #51b6ff; outline-offset: 1px; }
+.ch-trade-dialog .ch-tx-steps > li.is-open > button { border-color: #51b6ff; background: #243040; }
+
+.ch-trade-dialog .ch-tx-index {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid #5c687c;
+  color: #c3cddc;
+  font: 600 9px var(--sh-mono);
+}
+.ch-trade-dialog .ch-tx-body { display: grid; gap: 2px; min-width: 0; }
+.ch-trade-dialog .ch-tx-body strong { font: 600 11px var(--sh-heading); color: #e4ebf5; overflow-wrap: anywhere; }
+.ch-trade-dialog .ch-tx-status { font: 500 9px var(--sh-mono); color: #97a3b5; }
+.ch-trade-dialog .ch-tx-cost { font: 400 9px var(--sh-mono); color: #8e9bae; overflow-wrap: anywhere; }
+
+/* Status vocabulary, deliberately the alert dock's rather than the ticket's
+   green/red pair: a step reports a transaction that is already committed and
+   holds no Yes/No choice, so buy/sell colour would be a false signal here. */
+.ch-trade-dialog .ch-tx-steps > li.is-sent .ch-tx-index { border-color: #5fc98a; color: #5fc98a; }
+.ch-trade-dialog .ch-tx-steps > li.is-sent .ch-tx-status { color: #5fc98a; }
+.ch-trade-dialog .ch-tx-steps > li.is-failed .ch-tx-index { border-color: #f08a82; color: #f08a82; }
+.ch-trade-dialog .ch-tx-steps > li.is-failed .ch-tx-status { color: #f08a82; }
+.ch-trade-dialog .ch-tx-steps > li.is-uncertain .ch-tx-index { border-color: #e8c368; color: #e8c368; }
+.ch-trade-dialog .ch-tx-steps > li.is-uncertain .ch-tx-status { color: #e8c368; }
+.ch-trade-dialog .ch-tx-steps > li.is-signing .ch-tx-index,
+.ch-trade-dialog .ch-tx-steps > li.is-preparing .ch-tx-index { border-color: #51b6ff; color: #51b6ff; }
+.ch-trade-dialog .ch-tx-steps > li.is-signing .ch-tx-status { color: #7ecbff; }
+.ch-trade-dialog .ch-tx-steps > li.is-skipped > button { opacity: .55; }
+.ch-trade-dialog .ch-tx-steps > li.is-planned .ch-tx-index { border-style: dashed; }
+
+.ch-trade-dialog .ch-tx-detail {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid #434e5f;
+  border-radius: var(--radius-control, 4px);
+  background: #1d232c;
+}
+.ch-trade-dialog .ch-tx-detail > strong { font: 600 11px var(--sh-heading); color: #e4ebf5; }
+.ch-trade-dialog .ch-tx-detail p { margin: 0; font-size: 10px; line-height: 1.75; color: #b4c0d0; }
+.ch-trade-dialog .ch-tx-label { font: 400 9px var(--sh-mono); color: #8d9aad; }
+.ch-trade-dialog .ch-tx-detail .ch-tx-error { color: #f5a8a1; overflow-wrap: anywhere; }
+.ch-trade-dialog .ch-tx-detail dl { display: grid; gap: 5px; margin: 2px 0 0; padding: 0; border: 0; font-size: 10px; }
+.ch-trade-dialog .ch-tx-detail dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.ch-trade-dialog .ch-tx-detail dt { color: #94a1b4; }
+.ch-trade-dialog .ch-tx-detail dd { margin: 0; color: #dbe4f0; font-family: var(--sh-mono); }
+.ch-trade-dialog .ch-tx-detail a { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #7ecbff; }
+
+.ch-trade-dialog .ch-tx-welcome {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #3f5a46;
+  border-radius: var(--radius-control, 4px);
+  background: #1a2620;
+}
+.ch-trade-dialog .ch-tx-welcome > strong { font: 600 11px var(--sh-heading); color: #8fe0b4; }
+.ch-trade-dialog .ch-tx-welcome p { margin: 0; font-size: 10px; line-height: 1.75; color: #b9cbc1; }
+.ch-trade-dialog .ch-tx-welcome b { color: #e8f3ec; font-family: var(--sh-mono); }
+
+/* Mobile: the same rail, stacked. One column per step reads as a checklist and
+   leaves each title room to breathe at 390px. */
+@media (max-width: 760px) {
+  .ch-trade-dialog .ch-tx-steps {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow-x: visible;
+  }
+  .ch-trade-dialog .ch-tx-steps > li > button { align-items: center; }
+  .ch-trade-dialog .ch-tx-body {
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 2px 10px;
+    width: 100%;
+  }
+  .ch-trade-dialog .ch-tx-body strong { grid-column: 1; }
+  .ch-trade-dialog .ch-tx-status { grid-column: 1; }
+  .ch-trade-dialog .ch-tx-cost { grid-column: 2; grid-row: 1 / span 2; text-align: right; align-self: center; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ch-trade-dialog .ch-tx-steps > li.is-preparing .ch-tx-index,
+  .ch-trade-dialog .ch-tx-steps > li.is-signing .ch-tx-index { animation: ch-tx-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes ch-tx-pulse { 50% { opacity: .45; } }

@@ -9,7 +9,8 @@ import { buyQuoteLabel, midpointLabel } from '../src/components/home/venue/quote
 test('a bid-only NO book cannot price a market buy', () => {
   expect(() => marketBuyQuote([], 5_000_000n)).toThrow('No sellers')
   const no = { id: 'no', label: 'NO', detail: '', probability: .6, marketQuote: { bid: .6 } }
-  expect(buyQuoteLabel(no, true)).toBe('No asks')
+  // Row buttons show one neutral placeholder; the order book keeps the wording.
+  expect(buyQuoteLabel(no, true)).toBe('--')
   expect(midpointLabel(no)).toBe('60¢ bid')
 })
 

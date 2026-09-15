@@ -1,3 +1,7 @@
+// The shared header initializes before page islands. Load the browser Buffer
+// shim here so Dynamic's Solana client cannot crash a fresh homepage reload
+// before the lazy trading entrypoint has installed it.
+import '../../../packages/adapters/solana/manifest/runtime'
 import { DynamicSolanaSession } from '../arena/DynamicSolanaSession'
 import { activeForPath, chromeHandlers, useChrome } from '../session/chrome'
 import { SiteHeader } from './SiteHeader'

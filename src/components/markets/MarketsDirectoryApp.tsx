@@ -1,7 +1,8 @@
 import '../../styles/home.css'
 import '../../styles/home-markets.css'
-import { ArrowUpRight, Eye, Users } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import '../../styles/markets-directory.css'
+import { ArrowUpRight, Eye, Users, Search } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { StatusDot, TeamMark, compact } from '../home/HomePrimitives'
 import { useHomeData } from '../home/useHomeData'
 import { linkedAnswerLabel, linkedQuestionTitle, questionEvents, standaloneQuestions, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
@@ -18,7 +19,8 @@ type Props = { apiUrl?: string }
  *  status and market are supplied rather than derived from teams. */
 export type DirectoryRow = { match: SolzMatch; market?: ArenaMarket; markets?: ArenaMarket[]; title?: string; detail?: string; status?: string; collateral?: string }
 
-type MarketGroup = { title: string; detail: string; rows: DirectoryRow[]; empty: string }
+const filters = ['All', 'Live', 'Upcoming', 'Settled', 'Questions'] as const
+type MarketFilter = typeof filters[number]
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
@@ -33,12 +35,12 @@ function scheduleLabel(match: SolzMatch, now: number) {
 
 const lockLabel = (at: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at)
 
-/** Each team's share of the market, by teamId, falling back to outcome order so
- *  a market that never labelled its outcomes still renders a bar. */
+/** Match outcome identities before falling back to order. Missing quotes stay
+ *  indicative: team count cannot establish odds or imply a certain winner. */
 function teamOdds(match: SolzMatch, market: ArenaMarket | undefined) {
   return match.teams.map((team, index) => {
     const outcome = market?.outcomes.find((item) => item.teamId === team.teamId) ?? market?.outcomes[index]
-    return { team, probability: outcome?.probability ?? 1 / Math.max(1, match.teams.length), indicative: outcome?.indicative ?? false }
+    return { team, probability: outcome?.probability ?? 1 / Math.max(1, match.teams.length), indicative: outcome?.indicative ?? !outcome }
   })
 }
 
@@ -76,9 +78,9 @@ function VersusCard({ row, now }: { row: DirectoryRow; now: number }) {
         <b style={{ color: team.color }}>{indicative ? '—' : percent(probability)}</b>
       </div>)}
     </div>
-    <div className="mk-split" style={{ background: away?.team.color ?? 'var(--sh-line)' }}>
+    {!odds.some(item => item.indicative) && <div className="mk-split" style={{ background: away?.team.color ?? 'var(--sh-line)' }}>
       <i style={{ width: percent(home?.probability ?? .5), background: home?.team.color ?? 'var(--sh-lime)' }}/>
-    </div>
+    </div>}
   </CardFrame>
 }
 
@@ -103,7 +105,7 @@ function RankedCard({ row, now, kind, rows, note }: { row: DirectoryRow; now: nu
 
 function FreeForAllCard({ row, now }: { row: DirectoryRow; now: number }) {
   const rows = teamOdds(row.match, row.market).map(({ team, probability, indicative }) => ({ key: team.teamId, label: team.symbol, color: team.color, probability, indicative }))
-  return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={`${row.match.teams.length} teams${row.match.roster.length ? ` · ${row.match.roster.length} agents` : ''}`}/>
+  return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={`${row.match.teams.length} ${row.match.teams.length === 1 ? 'team' : 'teams'}${row.match.roster.length ? ` · ${row.match.roster.length} agents` : ''}`}/>
 }
 
 /** Several linked questions under one event: rank them by their YES price. */
@@ -139,32 +141,33 @@ export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
   return <FreeForAllCard row={row} now={now}/>
 }
 
-function MarketDirectory({ snapshot, questions, error, retry }: { snapshot: SolzSnapshot | null; questions: DirectoryRow[]; error: string; retry: () => void }) {
-  const groups = useMemo<MarketGroup[]>(() => {
-    if (!snapshot) return []
-    const row = (match: SolzMatch): DirectoryRow => ({ match, market: snapshot.markets.find((item) => item.id === match.marketId), title: match.teams.length > 2 ? `${match.teams.length}-TEAM FREE FOR ALL` : match.teams.map((team) => team.symbol).join(' VS ') })
-    return [
-      // Listed first and always rendered: a standalone question settles on its own
-      // schedule and is the only market that outlives the ~20-minute match cycle.
-      { title: 'Standalone questions', detail: 'Long-running questions that settle on their own schedule, independent of any match.', rows: questions, empty: 'No standalone questions are open right now.' },
-      { title: 'Live markets', detail: 'Markets currently in play.', rows: snapshot.matches.filter((match) => match.phase === 'live').map(row), empty: 'No markets are live right now.' },
-      { title: 'Upcoming markets', detail: 'Scheduled matches available to preview.', rows: snapshot.matches.filter((match) => match.phase === 'countdown' || match.phase === 'queued').sort((a, b) => a.startedAt - b.startedAt).map(row), empty: 'No upcoming markets are scheduled.' },
-      { title: 'Past markets', detail: 'Completed matches and settled outcomes.', rows: snapshot.matches.filter((match) => match.phase === 'settled').sort((a, b) => b.endsAt - a.endsAt).map(row), empty: 'No settled markets yet.' },
-    ]
-  }, [snapshot, questions])
+export function MarketDirectory({ snapshot, questions, error, retry }: { snapshot: SolzSnapshot | null; questions: DirectoryRow[]; error: string; retry: () => void }) {
+  const [filter, setFilter] = useState<MarketFilter>('All')
+  const [search, setSearch] = useState('')
+  const rows = useMemo(() => {
+    const matches: DirectoryRow[] = (snapshot?.matches ?? []).map(match => ({ match, market: snapshot?.markets.find(item => item.id === match.marketId), title: match.teams.length > 2 ? `${match.teams.length}-TEAM FREE FOR ALL` : match.teams.map(team => team.symbol).join(' VS ') || match.map }))
+    // Questions and arena matches share one stage; status is a filter, never a
+    // separate section that pushes the next available market below the fold.
+    return [...questions, ...matches].filter(row => {
+      const phase = row.match.phase
+      const selected = filter === 'All' || (filter === 'Questions' ? questions.includes(row) : filter === 'Live' ? phase === 'live' : filter === 'Settled' ? phase === 'settled' : phase === 'countdown' || phase === 'queued')
+      return selected && `${row.title ?? ''} ${row.match.mode} ${row.match.teams.map(team => team.name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
+    })
+  }, [snapshot, questions, filter, search])
   return <AppShell className="solz-home mk-app" marketsHref="/markets" active="markets" skipTo="#market-directory" skipLabel="Skip to markets" backToTopHref="#market-directory">
     <main className="mk-main" id="market-directory">
-      <header className="mk-heading"><span>ARENA MARKET DIRECTORY</span><h1>ALL MATCH MARKETS</h1><p>Browse every live, scheduled, and settled arena match, plus standalone questions that trade on their own schedule. Open one to watch and trade its available markets.</p></header>
-      {error ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot ? <div className="mk-state" role="status">Loading market directory…</div> : <div className="mk-groups">{groups.map((group) => <section key={group.title} className="mk-group" aria-labelledby={group.title.replaceAll(' ', '-').toLowerCase()}>
-        <div className="mk-group-heading"><div><h2 id={group.title.replaceAll(' ', '-').toLowerCase()}>{group.title}</h2><p>{group.detail}</p></div><span>{group.rows.length}</span></div>
-        {group.rows.length ? <div className="mk-card-grid">{group.rows.map((row) => <MarketCard key={row.match.id} row={row} now={snapshot.updatedAt}/>)}</div> : <p className="mk-empty">{group.empty}</p>}
-      </section>)}</div>}
+      <header className="mk-heading"><h1>All markets</h1><label className="mk-search"><Search size={18}/><input type="search" aria-label="Search markets" placeholder="Search markets" value={search} onChange={event => setSearch(event.target.value)}/></label></header>
+      <nav className="mk-filters" aria-label="Filter markets">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>{item}</button>)}</nav>
+      {error ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot ? <div className="mk-state" role="status">Loading markets…</div> : <>
+        <span className="mk-result-count" role="status">{rows.length} {rows.length === 1 ? 'market' : 'markets'}</span>
+        {rows.length ? <div className="mk-card-grid">{rows.map(row => <MarketCard key={row.match.id} row={row} now={snapshot.updatedAt}/>)}</div> : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{search || filter !== 'All' ? 'Try another filter or search.' : 'Markets will appear here when they are published.'}</span></div>}
+      </>}
     </main>
   </AppShell>
 }
 
 export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
-  const source = useMemo(() => createSolzDataSource(), [])
+  const source = useMemo(() => createSolzDataSource({ simulationEnabled: () => false }), [])
   const { snapshot, error, retry } = useHomeData(source, apiUrl)
   const venue = useSolanaVenue(apiUrl)
   const reserved = useReservedSolanaQuestions(apiUrl, venue)
@@ -182,7 +185,7 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
         market: markets[0],
         markets,
         title: markets[0]?.presentation?.eventTitle ?? linkedQuestionTitle(markets.map((market) => market.title)),
-        detail: `${views[0].match.map} · LOCKS ${lockLabel(views[0].match.endsAt)}`,
+        detail: `Closes ${lockLabel(views[0].match.endsAt)}`,
         status: views[0].question.status === 'live' ? 'LIVE NOW' : 'RESERVED',
         collateral: 'fUSDC',
       }

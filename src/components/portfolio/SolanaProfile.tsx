@@ -22,6 +22,11 @@ import {
   type ProfileAccounting,
 } from './useProfileAccounting'
 import { SolanaProfileAction, type ProfileAction } from './SolanaProfileAction'
+import {
+  instantSellBlocker,
+  sellableShares,
+  useInstantSell,
+} from './instantSell'
 import { isClosedPosition } from './model'
 import { solanaNetwork } from './profileRoute'
 import './solanaProfile.css'
@@ -320,6 +325,7 @@ export function SolanaProfile({
     network !== solanaNetwork(venue.chainId)
   )
   const manage = isSelf && !wrongNetwork
+  const instant = useInstantSell(venue, owner, onRefresh)
   const refresh = () => {
     onRefresh()
     setCursor('')
@@ -591,6 +597,21 @@ export function SolanaProfile({
                                   {money(a?.proceeds, decimals)} {symbol}
                                 </small>
                               )}
+                              {(instant.pending === p.id ||
+                                instant.settled === p.id) && (
+                                <small
+                                  role="status"
+                                  className={
+                                    instant.settled === p.id
+                                      ? instant.failed
+                                        ? 'sp-negative'
+                                        : 'sp-positive'
+                                      : 'sp-muted'
+                                  }
+                                >
+                                  {instant.message}
+                                </small>
+                              )}
                             </td>
                             <td data-label={isSelf ? 'Avg → Now' : 'Avg'}>
                               {sharePrice(average, decimals)}
@@ -646,28 +667,38 @@ export function SolanaProfile({
                               {manage &&
                                 p.row &&
                                 (p.row.state === 'Trading' ||
-                                  p.row.state.startsWith('Claim')) && (
+                                  p.row.state.startsWith('Claim')) &&
+                                (p.row.state === 'Trading' ? (
+                                  // Selling is one click: no panel, no terms to
+                                  // re-enter. Sizing and pricing live on the
+                                  // event page.
                                   <button
-                                    className={
-                                      p.row.state === 'Trading'
-                                        ? 'pf-sell'
-                                        : 'pf-primary'
+                                    className="pf-sell"
+                                    disabled={
+                                      !!instant.pending ||
+                                      !instant.ready ||
+                                      !!instantSellBlocker(p.row)
                                     }
+                                    title={
+                                      instantSellBlocker(p.row) ||
+                                      `Sell ${formatUnitsExact(sellableShares(p.row), decimals, 4)} shares at ${sharePrice(p.row.bestBid, decimals)}`
+                                    }
+                                    onClick={() => void instant.sell(p.row!)}
+                                  >
+                                    {instant.pending === p.row.id
+                                      ? 'Selling…'
+                                      : 'Sell'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="pf-primary"
                                     onClick={() =>
-                                      setAction({
-                                        kind:
-                                          p.row!.state === 'Trading'
-                                            ? 'sell'
-                                            : 'claim',
-                                        row: p.row!,
-                                      })
+                                      setAction({ kind: 'claim', row: p.row! })
                                     }
                                   >
-                                    {p.row.state === 'Trading'
-                                      ? 'Sell'
-                                      : 'Claim'}
+                                    Claim
                                   </button>
-                                )}
+                                ))}
                               {eventHref(p.identity) && (
                                 <a
                                   aria-label={`Open ${p.identity.label}`}

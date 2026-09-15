@@ -18,7 +18,7 @@ import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from "../solz/model";
 import { useHomeData } from "./useHomeData";
 import { AppShell } from "../solz/AppShell";
 import { TradeContextBar } from "./TradeContextBar";
-import { MatchViewer } from "./MatchViewer";
+import { broadcastBelongsToMatch, MatchViewer } from "./MatchViewer";
 import { InteractionConsole, type ConsoleSection } from "./InteractionConsole";
 import { ArenaEntry, LiveMatches, NextMatches, TeamStandings } from "./CommunitySections";
 import { GenesisAgents } from "./GenesisAgents";
@@ -162,7 +162,7 @@ function Home({
   const [solanaCluster, setSolanaCluster] = useState<SolanaCluster>("devnet");
   const [somniaChain, setSomniaChain] = useState<SomniaChain>("50312");
   const source = useMemo(() => createSolzDataSource(), []);
-  const { snapshot, referenceSnapshot, error, predictionFeed, retry } =
+  const { snapshot, referenceSnapshot, error, predictionFeed, arenaSchedule, retry } =
     useHomeData(source, apiUrl);
   const solanaVenue = useSolanaVenue(apiUrl, marketSources.includes("SOLANA"));
   const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue).questions;
@@ -177,8 +177,9 @@ function Home({
   const [dreamDexRefresh, setDreamDexRefresh] = useState(0);
   const [matchIdCopied, setMatchIdCopied] = useState(false);
   const [broadcastState, setBroadcastState] = useState<
-    "intermission" | "preparing" | "live" | "unavailable" | null
+    "preview" | "intermission" | "preparing" | "live" | "unavailable" | null
   >(null);
+  const lastBroadcastMismatch = useRef<string | null>(null);
   const highlight = useRef<HTMLElement>(null);
   const externalFeedPending = Boolean(apiUrl) && !predictionFeed;
   const selectedMatch = snapshot?.matches.find(
@@ -211,6 +212,18 @@ function Home({
           roster: [],
         }
       : loadedMatch);
+  const reconcileBroadcastMatch = (broadcastMatchId: string | null) => {
+    if (!broadcastMatchId || !match || broadcastBelongsToMatch(broadcastMatchId, match)) {
+      lastBroadcastMismatch.current = null;
+      return;
+    }
+    if (lastBroadcastMismatch.current === broadcastMatchId) return;
+    // The iframe is already connected to the new server-authoritative room.
+    // Refresh once when its immutable match ID differs, rather than letting an
+    // older page keep a completed five-minute clock until the user reloads.
+    lastBroadcastMismatch.current = broadcastMatchId;
+    retry();
+  };
   const season = !!(
     snapshot &&
     match &&
@@ -284,6 +297,7 @@ function Home({
         : predictionMarkets;
   const preparingMatch =
     match?.phase === "countdown" ||
+    broadcastState === "preview" ||
     broadcastState === "intermission" ||
     broadcastState === "preparing";
   const activeMarkets = useMemo(
@@ -404,7 +418,9 @@ function Home({
             item.phase === "live" ? ("live" as const) : ("countdown" as const),
           mode: item.mode,
           players: item.roster.length,
-          capacity: Math.max(12, item.roster.length),
+          // A catalog-backed room's roster is the signed, fully funded field;
+          // retaining the retired twelve-player capacity would misstate 3v3.
+          capacity: Math.max(1, item.roster.length),
           spectators: item.viewers,
           startedAt: item.startedAt,
           watchUrl: liveHref,
@@ -475,7 +491,7 @@ function Home({
       skipLabel="Skip to the arena"
     >
       <main className="sh-main">
-        <NextMatches snapshot={snapshot} eventBasePath={eventBasePath} />
+        <NextMatches snapshot={snapshot} schedule={arenaSchedule} eventBasePath={eventBasePath} />
         <section
           className="sh-highlight-section"
           ref={highlight}
@@ -512,6 +528,7 @@ function Home({
                 />
                 <MatchViewer
                   onBroadcastState={setBroadcastState}
+                  onBroadcastMatchId={reconcileBroadcastMatch}
                   heading={
                     <MatchHeading
                       match={match}

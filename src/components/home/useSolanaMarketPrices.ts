@@ -69,7 +69,18 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
     [bindings],
   )
   const revision = useVenueRevisions(scopes)
-  const scope = `${venue?.publicRpcUrl ?? ''}:${scopes.join('|')}:${focusMarketId ?? ''}`
+  // The page identity, deliberately WITHOUT the focused market. Focus only
+  // decides whose candles are read; every price comes from the two batched
+  // account reads. Folding focus in here made selecting a question tear down the
+  // poll loop and fail the freshness check below, so all twelve questions
+  // snapped back to indicative 50/50 on every click.
+  const scope = `${venue?.publicRpcUrl ?? ''}:${scopes.join('|')}`
+  // The poll loop re-enters its own closure every 10s, so anything captured when
+  // the effect ran would stay frozen for the life of the page — and the question
+  // catalogue is refetched every 10s, handing us fresh market objects that never
+  // reach the loop. Read the current render's values instead.
+  const latest = useRef({ base, bindings, venue, focusMarketId })
+  latest.current = { base, bindings, venue, focusMarketId }
   const [result, setResult] = useState<Result & { scope: string }>({ scope: '', markets: [], status: 'NOT CONNECTED' })
   // One reader per venue keeps the decoded-transaction cache across polls; a new
   // one each tick would re-fetch the entire signature page every time.
@@ -78,8 +89,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
 
   useEffect(() => {
     if (!enabled) return
-    const bound = bindings.filter((item): item is { market: ArenaMarket; binding: SolanaBinding } => item.binding !== null)
-    if (!venue?.publicRpcUrl || !bound.length) {
+    if (!venue?.publicRpcUrl || !latest.current.bindings.some(item => item.binding)) {
       setResult({ scope, markets: base, status: venue?.publicRpcUrl ? 'DEVNET · 0 BOUND' : 'DEVNET · NOT CONFIGURED' })
       return
     }
@@ -100,6 +110,10 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
     const reader = candles.current.reader
 
     const load = async () => {
+      // Re-read every render-derived value on each pass, never from the closure.
+      const { base, focusMarketId } = latest.current
+      const bound = latest.current.bindings.filter((item): item is { market: ArenaMarket; binding: SolanaBinding } => item.binding !== null)
+      if (!bound.length) { if (active) timer = setTimeout(() => void load(), 10_000); return }
       try {
         const requests = bound.flatMap(({ binding }) => [0, 1].map(outcome => ({ question: new PublicKey(binding.marketId), outcome: outcome as 0 | 1 })))
         const decoded = await adapter.bindings(requests)
@@ -112,7 +126,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
         // every question on a twelve-question event would be a signature page
         // plus serial getTransaction calls per question, per tick.
         const focus = bound.findIndex(({ market }) => market.id === focusMarketId)
-        let focusCandles = historyCache.current.get(scope) ?? []
+        let focusCandles = historyCache.current.get(`${scope}:${focusMarketId ?? ''}`) ?? []
         const publish = () => {
         opened = 0
         const markets = bound.map(({ market, binding }, index) => {
@@ -147,7 +161,13 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
               } : undefined,
               quoteHistory: series,
               priceHistory: trades,
-              historyStatus: index === focus ? (history[side]?.partial && !trades.length ? 'unavailable' as const : 'ready' as const) : outcome.historyStatus,
+              // Only the focused market's candles are read, so every other
+              // market is "not read", not "no trades". Leaving it undefined made
+              // the chart assert "No trades recorded yet." about a book it had
+              // never looked at.
+              historyStatus: index === focus
+                ? (history[side]?.partial && !trades.length ? 'unavailable' as const : 'ready' as const)
+                : 'unavailable' as const,
             }
           })
           const executed = history.flatMap(item => item.candles).filter(candle => at - candle.timestamp <= 86_400_000)
@@ -162,7 +182,12 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
             onchain: {
               ...market.onchain!,
               volume: { amount: lifetimeVolume.toString(), decimals: binding.collateralDecimals },
-              ...(executed.length ? { volume24h: { amount: executed.reduce((sum, candle) => sum + candle.collateralVolume, 0n).toString(), decimals: binding.collateralDecimals, trades: executed.length } } : {}),
+              // Marked partial while the receipt backfill is still running: the
+              // reader decodes a bounded number of new transactions per pass, so
+              // this is a lower bound for the first minute or so on a busy book,
+              // and presenting it as a settled 24h figure understates it
+              // silently. The lifetime `volume` above is exact.
+              ...(executed.length ? { volume24h: { amount: executed.reduce((sum, candle) => sum + candle.collateralVolume, 0n).toString(), decimals: binding.collateralDecimals, trades: executed.length, partial: history.some(item => item?.partial) } } : {}),
             },
             outcomes,
           }
@@ -182,7 +207,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
             catch { return { candles: focusCandles[outcome]?.candles ?? [], partial: true } }
           }))
           if (!active) return
-          historyCache.current.set(scope, focusCandles)
+          historyCache.current.set(`${scope}:${focusMarketId ?? ''}`, focusCandles)
           publish()
         }
       } catch (reason) {

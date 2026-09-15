@@ -47,10 +47,15 @@ export class ManifestCandleReader {
   async read(binding: ManifestBinding, limit = 100): Promise<{ candles: Candle[]; partial: boolean }> {
     const signatures = await this.connection.getSignaturesForAddress(binding.venue, { limit }, 'confirmed')
     let fetched = 0, partial = false
-    const collected: Candle[] = []
+    // Tagged with the signature's position in the newest-first page and the
+    // fill's position inside its own transaction. blockTime has one-second
+    // granularity while slots are ~400ms, so two transactions routinely share a
+    // timestamp; a plain stable sort then left the OLDEST of that second last,
+    // and every consumer reading `.at(-1)` as "last trade" took the wrong one.
+    const collected: { candle: Candle; page: number; fill: number }[] = []
     // Newest first, so a bounded backfill always knows the latest price rather
     // than a non-deterministic slice of the middle of the book's history.
-    for (const entry of signatures) {
+    for (const [page, entry] of signatures.entries()) {
       if (entry.err) continue
       const key = `${binding.venue.toBase58()}:${entry.signature}`
       let rows = this.decoded.get(key)
@@ -65,11 +70,18 @@ export class ManifestCandleReader {
         this.decoded.set(key, rows)
         if (this.decoded.size > this.cacheLimit) this.decoded.delete(this.decoded.keys().next().value as string)
       }
-      collected.push(...rows)
+      rows.forEach((candle, fill) => collected.push({ candle, page, fill }))
     }
-    // Every fill in one transaction carries that transaction's block time, so
-    // sort explicitly rather than relying on signature order to be price order.
-    return { candles: collected.sort((a, b) => a.timestamp - b.timestamp), partial }
+    // Chronological: by block time, then newest-transaction-last within a shared
+    // second (the page is newest-first, so a smaller `page` is newer), then in
+    // sweep order within one transaction. The fetch walk stays newest-first so
+    // the `perPass` budget still front-loads the most recent trades.
+    return {
+      candles: collected
+        .sort((a, b) => a.candle.timestamp - b.candle.timestamp || b.page - a.page || a.fill - b.fill)
+        .map(row => row.candle),
+      partial,
+    }
   }
 }
 

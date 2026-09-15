@@ -1,0 +1,133 @@
+/* The one market row. Used by the event answer list, the home topic list and
+   the home nested multi-outcome list — previously five hand-written copies
+   across two files and four selector families. Everything that governs a row's
+   layout, type scale and trading colours lives here and nowhere else. */
+
+.mk-row-columns,
+.mk-row-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px 208px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 17px;
+}
+.mk-row-columns {
+  padding-top: 0;
+  padding-bottom: 11px;
+  color: #9da9b7;
+  font: 400 8px var(--sh-mono);
+}
+.mk-row-columns > span:nth-child(2) { text-align: center; }
+.mk-row-columns > span:last-child { text-align: center; }
+
+.mk-row { background: #1d2229; border: 1px solid #363f49; }
+.mk-row:has(+ .mk-row) { border-bottom: 0; }
+.mk-row.is-selected { border-color: #7d8b56; background: #1e2422; }
+
+.mk-row-summary.is-headline { grid-template-columns: minmax(0, 1fr); }
+.mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 208px; }
+.mk-row-name { min-width: 0; }
+.mk-row-name > button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  color: #e5e9f0;
+}
+.mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) {
+  min-width: 0;
+  font: 600 16px var(--sh-heading);
+}
+.mk-row-name small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9daaba;
+  font: 500 10px var(--sh-mono);
+  margin-top: 5px;
+}
+.mk-row-name .sh-portrait { width: 40px; height: 46px; flex-shrink: 0; }
+.mk-row-name .sh-team-mark { width: 34px; height: 38px; flex-shrink: 0; }
+.mk-row-image { width: 40px; height: 46px; flex-shrink: 0; object-fit: cover; border: 1px solid #505761; }
+
+/* The home list scrolls inside a fixed column; its topic row stays put so you
+   can always see which market the rows below belong to. */
+.ch-options-scroll > .mk-row > .mk-row-summary { position: sticky; top: -2px; z-index: 1; background: #1d2229; }
+.ch-options-scroll > .mk-row.is-selected > .mk-row-summary { background: #1e2422; }
+.ch-outcome-list > .mk-row { border-left: 0; border-right: 0; }
+.ch-outcome-list > .mk-row:last-child { border-bottom: 0; }
+
+.mk-row-chance {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+  font: 600 21px var(--sh-heading);
+  color: #edf1f5;
+}
+.mk-row-move { font: 600 10px var(--sh-mono); color: #aab8c5; }
+.mk-row-move.is-up { color: #5be5a9; }
+.mk-row-move.is-down { color: #ff8b9d; }
+
+.mk-row-picks { display: flex; gap: 8px; }
+.mk-row-picks button {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px;
+  border: 1px solid;
+  font: 600 12px var(--sh-heading);
+}
+.mk-row-picks button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-row-picks button:hover { filter: brightness(1.2); }
+
+/* Trading colours. `--pick-color` is set inline only on a moneyline, where the
+   two sides are teams rather than Yes/No; everywhere else the green/red
+   fallbacks apply and team identity stays on the text and the mark. */
+.mk-row-picks .is-yes { color: var(--trade-yes-rest-ink); border-color: var(--trade-yes-rest-edge); background: var(--trade-yes-rest-fill); }
+.mk-row-picks .is-no { color: var(--trade-no-rest-ink); border-color: var(--trade-no-rest-edge); background: var(--trade-no-rest-fill); }
+.mk-row-picks .is-yes[aria-pressed='true'] { color: var(--trade-yes-ink); background: var(--trade-yes-fill); border-color: var(--trade-yes-edge); }
+.mk-row-picks .is-no[aria-pressed='true'] { color: var(--trade-no-ink); background: var(--trade-no-fill); border-color: var(--trade-no-edge); }
+/* Moneyline only. --pick-ink is chosen from the fill's luminance, so an
+   arbitrary team colour stays readable in both directions. */
+.mk-row-picks .has-pick-color[aria-pressed='false'] { color: var(--trade-off-ink); border-color: var(--trade-off-edge); background: var(--trade-off-fill); }
+.mk-row-picks .has-pick-color[aria-pressed='true'] { color: var(--pick-ink, #071a12); background: var(--pick-color); border-color: var(--pick-color); }
+
+@media (max-width: 1440px) and (min-width: 901px) {
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 84px 176px; gap: 12px; padding-right: 13px; padding-left: 13px; }
+  .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 176px; }
+  .mk-row-name > button { gap: 10px; min-height: 52px; }
+  .mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) { font-size: 14px; }
+  .mk-row-chance { font-size: 19px; }
+  .mk-row-picks button { font-size: 11px; gap: 5px; padding: 9px 6px; }
+}
+@media (max-width: 900px) and (min-width: 601px) {
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 68px 148px; gap: 10px; padding: 14px 12px; }
+  .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 148px; }
+  .mk-row-name > button { gap: 9px; min-height: 48px; }
+  .mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) { font-size: 13px; }
+  .mk-row-name .sh-portrait { width: 32px; height: 37px; }
+  .mk-row-name .sh-team-mark { width: 27px; height: 30px; }
+  .mk-row-chance { font-size: 16px; }
+  .mk-row-picks { gap: 5px; }
+  .mk-row-picks button { font-size: 10px; gap: 4px; padding: 8px 5px; min-height: 42px; }
+}
+@media (max-width: 600px) {
+  .mk-row-columns { display: none; }
+  .mk-row-summary { grid-template-columns: minmax(0, 1fr) 86px; gap: 12px; padding: 16px; }
+  .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr); }
+  .mk-row-picks { grid-column: 1 / -1; }
+  .mk-row-picks button { min-height: 44px; }
+  .mk-row-chance { font-size: 22px; }
+}

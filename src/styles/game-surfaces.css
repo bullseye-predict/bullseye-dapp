@@ -1,3 +1,23 @@
+/* Trading palette. ONE definition for every Yes/No control on the page: the
+   market rows and the trade ticket read the same tokens, so "selected" looks
+   identical wherever a trader sees it. */
+:root {
+  --trade-yes-fill: #0b8a55;
+  --trade-yes-ink: #f4fff9;
+  --trade-yes-edge: #48e3a0;
+  --trade-yes-rest-fill: #102d21;
+  --trade-yes-rest-ink: #5be5a9;
+  --trade-yes-rest-edge: #256749;
+  --trade-no-fill: #d92e47;
+  --trade-no-ink: #fff6f7;
+  --trade-no-edge: #ff8194;
+  --trade-no-rest-fill: #371820;
+  --trade-no-rest-ink: #ff7b91;
+  --trade-no-rest-edge: #843847;
+  --trade-off-fill: #2d3540;
+  --trade-off-ink: #b6c0cf;
+  --trade-off-edge: #46515e;
+}
 /* Rounding is reserved for standalone cards and conversation surfaces. */
 .solz-home {
   --radius-control: 4px;
@@ -15,16 +35,14 @@
 .solz-home .ch-console .sh-console-panel > h3 > button,
 .solz-home .ch-console .ch-trade,
 .solz-home .ch-console .ch-trade-action button,
-.solz-home :is(.ch-option-picks, .ch-answer-picks, .ch-trade-outcomes, .ev-market-picks, .ev-answer-picks) button { border-radius: 0; }
+.solz-home :is(.mk-row-picks, .ch-trade-outcomes) button { border-radius: 0; }
 
 /* Individual market cards and the activity below the stage can be softer. */
-.solz-home :is(.sh-match-card, .sh-agent-card, .ch-token-directory, .ev-prediction-link, .ch-chat-preview, .ch-prompt-preview, .ch-option, .ev-market) { border-radius: var(--radius-panel); }
-.solz-home .ch-option { overflow: clip; }
-.solz-home .ch-option-row { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
-.solz-home .ch-option:not(:has([aria-expanded="true"])) .ch-option-row { border-radius: var(--radius-panel); }
-.solz-home .ev-answer { border-radius: 0; }
-.solz-home .ev-answer:first-of-type { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
-.solz-home .ev-answer:last-of-type { border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
+.solz-home :is(.sh-match-card, .sh-agent-card, .ch-token-directory, .ev-prediction-link, .ch-chat-preview, .ch-prompt-preview) { border-radius: var(--radius-panel); }
+/* One list, one set of outer corners: rows join into a single panel. */
+.solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row { overflow: clip; }
+.solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:first-of-type { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
+.solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:last-of-type { border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
 
 /* The entry banner shares the card's outer corners, with a straight inner seam. */
 .solz-home .sh-entry-panel { border-radius: var(--radius-panel); overflow: clip; }
