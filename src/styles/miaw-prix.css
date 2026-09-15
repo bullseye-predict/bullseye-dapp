@@ -1,0 +1,290 @@
+/* MIAW PRIX — the season, its grid, its results and its standings.
+ * Prefix: mp-.
+ *
+ * SAME DESIGN LANGUAGE AS CATWALK, DELIBERATELY. CATWALK is the lineup and this
+ * page is the programme it feeds, so the two are read one after the other
+ * and must not look like two products. The token block below is the palette
+ * declared in src/styles/catwalk.css:26-40 under `.cw-board`, re-declared here
+ * rather than borrowed, because that block is scoped to their root element and
+ * inheriting it would drag in every `.cw-board ...` rule with it. Changing a
+ * value here without changing it there splits the two pages apart.
+ *
+ * THE TWO RULES INHERITED FROM CATWALK, BOTH LOAD-BEARING:
+ *
+ *   MONEY IS --mp-money, SPORT IS --mp-lime. A traded figure and a win count
+ *   never share a colour. Prediction volume is real money and takes --mp-money;
+ *   win counts and the live season take lime.
+ *
+ *   The reward pool stays neutral text. It is Soda Liquid — the game stake, not
+ *   money a trader can win — and painting it the same green as traded volume
+ *   would claim the two are the same kind of number.
+ *
+ * Team identity colours dress the ticker, the crest and nothing else, per
+ * AGENTS.md: no control on this page takes a team colour.
+ */
+
+.mp-app .mp-main {
+  --mp-panel: #191a1e; --mp-panel-2: #16171b; --mp-line: #33343a; --mp-hair: #ffffff0f;
+  --mp-text: #eeeef0; --mp-muted: #a1a2ac; --mp-dim: #8d8f99; --mp-faint: #6f7280;
+  --mp-lime: #c7ff00; --mp-lime-ink: #15180c;
+  --mp-money: #5be5a9;              /* = --cw-money = .mk-row-move.is-up */
+  --mp-gold: #ffc53d;
+  /* = --cw-lane-champion on the CATWALK board. The same lane is the same colour
+     on both pages, which is the whole point of stating it as a token. */
+  --mp-champion: #ffc53d;
+  --mp-head: 'Archivo', sans-serif; --mp-mono: 'Geist Mono', monospace;
+  /* A CREST, not a favicon. CATWALK sets --cw-crest: 34px on a 64px row that
+     carries one line of text; a standings row here carries three — ticker, name
+     and the full contract address — so the same mark is drawn at 42px on a
+     taller row to stay square with them. Same treatment either way: square,
+     cover-cropped, ringed in the coin's own colour. */
+  --mp-row-h: 74px; --mp-crest: 42px;
+  --mp-radius: 0; --mp-radius-control: 4px;
+  font-variant-numeric: tabular-nums;
+
+  /* Vertical rhythm only. The content column and its side gutter belong to
+     AppShell's .sz-main; a `padding` shorthand here would zero them. */
+  padding-block: 26px 60px;
+  display: grid; gap: 22px; align-content: start;
+}
+
+/* Geist Mono ships 400–700 and .solz-home sets font-synthesis:none, so anything
+   heavier than 700 has to be Archivo or it simply will not render. */
+.mp-app b, .mp-app strong { font-weight: 700; }
+
+/* ── Masthead ─────────────────────────────────────────────────────────────── */
+.mp-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.mp-heading h1 { margin: 0; font: 900 clamp(38px, 4.6vw, 64px)/.9 var(--mp-head); letter-spacing: -.03em; }
+.mp-heading p { max-width: 62ch; margin-top: 10px; color: var(--mp-muted); font-size: 12px; }
+.mp-refresh { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid #666974; border-radius: var(--mp-radius-control); background: transparent; color: var(--mp-text); font: 700 9px var(--mp-head); letter-spacing: .08em; text-transform: uppercase; }
+.mp-refresh:hover:not(:disabled) { border-color: var(--mp-lime); color: var(--mp-lime); }
+
+/* ── Season ───────────────────────────────────────────────────────────────── */
+.mp-season { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px 32px; padding: 20px 22px; border: 1px solid var(--mp-line); border-radius: var(--mp-radius); background: var(--mp-panel); }
+.mp-season.is-live { border-color: color-mix(in srgb, var(--mp-lime) 42%, var(--mp-line)); }
+.mp-season.is-closed { grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto; }
+.mp-season-main { min-width: 0; display: grid; gap: 8px; }
+.mp-season-id { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mp-season-id h2 { margin: 0; font: 800 clamp(26px, 3vw, 40px)/1 var(--mp-head); letter-spacing: -.02em; }
+.mp-season-window { color: var(--mp-muted); font: 500 9px var(--mp-mono); letter-spacing: .14em; text-transform: uppercase; }
+
+.mp-status { height: 20px; padding: 0 8px; display: inline-flex; align-items: center; border: 1px solid currentColor; border-radius: var(--mp-radius-control); font: 500 8px var(--mp-mono); letter-spacing: .14em; text-transform: uppercase; }
+.mp-status--live { color: var(--mp-lime); }
+.mp-status--closed { color: var(--mp-gold); }
+.mp-status--upcoming { color: #65cfff; }
+.mp-status--none { color: var(--mp-faint); }
+
+.mp-season-clock { display: grid; gap: 3px; justify-items: end; text-align: right; }
+.mp-clock-label { color: var(--mp-lime); font: 500 8px var(--mp-mono); letter-spacing: .2em; text-transform: uppercase; }
+.mp-season.is-closed .mp-clock-label { color: var(--mp-gold); }
+.mp-season-clock strong { font: 700 28px var(--mp-head); white-space: nowrap; }
+
+/* The champion is the closed season's headline, so it is published here rather
+   than inferred by the reader from the top row of the table below. */
+.mp-champion { display: grid; gap: 7px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--mp-gold) 46%, transparent); background: color-mix(in srgb, var(--mp-gold) 7%, transparent); }
+.mp-champion-label { color: var(--mp-gold); font: 700 8px var(--mp-head); letter-spacing: .2em; text-transform: uppercase; }
+.mp-champion-record { color: var(--mp-muted); font: 500 9px var(--mp-mono); letter-spacing: .1em; }
+/* A title won on a level win count is a title decided by something this
+   cell does not show, so the cell says which. */
+.mp-champion-tie { max-width: 46ch; color: var(--mp-dim); font: 400 10px/1.5 var(--mp-mono); letter-spacing: .02em; }
+
+.mp-season-picker { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding-top: 15px; border-top: 1px solid var(--mp-hair); }
+.mp-season-picker > span { color: var(--mp-dim); font: 500 8px var(--mp-mono); letter-spacing: .16em; text-transform: uppercase; }
+.mp-season-picker select:disabled { opacity: .55; }
+.mp-season-picker select { min-height: 34px; padding: 0 10px; border: 1px solid #666974; border-radius: var(--mp-radius-control); background: transparent; color: var(--mp-text); font: 500 10px var(--mp-mono); letter-spacing: .06em; }
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+.mp-section { display: grid; gap: 9px; }
+.mp-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.mp-section-heading h2 { margin: 0; font: 700 11px var(--mp-head); letter-spacing: .18em; text-transform: uppercase; }
+.mp-section-heading span { color: var(--mp-dim); font: 500 9px var(--mp-mono); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+/* Tables are the one surface allowed to out-run the content column, and only
+   inside their own scroller, so the page body never scrolls sideways. */
+.mp-standings { display: grid; gap: 8px; }
+.mp-table-scroll { overflow-x: auto; border: 1px solid var(--mp-line); border-radius: var(--mp-radius); background: var(--mp-panel); }
+.mp-table-scroll:focus-visible { outline: 2px solid var(--mp-lime); outline-offset: 2px; }
+.mp-table { width: 100%; min-width: 720px; border-collapse: collapse; font: 400 12px var(--mp-mono); }
+.mp-table--matches { min-width: 880px; }
+.mp-table th, .mp-table td { padding: 0 14px; height: var(--mp-row-h); text-align: left; vertical-align: middle; }
+.mp-table thead th { height: 26px; background: var(--mp-panel-2); color: var(--mp-dim); font: 700 8px var(--mp-head); letter-spacing: .16em; text-transform: uppercase; border-bottom: 1px solid var(--mp-line); }
+.mp-table tbody tr + tr { border-top: 1px solid var(--mp-hair); }
+.mp-table tbody tr:hover:not(.mp-pending-row):not(.mp-message-row) { background: #1e2026; }
+.mp-col-num { text-align: right; font-variant-numeric: tabular-nums; }
+.mp-col-rank { width: 76px; }
+.mp-col-time { width: 176px; }
+.mp-message-row td { height: auto; padding: 30px 14px; color: var(--mp-muted); text-align: center; }
+/* A table showing the last read that landed says so ON those rows, rather
+   than printing an outage banner over rows it is still displaying. */
+.mp-message-row.is-stale td { padding: 16px 14px; border-top: 1px solid #5c4a31; background: #241d14; color: #f0c98a; text-align: left; font-size: 11px; }
+.mp-rule { margin: 0; padding-inline: 2px; color: var(--mp-dim); font: 500 8px var(--mp-mono); letter-spacing: .12em; text-transform: uppercase; }
+
+/* ── Standings ────────────────────────────────────────────────────────────── */
+/* WINS DECIDE THE SEASON, so the win column is the loudest number on the page
+   and nothing next to it competes. No win-rate column exists: deriving one
+   would quietly restate the rule as something it is not. */
+.mp-rank { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--mp-line); color: var(--mp-dim); font: 700 12px var(--mp-head); }
+/* The top three by season wins are not a podium — they are exactly the coins
+   the CHAMPION lane admits to CATWALK. So they carry the champion lane's colour,
+   the same one that lane wears on the board, rather than three medal metals that
+   say "1st, 2nd, 3rd" in a sport nobody is playing. One hue, because the lane is
+   one lane; the rank number already says which of the three a coin is. */
+.mp-table--standings tr[data-pos='1'] .mp-rank,
+.mp-table--standings tr[data-pos='2'] .mp-rank,
+.mp-table--standings tr[data-pos='3'] .mp-rank {
+  border-color: var(--mp-champion); color: var(--mp-champion);
+}
+.mp-table--standings tbody .mp-col-wins b { font: 700 19px var(--mp-head); color: var(--mp-lime); }
+.mp-table--standings tbody td:not(.mp-col-wins) { color: var(--mp-muted); }
+.mp-tie { display: inline-block; margin-left: 7px; padding: 1px 5px; border: 1px solid #3c3e46; border-radius: var(--mp-radius-control); color: var(--mp-faint); font: 500 7px var(--mp-mono); font-style: normal; letter-spacing: .14em; text-transform: uppercase; vertical-align: middle; }
+
+/* ── Coin identity ────────────────────────────────────────────────────────── */
+/* A team IS the coin, so every row leads with its crest and ticker. The team's
+   own colour dresses the ticker and the crest ring — never a control. */
+.mp-coin { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+/* The ring is currentColor because TeamMark paints the mark with the coin's own
+   colour; CATWALK reaches the same ring through --team-color on its row. */
+.mp-coin .mp-crest { width: var(--mp-crest); height: var(--mp-crest); flex-shrink: 0; object-fit: cover; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 55%, transparent); }
+.mp-coin-text { display: grid; gap: 1px; min-width: 0; }
+.mp-coin-text b { font: 700 15px var(--mp-head); letter-spacing: -.01em; }
+.mp-coin-text small { color: var(--mp-dim); font: 400 9px var(--mp-mono); letter-spacing: .08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 18ch; }
+.mp-coin.is-muted { opacity: .42; filter: grayscale(.5); }
+
+.mp-pair { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mp-pair-side { display: inline-flex; align-items: center; gap: 14px; }
+.mp-versus { color: var(--mp-faint); font: 700 9px var(--mp-head); font-style: normal; letter-spacing: .16em; text-transform: uppercase; }
+
+/* A pairing that has not bound yet, and a figure this page cannot state. Both
+   are deliberately quiet: they are the absence of data, not data. */
+.mp-unbound, .mp-unknown { color: var(--mp-faint); font: 500 10px var(--mp-mono); letter-spacing: .08em; }
+/* Traded money. Not the reward pool, which is a game stake in Soda Liquid. */
+.mp-volume { color: var(--mp-money); font: 700 14px var(--mp-head); }
+.mp-reward { color: var(--mp-muted); }
+
+/* ── Match rows ───────────────────────────────────────────────────────────── */
+.mp-time { display: block; font: 500 11px var(--mp-mono); letter-spacing: .04em; }
+.mp-table--matches td small { display: block; margin-top: 3px; color: var(--mp-faint); font: 400 8px var(--mp-mono); letter-spacing: .12em; text-transform: uppercase; }
+/* Upcoming and finished are different kinds of fact, and the page says which
+   before a reader has parsed a single column: a live edge and a lit panel for
+   what is coming, a sunken panel for what is already decided. */
+.mp-table--next tbody tr:not(.mp-message-row) { box-shadow: inset 3px 0 0 #3f4249; }
+.mp-table--next tbody tr.is-live { box-shadow: inset 3px 0 0 var(--mp-lime); }
+.mp-table--next tbody tr.is-live .mp-time { color: var(--mp-lime); }
+.mp-table--final tbody tr:not(.mp-message-row) { background: var(--mp-panel-2); }
+.mp-table--final tbody tr:not(.mp-message-row):hover { background: #1e2026; }
+.mp-table--final tbody tr.is-cancelled { opacity: .55; }
+
+.mp-error { margin: 0; padding: 13px 16px; border: 1px solid #5c3138; border-radius: var(--mp-radius); background: #251a1c; color: #ffb4b4; font-size: 12px; }
+/* Not an error: the programme is intact and readable. Only the joined
+   Volume column is unknown, and saying so is what keeps every em dash in
+   that column from reading as "this match has no market". */
+.mp-notice { margin: 0; padding: 13px 16px; border: 1px solid #55492c; border-radius: var(--mp-radius); background: #221d13; color: #e7cf9b; font-size: 12px; }
+.mp-footnote { margin: 2px 0 0; max-width: 90ch; color: var(--mp-dim); font-size: 10px; line-height: 1.7; }
+
+/* ── Loading ──────────────────────────────────────────────────────────────── */
+/* Shaped like the loaded surface, never a sentence: the same rows, the same
+   columns and the same 64px row height, so nothing reflows when data lands. */
+.mp-pending { display: block; height: 11px; background: linear-gradient(90deg, #212328 25%, #2b2e35 50%, #212328 75%) 100% 0 / 300% 100%; animation: mp-sweep 1.4s ease-in-out infinite; }
+.mp-pending--rank { width: 30px; height: 30px; }
+.mp-pending--mark { width: var(--mp-crest); height: var(--mp-crest); flex-shrink: 0; }
+.mp-pending--mint { width: 168px; height: 9px; margin-top: 5px; }
+.mp-pending--symbol { width: 64px; height: 14px; }
+.mp-pending--name { width: 98px; height: 9px; margin-top: 5px; }
+.mp-pending--num { width: 36px; margin-left: auto; }
+.mp-pending--time { width: 124px; }
+.mp-pending--programme { width: 152px; }
+/* A skeleton that stands in for a VALUE sits INSIDE the element that would hold
+   it and stays inline, so the host element's own line box still sets the height
+   and the text lands in exactly the space the skeleton occupied. */
+.mp-pending--inline { display: inline-block; vertical-align: middle; height: .68em; }
+/* Heights track the type they replace: em where the host sets a large size,
+   px on the 8–9px mono labels, where a fraction of an em is a hairline. */
+.mp-pending--season { width: 250px; }
+.mp-pending--status { width: 52px; height: 8px; }
+.mp-pending--window { width: 180px; height: 9px; }
+.mp-pending--clock-label { width: 46px; height: 8px; }
+.mp-pending--clock { width: 104px; }
+.mp-pending--record { width: 168px; height: 9px; }
+/* The picker is a control, not a value: it stands in for the select's own box. */
+.mp-pending--picker { width: 212px; height: 34px; border-radius: var(--mp-radius-control); }
+@keyframes mp-sweep { to { background-position: 0 0; } }
+
+/* ── Narrow ───────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .mp-season, .mp-season.is-closed { grid-template-columns: minmax(0, 1fr); }
+  .mp-season-clock { justify-items: start; text-align: left; }
+}
+@media (max-width: 600px) {
+  .mp-app .mp-main { padding-block: 18px 40px; gap: 18px; --mp-row-h: 58px; }
+  .mp-heading { align-items: flex-start; }
+  .mp-season { padding: 16px; }
+  .mp-table th, .mp-table td { padding-inline: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-pending { animation: none; }
+}
+
+
+/* ── The programme: two columns on desktop, tabs on a phone ───────────────── */
+/* THE OWNER'S LAYOUT, VERBATIM: "on table and schedule can split col (3 and 2),
+   and under schedule the results. thats for desktop, if on mobile just use tab."
+   Standings take three units, the schedule two, and the results stack under the
+   schedule inside that same right-hand column.
+   Only one of the two trees is ever built — ProgrammeLayout decides, in JS, off
+   the same 900px line the season panel already turns on. There is deliberately
+   no `display: none` alternative here: a hidden table is still a table a screen
+   reader walks. */
+.mp-board { display: grid; gap: 22px; align-items: start; }
+.mp-board-main, .mp-board-side { min-width: 0; }
+.mp-board-side { display: grid; gap: 22px; align-content: start; }
+
+@media (min-width: 901px) {
+  .mp-board { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  /* The right-hand column is two fifths of the page, so the match tables run
+     tighter there: a smaller crest, a shorter row and less cell padding, rather
+     than a table that scrolls sideways on every view. */
+  .mp-board-side { --mp-crest: 32px; --mp-row-h: 60px; }
+  .mp-board-side .mp-table--matches { min-width: 600px; }
+  .mp-board-side .mp-table th, .mp-board-side .mp-table td { padding-inline: 10px; }
+  .mp-board-side .mp-col-time { width: 140px; }
+}
+
+/* Tabs are the app's own (.solz-home .mx-tabs, src/styles/home.css); this only
+   gives them the full width of the column and a rule to sit on. */
+.mp-app .mp-tabs { padding: 4px; border: 1px solid var(--mp-line); background: var(--mp-panel-2); }
+.mp-app .mp-tabs .mx-tabs__tab { flex: 1 1 0; font: 700 9px var(--mp-head); letter-spacing: .14em; }
+.mp-app .mp-tab-panel { min-width: 0; }
+.mp-app .mp-tab-panel:focus-visible { outline: 2px solid var(--mp-lime); outline-offset: 4px; }
+
+/* ── Contract address ─────────────────────────────────────────────────────── */
+/* IN FULL, because the control beside it copies a real mint to a clipboard and
+   two coins can share a 4-and-4 abbreviation. What is shown is what is copied. */
+.mp-mint { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; min-width: 0; }
+.mp-mint-copy { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 5px; border: 1px solid #34363e; border-radius: var(--mp-radius-control); background: transparent; color: var(--mp-faint); cursor: pointer; }
+.mp-mint-copy code { font: 400 9px var(--mp-mono); letter-spacing: .02em; white-space: nowrap; }
+.mp-mint-copy:hover, .mp-mint-copy:focus-visible { border-color: var(--mp-lime); color: var(--mp-lime); }
+.mp-mint-link { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid #34363e; border-radius: var(--mp-radius-control); color: var(--mp-faint); }
+.mp-mint-link:hover, .mp-mint-link:focus-visible { border-color: var(--mp-lime); color: var(--mp-lime); }
+
+/* ── Market capitalisation ────────────────────────────────────────────────── */
+/* NOT --mp-money: that colour is reserved for prediction volume, money someone
+   actually traded on this page. A capitalisation is a valuation read from a
+   price source. NOT --mp-lime either: lime is the season, and a big cap wins
+   nothing. So it is plain text, legible and quiet, and an unpriced coin falls
+   through to .mp-unknown's em dash. */
+.mp-cap { color: var(--mp-text); font: 500 12px var(--mp-mono); letter-spacing: .02em; }
+.mp-col-cap { width: 118px; }
+
+/* ── Labelled figures ─────────────────────────────────────────────────────── */
+/* What replaced the middle dots and the punctuation-as-separator record line.
+   A number under its own label needs nothing between it and the next. */
+.mp-figure { display: inline-grid; gap: 2px; justify-items: start; }
+.mp-figure b { font: 700 17px var(--mp-head); line-height: 1; color: var(--mp-text); }
+.mp-figure small { color: var(--mp-dim); font: 500 7px var(--mp-mono); letter-spacing: .18em; text-transform: uppercase; }
+.mp-champion-record { display: inline-flex; align-items: flex-start; gap: 20px; }
+
+@media (max-width: 600px) {
+  .mp-app .mp-main { --mp-crest: 36px; --mp-row-h: 68px; }
+  .mp-champion-record { gap: 14px; }
+}

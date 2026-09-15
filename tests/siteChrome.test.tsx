@@ -40,6 +40,8 @@ describe('site chrome', () => {
     expect(activeForPath('/markets')).toBe('markets')
     expect(activeForPath('/live')).toBe('markets')
     expect(activeForPath('/agent-arena')).toBe('agents')
+    expect(activeForPath('/catwalk')).toBe('catwalk')
+    expect(activeForPath('/miaw-prix')).toBe('miawprix')
     expect(activeForPath('/profile')).toBe('profile')
     expect(activeForPath('/solana/devnet/abc')).toBe('profile')
     expect(activeForPath('/events/xyz')).toBe('highlight')

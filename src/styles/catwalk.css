@@ -1,0 +1,490 @@
+/* CATWALK - the table the top twelve walk every MIAW PRIX rotation.
+ *
+ * ONE COLOUR AXIS, AND IT IS THE LANE. A row's hue says HOW ITS COIN GOT HERE -
+ * OUTBID, CHAMPION or RANKED - and the same lane carries the same hue in the
+ * rows, the band heads, the ladder and the tab row, so the language is learned
+ * once and read everywhere. It is expressed as the row fill, the 3px left edge,
+ * the number-chip fill and the outline chip.
+ *
+ * POSITION IS NOT A COLOUR. There used to be a second axis here: a four-hue
+ * TIER ramp - podium green, grid yellow, back row orange, reserve slate -
+ * painted from where a coin stood. Two colour axes on one row is one unreadable
+ * axis, and of the two this was the one saying nothing: which twelfth of the
+ * board a coin sits in is answered by its number and the band above it, which
+ * is what a number and a heading are for. The ramp is gone; the number chip and
+ * the band head carry position now.
+ *
+ * MONEY IS --cw-money, SPORT IS --cw-lime. A price and a win count never share
+ * a colour, and with no movement column anywhere on this page neither can be
+ * misread as "price up" - no price-up figure exists on the board.
+ */
+
+.cw-app .cw-main { padding-top: 26px; padding-bottom: 60px; }
+
+.cw-board {
+  --cw-bg: #111215; --cw-panel: #191a1e; --cw-panel-2: #16171b;
+  --cw-line: #33343a; --cw-hair: #ffffff0f;
+  --cw-text: #eeeef0; --cw-muted: #a1a2ac; --cw-dim: #8d8f99; --cw-faint: #6f7280;
+  --cw-lime: #c7ff00; --cw-lime-ink: #15180c; --cw-lime-edge: #a8d922;
+  --cw-money: #5be5a9;              /* = .mk-row-move.is-up; asks and held prices */
+  --cw-head: 'Archivo', sans-serif; --cw-mono: 'Geist Mono', monospace;
+  --cw-gold: #ffc53d; --cw-gold-glow: rgb(255 197 61 / 42%);
+  --cw-silver: #c9d2dc; --cw-bronze: #d98a4a;
+  --cw-lane-outbid: #65cfff; --cw-lane-champion: #ffc53d; --cw-lane-ranked: #b9c6d4; --cw-lane-open: #7b818f;
+  --cw-row-h: 76px; --cw-band-head-h: 26px; --cw-chip: 30px; --cw-crest: 52px;
+  --cw-radius: 0; --cw-radius-control: 4px;
+  color: var(--cw-text); background: var(--cw-bg);
+  font: 400 12px/1.5 var(--cw-mono); font-variant-numeric: tabular-nums;
+}
+
+/* Geist Mono ships 400/500/600/700 only and .solz-home sets font-synthesis:none,
+   so a heavier mono would simply not render. Anything above 700 is Archivo. */
+.cw-board b, .cw-board strong { font-weight: 700; }
+.cw-money { color: var(--cw-money); }
+.cw-sport { color: var(--cw-lime); }
+
+/* THE LANE PALETTE, AND THE ONLY PALETTE.
+   A row's colour says HOW ITS COIN GOT HERE - outbid, champion, ranked - and
+   nothing else. It is set from `data-lane`, which the row, the band head, the
+   ladder and the tab row all carry, so one lane is one colour everywhere on the
+   page.
+
+   There used to be a four-hue TIER ramp here - podium green, grid yellow, back
+   row orange, reserve grey - painted from the position a coin stood in. It
+   taught a colour language that answered a question nobody asks (which twelfth
+   of the board is this) while the question the product turns on (did this coin
+   pay, win, or climb) was left to an outline chip. Position is now the number
+   chip and the band it sits in, which is what a number and a heading are for. */
+.cw-board { --cw-band: #17181c; --cw-edge: #4e515a; --cw-edge-ink: #0c0d10; --cw-label: #c3c5cd; }
+.cw-board [data-lane='outbid']   { --cw-band: #0e1b23; --cw-edge: var(--cw-lane-outbid); --cw-edge-ink: #06161e; --cw-label: var(--cw-lane-outbid); }
+.cw-board [data-lane='champion'] { --cw-band: #201a08; --cw-edge: var(--cw-lane-champion); --cw-edge-ink: #1a1305; --cw-label: var(--cw-lane-champion); }
+.cw-board [data-lane='ranked']   { --cw-band: #191b1f; --cw-edge: var(--cw-lane-ranked); --cw-edge-ink: #0e1013; --cw-label: var(--cw-lane-ranked); }
+/* A vacancy stands in no lane, so it takes no lane colour: it is the quiet
+   ground the three lanes read against. */
+.cw-board [data-lane='open']     { --cw-band: #141519; --cw-edge: var(--cw-lane-open); --cw-edge-ink: #0b0c0e; --cw-label: #9ba1ad; }
+
+/* ── HERO ───────────────────────────────────────────────────────────────── */
+.cw-hero {
+  position: relative; display: grid; grid-template-columns: minmax(276px, 348px) minmax(0, 1fr);
+  gap: 34px; align-items: end; min-height: 420px; padding: 30px 28px 0;
+  border: 1px solid var(--cw-line);
+  background: radial-gradient(120% 90% at 82% 108%, #1b2410 0%, #121317 58%, #0f1013 100%);
+  overflow: clip;
+}
+.cw-hero::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, #ffffff00 0 22px, #ffffff08 22px 23px); mask-image: linear-gradient(180deg, transparent, #000 68%); pointer-events: none; }
+.cw-hero::after { content: ''; position: absolute; inset: auto 0 0; height: 12px; background: repeating-linear-gradient(90deg, #e9edf3 0 10px, #0c0d10 10px 20px); opacity: .22; }
+
+.cw-hero-season { position: relative; z-index: 1; display: grid; gap: 14px; padding-bottom: 40px; }
+/* Two labelled items on a rule, rather than "MIAW PRIX · SEASON 00". */
+.cw-kicker { display: flex; align-items: center; gap: 12px; font: 500 9px var(--cw-mono); letter-spacing: .18em; color: var(--cw-muted); }
+.cw-kicker i { width: 5px; height: 5px; background: var(--cw-lime); }
+.cw-kicker em { padding-left: 12px; border-left: 1px solid var(--cw-line); font-style: normal; color: var(--cw-dim); }
+.cw-board h1 { display: flex; align-items: baseline; gap: 6px; font: 900 clamp(44px, 5.4vw, 78px)/.86 var(--cw-head); font-stretch: 118%; letter-spacing: -.03em; }
+.cw-board h1 i { width: 8px; height: .62em; background: var(--cw-lime); }
+.cw-hero-season p { font: 600 12px var(--cw-head); text-transform: uppercase; letter-spacing: .06em; color: var(--cw-muted); }
+
+.cw-clock { display: grid; gap: 3px; padding: 11px 13px; border: 1px solid #3a4227; background: #151a0e; justify-items: start; }
+.cw-clock small { font: 500 8px var(--cw-mono); letter-spacing: .2em; color: var(--cw-lime); }
+.cw-clock b { font: 700 30px var(--cw-head); font-variant-numeric: tabular-nums; }
+.cw-clock span { font: 400 8px var(--cw-mono); color: var(--cw-dim); }
+
+.cw-claim-rail { display: grid; gap: 7px; }
+.cw-claim-rail span { font: 500 9px var(--cw-mono); letter-spacing: .1em; color: var(--cw-muted); }
+.cw-board .mx-seg { display: flex; gap: 3px; }
+.cw-board .mx-seg__cell { flex: 1 1 auto; height: 9px; background: #2b2d33; border: 1px solid #3a3c44; }
+.cw-board .mx-seg__cell--on { background: var(--cw-lime); border-color: var(--cw-lime-edge); }
+
+.cw-hero-front { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: clamp(10px, 2.2vw, 34px); padding-bottom: 46px; }
+.cw-hero-ghost { position: absolute; left: 2%; bottom: -14px; z-index: 0; font: 900 clamp(150px, 20vw, 268px)/.72 var(--cw-head); font-stretch: 125%; color: #1a2110; user-select: none; pointer-events: none; }
+
+.cw-hero-card { position: relative; z-index: var(--z); transition: translate .18s ease-out; }
+.cw-hero-face { position: relative; overflow: clip; border: 2px solid var(--cw-metal); background: #16171b; box-shadow: 0 0 0 1px #0b0c0e, 0 20px 48px -14px var(--cw-glow); }
+.cw-hero-card[data-pos='1'] { --z: 3; --cw-metal: var(--cw-gold); --cw-glow: var(--cw-gold-glow); }
+.cw-hero-card[data-pos='2'] { --z: 2; --cw-metal: var(--cw-silver); --cw-glow: rgb(201 210 220 / 28%); }
+.cw-hero-card[data-pos='3'] { --z: 1; --cw-metal: var(--cw-bronze); --cw-glow: rgb(217 138 74 / 30%); }
+.cw-hero-card[data-pos='1'] .cw-hero-face { width: 172px; aspect-ratio: 172/200; }
+.cw-hero-card[data-pos='2'] .cw-hero-face, .cw-hero-card[data-pos='3'] .cw-hero-face { width: 136px; aspect-ratio: 136/158; }
+.cw-hero-card[data-pos='1'] { transform: rotate(-4deg); }
+.cw-hero-card[data-pos='2'] { transform: translateY(26px) rotate(-7deg); }
+.cw-hero-card[data-pos='3'] { transform: translateY(44px) rotate(5deg); }
+.cw-hero-card:hover { translate: 0 -6px; }
+/* The painted grid box each plinth stands in. */
+.cw-hero-card::before {
+  content: attr(data-pos); position: absolute; left: -26px; bottom: -30px; z-index: -1; width: 108%; height: 58px;
+  display: grid; align-items: center; padding-left: 10px; transform: skewX(-16deg);
+  border: 1px dashed color-mix(in srgb, var(--cw-metal) 38%, transparent);
+  font: 800 30px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 52%, transparent);
+}
+.cw-hero-mark { width: 100%; height: 100%; object-fit: cover; display: block; color: var(--cw-metal); }
+.cw-hero-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 52%, rgb(8 9 11 / 88%)); pointer-events: none; }
+
+/* THE CROWN GATE lives in CatwalkHero.tsx; these are only its two faces. */
+.cw-crown { position: absolute; top: -19px; left: 50%; translate: -50% 0; color: var(--cw-gold); z-index: 2; }
+.cw-bought { position: absolute; top: -19px; left: 50%; translate: -50% 0; color: var(--cw-lane-outbid); z-index: 2; }
+
+.cw-hero-name { display: grid; gap: 3px; margin-top: 16px; justify-items: start; }
+.cw-hero-name > b { font: 800 clamp(18px, 1.6vw, 26px) var(--cw-head); }
+.cw-hero-card[data-pos='1'] .cw-hero-name > b { font-size: 30px; }
+.cw-hero-name > small { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 8px var(--cw-mono); color: var(--cw-dim); }
+.cw-hero-record { display: flex; align-items: baseline; gap: 10px; }
+.cw-hero-record b { font: 700 15px var(--cw-head); color: var(--cw-lime); }
+.cw-hero-record b + b { color: var(--cw-dim); font-size: 13px; }
+.cw-hero-record small { font: 400 8px var(--cw-mono); color: var(--cw-dim); }
+.cw-hero-norecord { font: 400 9px var(--cw-mono); color: var(--cw-dim); }
+
+.cw-hero-card--open .cw-hero-face {
+  display: grid; place-items: center; align-content: center; gap: 6px; padding: 10px;
+  border-style: dashed; border-color: color-mix(in srgb, var(--cw-metal) 50%, transparent);
+  background: #131418; box-shadow: none;
+}
+.cw-hero-card--open .cw-hero-face i { font-style: normal; font: 800 40px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 40%, transparent); }
+.cw-hero-card--open .cw-hero-face strong { font: 700 13px var(--cw-head); letter-spacing: .16em; color: var(--cw-text); }
+/* The plinth's note, where a price used to sit. A board position is not sold by
+   its number, so the card states how it fills instead of quoting a seat. */
+.cw-hero-card--open .cw-hero-face > span:not(.cw-act) { font: 500 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-dim); text-align: center; }
+.cw-hero-card--open .cw-act { min-height: 30px; }
+
+/* ── COUNTER STRIP ──────────────────────────────────────────────────────── */
+.cw-counter { display: flex; flex-wrap: wrap; border: 1px solid var(--cw-line); border-top: 0; background: var(--cw-panel-2); }
+.cw-counter > div { flex: 1 1 120px; display: grid; gap: 4px; padding: 11px 14px; border-right: 1px solid var(--cw-line); }
+.cw-counter > div:last-child { border-right: 0; }
+.cw-counter small { font: 500 7px var(--cw-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cw-dim); }
+.cw-counter b { font: 600 16px var(--cw-mono); font-variant-numeric: tabular-nums; }
+
+/* ── EXPLAINER ──────────────────────────────────────────────────────────── */
+.cw-explain { border: 1px solid var(--cw-line); border-top: 0; background: var(--cw-panel-2); }
+.cw-explain-cells { display: grid; grid-template-columns: repeat(4, 1fr); }
+.cw-explain-cells > * { padding: 14px 16px; border-right: 1px solid var(--cw-line); }
+.cw-explain-cells > *:last-child { border-right: 0; }
+.cw-explain-cells small { display: block; margin-bottom: 6px; font: 500 7px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-lime); }
+.cw-explain-cells p { font: 400 9px/1.6 var(--cw-mono); color: var(--cw-muted); }
+.cw-explain-cells b[data-lane='outbid'] { color: var(--cw-lane-outbid); }
+.cw-explain-cells b[data-lane='champion'] { color: var(--cw-lane-champion); }
+.cw-explain-cells b[data-lane='ranked'] { color: var(--cw-lane-ranked); }
+.cw-explain-link { position: relative; color: var(--cw-lime); }
+.cw-explain-link p { color: var(--cw-lime); }
+.cw-explain-link svg { position: absolute; top: 12px; right: 12px; }
+.cw-explain summary { display: flex; align-items: center; min-height: 40px; padding: 0 16px; font: 700 10px var(--cw-head); letter-spacing: .12em; cursor: pointer; }
+
+/* ── TOOLBAR ────────────────────────────────────────────────────────────── */
+.cw-toolbar { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+.cw-toolbar .mx-tabs { flex: 1 1 auto; flex-wrap: wrap; padding: 0; gap: 4px; }
+.cw-board .mx-tabs__tab[aria-selected='true'] { box-shadow: inset 0 -3px 0 #96c000; }
+.cw-board .mx-tabs__tab b { font: 500 9px var(--cw-mono); padding: 2px 6px; border-radius: 999px; background: #ffffff14; }
+.cw-board .mx-tabs__tab[aria-selected='true'] b { background: #0000001f; }
+.cw-board .mx-tabs__tab:disabled { opacity: .45; cursor: not-allowed; }
+.cw-board .mx-tabs__tab:disabled b { border: 1px solid #4a4d55; background: transparent; }
+.cw-board .mx-tabs__tab > span { display: inline-flex; align-items: center; gap: 7px; }
+
+.cw-search { flex: 0 0 280px; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--cw-line); border-radius: 10px; color: #b7bac3; }
+.cw-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--cw-text); font: 13px var(--cw-head); outline: none; }
+.cw-search:focus-within { outline: 2px solid var(--cw-lime); outline-offset: 2px; }
+
+.cw-tabs-sub { font: 500 9px var(--cw-mono); color: var(--cw-dim); letter-spacing: .1em; margin: 9px 2px 0; }
+/* THE FIGURE STRIP. It replaced a sentence reading
+   "12 OF 36 SLOTS RACING · 0 CLAIMED · 36 OPEN" - three claims hung on two
+   middle dots. Each figure now sits in its own cell against a rule, which is
+   what the dots were standing in for. */
+.cw-count { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; margin: 6px 2px 14px; font: 500 9px var(--cw-mono); letter-spacing: .06em; color: var(--cw-dim); }
+.cw-count button { border: 0; background: transparent; color: var(--cw-lime); font: inherit; padding: 0; }
+.cw-figures { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; }
+.cw-figures > span { display: flex; align-items: baseline; gap: 7px; padding: 0 16px; border-right: 1px solid var(--cw-line); }
+.cw-figures > span:first-child { padding-left: 0; }
+.cw-figures > span:last-child { border-right: 0; padding-right: 0; }
+.cw-figures b { font: 700 13px var(--cw-head); color: var(--cw-text); font-variant-numeric: tabular-nums; }
+.cw-figures small { font: 500 8px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-dim); }
+.cw-note { margin: 18px 2px; font: 400 10px var(--cw-mono); color: var(--cw-muted); }
+
+/* ── BANDS AND ROWS ─────────────────────────────────────────────────────── */
+.cw-band ol { list-style: none; margin: 0; padding: 0; }
+.cw-band-head {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 12px;
+  min-height: var(--cw-band-head-h); padding: 0 14px 0 11px;
+  border-left: 3px solid var(--cw-edge); background: color-mix(in srgb, var(--cw-band) 72%, #0b0c0e);
+  font: 700 10px var(--cw-head); letter-spacing: .16em; text-transform: uppercase; color: var(--cw-label);
+}
+.cw-band-head em { font: 400 8px var(--cw-mono); font-style: normal; letter-spacing: .1em; color: var(--cw-dim); }
+.cw-band-head small { justify-self: end; font: 400 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-dim); }
+
+.cw-slot {
+  position: relative;
+  display: grid; grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 96px 96px 116px 128px;
+  align-items: center; gap: 14px; min-height: var(--cw-row-h); padding: 0 14px 0 11px;
+  background: var(--cw-band); border-left: 3px solid var(--cw-edge); border-bottom: 1px solid var(--cw-hair);
+  color: var(--cw-text); scroll-margin-block-start: 60px;
+}
+.cw-slot:hover { background: color-mix(in srgb, var(--cw-edge) 9%, var(--cw-band)); border-left-width: 5px; padding-left: 9px; }
+/* A position that does not walk every rotation is quieter, never greyed out:
+   being one rotation away is a place in the rotation, not a benching. */
+.cw-slot[data-walks='false'] { opacity: .92; }
+/* A position held through some OTHER lane than the one this tab looks through.
+   It keeps its number, its crest and its market cap - it is the same position -
+   and simply reads as taken. It must never look like a vacancy. */
+.cw-slot--other { opacity: .62; }
+.cw-slot--other .cw-crest { filter: saturate(.5); }
+.cw-slot[data-dim='true'] { opacity: .22; }
+.cw-slot[data-dim='true']:hover { background: var(--cw-band); border-left-width: 3px; padding-left: 11px; }
+.cw-slot[data-matched='true'] { box-shadow: inset 0 0 0 2px #fff; opacity: 1; }
+.cw-slot--open[data-matched='true'] { box-shadow: inset 0 0 0 2px var(--cw-lime); }
+
+.cw-num { display: grid; place-items: center; width: var(--cw-chip); height: var(--cw-chip); background: var(--cw-edge); color: var(--cw-edge-ink); font: 700 14px var(--cw-mono); font-variant-numeric: tabular-nums; }
+.cw-row-crown { position: absolute; left: 2px; top: 8px; color: var(--cw-gold); }
+
+/* THE CREST IS THE COIN. It was 34px, which is a favicon: a board whose whole
+   subject is which coins are standing on it cannot render them at icon size.
+   TEAM COLOUR APPEARS HERE AND NOWHERE ELSE - parseCatwalkTeam defaults an
+   unbranded coin to lime, which is acceptable as a ring and fatal as a row
+   tint, because a tinted row would destroy the lane encoding. */
+.cw-crest { width: var(--cw-crest); height: var(--cw-crest); object-fit: cover; box-shadow: 0 0 0 1px color-mix(in srgb, var(--team-color, var(--cw-line)) 62%, transparent), 0 0 0 4px #ffffff08; }
+
+.cw-id { display: grid; gap: 4px; min-width: 0; align-content: center; }
+.cw-id-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cw-id > b, .cw-symbol { font: 700 17px var(--cw-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cw-text); text-decoration: none; }
+a.cw-symbol { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--cw-edge) 55%, transparent); text-underline-offset: 3px; }
+a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; }
+.cw-coin-name { font: 400 9px var(--cw-mono); color: var(--cw-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-id > small { font: 400 9px var(--cw-mono); color: var(--cw-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-open-title { color: var(--cw-label); font: 700 15px var(--cw-head); }
+
+/* THE CONTRACT ADDRESS, with its two controls. Copy carries the FULL mint;
+   the link opens it in the explorer the board named. Both are always on screen,
+   because a coin on this board IS its contract address. */
+.cw-ca { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.cw-mint { display: inline-flex; align-items: center; gap: 5px; max-width: 16ch; padding: 2px 4px; border: 1px solid transparent; background: transparent; color: var(--cw-dim); font: 500 9px var(--cw-mono); cursor: copy; }
+.cw-mint:hover { color: var(--cw-lime); border-color: color-mix(in srgb, var(--cw-lime) 40%, transparent); }
+.cw-mint code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.cw-ca-link { display: inline-grid; place-items: center; width: 20px; height: 20px; color: var(--cw-dim); border: 1px solid transparent; }
+.cw-ca-link:hover { color: var(--cw-lime); border-color: color-mix(in srgb, var(--cw-lime) 40%, transparent); }
+
+/* MARKET CAP. Its own column, because comparing it down a column is the whole
+   use of it: a challenge band whose caps are all of a size can rotate freely. */
+.cw-mcap { display: grid; gap: 2px; justify-items: end; text-align: right; }
+.cw-mcap small { font: 500 7px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-dim); }
+.cw-mcap b { font: 700 14px var(--cw-head); font-variant-numeric: tabular-nums; }
+/* Unknown is a dash in the dim ink, never a zero in the live one. */
+.cw-mcap .cw-unknown { color: var(--cw-faint); }
+.cw-mcap--empty { opacity: .3; }
+
+.cw-lane { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border: 1px solid currentColor; border-radius: var(--cw-radius-control); font: 500 8px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; background: transparent; justify-self: start; }
+.cw-lane[data-lane='outbid'] { color: var(--cw-lane-outbid); }
+.cw-lane[data-lane='champion'] { color: var(--cw-lane-champion); }
+.cw-lane[data-lane='ranked'] { color: var(--cw-lane-ranked); }
+.cw-lane[data-lane='open'] { color: var(--cw-lane-open); }
+
+/* THE TAB ROW WEARS THE SAME LANE COLOURS AS THE ROWS. A reader who learns the
+   hue once on OUTBID's tab reads it again on every outbid row without a key. */
+.cw-tab { display: inline-flex; align-items: center; gap: 8px; }
+.cw-tab[data-lane='outbid'] { color: var(--cw-lane-outbid); }
+.cw-tab[data-lane='champion'] { color: var(--cw-lane-champion); }
+.cw-tab[data-lane='ranked'] { color: var(--cw-lane-ranked); }
+
+.cw-metric { display: grid; gap: 2px; justify-items: end; text-align: right; }
+.cw-metric small { font: 500 7px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-dim); }
+.cw-metric b { font: 700 15px var(--cw-head); font-variant-numeric: tabular-nums; }
+.cw-slot--open .cw-metric b { font-size: 16px; }
+
+/* A two-figure action (SEAT 03 over $5,040) stacks rather than joining the two
+   on a middle dot. */
+.cw-act i { font-style: normal; font: 500 7px var(--cw-mono); letter-spacing: .14em; color: var(--cw-dim); }
+.cw-act--ghostly { flex-direction: column; gap: 1px; justify-content: center; }
+.cw-act { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border: 1px solid #666974; border-radius: var(--cw-radius-control); background: transparent; color: var(--cw-text); font: 700 9px var(--cw-head); letter-spacing: .08em; text-transform: uppercase; justify-self: end; }
+.cw-act:hover { border-color: var(--cw-edge); color: var(--cw-edge); }
+.cw-act--claim { background: var(--cw-lime); color: var(--cw-lime-ink); border: 1px solid var(--cw-lime-edge); }
+.cw-act--claim:hover { border-color: var(--cw-lime-edge); color: var(--cw-lime-ink); }
+/* The board's main counterweight to reading as a storefront: an earned slot
+   states on the row itself that it cannot be bought, and does not light. */
+.cw-act--locked { border-style: dashed; border-color: #4e515a; color: var(--cw-dim); cursor: default; }
+.cw-act--locked:hover { border-color: #4e515a; color: var(--cw-dim); }
+.cw-act--closed, .cw-act--ghostly { border-style: dashed; border-color: #4e515a; color: var(--cw-dim); cursor: default; }
+.cw-act--closed:hover, .cw-act--ghostly:hover { border-color: #4e515a; color: var(--cw-dim); }
+
+
+/* ── THE OPEN SLOT ──────────────────────────────────────────────────────── */
+.cw-slot--open {
+  background: transparent;
+  background-image: repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--cw-edge) 13%, transparent) 9px 10px);
+  border-left-style: dashed;
+  outline: 1px dashed color-mix(in srgb, var(--cw-edge) 42%, transparent); outline-offset: -1px;
+}
+/* A run of vacancies reads as one block of resting depth, not N failures. */
+.cw-slot--open + .cw-slot--open { border-bottom-color: #ffffff08; }
+.cw-slot--open .cw-num { background: transparent; border: 1px dashed var(--cw-edge); color: var(--cw-edge); }
+.cw-open-well { display: grid; place-items: center; width: var(--cw-crest); height: var(--cw-crest); border: 1px dashed color-mix(in srgb, var(--cw-edge) 50%, transparent); color: var(--cw-edge); }
+/* Lime lands on the walk-in vacancies only. This single rule is what stops the
+   board becoming an ad wall: at launch twelve lime buttons sit on walk-in slots
+   and the twenty-four challenge vacancies stay ghosted. */
+.cw-slot--open[data-walks='false'] .cw-act--claim { background: transparent; color: var(--cw-text); border-color: #666974; }
+
+/* THE WALK LINE: where walking in every rotation stops and being one rotation
+   away begins. */
+.cw-walkline { position: relative; height: 14px; margin: 12px 0; }
+.cw-walkline::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, #e9edf3 0 10px, #0c0d10 10px 20px); opacity: .26; }
+.cw-walkline span { position: absolute; left: 50%; top: 50%; translate: -50% -50%; padding: 3px 11px; background: #111215; border: 1px solid #3a3d45; font: 700 8px var(--cw-head); letter-spacing: .2em; }
+
+/* ── THE LANE NOTE AND THE MISS CARD ────────────────────────────────────── */
+/* A BANNER, NOT A SCREEN. This was a 34px-padded card centred over a big dashed
+   box, and it stood INSTEAD of the board: an empty SOLZ RANKED lane rendered a
+   headline and no numbered positions at all. It is now a strip above a table
+   that always renders, so it is sized like a strip. */
+.cw-lane-note { display: grid; gap: 6px; justify-items: start; margin-bottom: 12px; padding: 14px 16px; border-left: 3px solid var(--cw-edge); background: var(--cw-panel); }
+.cw-lane-note strong { font: 700 14px var(--cw-head); letter-spacing: .04em; color: var(--cw-label); }
+.cw-lane-note p { font: 400 10px/1.6 var(--cw-mono); color: var(--cw-muted); max-width: 72ch; }
+.cw-lane-note .cw-act { justify-self: start; margin-top: 4px; color: var(--cw-edge); border-color: color-mix(in srgb, var(--cw-edge) 60%, transparent); }
+
+.cw-miss { display: grid; gap: 12px; justify-items: start; padding: 30px 22px; border: 1px dashed var(--cw-line); background: var(--cw-panel); }
+.cw-miss strong { font: 800 20px var(--cw-head); }
+.cw-miss code { font: 400 9px var(--cw-mono); color: var(--cw-dim); }
+.cw-miss p { font: 400 10px/1.6 var(--cw-mono); color: var(--cw-muted); }
+.cw-miss > div { display: flex; flex-wrap: wrap; gap: 10px; }
+/* NOT a miss: the coin is on the board, one lane over. The dashed edge above
+   reads as an empty result, so this one is solid and lit - the row exists, and
+   the only thing the panel does is point at where it is being shown. */
+.cw-miss--elsewhere { border-style: solid; border-color: var(--cw-lime-edge); }
+
+.cw-footer { display: grid; gap: 6px; margin-top: 18px; padding: 16px 14px; border: 1px solid var(--cw-line); background: var(--cw-panel-2); }
+.cw-footer strong { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 22px; font: 600 13px var(--cw-head); }
+.cw-footer strong b { color: var(--cw-lime); }
+.cw-footer small { font: 400 10px/1.5 var(--cw-mono); color: var(--cw-muted); }
+
+/* ── THE SPOT LADDER ────────────────────────────────────────── */
+/* A separate list from the board, and it must never look like a slice of it: no
+   bands and no walk line. Seat numbers are the sale's own numbering, so the
+   chip takes the money hue - a seat is a thing for sale, not a position on the
+   board. Its rows carry no market-cap column, so they set their own columns. */
+.cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 116px 128px 128px; }
+.cw-ladder .cw-num { background: var(--cw-money); color: #06170f; }
+.cw-ladder .cw-slot--open .cw-num { background: transparent; border: 1px dashed var(--cw-money); color: var(--cw-money); }
+.cw-ladder .cw-band-head small { text-transform: none; letter-spacing: .08em; }
+
+/* ── OUTBID SPLIT ───────────────────────────────────────────────────────── */
+/* The ladder above the table on a narrow screen, beside it on a wide one. The
+   table is the same table every other tab renders - there is no second board
+   and no inert mirror of one any more, so both halves are live. */
+.cw-outbid { display: grid; gap: 18px; }
+@media (min-width: 1400px) {
+  .cw-outbid { grid-template-columns: 420px minmax(0, 1fr); align-items: start; }
+}
+
+/* ── LOADING ────────────────────────────────────────────────────────────── */
+/* Structure never waits: bands, chips, the walk line and band copy render from
+   activeSlots/lineupSize on the first frame. Only the metric and the action
+   shimmer, because only they are unknown until a read lands. markets-directory
+   .css owns the same sweep, but it is not loaded on this route. */
+.cw-pending { display: block; border-radius: 4px; background: linear-gradient(90deg, #212328 25%, #2b2e35 50%, #212328 75%) 100% 0 / 300% 100%; animation: cw-pending-sweep 1.4s ease-in-out infinite; }
+.cw-pending--metric { height: 15px; width: 72px; justify-self: end; }
+.cw-pending--mcap { height: 15px; width: 60px; justify-self: end; }
+.cw-pending--act { height: 34px; width: 100%; justify-self: end; }
+/* Every skeleton below stands in the exact box its number will occupy, so the
+   headline, the counter strip, the tab counts and the footer do not move a pixel
+   when the read lands. */
+.cw-pending--line { height: 12px; width: min(100%, 46ch); }
+.cw-pending--word { height: 9px; width: 24ch; }
+.cw-pending--seg { height: 9px; width: 100%; }
+.cw-pending--num { height: 16px; width: 72px; }
+.cw-pending--tab { display: inline-block; height: 9px; width: 18px; vertical-align: middle; }
+.cw-pending--plinth { height: 15px; width: 68px; }
+/* A ROW BEFORE IT HAS BEEN READ. Each box stands exactly where its column will
+   be, so the row occupies its final height and says nothing: no OPEN SLOT, no
+   lane, no price, and no verdict on a ladder read nobody has attempted yet. */
+.cw-pending--crest { height: var(--cw-crest); width: var(--cw-crest); border-radius: 0; }
+.cw-pending--title { height: 15px; width: min(100%, 14ch); }
+.cw-pending--lane { height: 20px; width: 64px; border-radius: var(--cw-radius-control); justify-self: start; }
+.cw-slot--skeleton .cw-id { gap: 4px; }
+.cw-slot--skeleton .cw-pending--word { width: min(100%, 18ch); }
+.cw-slot--skeleton .cw-pending--act { max-width: 128px; }
+.cw-slot--skeleton:hover { background: var(--cw-band); border-left-width: 3px; padding-left: 11px; }
+/* A PLINTH BEFORE ANYTHING HAS BEEN READ.
+   It holds the card's exact box and nothing else. It deliberately does NOT reuse
+   .cw-hero-card--open above: the dashed edge, the flat unlit fill and the
+   ghosted number there are this page's vocabulary for A VACANCY, so painting
+   them on the first frame told the viewer the front was empty before a single
+   read had landed - the same claim as the word OPEN, made in paint. The face
+   stays lit and solid, exactly as a filled plinth's does, and only the
+   shimmering bars say anything at all. */
+.cw-hero-card--pending .cw-hero-face {
+  display: grid; place-items: center; align-content: center; gap: 10px; padding: 10px;
+  border-style: solid; border-color: var(--cw-metal); background: #16171b;
+}
+.cw-hero-card--pending .cw-hero-face > i:not(.cw-pending) {
+  font-style: normal; font: 800 40px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 72%, transparent);
+}
+.cw-hero-card--pending .cw-pending--act { width: 78%; }
+.cw-footer .cw-pending--line { height: 13px; }
+.cw-footer small .cw-pending--line { height: 10px; width: min(100%, 60ch); }
+@keyframes cw-pending-sweep { to { background-position: 0 0; } }
+
+/* ── RESPONSIVE ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .cw-hero { grid-template-columns: minmax(0, 1fr); }
+  .cw-hero-front { scale: .84; transform-origin: bottom center; }
+  /* The lane column narrows to the chip rather than disappearing: how a slot was
+     won is the distinction the page exists to make, and a viewer on a laptop
+     must not lose it. */
+  .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 84px auto 104px 120px; gap: 10px; }
+  .cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto 104px 120px; }
+  .cw-lane { font-size: 7px; padding: 0 5px; }
+  .cw-explain-cells { grid-template-columns: repeat(2, 1fr); }
+  .cw-explain-cells > *:nth-child(2n) { border-right: 0; }
+}
+@media (max-width: 1080px) { .cw-explain-cells { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 820px) {
+  /* The metric folds under the identity as one line, with the lane chip beside
+     it. The action keeps its words: "OUTBID $5,040" has no icon form, and an
+     icon-only control here would hide the price the row exists to state. */
+  .cw-slot, .cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) auto auto minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 3px; padding-block: 9px; }
+  .cw-num, .cw-crest, .cw-open-well { grid-row: 1 / span 2; }
+  .cw-id { grid-column: 3 / 6; grid-row: 1; }
+  .cw-lane { grid-column: 3; grid-row: 2; }
+  /* Market cap folds onto the second line beside the lane chip rather than
+     dropping out: it is the figure that says whether these coins are
+     interchangeable, and a phone reader needs it as much as a desktop one. */
+  .cw-mcap { grid-column: 4; grid-row: 2; justify-items: start; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+  .cw-mcap b { font: 500 9px var(--cw-mono); }
+  .cw-metric { grid-column: 5; grid-row: 2; justify-items: start; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+  .cw-metric b { font: 500 9px var(--cw-mono); }
+  .cw-act { grid-column: 6; grid-row: 1 / span 2; padding: 0 9px; font-size: 8px; }
+  /* The loading row folds exactly as the loaded one does, so the list does not
+     change height when the read lands. */
+  .cw-slot--skeleton .cw-pending--crest { grid-row: 1 / span 2; }
+  .cw-slot--skeleton .cw-pending--lane { grid-column: 3; grid-row: 2; }
+  .cw-slot--skeleton .cw-pending--mcap { grid-column: 4; grid-row: 2; justify-self: start; }
+  .cw-slot--skeleton .cw-pending--metric { grid-column: 5; grid-row: 2; justify-self: start; }
+  .cw-slot--skeleton .cw-pending--act { grid-column: 6; grid-row: 1 / span 2; height: 100%; }
+  .cw-toolbar { flex-wrap: wrap; }
+}
+@media (max-width: 780px) {
+  .cw-hero-card[data-pos='1'] .cw-hero-face { width: 132px; aspect-ratio: 132/154; }
+  .cw-hero-card[data-pos='2'] .cw-hero-face, .cw-hero-card[data-pos='3'] .cw-hero-face { width: 108px; aspect-ratio: 108/126; }
+  .cw-hero-card[data-pos='1'] { transform: rotate(-2deg); }
+  .cw-hero-card[data-pos='2'] { transform: translateY(16px) rotate(-3deg); }
+  .cw-hero-card[data-pos='3'] { transform: translateY(26px) rotate(3deg); }
+}
+@media (max-width: 720px) { .cw-search { flex: 1 1 100%; order: -1; } }
+@media (max-width: 600px) {
+  /* Band heads stay full size - they are the navigation. */
+  .cw-board { --cw-row-h: 56px; --cw-chip: 26px; --cw-crest: 30px; }
+  .cw-hero { padding: 22px 16px 0; }
+  .cw-hero-ghost { font-size: clamp(110px, 26vw, 150px); }
+  .cw-clock { width: 100%; }
+  .cw-counter > div { flex-basis: 50%; }
+}
+@media (max-width: 470px) { .cw-explain-cells { grid-template-columns: 1fr; } .cw-explain-cells > * { border-right: 0; border-bottom: 1px solid var(--cw-line); } }
+
+/* ── MOTION ─────────────────────────────────────────────────────────────── */
+/* The only motion on this page is the hero card hover-lift and the countdown's
+   digits. The card rotations stay: they are layout, not motion. */
+@media (prefers-reduced-motion: reduce) {
+  .cw-board *, .cw-board *::before, .cw-board *::after { animation: none !important; transition: none !important; }
+  .cw-hero-card:hover { translate: none; }
+}
+
+/* A read that did not land, disclosed once for the page. It sits above the
+   board rather than inside a row because the failure is one network fact, not
+   a fact about any coin on the board. */
+.cw-notice {
+  margin: 0 0 14px; padding: 10px 14px;
+  border: 1px solid var(--cw-line); border-left: 3px solid var(--cw-lane-ranked);
+  background: var(--cw-panel-2); color: var(--cw-muted);
+  font: 400 11px/1.6 var(--cw-mono);
+}
+.cw-notice b { color: var(--cw-text); letter-spacing: .04em; }

@@ -180,6 +180,9 @@ body { margin: 0; }
 .sh-event-line .sh-status { font-size: 8px; flex-shrink: 0; }
 .sh-event-line > span:last-child { font-size: 9px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #bebec7; }
 .sh-team-mark { width: 29px; height: 32px; flex-shrink: 0; }
+/* A coin's own crest is a raster of unknown aspect; cover keeps it inside the
+   same box the built-in SVG marks occupy so rows never reflow. */
+.sh-team-mark--logo { object-fit: cover; border-radius: 6px; background: color-mix(in srgb, currentColor 12%, transparent); }
 
 /* The command console borrows Marathon's flat gray contract panels. */
 .sh-console { display: grid; gap: 8px; min-width: 0; }

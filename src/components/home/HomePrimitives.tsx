@@ -5,7 +5,11 @@ export const amountLabel = (value: number) => value.toLocaleString('en', { maxim
 export const percent = (value: number) => `${Math.round(value * 100)}%`
 export const accentStyle = (color: string): CSSProperties => ({ '--team-color': color } as CSSProperties)
 
-export function TeamMark({ id, color, className = '' }: { id: string; color?: string; className?: string }) {
+/** A team's crest. A registered coin brings its own logo; the built-in marks
+ *  cover the seeded simulation teams, and anything unknown gets the generic
+ *  mark rather than an empty box. */
+export function TeamMark({ id, color, logoUrl, className = '' }: { id: string; color?: string; logoUrl?: string; className?: string }) {
+  if (logoUrl) return <img className={`sh-team-mark sh-team-mark--logo ${className}`} src={logoUrl} alt="" aria-hidden="true" loading="lazy" style={color ? { color } : undefined} />
   const shapes: Record<string, React.ReactNode> = {
     'team-bonk': <><path d="M6 18 18 6h10l8 8-14 14H6Z"/><path d="m22 28 14-14v22H22Z"/></>,
     'team-wif': <><path d="M5 12h8v17h6V19h7v10h6V12h7v25H5Z"/><path d="M16 5h13v8H16Z"/></>,

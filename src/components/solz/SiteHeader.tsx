@@ -6,7 +6,7 @@ type Props = {
   homeHref: string
   marketsHref?: string
   walletControl: ReactNode
-  active: 'highlight' | 'markets' | 'agents' | 'teams' | 'docs' | 'leaderboard' | 'profile'
+  active: 'highlight' | 'markets' | 'agents' | 'catwalk' | 'miawprix' | 'docs' | 'profile'
   onArena?: () => void
   onMarkets?: () => void
 }
@@ -29,9 +29,9 @@ export function SiteHeader({ homeHref, marketsHref, walletControl, active, onAre
             {gamesOpen && <div id="games-menu" className="sz-games-popover"><a href="https://solz.fun" target="_blank" rel="noreferrer" onClick={close}><strong>solz.fun</strong><span>Play the agent arena</span><ArrowUpRight /></a><div aria-disabled="true"><strong>More games</strong><span>Coming soon</span></div></div>}
           </div> */}
           <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
-          <a className={active === 'teams' ? 'is-active' : undefined} href={`${homeHref}#teams`} onClick={close}>Teams</a>
+          <a href="/catwalk" className={active === 'catwalk' ? 'is-active' : undefined} onClick={close}>Catwalk</a>
+          <a href="/miaw-prix" className={active === 'miawprix' ? 'is-active' : undefined} onClick={close}>Miaw Prix</a>
           <a className={active === 'docs' ? 'is-active' : undefined} href={`${homeHref}#enter-arena`} onClick={close}>Docs</a>
-          <a className={active === 'leaderboard' ? 'is-active' : undefined} href={`${homeHref}#teams`} onClick={close}>Leaderboard</a>
         </div>
         <div className="sh-wallet">{walletControl}</div>
       </nav>

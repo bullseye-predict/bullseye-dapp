@@ -1,0 +1,22 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro'
+import { MiawPrixApp } from '../components/miawprix/MiawPrixApp'
+
+export const prerender = false
+
+// Endpoints are injected, never read inside the React tree (AGENTS.md).
+const predictionApiUrl = new URL('/api/prediction', Astro.url).toString()
+const initialSeasonId = Astro.url.searchParams.get('season') ?? ''
+---
+
+<SiteLayout
+  title="MIAW PRIX · ColaCat"
+  description="The MIAW PRIX season: schedule, results and standings for the coins racing the Agent Colosseum programme."
+>
+  <MiawPrixApp
+    endpoint="/api/agent-arena"
+    predictionApiUrl={predictionApiUrl}
+    initialSeasonId={initialSeasonId}
+    client:load
+  />
+</SiteLayout>

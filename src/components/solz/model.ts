@@ -47,9 +47,19 @@ export type TeamActivity = {
   progress: number
 }
 
-/** A token/community competing in the arena. Teams are ranked; Genesis agents are not. */
+/** A token/community competing in the arena. Teams are ranked; Genesis agents are not.
+ *
+ *  `mint` is the canonical identity — a team IS the coin's contract address.
+ *  `id` stays as the display/slug key the simulation and existing rows use, so
+ *  demo teams that predate on-chain identity still render. */
 export type SolzTeam = {
   id: string
+  /** Contract address. Absent only for simulated teams. */
+  mint?: string
+  tokenProgram?: string
+  decimals?: number
+  /** Remote crest. Falls back to the built-in mark when absent. */
+  logoUrl?: string
   symbol: string
   name: string
   color: string
@@ -256,6 +266,31 @@ export type HighlightQueueEntry = {
 }
 
 export type SpotBidStatus = 'leading' | 'outbid' | 'won' | 'settled'
+
+/** One position on the CATWALK board. Spot 1 is the top spot the screenshot
+ *  ladder sells; the ask is carried in USD because the payment token's price
+ *  moves and the ladder must not reorder when it does. */
+export type CatwalkSpot = {
+  spot: number
+  askUsdMicros: number
+  /** The coin currently holding it, if any. */
+  mint?: string
+  symbol?: string
+  name?: string
+  logoUrl?: string
+  heldUsdMicros?: number
+}
+
+export type CatwalkLane = 'outbid' | 'champion' | 'ranked'
+
+export type CatwalkLineupEntry = {
+  spot: number
+  mint: string
+  lane: CatwalkLane
+  /** False for a qualified team sitting below the racing slots. */
+  active: boolean
+  team: SolzTeam | null
+}
 
 /**
  * A token community can also BID for a highlight-queue slot instead of waiting for the

@@ -15,7 +15,8 @@ export function SiteFooter({ homeHref, backToTopHref = `${homeHref}#highlight` }
     <nav aria-label="Footer navigation">
       <a href={`${homeHref}#highlight`}>Highlight <ArrowUpRight size={12}/></a>
       <a href={`${homeHref}#matches`}>Markets <ArrowUpRight size={12}/></a>
-      <a href={`${homeHref}#teams`}>Teams <ArrowUpRight size={12}/></a>
+      <a href="/catwalk">Catwalk <ArrowUpRight size={12}/></a>
+      <a href="/miaw-prix">Miaw Prix <ArrowUpRight size={12}/></a>
       <a href={`${homeHref}#enter-arena`}>Docs <ArrowUpRight size={12}/></a>
       <a href={backToTopHref}>Back to top ↑</a>
     </nav>

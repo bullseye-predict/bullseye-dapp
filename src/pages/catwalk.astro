@@ -1,0 +1,11 @@
+---
+import { CatwalkApp } from '../components/catwalk/CatwalkApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+---
+
+<SiteLayout
+  title="CATWALK · The starting grid for MIAW PRIX"
+  description="Every coin on the MIAW PRIX starting grid: who races, who qualified, and which slots are open."
+>
+  <CatwalkApp endpoint="/api/agent-arena" client:load />
+</SiteLayout>

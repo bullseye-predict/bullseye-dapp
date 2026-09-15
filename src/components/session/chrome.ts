@@ -57,6 +57,8 @@ export const chromeState = () => useChromeStore.getState()
 export function activeForPath(pathname: string): HeaderActive {
   if (pathname.startsWith('/markets') || pathname.startsWith('/live')) return 'markets'
   if (pathname.startsWith('/agent-arena')) return 'agents'
+  if (pathname.startsWith('/catwalk')) return 'catwalk'
+  if (pathname.startsWith('/miaw-prix')) return 'miawprix'
   if (pathname.startsWith('/profile') || /^\/(solana|somnia)\//.test(pathname)) return 'profile'
   return 'highlight'
 }
