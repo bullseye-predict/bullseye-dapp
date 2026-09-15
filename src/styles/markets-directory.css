@@ -13,9 +13,15 @@
 .mk-filters button[aria-pressed='true'] { background: #c7ff0020; color: var(--sh-lime); }
 .mk-filters button:focus-visible, .mk-app .mk-card:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
 .mk-result-count { display: block; margin: 8px 0 12px; color: #b7bac3; font: 12px var(--sh-heading); }
-.mk-app .mk-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
-.mk-app .mk-card { min-width: 0; min-height: 230px; border-radius: 14px; padding: 18px; }
-.mk-app .mk-card-title { font-size: 18px; line-height: 1.35; }
+/* A fixed twelve so a card's width is a decision, not a leftover: auto-fill
+   sized tracks to the narrowest card that would fit and then reserved the
+   remainder as empty columns, which both squeezed the titles and left a gap. */
+.mk-app .mk-card-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+.mk-app .mk-card { grid-column: span 4; min-width: 0; min-height: 230px; border-radius: 14px; padding: 18px; }
+/* Reserve both lines whether or not the second is used: the status row, the
+   outcomes and the footer then line up across every card in a row. */
+.mk-app .mk-card-title { font-size: 18px; line-height: 1.35; min-height: 2.7em; }
+.mk-app .mk-card-open { margin-top: 5px; }
 .mk-app .mk-card-status > span, .mk-app .mk-card-note { color: #b7bac3; letter-spacing: 0; }
 .mk-app .mk-card-bottom { color: #b7bac3; border: 0; }
 .mk-app .mk-ffa-row { font-size: 12px; }
@@ -28,6 +34,8 @@
 .mk-pending--row { height: 12px; width: 100%; }
 .mk-pending--row:last-child { width: 64%; }
 @keyframes mk-pending-sweep { to { background-position: 0 0; } }
+@media (max-width: 1180px) { .mk-app .mk-card { grid-column: span 6; } }
+@media (max-width: 760px) { .mk-app .mk-card { grid-column: span 12; } }
 @media (max-width: 600px) {
   .mk-app .mk-main { padding-top: 18px; }
   .mk-app .mk-heading { flex-wrap: wrap; gap: 12px; }

@@ -12,6 +12,9 @@ import { AppShell } from '../solz/AppShell'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, SolzMatch, SolzSnapshot } from '../solz/model'
 import { eventMarketVolume } from '../events/eventModel'
+import { normalisedChances } from './chance'
+import { catalogueQuestions } from './marketList'
+import { useMarketCatalogue } from './useMarketCatalogue'
 
 type Props = { apiUrl?: string }
 
@@ -19,7 +22,10 @@ type Props = { apiUrl?: string }
  *  status and market are supplied rather than derived from teams. */
 export type DirectoryRow = { match: SolzMatch; market?: ArenaMarket; markets?: ArenaMarket[]; title?: string; detail?: string; status?: string; collateral?: string }
 
-const filters = ['All', 'Live', 'Upcoming', 'Settled', 'Questions'] as const
+// All/Live/Upcoming/Settled are statuses; General is a kind (MARKET_LIST_API.md:38
+// gives `kind` as its own axis). Naming it after the axis stops it reading as a
+// fifth status - every item here is a question, so 'Questions' excluded nothing.
+const filters = ['All', 'Live', 'Upcoming', 'Settled', 'General'] as const
 type MarketFilter = typeof filters[number]
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
@@ -128,20 +134,32 @@ function FreeForAllCard({ row, now }: { row: DirectoryRow; now: number }) {
   return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={note}/>
 }
 
-/** Several linked questions under one event: rank them by their YES price. */
+/** Several linked questions under one event. Only one of them can win, so CHANCE
+ *  is the normalised distribution over the whole field - the same reading the
+ *  event page takes (EventMarkets.tsx:43) - and not each book's own YES price.
+ *  Read raw, twelve independent books on this card summed past 300%. */
 function LinkedQuestionsCard({ row, now }: { row: DirectoryRow; now: number }) {
-  const rows = (row.markets ?? []).map((market) => ({
-    key: market.id,
-    // The subject is what differs between linked questions; the shared tail is
-    // already the card title, so showing it on every row would be noise.
-    label: market.presentation?.answer?.label ?? linkedAnswerLabel(market.title, row.title ?? ''),
-    probability: market.outcomes[0]?.probability ?? .5,
-    // An arena draft carries no quote: predictionArena.ts:100 falls back to .5
-    // and :106 never stamps `indicative`, so an unstamped live market would
-    // print a literal 50% no book ever made. A settled one is recorded truth.
-    indicative: market.outcomes[0]?.indicative ?? market.status !== 'settled',
-  }))
-  return <RankedCard row={row} now={now} kind="linked" rows={rows} note={`${rows.length} linked questions`}/>
+  const markets = row.markets ?? []
+  // Hoisted above the map: the divisor is the whole field, so a per-market pass
+  // cannot compute it. A book that never opened sits out the total and stays
+  // undefined here rather than reading as 0%.
+  const chances = normalisedChances(markets.map((market) => market.outcomes[0]))
+  const rows = markets.map((market, index) => {
+    // Only a book that actually quoted stamps `indicative: false`
+    // (useSolanaMarketPrices.ts:146). An arena draft leaves it undefined and
+    // carries a .5 placeholder, which chance.ts:43 will happily price - and
+    // twelve of those normalise to a tidy uniform 8% no book ever made.
+    const chance = market.outcomes[0]?.indicative === false ? chances[index] : undefined
+    return {
+      key: market.id,
+      // The subject is what differs between linked questions; the shared tail is
+      // already the card title, so showing it on every row would be noise.
+      label: market.presentation?.answer?.label ?? linkedAnswerLabel(market.title, row.title ?? ''),
+      probability: chance ?? 0,
+      indicative: chance === undefined,
+    }
+  })
+  return <RankedCard row={row} now={now} kind="linked" rows={rows} note={`${markets.length} linked questions`}/>
 }
 
 /** A standalone question has no teams at all: it trades as a plain YES/NO pair. */
@@ -185,7 +203,7 @@ export function MarketDirectory({ snapshot, questions, error, retry }: { snapsho
     // separate section that pushes the next available market below the fold.
     return [...questions, ...matches].filter(row => {
       const phase = row.match.phase
-      const selected = filter === 'All' || (filter === 'Questions' ? questions.includes(row) : filter === 'Live' ? phase === 'live' : filter === 'Settled' ? phase === 'settled' : phase === 'countdown' || phase === 'queued')
+      const selected = filter === 'All' || (filter === 'General' ? questions.includes(row) : filter === 'Live' ? phase === 'live' : filter === 'Settled' ? phase === 'settled' : phase === 'countdown' || phase === 'queued')
       return selected && `${row.title ?? ''} ${row.match.mode} ${row.match.teams.map(team => team.name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
     })
   }, [snapshot, questions, filter, search])
@@ -214,8 +232,16 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
   const source = useMemo(() => createSolzDataSource({ simulationEnabled: () => false }), [])
   const { snapshot, error, retry } = useHomeData(source, apiUrl)
   const venue = useSolanaVenue(apiUrl)
+  const catalogue = useMarketCatalogue(apiUrl)
   const reserved = useReservedSolanaQuestions(apiUrl, venue)
-  const standalone = useMemo(() => standaloneQuestions(reserved.questions, snapshot?.matches ?? []), [reserved.questions, snapshot?.matches])
+  // GET /market/list is the catalogue (docs/MARKET_LIST_API.md). Its market
+  // addresses are derived here from (programId, matchId, questionId) rather than
+  // read off the wire, so a catalogue row can never point trading at another
+  // market. `available` is false only when the backend says it has no such route,
+  // which keeps the directory working against one that predates it.
+  const catalogued = useMemo(() => catalogueQuestions(catalogue.items, venue), [catalogue.items, venue])
+  const questionCatalogue = catalogue.available ? catalogued : reserved.questions
+  const standalone = useMemo(() => standaloneQuestions(questionCatalogue, snapshot?.matches ?? []), [questionCatalogue, snapshot?.matches])
   const standaloneMarkets = useMemo(() => standalone.map((view) => view.market), [standalone])
   const priced = useSolanaMarketPrices(standaloneMarkets, venue, true).markets
   const pricedById = useMemo(() => new Map(priced.map((market) => [market.id, market])), [priced])
