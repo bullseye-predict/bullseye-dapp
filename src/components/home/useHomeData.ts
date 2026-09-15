@@ -66,28 +66,36 @@ export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
           true,
         )(controller.signal);
         let nextEvents = currentMatchDrafts(nextArena);
-        let feedAvailable = false;
-        if (predictionApiUrl) {
-          const response = await fetch(predictionUrl("/arena/events", predictionApiUrl), {
-            signal: controller.signal,
-            headers: { accept: "application/json" },
-          });
-          if (response.ok) {
-            nextEvents = await response.json();
-            feedAvailable = true;
-          }
-        }
-        if (!active) return;
+        // Arena scheduling is the page's availability contract. The prediction
+        // feed can be delayed or unavailable, but must never hold the live
+        // match, intermission timer, or embedded Arena behind its response.
         arena.current = nextArena;
         setArenaSchedule(nextArena.upcoming);
         events.current = nextEvents;
-        setPredictionFeed(feedAvailable);
+        setPredictionFeed(false);
         if (base.current)
-          setSnapshot(
-            applyPredictionArena(base.current, nextArena, nextEvents),
-          );
+          setSnapshot(applyPredictionArena(base.current, nextArena, nextEvents));
         setError("");
         armScheduleRefresh(nextArena);
+        if (predictionApiUrl) {
+          try {
+            const response = await fetch(predictionUrl("/arena/events", predictionApiUrl), {
+              signal: controller.signal,
+              headers: { accept: "application/json" },
+            });
+            if (response.ok) {
+              nextEvents = await response.json();
+              if (!active) return;
+              events.current = nextEvents;
+              setPredictionFeed(true);
+              if (base.current)
+                setSnapshot(applyPredictionArena(base.current, nextArena, nextEvents));
+            }
+          } catch {
+            // The fallback drafts above stay trade-disabled and keep the Arena
+            // clock visible while this independently deployed feed recovers.
+          }
+        }
       } catch (reason) {
         if (active)
           setError(

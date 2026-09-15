@@ -3,6 +3,9 @@ import '../../styles/global.css'
 import '../../styles/home.css'
 import '../../styles/site-loading.css'
 import { AppShell } from '../solz/AppShell'
+// Home imports venue readers that transitively use the Manifest SDK. Install
+// its browser Buffer/process shim before that module graph evaluates; wallet
+// chrome itself is deferred separately so it cannot block this route.
 const Home = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../home/HomeApp')).HomeApp } })
 const Event = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../events/EventApp')).EventApp } })
 const Prediction = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('./PredictionApp')).PredictionApp } })
