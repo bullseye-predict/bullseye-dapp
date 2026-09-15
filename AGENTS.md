@@ -30,3 +30,7 @@ Green means Buy/Yes and red means Sell/No wherever the trader is choosing betwee
 A moneyline is the exception, because there the outcomes ARE the teams and Yes/No is not what is being chosen. On a two-sided team market the outcome buttons take each team's identity color in the market row, the order book and the trade ticket; the unselected side goes flat and neutral. `isMoneyline()` in `src/components/markets/moneyline.ts` is the only place that decides this — do not re-derive it. Buy/Sell itself stays semantic: the Buy/Sell tabs and the submit button never take a team color.
 
 Three-way markets with a draw do not exist yet (`Outcome = 0 | 1` in `packages/prediction-core/portfolio/model.ts`). When they arrive, the market row keeps team colors and the ticket falls back to the green/red pair, which is what `pickColor()` already returns for any outcome with no identity color.
+
+## Loading states
+
+Loading must preserve the final surface's structure, dimensions, and column layout. Use a skeleton or shimmer shaped like the loaded content; do not replace a table, ticket, chart, list, or card with a standalone loading sentence. Keep loading text available to assistive technology, and reserve textual messages for unavailable or terminal error states.

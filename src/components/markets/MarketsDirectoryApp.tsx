@@ -35,6 +35,21 @@ function scheduleLabel(match: SolzMatch, now: number) {
 
 const lockLabel = (at: number) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(at)
 
+/** What the card is asking, not who is standing in it. A team-less room reaches
+ *  us as one synthetic side (predictionArena.ts:82), whose symbol is a roster
+ *  label rather than a question - and the body would only repeat it. */
+function matchTitle(match: SolzMatch) {
+  if (match.teams.length > 2) return `${match.teams.length}-TEAM FREE FOR ALL`
+  if (match.teams.length === 2) return match.teams.map((team) => team.symbol).join(' VS ')
+  const mode = match.mode?.toLowerCase()
+  return mode ? `Which agent wins the ${mode}?` : match.map
+}
+
+/** The dot beside this already states the phase, and predictionArena.ts:85 sets
+ *  a live room's round to 'MATCH LIVE', stating it twice. Every other round -
+ *  INTERMISSION, SETTLED - carries a fact the dot cannot. */
+const matchDetail = (match: SolzMatch) => [match.mode, match.round === 'MATCH LIVE' ? '' : match.round].filter(Boolean).join(' · ')
+
 /** Match outcome identities before falling back to order. Missing quotes stay
  *  indicative: team count cannot establish odds or imply a certain winner. */
 function teamOdds(match: SolzMatch, market: ArenaMarket | undefined) {
@@ -56,7 +71,7 @@ function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: numbe
     </div>
     <div className="mk-card-status">
       <StatusDot pink={match.phase !== 'live'}>{row.status ?? scheduleLabel(match, now)}</StatusDot>
-      <span>{row.detail ?? `${match.mode} · ${match.round}`}</span>
+      <span>{row.detail ?? matchDetail(match)}</span>
     </div>
     {children}
     <div className="mk-card-bottom">
@@ -91,21 +106,26 @@ function RankedCard({ row, now, kind, rows, note }: { row: DirectoryRow; now: nu
   const ranked = [...rows].sort((a, b) => Number(a.indicative) - Number(b.indicative) || b.probability - a.probability)
   const shown = ranked.slice(0, 4)
   return <CardFrame row={row} now={now} kind={kind}>
-    <div className="mk-ffa">
+    {shown.length > 0 && <div className="mk-ffa">
       {shown.map((item) => <div className="mk-ffa-row" key={item.key}>
         {item.color ? <TeamMark id={item.key} color={item.color}/> : <span className="mk-ffa-dot" aria-hidden="true"/>}
         <strong>{item.label}</strong>
         <span className="mk-ffa-bar"><i style={{ width: item.indicative ? '0%' : percent(item.probability), background: item.color ?? 'var(--sh-lime)' }}/></span>
         <b>{item.indicative ? '—' : percent(item.probability)}</b>
       </div>)}
-    </div>
+    </div>}
     <div className="mk-card-note"><Users size={11}/>{note}{ranked.length > shown.length ? ` · ${ranked.length - shown.length} more` : ''}</div>
   </CardFrame>
 }
 
 function FreeForAllCard({ row, now }: { row: DirectoryRow; now: number }) {
-  const rows = teamOdds(row.match, row.market).map(({ team, probability, indicative }) => ({ key: team.teamId, label: team.symbol, color: team.color, probability, indicative }))
-  return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={`${row.match.teams.length} ${row.match.teams.length === 1 ? 'team' : 'teams'}${row.match.roster.length ? ` · ${row.match.roster.length} agents` : ''}`}/>
+  // Zero real teams reach this card as one synthetic side (predictionArena.ts:82),
+  // so a team count is invented arithmetic rather than a fact about the room -
+  // and a room with one side is not a team fight to count sides in.
+  const contested = row.match.teams.length >= 2
+  const rows = contested ? teamOdds(row.match, row.market).map(({ team, probability, indicative }) => ({ key: team.teamId, label: team.symbol, color: team.color, probability, indicative })) : []
+  const note = [contested ? `${row.match.teams.length} teams` : '', row.match.roster.length ? `${row.match.roster.length} agents` : ''].filter(Boolean).join(' · ')
+  return <RankedCard row={row} now={now} kind="ffa" rows={rows} note={note}/>
 }
 
 /** Several linked questions under one event: rank them by their YES price. */
@@ -116,7 +136,10 @@ function LinkedQuestionsCard({ row, now }: { row: DirectoryRow; now: number }) {
     // already the card title, so showing it on every row would be noise.
     label: market.presentation?.answer?.label ?? linkedAnswerLabel(market.title, row.title ?? ''),
     probability: market.outcomes[0]?.probability ?? .5,
-    indicative: market.outcomes[0]?.indicative,
+    // An arena draft carries no quote: predictionArena.ts:100 falls back to .5
+    // and :106 never stamps `indicative`, so an unstamped live market would
+    // print a literal 50% no book ever made. A settled one is recorded truth.
+    indicative: market.outcomes[0]?.indicative ?? market.status !== 'settled',
   }))
   return <RankedCard row={row} now={now} kind="linked" rows={rows} note={`${rows.length} linked questions`}/>
 }
@@ -134,9 +157,15 @@ function QuestionCard({ row, now }: { row: DirectoryRow; now: number }) {
 }
 
 /** Three shapes, chosen by what the market actually is: no teams is a plain
- *  question, exactly two is a head-to-head, anything else is a ranked field. */
+ *  question, exactly two is a head-to-head, anything else is a field - ranked
+ *  when it has contenders to rank, named when it is one side of many agents. */
 export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
-  if (!row.match.teams.length) return (row.markets?.length ?? 0) > 1 ? <LinkedQuestionsCard row={row} now={now}/> : <QuestionCard row={row} now={now}/>
+  // A team-less question and a one-synthetic-side arena room are the same shape:
+  // no opponent to split against, but a set of linked questions to rank.
+  if (row.match.teams.length < 2) {
+    if ((row.markets?.length ?? 0) > 1) return <LinkedQuestionsCard row={row} now={now}/>
+    return row.match.teams.length ? <FreeForAllCard row={row} now={now}/> : <QuestionCard row={row} now={now}/>
+  }
   if (row.match.teams.length === 2) return <VersusCard row={row} now={now}/>
   return <FreeForAllCard row={row} now={now}/>
 }
@@ -145,7 +174,13 @@ export function MarketDirectory({ snapshot, questions, error, retry }: { snapsho
   const [filter, setFilter] = useState<MarketFilter>('All')
   const [search, setSearch] = useState('')
   const rows = useMemo(() => {
-    const matches: DirectoryRow[] = (snapshot?.matches ?? []).map(match => ({ match, market: snapshot?.markets.find(item => item.id === match.marketId), title: match.teams.length > 2 ? `${match.teams.length}-TEAM FREE FOR ALL` : match.teams.map(team => team.symbol).join(' VS ') || match.map }))
+    // match.marketId is roomId-derived (predictionArena.ts:87) and is no market's
+    // id anywhere in the snapshot, so it never resolved. Join on matchId, the
+    // predicate every event surface already uses (EventApp.tsx:106).
+    const matches: DirectoryRow[] = (snapshot?.matches ?? []).map(match => {
+      const markets = snapshot?.markets.filter(item => item.matchId === match.id) ?? []
+      return { match, market: markets[0], markets, title: matchTitle(match) }
+    })
     // Questions and arena matches share one stage; status is a filter, never a
     // separate section that pushes the next available market below the fold.
     return [...questions, ...matches].filter(row => {
@@ -154,15 +189,24 @@ export function MarketDirectory({ snapshot, questions, error, retry }: { snapsho
       return selected && `${row.title ?? ''} ${row.match.mode} ${row.match.teams.map(team => team.name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
     })
   }, [snapshot, questions, filter, search])
-  return <AppShell className="solz-home mk-app" marketsHref="/markets" active="markets" skipTo="#market-directory" skipLabel="Skip to markets" backToTopHref="#market-directory">
-    <main className="mk-main" id="market-directory">
-      <header className="mk-heading"><h1>All markets</h1><label className="mk-search"><Search size={18}/><input type="search" aria-label="Search markets" placeholder="Search markets" value={search} onChange={event => setSearch(event.target.value)}/></label></header>
+  return <AppShell className="solz-home mk-app" mainId="market-directory" mainClassName="mk-main" marketsHref="/markets" active="markets" skipTo="#market-directory" skipLabel="Skip to markets" backToTopHref="#market-directory">
+      <header className="mk-heading"><h1 className="sz-page-title">All markets</h1><label className="mk-search"><Search size={18}/><input type="search" aria-label="Search markets" placeholder="Search markets" value={search} onChange={event => setSearch(event.target.value)}/></label></header>
       <nav className="mk-filters" aria-label="Filter markets">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} onClick={() => setFilter(item)}>{item}</button>)}</nav>
-      {error ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot ? <div className="mk-state" role="status">Loading markets…</div> : <>
+      {error ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot ? <div className="mk-card-grid" role="status" aria-busy="true" aria-label="Loading markets">
+        {/* Placeholders in the real grid, at the real card size: the row does not
+            jump when the snapshot lands, and a slow upstream reads as the page
+            filling in rather than as an empty bordered slab. */}
+        {[0, 1, 2].map((slot) => <div className="mk-card mk-card--pending" key={slot} aria-hidden="true">
+          <span className="mk-pending mk-pending--title"/>
+          <span className="mk-pending mk-pending--detail"/>
+          <span className="mk-pending mk-pending--row"/>
+          <span className="mk-pending mk-pending--row"/>
+          <span className="mk-pending mk-pending--row"/>
+        </div>)}
+      </div> : <>
         <span className="mk-result-count" role="status">{rows.length} {rows.length === 1 ? 'market' : 'markets'}</span>
         {rows.length ? <div className="mk-card-grid">{rows.map(row => <MarketCard key={row.match.id} row={row} now={snapshot.updatedAt}/>)}</div> : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{search || filter !== 'All' ? 'Try another filter or search.' : 'Markets will appear here when they are published.'}</span></div>}
       </>}
-    </main>
   </AppShell>
 }
 

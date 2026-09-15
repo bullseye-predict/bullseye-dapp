@@ -35,9 +35,10 @@ export function consolidate(native: readonly DepthLevel[], cross: readonly Depth
   for (const level of cross) add(level, true)
   return [...totals.values()]
 }
-/** A price is bounded to 1–99¢, so a 50¢ level fills half the depth lane.
- *  Quantity and accumulated value do not affect the visual width. */
-const depthPercent = (price: bigint, decimals: number) => Math.min(99, Math.max(1, Number(price * 10_000n / 10n ** BigInt(decimals)) / 100))
+/** Each side has its own cumulative dollar-depth scale. Price orders the book;
+ *  the band shows how much money is reachable through that row. A nonzero
+ *  level keeps a 2% visual floor, so thin liquidity remains discoverable. */
+const depthPercent = (total: bigint, maximum: bigint) => Math.max(2, Number(total * 10_000n / maximum) / 100)
 export function depthRows(levels: readonly (DepthLevel & { cross?: bigint })[], side: 'ask' | 'bid', decimals: number) {
   const sorted = [...levels].sort((a, b) => a.price === b.price ? 0 : (a.price < b.price ? -1 : 1) * (side === 'ask' ? 1 : -1))
   let quantity = 0n, total = 0n
@@ -53,23 +54,23 @@ const number = (value: bigint, decimals: number) => Number(formatUnits(value, de
  *  is noise beside a four-figure sweep. */
 const money = (value: bigint) => `$${Number(formatUnits(value, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-/** What one clicked price level hands the trade ticket. */
-export type LevelPick = { side: 'buy' | 'sell'; price: string; cents: string; shares: string }
+/** What one clicked price level hands the trade ticket: a price, which ladder it
+ *  came from, and what rests there. Not an instruction to buy or to sell. */
+export type LevelPick = { side: 'ask' | 'bid'; price: string; cents: string; quantity: string }
 
-/** Taking an ask is a buy and taking a bid is a sell, for everything resting
- *  between the best price and the level chosen — `cumulative`, not the level's
- *  own quantity. A limit price is a ceiling on a buy and a floor on a sell, so
- *  a level that is not a whole cent rounds the way that still sweeps it: the
- *  ticket's field takes whole cents in 1..99 and rejects anything else with no
- *  message on screen. */
-export function levelPick(price: bigint, cumulative: bigint, side: 'ask' | 'bid', decimals: number): LevelPick {
-  const raw = Number(formatUnits(price * 100n, decimals))
-  const whole = side === 'ask' ? Math.ceil(raw) : Math.floor(raw)
+/** A row click chooses a price. Which ladder the row sits in is reported so the
+ *  ticket can round toward the trader's own side and say whether the level is
+ *  executable for them — it never decides their direction, and the level's size
+ *  is liquidity to report, not an order quantity to impose.
+ *
+ *  `own` is subtracted because a trader cannot fill their own resting order;
+ *  offering it as available size would promise depth the venue then refuses. */
+export function levelPick(level: { price: bigint; quantity: bigint; own?: bigint }, side: 'ask' | 'bid', decimals: number): LevelPick {
   return {
-    side: side === 'ask' ? 'buy' : 'sell',
-    price: price.toString(),
-    cents: String(Math.min(99, Math.max(1, whole))),
-    shares: formatUnits(cumulative, 6),
+    side,
+    price: level.price.toString(),
+    cents: formatUnits(level.price * 100n, decimals),
+    quantity: formatUnits(level.quantity - (level.own ?? 0n), 6),
   }
 }
 
@@ -95,6 +96,8 @@ type TableProps = {
 
 export function OrderBookTable({ asks, bids, decimals, last, label, crossAsks, crossLabel, centerRowRef, onPick, picked, onRecenter }: TableProps) {
   const askRows = depthRows(consolidate(asks, crossAsks ?? []), 'ask', decimals), bidRows = depthRows(bids, 'bid', decimals)
+  const askMaximum = askRows.reduce((maximum, row) => row.total > maximum ? row.total : maximum, 1n)
+  const bidMaximum = bidRows.reduce((maximum, row) => row.total > maximum ? row.total : maximum, 1n)
   const bestAsk = askRows.at(-1)?.price, bestBid = bidRows[0]?.price
   const spread = bestAsk !== undefined && bestBid !== undefined ? bestAsk - bestBid : undefined
   // One tab stop for the whole book, arrow keys between levels: twenty tab stops
@@ -109,7 +112,7 @@ export function OrderBookTable({ asks, bids, decimals, last, label, crossAsks, c
   const rows = (levels: ReturnType<typeof depthRows>, side: 'ask' | 'bid') => levels.length ? levels.map((row, index) => {
     const id = `${side}:${row.price}`
     const isPicked = picked === id
-    const pick = () => onPick?.(levelPick(row.price, row.cumulative, side, decimals))
+    const pick = () => onPick?.(levelPick(row, side, decimals))
     // Depth that exists only on the other outcome's book must not read as an
     // ordinary resting order: taking it mints a complete set rather than
     // filling directly, which is a different transaction with its own
@@ -128,12 +131,12 @@ export function OrderBookTable({ asks, bids, decimals, last, label, crossAsks, c
     return <tr
       className={`is-${side}${onPick ? ' is-pickable' : ''}${isPicked ? ' is-picked' : ''}${routed && ` ${routed}`}${mine ? ' is-mine' : ''}`}
       key={id}
-      style={{ '--depth': `${depthPercent(row.price, decimals)}%` } as CSSProperties}
+      style={{ '--depth': `${depthPercent(row.total, side === 'ask' ? askMaximum : bidMaximum)}%` } as CSSProperties}
       {...(onPick ? {
         'data-level': id,
         tabIndex: id === tabStop ? 0 : -1,
         'aria-selected': isPicked,
-        'aria-label': `${side === 'ask' ? 'Buy' : 'Sell'} ${number(row.cumulative, 6)} ${label} shares through ${number(row.price * 100n, decimals)}¢${routed ? `. This level is ${routed === 'is-mixed' ? 'partly ' : ''}routed through ${crossLabel ?? 'the opposite'} bids` : ''}${mine ? '. Includes your own resting order, which you cannot fill' : ''}`,
+        'aria-label': `Use ${number(row.price * 100n, decimals)}¢ as the limit price. ${number(row.quantity, 6)} ${label} resting at this level${routed ? `. This level is ${routed === 'is-mixed' ? 'partly ' : ''}routed through ${crossLabel ?? 'the opposite'} bids` : ''}${mine ? '. Includes your own resting order, which you cannot fill' : ''}`,
         onClick: pick,
         onKeyDown: (event: React.KeyboardEvent<HTMLTableRowElement>) => {
           if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pick(); return }
@@ -145,7 +148,7 @@ export function OrderBookTable({ asks, bids, decimals, last, label, crossAsks, c
       <td>{boundary && <span>{side === 'ask' ? 'Asks' : 'Bids'}</span>}{routed ? <em className="ch-book-cross">via {crossLabel}</em> : null}{mine ? <em className="ch-book-mine">yours</em> : null}</td><td>{number(row.price * 100n, decimals)}¢</td><td>{number(row.quantity, 6)}</td><td>{money(row.total)}</td>
     </tr>
   }) : <tr className="ch-book-empty"><td colSpan={4}>No {side === 'ask' ? 'asks' : 'bids'}</td></tr>
-  return <table className="ch-order-book" role={onPick ? 'grid' : undefined} aria-label={`${label} order book`}><caption className="sr-only">Asks above last trade, bids below. Totals accumulate from the best price.{onPick ? ' Choosing a level fills the trade ticket with a limit order for everything between the best price and that level.' : ''}</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr>
+  return <table className="ch-order-book" role={onPick ? 'grid' : undefined} aria-label={`${label} order book`}><caption className="sr-only">Asks above last trade, bids below. Totals accumulate from the best price.{onPick ? ' Choosing a level sets the limit price on the trade ticket; it does not change whether you are buying or selling.' : ''}</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr>
     <th scope="col" className="ch-book-tools">{onRecenter ? <button type="button" onClick={onRecenter} aria-label="Recenter order book on the last trade"><Crosshair size={13}/></button> : <span className="sr-only">Side</span>}</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th>
   </tr></thead><tbody>
     {rows(askRows, 'ask')}

@@ -66,11 +66,15 @@ test('a standalone question renders YES/NO instead of any team layout', () => {
   expect(html).toContain(`href="/events/${question.eventId}"`)
 })
 
-test('a single-team match uses the ranked field, not a lopsided head-to-head', () => {
+test('a single-team match is a field, not a lopsided head-to-head or a field of one', () => {
   const teams = [team('GENESIS', '#c7ff00')]
   const html = renderToStaticMarkup(<MarketCard row={{ match: baseMatch(teams), market: market([1], teams), title: 'GENESIS' }} now={0}/>)
   expect(html).toContain('mk-card--ffa')
   expect(html).not.toContain('mk-split')
+  // One side has nothing to rank against, so it gets no row and no bar - and a
+  // lone side priced at 1 is certainty the market never established.
+  expect(html).not.toContain('mk-ffa-row')
+  expect(html).not.toContain('100%')
 })
 
 // A missing market is not evidence of a certain winner, even with one team.
@@ -78,7 +82,8 @@ test('unpriced arena cards never manufacture odds from team count', () => {
   const row: DirectoryRow = { match: baseMatch([team('GENESIS', '#c7ff00')]) }
   const html = renderToStaticMarkup(<MarketCard row={row} now={0}/>)
   expect(html).not.toContain('100%')
-  expect(html).toContain('—')
+  // Neither a fabricated price nor an empty bar standing in for one.
+  expect(html).not.toContain('mk-ffa-bar')
 })
 
 test('unpriced head-to-head cards do not draw fabricated split odds', () => {

@@ -7,7 +7,8 @@ import { AgentPortrait, compact, TeamMark } from './HomePrimitives'
 import { matchIdLabel, outcomeColor } from './heroMarket'
 import { PredictionDetail } from './PredictionDetail'
 import { MarketErrorBoundary } from './MarketErrorBoundary'
-import { buyQuoteLabel } from './venue/quoteLabels'
+import { quoteLabel } from './venue/quoteLabels'
+import { useTradeSide } from './venue/tradeSide'
 import { chanceText, normalisedChances } from '../markets/chance'
 import { MatchAvatar } from '../portfolio/matchIdentity'
 import { OutcomeRow, type RowPick } from '../markets/OutcomeRow'
@@ -26,16 +27,21 @@ type Props = {
 }
 export function PredictionOptions(props: Props) {
   const displayId = props.match ? matchIdLabel(props.match) : 'MATCH —'
+  // One topic open at a time, owned here rather than inside each row: with the
+  // state per row there was nothing to close the others with, and two open
+  // books meant two polling panels and a list you had to scroll past to read.
+  const [openTopic, setOpenTopic] = useState<string | null>(props.market.id)
   return <div className="ch-options" aria-label="Related predictions">
     <div className="ch-options-heading"><div><div className="ch-options-title"><h2>Make your call.</h2><span className="ch-options-match">{props.match && <MatchAvatar id={props.match.id}/>}<b>{displayId}</b></span></div><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">{props.sourceLabel ?? (props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS')}</span></div>
-    <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id}/>)}</div>
+    <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id} open={openTopic === item.id} onOpen={() => setOpenTopic((current) => current === item.id ? null : item.id)}/>)}</div>
   </div>
 }
-function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, collateral: symbol }: Props & { item: ArenaMarket }) {
+function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, collateral: symbol, open, onOpen }: Props & { item: ArenaMarket; open: boolean; onOpen: () => void }) {
   const collateral = simulation ? 'COOLA' : symbol ?? 'collateral'
   const active = item.id === market.id
-  const [open, setOpen] = useState(active)
-  const [nestedOpen, setNestedOpen] = useState<string[]>([])
+  const side = useTradeSide()
+  // One answer open at a time, for the same reason as the topics above.
+  const [nestedOpen, setNestedOpen] = useState<string | null>(null)
   const [lastOutcome, setLastOutcome] = useState(item.outcomes[0].id)
   const [answers, setAnswers] = useState<Record<string, PredictionAnswer>>({})
   const selected = active ? outcome : item.outcomes.find((pick) => pick.id === lastOutcome) ?? item.outcomes[0]
@@ -46,11 +52,11 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
   }, [active, outcome.id, answer])
   const choose = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => { setLastOutcome(pick.id); setAnswers((previous) => ({ ...previous, [pick.id]: value })); onSelect(item, pick, value) }
   const selectedAnswer = active ? answer : answers[selected.id] ?? 'yes'
-  const displayedPrice = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') => {
-    if (item.onchain?.family === 'SOLANA' && value === 'yes') return buyQuoteLabel(pick, true)
-    const probability = value === 'yes' ? pick.probability : 1 - pick.probability
-    return `${Math.round(probability * 100)}¢`
-  }
+  // A row's price is only meaningful against a direction, and the ticket beside
+  // it is already priced that way. `value === 'no'` is a NO contract off the
+  // same book, so it reads the complement rather than the YES numbers.
+  const displayedPrice = (pick: ArenaMarketOutcome, value: PredictionAnswer = 'yes') =>
+    quoteLabel(pick, item.onchain?.family === 'SOLANA', side, value === 'no')
   const volumeLabel = simulation
     ? `${compact(item.volume.COOLA)} COOLA Vol.`
     : item.onchain?.volume24h
@@ -71,21 +77,21 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
     title={marketLineTitle(item)} subtitle={`${volumeLabel}${multiple ? ` · ${item.outcomes.length} outcomes` : ''}`}
     movement={multiple ? undefined : outcomeMovement(selected)}
     picks={topicPicks}
-    open={open} onOpenChange={() => { setOpen(!open); choose(selected, selectedAnswer) }}
+    open={open} onOpenChange={() => { onOpen(); choose(selected, selectedAnswer) }}
   >
     {multiple ? <div className="ch-outcome-list">{item.outcomes.map((pick, index) => {
       const picked = selected.id === pick.id
-      const expanded = nestedOpen.includes(pick.id)
+      const expanded = nestedOpen === pick.id
       const value = picked ? selectedAnswer : answers[pick.id] ?? 'yes'
       const accent = outcomeColor(pick, snapshot, index)
       // Multi-outcome: the identity colour dresses the answer, never the Buy
       // controls — each row is its own independent Yes/No book.
-      const picks: RowPick[] = (['yes', 'no'] as const).map((side) => ({
-        key: side, label: side === 'yes' ? 'Yes' : 'No', tone: side,
-        price: displayedPrice(pick, side),
-        ariaLabel: `${side === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`,
-        pressed: active && picked && value === side,
-        onClick: () => choose(pick, side),
+      const picks: RowPick[] = (['yes', 'no'] as const).map((answer_) => ({
+        key: answer_, label: answer_ === 'yes' ? 'Yes' : 'No', tone: answer_,
+        price: displayedPrice(pick, answer_),
+        ariaLabel: `${answer_ === 'yes' ? 'Yes' : 'No'} · ${pick.label} · ${item.title}`,
+        pressed: active && picked && value === answer_,
+        onClick: () => choose(pick, answer_),
       }))
       return <OutcomeRow
         key={pick.id} id={`outcome-${pick.id}`} selected={active && picked} accent={accent}
@@ -95,7 +101,7 @@ function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSe
         chanceLabel={`${pick.label} chance`} movement={outcomeMovement(pick)}
         picks={picks}
         open={expanded}
-        onOpenChange={() => { setNestedOpen((previous) => expanded ? previous.filter((id) => id !== pick.id) : [...previous, pick.id]); choose(pick, value) }}
+        onOpenChange={() => { setNestedOpen((previous) => previous === pick.id ? null : pick.id); choose(pick, value) }}
       ><MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={pick} answer={value} snapshot={snapshot} referenceMarket={reference} simulation={simulation} active={expanded} nested onSelect={choose}/></MarketErrorBoundary></OutcomeRow>
     })}</div> : <MarketErrorBoundary label={item.title}><PredictionDetail collateral={collateral} market={item} outcome={selected} snapshot={snapshot} referenceMarket={reference} simulation={simulation} onSelect={choose}/></MarketErrorBoundary>}
   </OutcomeRow>

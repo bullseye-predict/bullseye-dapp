@@ -1,13 +1,14 @@
 import { useAlerts } from './alerts/store'
-import { ArrowUpRight, ExternalLink } from 'lucide-react'
+import { ArrowUpRight, ExternalLink, RefreshCw } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
 import { sampleOrderBook } from '../solz/marketDepth'
-import { predictionContract, type PredictionAnswer } from '../solz/predictionContracts'
+import { baseOutcomeId, isNoContract, predictionContract, type PredictionAnswer } from '../solz/predictionContracts'
 import { Tabs, TabPanel } from '../solz/ui'
 import { amountLabel } from './HomePrimitives'
 import { HighlightChart } from './HighlightChart'
 import { LiveOrderBook, OrderBookTable } from './LiveOrderBook'
+import { bookTarget, pickBookLevel, useBookPick } from './venue/bookPick'
 import { useVenueActivity } from './venue/useVenueActivity'
 import { useVenueMarket, venueBinding } from './venue/useVenueMarket'
 import { explorerTxUrl } from '../../../packages/adapters/explorer'
@@ -33,15 +34,28 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
   const contract = predictionContract(outcome, nested ? answer : 'yes')
   const book = simulation ? sampleOrderBook(contract) : null
   const prefix = `topic-${market.id}-${nested ? outcome.id : 'detail'}`
+  // One derivation of which of the two books this panel shows. The ticket
+  // repeats the same rule against its own props; a level picked here only
+  // applies to a ticket that agrees on the contract.
+  // Team moneylines use team IDs, not literal "yes" and "no" IDs. The second
+  // outcome still maps to the NO book, so non-nested binary markets derive the
+  // book from outcome position rather than an ID naming convention.
+  const isNo = nested ? answer === 'no' : market.outcomes.findIndex((item) => item.id === outcome.id) === 1 || isNoContract(outcome.id)
+  const outcomeId = baseOutcomeId(outcome.id)
+  const target = bookTarget(market.id, outcomeId, isNo)
+  const pick = useBookPick()
+  // Side as well as price: a crossed book quotes the same price on both sides,
+  // and matching on price alone marked the bid as well as the ask.
+  const picked = pick?.target === target ? `${pick.side}:${pick.price}` : undefined
   return <div className="ch-topic-detail">
-    <div className="ch-topic-tabs"><Tabs idPrefix={prefix} label={`${nested ? outcome.label : market.title} details`} value={tab} onChange={(value) => { setTab(value as typeof tab); onSelect(outcome, answer) }} tabs={[{ id: 'book', label: 'Order Book' }, { id: 'graph', label: 'Graph' }, { id: 'activity', label: 'Activity' }, { id: 'info', label: 'Info' }]}/>{simulation && <span>SAMPLE DATA</span>}</div>
+    <div className="ch-topic-tabs"><Tabs idPrefix={prefix} label={`${nested ? outcome.label : market.title} details`} value={tab} onChange={(value) => { setTab(value as typeof tab); onSelect(outcome, answer) }} tabs={[{ id: 'book', label: 'Order Book' }, { id: 'graph', label: 'Graph' }, { id: 'activity', label: 'Activity' }, { id: 'info', label: 'Info' }]}/><div className="ch-topic-tab-tools">{simulation && <span>SAMPLE DATA</span>}{!simulation && binding && tab === 'book' && <button type="button" className="ch-book-refresh" aria-label={`Refresh ${contract.label} order book`} disabled={view.refreshing} onClick={view.refresh}><RefreshCw size={14}/></button>}</div></div>
     <TabPanel id="book" idPrefix={prefix} active={tab === 'book'}>
 
-      {!book ? !simulation && binding ? tab === 'book' ? <LiveOrderBook market={market} view={view} isNo={nested ? answer === 'no' : outcome.id === 'no'} label={contract.label} collateral={collateral}/> : null : <div className="ch-empty-book" role="status"><OrderBookTable asks={[]} bids={[]} decimals={6} label={contract.label}/><div className="ch-market-empty"><strong>No market opened for this match.</strong><span>Open this question from the trade ticket to start a separate {collateral} market for this match.</span></div></div> :
-      <table className="ch-order-book"><caption className="sr-only">Sample order book for {contract.label} · {market.title}. Shading shows cumulative share depth; totals are cumulative {collateral}.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col">SIDE</th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>
-        {book.asks.map((row, index) => <tr className="is-ask" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === book.asks.length - 1 && <span>Asks</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)}</td></tr>)}
-        <tr className="ch-book-spread"><td colSpan={2}>Last: {Math.round(contract.probability * 100)}¢</td><td colSpan={2}>Spread: {Math.round(book.spread * 100)}¢</td></tr>
-        {book.bids.map((row, index) => <tr className="is-bid" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === 0 && <span>Bids</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)}</td></tr>)}
+      {!book ? !simulation && binding ? tab === 'book' ? <LiveOrderBook market={market} view={view} isNo={isNo} label={contract.label} picked={picked} onPick={(level) => { onSelect(outcome, answer); pickBookLevel({ ...level, target, outcomeId, no: isNo }) }}/> : null : <div className="ch-empty-book" role="status"><OrderBookTable asks={[]} bids={[]} decimals={6} label={contract.label}/><div className="ch-market-empty"><strong>No market opened for this match.</strong><span>Open this question from the trade ticket to start a separate {collateral} market for this match.</span></div></div> :
+      <table className="ch-order-book"><caption className="sr-only">Sample order book for {contract.label} · {market.title}. Shading follows each price on the 1–99¢ scale; totals accumulate from the best price.</caption><colgroup><col className="ch-book-side-column"/><col/><col/><col/></colgroup><thead><tr><th scope="col" className="ch-book-tools"><span className="sr-only">Side</span></th><th scope="col">PRICE</th><th scope="col">SHARES</th><th scope="col">TOTAL</th></tr></thead><tbody>
+        {book.asks.map((row, index) => <tr className="is-ask" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === book.asks.length - 1 && <span>Asks</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)} {collateral}</td></tr>)}
+        <tr className="ch-book-spread"><td>Last: {Math.round(contract.probability * 100)}¢</td><td>Spread: {Math.round(book.spread * 100)}¢</td><td colSpan={2}/></tr>
+        {book.bids.map((row, index) => <tr className="is-bid" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === 0 && <span>Bids</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)} {collateral}</td></tr>)}
       </tbody></table>}
     </TabPanel>
     <TabPanel id="graph" idPrefix={prefix} active={tab === 'graph'} className="ch-topic-graph"><HighlightChart collateral={collateral} market={market} outcome={contract} snapshot={snapshot} referenceMarket={referenceMarket} simulation={simulation} focusOnly historyPicker={false} onOutcome={(item) => onSelect(item, answer)} onMarket={() => {}}/></TabPanel>

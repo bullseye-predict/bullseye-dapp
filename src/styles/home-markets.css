@@ -18,13 +18,14 @@
 .solz-home .ch-order-book :is(th, td):first-child { width: auto; border-left: 0; }
 .solz-home .ch-order-book :is(th, td) { padding: 8px 14px; height: 40px; box-sizing: border-box; border: 0; }
 .solz-home .ch-order-book :is(th, td):nth-child(2) { text-align: center; }
-.solz-home .ch-order-book th { border-bottom: 1px solid #ffffff0d; font-size: 9px; color: #a8b7c4; }
+.solz-home .ch-order-book thead { border-block: 1px solid #ffffff24; }
+.solz-home .ch-order-book th { border-bottom: 1px solid #ffffff24; box-shadow: inset 0 -1px 0 #ffffff24; font-size: 9px; color: #a8b7c4; }
 .solz-home .ch-order-book td { color: #dde5ec; }
-.solz-home .ch-order-book :is(.is-ask, .is-bid) { background-repeat: no-repeat; background-position: right; background-size: var(--depth, 0%) 100%; }
-/* The band grows from the right here and from the left in the live book below,
-   so each anchor gets the gradient that fades on its own leading edge. */
-.solz-home .ch-order-book .is-ask { background-image: linear-gradient(to left, #d3365338, #d3365338 54%, #d3365300); }
-.solz-home .ch-order-book .is-bid { background-image: linear-gradient(to left, #15b47a38, #15b47a38 54%, #15b47a00); }
+/* The depth lane ends at the Price column. It must never extend behind shares
+   or totals, where it reads like a row-wide selection. */
+.solz-home .ch-order-book :is(.is-ask, .is-bid) > td:first-child { background-repeat: no-repeat; background-position: left; background-size: var(--depth, 0%) 100%; background-image: var(--depth-fill); }
+.solz-home .ch-order-book .is-ask { --depth-fill: linear-gradient(to right, #d3365338, #d3365338 54%, #d3365300); }
+.solz-home .ch-order-book .is-bid { --depth-fill: linear-gradient(to right, #15b47a38, #15b47a38 54%, #15b47a00); }
 .solz-home .ch-order-book .is-ask td:nth-child(2) { color: #ff7385; font-weight: 500; }
 .solz-home .ch-order-book .is-bid td:nth-child(2) { color: #3ce1a0; font-weight: 500; }
 .solz-home .ch-order-book td > span { padding: 3px 6px; }
@@ -37,9 +38,6 @@
   .solz-home .ch-order-book :is(th, td) { padding: 7px 8px; }
   .solz-home .ch-order-book th { font-size: 8px; }
 }
-.solz-home .ch-live-book .ch-order-book :is(.is-ask, .is-bid) { background-position: left; }
-.solz-home .ch-live-book .ch-order-book .is-ask { background-image: linear-gradient(to right, #d3365338, #d3365338 54%, #d3365300); }
-.solz-home .ch-live-book .ch-order-book .is-bid { background-image: linear-gradient(to right, #15b47a38, #15b47a38 54%, #15b47a00); }
 
 /* Picking a level selects only that level. The ticket still receives the
    cumulative fill amount, but hovering must never make several rows appear
@@ -47,6 +45,7 @@
 /* The column header is sticky and opaque, so a row focused from the keyboard
    has to stop below it rather than under it. */
 .solz-home .ch-order-book tr.is-pickable { cursor: pointer; scroll-margin-block-start: 30px; }
+.solz-home .ch-order-book tr.is-pickable:hover > td { background-color: #ffffff0c; }
 .solz-home .ch-order-book tr.is-picked > td { background-color: #ffffff17; }
 .solz-home .ch-order-book tr.is-picked.is-ask > td:first-child { box-shadow: inset 2px 0 0 #ff7385; }
 .solz-home .ch-order-book tr.is-picked.is-bid > td:first-child { box-shadow: inset 2px 0 0 #3ce1a0; }
@@ -56,7 +55,7 @@
    dashed leading edge rather than a colour: on this table red and green mean
    ask and bid, so recolouring a level would read as changing its side. */
 .solz-home .ch-order-book tr:is(.is-cross, .is-mixed) > td:first-child { box-shadow: inset 2px 0 0 #ffffff1f; }
-.solz-home .ch-order-book tr.is-cross > td { background-image: repeating-linear-gradient(135deg, #ffffff08 0 6px, transparent 6px 12px); }
+.solz-home .ch-order-book tr.is-cross > td:first-child { background-image: repeating-linear-gradient(135deg, #ffffff08 0 6px, transparent 6px 12px), var(--depth-fill); background-size: auto, var(--depth, 0%) 100%; }
 .solz-home .ch-order-book .ch-book-cross { margin-left: 6px; font-style: normal; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: #a8b7c4; }
 .solz-home .ch-order-book .ch-book-mine { margin-left: 6px; padding: 1px 5px; border: 1px solid #ffffff24; border-radius: 3px; font-style: normal; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: #cfdae4; }
 .solz-home .ch-order-book th.ch-book-tools { text-align: left; }
@@ -118,10 +117,9 @@
 .sh-next-teams .sh-team-mark { width: 15px; height: 16px; margin-right: -2px; }
 .sh-next-match strong { font-size: 12px; }
 
-.mk-main { width: min(1180px, calc(100% - var(--site-gutter) * 2)); margin: 0 auto; padding: 48px 0 72px; }
+.mk-main { padding-block: 48px 72px; }
 .mk-heading { max-width: 680px; margin-bottom: 40px; }
 .mk-heading > span { color: var(--sh-lime); font-size: 9px; letter-spacing: .11em; }
-.mk-heading h1 { margin: 8px 0 12px; font-size: clamp(32px, 5vw, 58px); line-height: .95; letter-spacing: -.04em; }
 .mk-heading p { color: var(--sh-muted); font-size: 12px; line-height: 1.7; }
 .mk-groups { display: grid; gap: 34px; }
 .mk-group { border-top: 1px solid var(--sh-line); }

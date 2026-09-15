@@ -14,9 +14,9 @@ const EventMedia = memo(function EventMedia({ source }: { source?: string }) {
 
 export type EventView = 'live' | 'market'
 
-type Props = { simulation?: boolean; referenceMarket?: ArenaMarket; view: EventView; match: SolzMatch; market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome; onOutcome: (outcome: ArenaMarketOutcome) => void; prediction?: boolean; broadcast?: boolean }
+type Props = { simulation?: boolean; referenceMarket?: ArenaMarket; view: EventView; match: SolzMatch; market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome; onOutcome: (outcome: ArenaMarketOutcome) => void; prediction?: boolean; broadcast?: boolean; collateral?: string }
 
-export function EventStage({ simulation = true, referenceMarket, view, match, market, snapshot, outcome, onOutcome, prediction = false, broadcast = true }: Props) {
+export function EventStage({ simulation = true, referenceMarket, view, match, market, snapshot, outcome, onOutcome, prediction = false, broadcast = true, collateral }: Props) {
   const [message, setMessage] = useState('')
   const screen = useRef<HTMLDivElement>(null)
   async function fullscreen() {
@@ -37,7 +37,7 @@ export function EventStage({ simulation = true, referenceMarket, view, match, ma
           {message && <p className="sh-fullscreen-error" role="status">{message}</p>}
         </div>
       </TabPanel>}
-      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}} showTitle={false} historyPicker={false}/></TabPanel>
+      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}} showTitle={false} historyPicker={false} collateral={collateral}/></TabPanel>
     </div>
 
   </section>

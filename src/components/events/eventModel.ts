@@ -67,22 +67,21 @@ export function nameSeed(value: string) {
 }
 
 export type EventHolding = { id: string; author: string; outcomeId: string; shares: number; averagePrice: number; pnl: number; self: boolean }
-const SAMPLE_HOLDERS = ['7Kq…f2A', 'sol…9xz', 'relayrunner', 'canofalpha', '4Vn…b71', 'westside', 'ctrlshiftwin', 'zen…4kk', 'tin_can_trader', 'orbital', 'D3r…m08', 'stayfizzy']
 
-// Illustrative holdings belong to the demo presentation, never to a live account.
-// The viewer's positions are read from the shared source and valued separately.
+/** The viewer's OWN positions in this market, and nothing else.
+ *
+ *  This used to prepend eight invented holders per outcome, drawn from a pool of
+ *  ellipsised names shaped to pass as truncated base58 addresses — so a live
+ *  Solana question rendered a leaderboard in which every row but yours was
+ *  fiction. Other holders now come from chain through useVenueHolders; this
+ *  stays synchronous because it reads an account already in the snapshot, and
+ *  because avg price and P&L only exist for the wallet whose basis the app
+ *  actually tracks. */
 export function eventHoldings(snapshot: SolzSnapshot, market: ArenaMarket): EventHolding[] {
-  const sample = market.outcomes.flatMap((outcome, side) => Array.from({ length: 8 }, (_, index) => {
-    const author = SAMPLE_HOLDERS[(index + side * 5) % SAMPLE_HOLDERS.length]
-    const seed = nameSeed(`${market.id}:${outcome.id}:${author}`)
-    const shares = Math.round((72_000 + seed % 28_000) / (index + 1.1))
-    const averagePrice = Math.max(.01, Math.min(.99, outcome.probability - .09 + (seed % 140) / 1000))
-    return { id: `${outcome.id}-${author}`, author, outcomeId: outcome.id, shares, averagePrice, pnl: shares * (outcome.probability - averagePrice), self: false }
-  }))
-  return [...sample, ...snapshot.account.positions.filter((position) => position.marketId === market.id && position.token === 'COOLA' && market.outcomes.some((outcome) => outcome.id === position.outcomeId)).map((position) => ({
+  return snapshot.account.positions.filter((position) => position.marketId === market.id && position.token === 'COOLA' && market.outcomes.some((outcome) => outcome.id === position.outcomeId)).map((position) => ({
     id: position.id, author: 'YOU', outcomeId: position.outcomeId, shares: position.shares,
     averagePrice: position.averagePrice, pnl: position.pnl, self: true,
-  }))]
+  }))
 }
 
 export { sampleOrderBook, type DepthRow } from '../solz/marketDepth'

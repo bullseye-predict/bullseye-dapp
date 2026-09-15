@@ -14,16 +14,23 @@ export function useSolanaVenue(apiUrl: string, enabled = true) {
     if (!apiUrl || !enabled) return
     const controller = new AbortController()
     let timer: number | undefined
+    let retryDelay = 30_000
     const load = async () => {
       try {
         const config = await getPredictionConfig(apiUrl, AbortSignal.any([controller.signal, AbortSignal.timeout(25_000)]))
         if (!controller.signal.aborted)
           setVenue(config.venues.find((item) => item.family === 'SOLANA' && item.matchingEngine === 'MANIFEST') ?? null)
+        // Venue configuration is deployment metadata. It does not need to
+        // share the 10s cadence used by live order-book reads.
+        retryDelay = 30_000
       } catch {
         // A local backend may be restarted independently from Astro. Keep
-        // retrying so wallet balances and trading recover without a page reload.
-      } finally {
-        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), 10_000)
+        // retrying so wallet balances and trading recover without a page reload,
+        // but do not hammer a rate-limited config endpoint.
+        if (!controller.signal.aborted) {
+          timer = window.setTimeout(() => void load(), retryDelay)
+          retryDelay = Math.min(5 * 60_000, retryDelay * 2)
+        }
       }
     }
     void load()

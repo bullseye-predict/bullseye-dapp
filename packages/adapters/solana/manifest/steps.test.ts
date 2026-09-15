@@ -172,8 +172,49 @@ test('a stage that arrives before its plan still lands on the rail', () => {
   const plan = planTradeSteps(facts())
   const live = applyStage([], { step: 'Something unforeseen', status: 'sent', signature: 'sig' })
   const rows = reconcileSteps(plan, live, true)
-  expect(rows.map(row => row.unplanned)).toEqual([false, true])
-  expect(rows[1]!.status).toBe('sent')
+  // It goes where it happened: the transaction that ran sorts before the
+  // planned step that never did, rather than being appended after it.
+  expect(rows.map(row => row.unplanned)).toEqual([true, false])
+  expect(rows[0]!.status).toBe('sent')
+  expect(rows[1]!.status).toBe('skipped')
+})
+
+test('an unplanned step lands where it ran, not at the end', () => {
+  const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 3_400_000n }))
+  let live: LiveStep[] = []
+  for (const stage of [
+    // prepare() fires first inside the limit loop, before any funding.
+    { step: TRADE_STEPS.accounts, status: 'preparing' as const },
+    { step: TRADE_STEPS.accounts, status: 'sent' as const, signature: 'p' },
+    { step: TRADE_STEPS.fundRemaining, status: 'preparing' as const },
+    { step: TRADE_STEPS.fundRemaining, status: 'sent' as const, signature: 'f' },
+    { step: TRADE_STEPS.rest, status: 'preparing' as const },
+    { step: TRADE_STEPS.rest, status: 'sent' as const, signature: 'r' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  // The unplanned prepare ran first, so it sits first — not appended third,
+  // which is what made a transaction that ran before the others look like a
+  // fourth step spawned at the end.
+  expect(rows.map(row => [row.title, row.unplanned])).toEqual([
+    [TRADE_STEPS.accounts, true],
+    ['Fund order', false],
+    ['Execute order', false],
+  ])
+  expect(rows.every(row => row.status === 'sent')).toBe(true)
+})
+
+test('a limit buy plans setup when either binding still needs it', () => {
+  const half = { ...open, walletClaims: false }
+  // The selected side is ready; the opposite one, which a complete-set leg
+  // would prepare, is not. One step, not an unplanned surprise mid-run.
+  const plan = planTradeSteps(facts({ type: 'limit', accounts: open, accountsAlternate: half }))
+  const setup = plan.steps.find(step => step.id === 'prepare-accounts')
+  expect(setup).toBeDefined()
+  expect(setup!.costs[0]!.amount).toBe(rentLamports(165) + SIGNATURE_LAMPORTS)
+  // Both ready is still no step at all.
+  expect(planTradeSteps(facts({ type: 'limit', accounts: open, accountsAlternate: open })).steps.map(s => s.id))
+    .toEqual(['match-leg'])
 })
 
 test('a retry keeps the failure it is retrying', () => {
@@ -192,16 +233,33 @@ test('a retry keeps the failure it is retrying', () => {
   expect(row.signature).toBe('second')
 })
 
-test('a repeating step counts its confirmed legs', () => {
+test('a repeating step becomes one row per leg, not one row saying leg 3', () => {
   let live: LiveStep[] = []
   for (const signature of ['a', 'b', 'c']) {
     live = applyStage(live, { step: TRADE_STEPS.match, status: 'preparing' })
     live = applyStage(live, { step: TRADE_STEPS.match, status: 'sent', signature })
   }
   const plan = planTradeSteps(facts({ type: 'limit' }))
-  const row = reconcileSteps(plan, live, true).find(item => item.id === 'match-leg')!
-  expect(row.legs).toBe(3)
-  expect(row.signature).toBe('c')
+  const legs = reconcileSteps(plan, live, true).filter(item => item.kind === 'match-leg')
+  // Three signatures the trader approved are three rows on the rail.
+  expect(legs).toHaveLength(3)
+  expect(legs.map(row => row.leg)).toEqual([1, 2, 3])
+  expect(legs.map(row => row.signature)).toEqual(['a', 'b', 'c'])
+  expect(new Set(legs.map(row => row.id)).size).toBe(3)
+})
+
+test('a retry stays inside the leg it is retrying', () => {
+  let live: LiveStep[] = []
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'preparing' })
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'sent', signature: 'a' })
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'preparing' })
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'failed', error: 'Blockhash not found' })
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'preparing' })
+  live = applyStage(live, { step: TRADE_STEPS.match, status: 'sent', signature: 'b' })
+  const legs = reconcileSteps(planTradeSteps(facts({ type: 'limit' })), live, true).filter(row => row.kind === 'match-leg')
+  // Two transactions, not three: the failure and the retry are one leg.
+  expect(legs).toHaveLength(2)
+  expect(legs.map(row => [row.attempts, row.status])).toEqual([[1, 'sent'], [2, 'sent']])
 })
 
 test('a planned step is only called skipped once the flow has finished', () => {
@@ -277,9 +335,9 @@ test('one limit run can match, route through the opposite book and rest on one s
   }
   const rows = reconcileSteps(plan, live, true)
   expect(rows.some(row => row.unplanned)).toBe(false)
-  const execute = rows.find(row => row.title === 'Execute order')!
-  expect(execute.legs).toBe(3)
-  expect(execute.status).toBe('sent')
+  const execute = rows.filter(row => row.title === 'Execute order')
+  expect(execute).toHaveLength(3)
+  expect(execute.every(row => row.status === 'sent')).toBe(true)
 })
 
 test('a sell that rests instead of filling stays one execute step', () => {

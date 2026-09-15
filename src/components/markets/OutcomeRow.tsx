@@ -55,8 +55,21 @@ export function OutcomeRow({ id, media, title, subtitle, chance, chanceLabel, mo
   const expandable = Boolean(children)
   const isOpen = expandable && Boolean(open)
   const panelId = `${id}-panel`
+  /** The whole summary opens the row, not just the words in the title. The
+   *  title button still carries the semantics — it is the labelled, focusable
+   *  control with aria-expanded — so this ignores anything that came from a
+   *  control of its own, including that button and the pick buttons. Most of a
+   *  row is empty space, and clicking it and getting nothing was read as the
+   *  row refusing to open. */
+  const openFromRow = (event: React.MouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button, a, input, select, [role="button"]')) return
+    onOpenChange?.(!isOpen)
+  }
   return <section className={classes('mk-row', selected && 'is-selected')} id={id} style={accent ? { '--team-color': accent } as React.CSSProperties : undefined}>
-    <div className={classes('mk-row-summary', headline && 'is-headline', priceless && 'is-priceless')}>
+    <div
+      className={classes('mk-row-summary', headline && 'is-headline', priceless && 'is-priceless', expandable && 'is-expandable')}
+      onClick={expandable ? openFromRow : undefined}
+    >
       <h3 className="mk-row-name">
         <button
           id={`${id}-button`}

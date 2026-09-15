@@ -8,6 +8,9 @@ export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; late
  *  transactions and the wallet prompts for each one; without a label the user
  *  cannot tell which prompt is which. */
 export type SolanaTransactionStage = { step: string; status: 'preparing' | 'signing' | 'sent' | 'failed'; signature?: string; error?: string }
+/** Node skew and provider throttling: the transaction is fine, the node that
+ *  answered is behind or busy. Worth another pass either way. */
+const TRANSIENT = /blockhash not found|blockhashnotfound|429|rate limit/i
 export interface SolanaTransactionNotifier { (stage: SolanaTransactionStage): void }
 import { ManifestAdapter } from './adapter'
 import { TRADE_STEPS } from './steps'
@@ -73,10 +76,8 @@ export class ManifestBrowserWallet {
       } catch (error) {
         failure = error instanceof Error ? error.message : String(error)
       }
-      // Node skew and provider throttling are both transient and both worth
-      // another pass; anything else is a real rejection and must surface now.
-      const transient = /blockhash not found|blockhashnotfound|429|rate limit/i.test(failure)
-      if (!transient || attempt >= 3) throw new Error(`Transaction simulation failed: ${failure}`)
+      // Anything that is not transient is a real rejection and must surface now.
+      if (!TRANSIENT.test(failure) || attempt >= 3) throw new Error(`Transaction simulation failed: ${failure}`)
       await new Promise(resolve => setTimeout(resolve, 600 * 2 ** attempt))
     }
     if (!simulation) throw new Error('Transaction simulation did not complete')
@@ -88,7 +89,26 @@ export class ManifestBrowserWallet {
     const signed = await signer.signTransaction(tx)
     await this.signer()
     if (!Buffer.from(signed.serializeMessage()).equals(expected)) throw new Error('Wallet changed transaction contents')
-    const signature = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
+    // The send runs its own preflight, on whichever node answers it, and that is
+    // a second chance for the skew the loop above already retries: the blockhash
+    // simulated cleanly moments ago and then came back "Blockhash not found"
+    // from a node that had not caught up, which killed the trade after the
+    // trader had already approved it in their wallet.
+    //
+    // Resending is safe to repeat. These are the same signed bytes, so they are
+    // the same transaction with the same signature — the cluster deduplicates
+    // it rather than executing twice — and no second wallet prompt is needed.
+    let signature: string
+    for (let attempt = 0; ; attempt++) {
+      try {
+        signature = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
+        break
+      } catch (error) {
+        const failure = error instanceof Error ? error.message : String(error)
+        if (!TRANSIENT.test(failure) || attempt >= 2) throw error
+        await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt))
+      }
+    }
     try {
       // Confirmed, not finalized. Every read in this adapter is already at
       // 'confirmed', so waiting for finalization buys no guarantee the rest of

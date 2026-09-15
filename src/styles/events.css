@@ -1,8 +1,6 @@
 /* Event detail reuses the homepage's Marathon tokens and interaction surfaces. */
 .ev-app { --ev-sticky-top: 96px; --ev-positive: #8bdfa9; --ev-negative: #ff859b; color-scheme: dark; }
-.ev-main { max-width: 1660px; margin: auto; padding: 0 32px 52px; }
-.ev-app--community .ev-main { max-width: 1920px; }
-.ev-app--agents .ev-main { max-width: 1800px; }
+.ev-main { padding-block: 0 52px; }
 .ev-layout-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 65px; margin-bottom: 13px; border-bottom: 1px solid #2a2b31; }
 .ev-layout-bar > a { display: inline-flex; align-items: center; gap: 8px; font-size: 9px; color: #b2b4be; }
 .ev-layout-bar > a:hover { color: var(--sh-lime); }
@@ -204,7 +202,15 @@
 .ev-ranked-avatar > .is-rank-1 { background: #e4b64a; color: #251d09; }
 .ev-ranked-avatar > .is-rank-2 { background: #a8becb; color: #1b252c; }
 .ev-ranked-avatar > .is-rank-3 { background: #c6967e; color: #211912; }
-.ev-holder-name { flex: 1; font-size: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Holder names are wallet addresses now, so the viewer's own row has to be
+   findable at a glance among a column of base58. The padding is on every row,
+   not just the self row: applying it to one row alone pushed its avatar and
+   rank badge 8px out of line with the column above and below it. */
+.ev-holder-row { padding-left: 8px; }
+.ev-holder-row.is-self { box-shadow: inset 2px 0 0 var(--sh-lime); }
+.ev-holder-row.is-self .ev-holder-name { color: var(--sh-lime); }
+.ev-holders-status { min-height: 1em; margin: 0 0 6px !important; color: #a8b3c5; font-size: 9px; }
+.ev-holder-name { flex: 1; font-size: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ev-holder-name small { display: block; font-size: 8px; color: #a6b2c4; margin-top: 4px; }
 .ev-holder-row > strong { font-size: 12px; font-weight: 500; white-space: nowrap; }
 .ev-positive { color: var(--ev-positive); }
@@ -304,8 +310,7 @@
 .ev-related-teams > span { font-size: 8px; color: #aab1be; }
 .ev-related .sh-match-card-bottom { font-size: 7px; }
 .ev-footer { padding: 26px 32px; }
-.ev-load-state { min-height: 65vh; max-width: 720px; margin: auto; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 20px; padding: 35px 24px; }
-.ev-load-state h1 { font-size: 30px; }
+.ev-load-state { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; padding-block: 35px; }
 .ev-load-state p { font-size: 12px; color: #b8c3d4; line-height: 1.9; }
 .ev-skeleton { width: 100%; height: 220px; background: #242930; border: 1px solid #39414c; }
 
@@ -337,7 +342,6 @@
   .ev-app--agents .ev-layout { grid-template-columns: 290px minmax(0, 1fr) 350px; gap: 28px; }
 }
 @media (max-width: 1350px) {
-  .ev-main { padding-left: 22px; padding-right: 22px; }
   .ev-layout { grid-template-columns: 180px minmax(0, 1fr) 298px; gap: 20px; }
   .ev-app--community .ev-layout { grid-template-columns: 255px minmax(0, 1fr) 298px; gap: 18px; }
   .ev-app--agents .ev-layout { grid-template-columns: 240px minmax(0, 1fr) 298px; gap: 18px; }
@@ -370,7 +374,7 @@
 }
 @media (max-width: 760px) {
   .ev-app { --ev-sticky-top: 75px; }
-  .ev-main { padding: 0 16px 36px; }
+  .ev-main { padding-block: 0 36px; }
   .ev-layout-bar { min-height: 60px; gap: 8px; margin-bottom: 15px; }
   .ev-layout-bar > a { font-size: 8px; gap: 5px; }
   .ev-layout-bar nav { gap: 3px; }
@@ -459,7 +463,6 @@
 @media (max-width: 400px) {
   .ev-layout-bar > a { font-size: 7px; }
   .ev-layout-bar nav a { font-size: 7px; padding: 6px; }
-  .ev-main { padding-left: 12px; padding-right: 12px; }
   .ev-scoreboard { gap: 13px; padding-left: 10px; padding-right: 10px; }
   .ev-score-team { gap: 6px; }
   .ev-score-team .sh-team-mark { width: 19px; height: 22px; }
@@ -510,7 +513,6 @@
 
 /* Heading occupies its own row; both stage and sticky ticket start below it. */
 .ev-app { --ev-sticky-top: calc(var(--site-header-height) + 16px); }
-.ev-app .ev-main { max-width: calc(var(--site-content-width) + var(--site-gutter) * 2); padding-inline: var(--site-gutter); }
 .ev-layout { row-gap: 16px; }
 .ev-layout > .ev-event-heading { grid-column: 2; grid-row: 1; min-width: 0; padding-bottom: 0; }
 .ev-left-rail { grid-column: 1; grid-row: 1 / span 2; }

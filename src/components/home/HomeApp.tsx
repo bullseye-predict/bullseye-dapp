@@ -484,13 +484,13 @@ function Home({
   return (
     <AppShell
       className="solz-home ch-home"
+      mainClassName="sh-main"
       marketsHref="/markets"
       active={view === "market" ? "markets" : "highlight"}
       onArena={() => setView("live")}
       skipTo="#highlight"
       skipLabel="Skip to the arena"
     >
-      <main className="sh-main">
         <NextMatches snapshot={snapshot} schedule={arenaSchedule} eventBasePath={eventBasePath} />
         <section
           className="sh-highlight-section"
@@ -740,7 +740,6 @@ function Home({
             Enter the demo <ArrowRight size={18} />
           </a>
         </div>
-      </main>
     </AppShell>
   );
 }

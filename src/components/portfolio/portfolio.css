@@ -1,6 +1,5 @@
-.pf-main { max-width: 1440px; margin: 0 auto; padding: 40px var(--site-gutter) 64px; }
+.pf-main { padding-block: 40px 64px; }
 .pf-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-.pf-heading h1 { font-size: 26px; line-height: 1.1; letter-spacing: -.02em; }
 .pf-network { display: grid; gap: 6px; color: var(--sh-muted); font-size: 10px; }
 .pf-page select, .pf-page input { border: 1px solid var(--sh-line); color: var(--sh-text); background: var(--sh-panel); border-radius: 6px; padding: 11px 12px; }
 .pf-yes { color: #6ce5a7; }.pf-no { color: #ff8c96; }.pf-alert { color: #e9c783; }
@@ -124,7 +123,7 @@
 @media (max-width: 1100px) { .pf-hero { grid-template-columns: minmax(0, 1fr); }.pf-content.has-action { grid-template-columns: minmax(0, 1fr); }.pf-action { grid-row: 1; max-width: 520px; width: 100%; } }
 @media (max-width: 600px) {
   .pf-main { padding-top: 26px; }
-  .pf-heading { align-items: start; flex-direction: column; gap: 14px; }.pf-heading h1 { font-size: 23px; }.pf-network, .pf-network select { width: 100%; }
+  .pf-heading { align-items: start; flex-direction: column; gap: 14px; }.pf-network, .pf-network select { width: 100%; }
   .pf-card, .pf-chart { padding: 16px; }
   /* Two up, with the hairlines drawn by the grid gap so no border survives the reflow. */
   .pf-hero-stats { grid-template-columns: 1fr 1fr; gap: 1px; background: var(--sh-line); }

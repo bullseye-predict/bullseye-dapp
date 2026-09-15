@@ -137,6 +137,17 @@ describe('trade review dialog', () => {
     expect(markup).toContain('Try again')
     expect(markup.split('Try again').length - 1).toBe(1)
   })
+
+  test('a cleared run reopens on the invoice, not on the last receipt', () => {
+    // What TradeTicket's reset-on-open effect relies on: with no live steps the
+    // dialog is back on the order, even though `settled` is still carrying the
+    // previous trade's flag for one render.
+    const markup = render({ settled: true }, {}, [], true)
+    expect(markup).toContain('Review your trade')
+    expect(markup).toContain('Agree and sign on Solana')
+    expect(markup).not.toContain('Trade submitted')
+    expect(markup).not.toContain('ch-tx-steps')
+  })
 })
 
 describe('trade agreement', () => {

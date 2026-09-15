@@ -27,7 +27,7 @@ function PredictionHome({ apiUrl, marketSources }: { apiUrl: string; marketSourc
   const networks: TradingNetwork[] = marketSources.includes('SOMNIA') ? ['SOLANA', 'SOMNIA'] : ['SOLANA']
   const [network,setNetwork]=useState<TradingNetwork>(networks[0] ?? 'SOLANA')
   useEffect(() => { if (!networks.includes(network)) setNetwork(networks[0] ?? 'SOLANA') }, [marketSources, network, networks.join(',')])
-  return <AppShell className="solz-home pt-home" id="top" active="markets" backToTopHref="#top"><main className="pt-main"><h1>Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} allowedMarketIds={allowedMarketIds}/>} /></main></AppShell>
+  return <AppShell className="solz-home pt-home" id="top" mainClassName="pt-main" active="markets" backToTopHref="#top"><h1 className="sz-page-title">Live prediction markets</h1><NetworkTabs network={network} choices={networks} onChange={setNetwork}/><NetworkTrading key={network} apiUrl={apiUrl} network={network} previewWhenUnavailable={network === 'SOLANA'} renderEvmTerminal={(venue, audience, allowedMarketIds) => <VenueTerminal venue={venue} apiUrl={apiUrl} audience={audience} allowedMarketIds={allowedMarketIds}/>} /></AppShell>
 }
 
 export function VenueTerminal({ venue, apiUrl, audience, allowedMarketIds }: { allowedMarketIds?: string[]; venue: PublicPredictionVenue; apiUrl: string; audience: string }) {

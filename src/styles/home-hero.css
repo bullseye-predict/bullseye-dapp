@@ -15,7 +15,11 @@
 .ch-empty-book { border: 1px dashed #485364; }
 .ch-empty-book .ch-order-book { opacity: .38; }
 .ch-empty-book .ch-order-book td { height: 28px; color: #94a0af; }
-.ch-empty-book .ch-market-empty { min-height: 130px; border: 0; border-top: 1px dashed #485364; }
+/* Inside an expanded row this note sits at the very bottom of the panel, so a
+   130px floor around two lines of text read as the panel trailing off into
+   nothing. It is sized by its content now. */
+.ch-empty-book .ch-market-empty { min-height: 0; padding: 14px; gap: 6px; border: 0; border-top: 1px dashed #485364; }
+.ch-empty-book .ch-market-empty strong { font-size: 13px; }
 .ch-topic-activity { padding: 14px; }
 .ch-onchain-activity { border: 1px solid #394651; background: #151b21; }
 .ch-onchain-activity > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid #394651; }
@@ -141,7 +145,11 @@
 .ch-options-match { display: inline-flex; align-items: center; gap: 6px; min-height: 27px; padding: 4px 8px; color: #c7f487; background: #25321f; border: 1px solid #48613b; font: 700 11px var(--sh-mono); }
 .ch-options-match .pf-match-avatar { width: 22px; height: 22px; flex-shrink: 0; image-rendering: pixelated; }
 .ch-options-match b { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-options-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; padding: 2px 5px 4px 2px; }
+/* Vertical chaining stays native all the way to the document: with `contain`
+   here as well as on the book viewport, a wheel that reached the end of the
+   list simply stopped instead of carrying the page. Horizontal containment
+   is kept to hold the sideways swipe inside the panel. */
+.ch-options-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; overscroll-behavior-x: contain; padding: 2px 5px 4px 2px; }
 /* The viewer determines height; accordion content scrolls within the matching column. */
 .ch-console { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .ch-hero-grid > .ch-console { contain: size; min-height: 0; overflow: clip; }
@@ -189,7 +197,12 @@
 .ch-limit-price button { display: grid; place-items: center; min-width: 40px; min-height: 42px; color: #bfc7d4; border: 0; background: transparent; padding: 0; font-size: 19px; line-height: 1; }
 .ch-limit-price input { width: 62px; appearance: textfield; background: transparent; color: #f3f5f8; border: 0; text-align: right; font: 600 19px/1.2 var(--sh-heading); padding: 5px 2px; }
 .ch-limit-price span { padding-right: 9px; color: #b6c0cf; font-size: 14px; }
-.ch-trade-amount { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ch-trade-amount { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* What the picked level actually offers in the direction the trader is in.
+   Clicking a bid while buying is a price choice with no liquidity behind it,
+   and that is worth saying now that the click no longer turns them around. */
+.ch-level-liquidity { width: 100%; margin: 7px 0 0; color: #7fdcae; font: 500 10px var(--sh-mono); }
+.ch-level-liquidity.is-empty { color: #ffa7b6; }
 .ch-trade-amount label { font: 500 14px var(--sh-heading); }
 .ch-trade-amount-label { display: grid; gap: 3px; min-width: 0; }
 .ch-trade-amount-label small { color: #a7b5c9; font: 500 10px var(--sh-mono); }
@@ -520,13 +533,18 @@
   .ch-market-off h2 { font-size: 19px; }
 }
 
-/* Topic detail lives with its prediction; the overview remains a separate chart. */
-.ch-topic-detail { border-top: 1px solid #39434e; background: #181e24; }
-.ch-topic-tabs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; border-bottom: 1px solid #323d48; }
+/* An expanded detail remains part of its selected market row. */
+.ch-topic-detail { background: #1e2422; }
+.ch-topic-tabs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; }
 .solz-home .ch-topic-tabs .mx-tabs { gap: 17px; padding: 0; }
 .solz-home .ch-topic-tabs .mx-tabs__tab { min-height: 44px; padding: 0; border-bottom: 2px solid transparent; font: 600 12px var(--sh-heading); text-transform: none; background: transparent; color: #99a8bb; }
 .solz-home .ch-topic-tabs .mx-tabs__tab[aria-selected='true'] { color: #e7eef7; border-color: #75caff; background: transparent; }
-.ch-topic-tabs > span { color: #8695a7; font-size: 8px; }
+.ch-topic-tab-tools { display: flex; align-items: center; gap: 10px; }
+.ch-topic-tab-tools > span { color: #8695a7; font-size: 8px; }
+.ch-book-refresh { display: grid; place-items: center; padding: 6px; border: 0; background: transparent; color: #ced8e5; cursor: pointer; }
+.ch-book-refresh:hover { color: #fff; }
+.ch-book-refresh:disabled { opacity: .5; cursor: wait; }
+.ch-book-refresh:focus-visible { outline: 2px solid #9fcef1; outline-offset: 2px; }
 .ch-book-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px 7px; font-size: 9px; color: #8e9fb3; }
 .ch-book-heading label { display: flex; align-items: center; gap: 7px; text-transform: uppercase; }
 .ch-book-heading select { min-width: 0; max-width: 190px; color: #c7d6e8; background: #232c36; border: 1px solid #465466; font-size: 10px; padding: 4px 5px; }
@@ -542,7 +560,7 @@
 .ch-order-book td > span { display: inline-block; padding: 3px 6px; font: 600 9px var(--sh-heading); }
 .ch-order-book .is-ask td > span { background: #612d40; color: #ffb3ca; }
 .ch-order-book .is-bid td > span { background: #1c5140; color: #a0f0d1; }
-.ch-order-book .ch-book-spread td { border-block: 1px solid #34414d; color: #8fa8c0; font-size: 9px; padding-block: 11px; background: #1d252d; }
+.ch-order-book .ch-book-spread td { border-block: 1px solid #34414d; color: #8fa8c0; font-size: 9px; padding-block: 5px; background: #1d252d; }
 .ch-topic-graph { height: 310px; }
 /* .ch-chart-empty is min-height 340px, taller than this fixed panel, so a market
    with no prices spilled its message over the card below. Grow only in that
@@ -553,6 +571,14 @@
 .ch-chart-focus { display: flex; align-items: baseline; gap: 12px; padding: 12px 0 6px; }
 .ch-chart-focus strong { font: 600 24px var(--sh-heading); color: #64bfff; }
 .ch-chart-focus > span { color: #a4b4c8; font-size: 10px; }
+/* The age of the headline figure. A last fill can be hours old, which the old
+   "market price" label hid entirely. */
+.ch-chart-focus-at { margin-left: auto; color: #7d8ea3; font-variant-numeric: tabular-nums; }
+/* Still reading receipts, not a settled empty book. The skeleton keeps the
+   chart's shape either way; only the breathing says a read is in flight. */
+.ch-chart-empty.is-loading .ch-empty-chart-grid { animation: ch-chart-backfill 1.6s ease-in-out infinite alternate; }
+@keyframes ch-chart-backfill { to { opacity: .34; } }
+@media (prefers-reduced-motion: reduce) { .ch-chart-empty.is-loading .ch-empty-chart-grid { animation: none; } }
 .ch-topic-info { min-height: 260px; padding: 17px; font-size: 11px; color: #b9c6d6; line-height: 1.8; }
 .ch-topic-info h4 { margin: 0 0 8px; font: 600 15px var(--sh-heading); color: #e5eaf1; }
 .ch-topic-info p + p { margin-top: 10px; }
@@ -562,9 +588,7 @@
 .ch-outcome-list { margin: 0; padding: 0; border-top: 1px solid #39434e; }
 
 /* Shared header and hero edges use the full desktop canvas. */
-.ch-home { --ch-content: 1600px; --ch-gutter: 32px; }
-.ch-home .sh-main { max-width: calc(var(--ch-content) + var(--ch-gutter) * 2); padding-inline: var(--ch-gutter); }
-.ch-home :is(.sh-header, .sh-utility, .sh-footer) { padding-inline: max(var(--ch-gutter), calc((100% - var(--ch-content)) / 2)); }
+.ch-home :is(.sh-header, .sh-utility, .sh-footer) { padding-inline: max(var(--site-gutter), calc((100% - var(--site-content-width)) / 2)); }
 .ch-home .sh-header { gap: 48px; }
 .ch-home .sh-header nav a { font-size: 12px; padding-inline: 15px; }
 .ch-home .sh-highlight-heading h1 { font-size: 38px; }
@@ -584,7 +608,6 @@
 .ch-home .ch-console-trade .ch-trade { min-height: 100%; }
 .ch-home .ch-prompt-details { border-top: 1px solid #605273; }
 @media (max-width: 1190px) {
-  .ch-home { --ch-gutter: 24px; }
   .ch-home .sh-header { gap: 30px; }
   .ch-home .sh-header nav a { font-size: 10px; padding-inline: 8px; }
   .ch-home .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; }
@@ -599,7 +622,6 @@
   .ch-home .ch-activity > section > div { max-height: none; }
 }
 @media (max-width: 720px) {
-  .ch-home { --ch-gutter: 18px; }
   .ch-home .sh-header { gap: 20px; }
   .ch-home .sh-highlight-heading h1 { font-size: 29px; }
   .ch-home .sh-highlight-heading p { font-size: 10px; }
@@ -611,7 +633,7 @@
   .ch-topic-tabs { padding-inline: 10px; gap: 5px; }
   .solz-home .ch-topic-tabs .mx-tabs { gap: 14px; }
   .solz-home .ch-topic-tabs .mx-tabs__tab { font-size: 11px; }
-  .ch-topic-tabs > span { font-size: 6px; }
+  .ch-topic-tab-tools > span { font-size: 6px; }
   .ch-book-heading { padding-inline: 10px; font-size: 8px; }
   .ch-book-heading > span { display: none; }
   .ch-order-book :is(th, td) { padding-inline: 9px; }
@@ -622,9 +644,9 @@
   .ch-chart-focus { gap: 8px; }
   .ch-chart-focus strong { font-size: 21px; }
   .ch-chart-focus > span { font-size: 9px; }
+  .ch-chart-focus-at { margin-left: 0; }
 }
 @media (max-width: 390px) {
-  .ch-home { --ch-gutter: 12px; }
   .ch-home .sh-header { gap: 9px; }
   .ch-home .ch-options { padding-inline: 8px; }
   .ch-options-heading { gap: 6px; }

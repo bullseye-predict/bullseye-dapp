@@ -6,7 +6,8 @@ import { outcomeColor } from '../home/heroMarket'
 import { eventAnswerMarket, eventMarketVolume } from './eventModel'
 import { PredictionDetail } from '../home/PredictionDetail'
 import { MarketErrorBoundary } from '../home/MarketErrorBoundary'
-import { buyQuoteLabel, PRICE_PLACEHOLDER } from '../home/venue/quoteLabels'
+import { PRICE_PLACEHOLDER, quoteLabel } from '../home/venue/quoteLabels'
+import { useTradeSide } from '../home/venue/tradeSide'
 import { chanceText, normalisedChances } from '../markets/chance'
 import { baseOutcomeId } from '../solz/predictionContracts'
 import { OutcomeColumns, OutcomeRow, type RowPick } from '../markets/OutcomeRow'
@@ -28,27 +29,33 @@ function MarketDetail({ market, selected, snapshot, onSelect, simulation, collat
 export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref, simulation = true, collateral = 'COOLA' }: Props) {
   const linked = !prediction && markets.length > 1 && markets.every((item) => item.presentation?.kind === 'linked')
   const headToHead = !prediction && markets.some((item) => item.presentation?.kind === 'head-to-head')
-  const [expanded, setExpanded] = useState<string[]>(prediction || linked || market.outcomes.length > 2 ? [] : [market.id])
-  const toggle = (id: string) => setExpanded((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id])
+  // One row open at a time. Opening a second used to leave both books polling
+  // and pushed the rest of the list off screen; closing the previous one is
+  // what makes the list readable as a list.
+  const [expanded, setExpanded] = useState<string | null>(prediction || linked || market.outcomes.length > 2 ? null : market.id)
+  const toggle = (id: string) => setExpanded((previous) => previous === id ? null : id)
   // One winner among many: the chances are a distribution over the whole field,
   // recomputed from whatever the books currently say.
+  const side = useTradeSide()
+  // The third column names what the two buttons under it now quote.
+  const callCaption = side === 'sell' ? 'SELL PRICE' : 'BUY PRICE'
   const predictionChances = normalisedChances(prediction?.outcomes ?? [])
   const linkedChances = normalisedChances(linked ? markets.map((item) => item.outcomes[0]) : [])
   return <section className={`ev-markets ${prediction ? 'ev-prediction-answers' : ''}`} id="event-markets" aria-labelledby="event-markets-title">
     <div className="ev-section-title"><h2 id="event-markets-title">{prediction || linked ? 'Choose your answer' : headToHead ? 'Match markets' : 'Event questions'} <span>{prediction ? prediction.outcomes.length : markets.length}</span></h2>{actions}</div>
     {prediction ? <>
-      <OutcomeColumns/>
+      <OutcomeColumns call={callCaption}/>
       {prediction.outcomes.map((answer, index) => {
         const chance = predictionChances[index]
         const selected = baseOutcomeId(outcome.id) === answer.id
         const binary = eventAnswerMarket(prediction, answer)
         const contract = selected ? binary.outcomes.find((item) => item.id === outcome.id) ?? binary.outcomes[0] : binary.outcomes[0]
-        const open = expanded.includes(answer.id)
+        const open = expanded === answer.id
         const accent = outcomeColor(answer, snapshot, index)
-        const picks: RowPick[] = binary.outcomes.map((pick, side) => ({
-          key: pick.id, label: pick.label, tone: side === 0 ? 'yes' : 'no',
-          price: pick.indicative ? PRICE_PLACEHOLDER : `${Math.round(pick.probability * 100)}¢`,
-          color: pickColor(binary, pick, snapshot, side),
+        const picks: RowPick[] = binary.outcomes.map((pick, index_) => ({
+          key: pick.id, label: pick.label, tone: index_ === 0 ? 'yes' : 'no',
+          price: pick.indicative ? PRICE_PLACEHOLDER : quoteLabel(pick, binary.onchain?.family === 'SOLANA', side, index_ === 1),
+          color: pickColor(binary, pick, snapshot, index_),
           ariaLabel: `${pick.label} on ${answer.label}`,
           pressed: selected && outcome.id === pick.id,
           onClick: () => onSelect(prediction, pick),
@@ -63,20 +70,20 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
         ><MarketDetail market={binary} selected={contract} snapshot={snapshot} simulation={simulation} collateral={collateral} active={open} onSelect={(pick) => onSelect(prediction, pick, false)}/></OutcomeRow>
       })}
     </> : linked ? <>
-      <OutcomeColumns chance="CHANCE" call="BUY PRICE"/>
+      <OutcomeColumns chance="CHANCE" call={callCaption}/>
       {markets.map((item, index) => {
         const chance = linkedChances[index]
         const answer = item.presentation?.answer
         const selected = item.id === market.id
         const selectedOutcome = selected ? outcome : item.outcomes[0]!
-        const open = expanded.includes(item.id)
+        const open = expanded === item.id
         const volume = eventMarketVolume(item)
         const accent = outcomeColor(item.outcomes[0]!, snapshot, index)
         const label = answer?.label ?? item.title
-        const picks: RowPick[] = item.outcomes.slice(0, 2).map((pick, side) => ({
-          key: pick.id, label: pick.label, tone: side === 0 ? 'yes' : 'no',
-          price: buyQuoteLabel(pick, item.onchain?.family === 'SOLANA'),
-          color: pickColor(item, pick, snapshot, side),
+        const picks: RowPick[] = item.outcomes.slice(0, 2).map((pick, index_) => ({
+          key: pick.id, label: pick.label, tone: index_ === 0 ? 'yes' : 'no',
+          price: quoteLabel(pick, item.onchain?.family === 'SOLANA', side),
+          color: pickColor(item, pick, snapshot, index_),
           ariaLabel: `${pick.label} on ${label}`,
           pressed: selected && outcome.id === pick.id,
           onClick: () => onSelect(item, pick),
@@ -96,13 +103,13 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
         <div className="ev-prediction-preview">{[...item.outcomes].sort((a, b) => b.probability - a.probability).slice(0, 3).map((pick, rank) => <span key={pick.id}><i style={{ background: outcomeColor(pick, snapshot, rank) }}/>{pick.label}<b>{pick.indicative ? PRICE_PLACEHOLDER : percent(pick.probability)}</b></span>)}</div>
         <span className="ev-open-prediction">Open prediction <ArrowUpRight size={15}/></span>
       </a>
-      const open = expanded.includes(item.id)
+      const open = expanded === item.id
       const selected = item.id === market.id ? outcome : item.outcomes[0]
       const accent = outcomeColor(item.outcomes[0]!, snapshot, index)
-      const picks: RowPick[] = item.outcomes.map((pick, side) => ({
-        key: pick.id, label: pick.label, tone: side === 0 ? 'yes' : 'no',
-        price: item.onchain?.family === 'SOLANA' ? buyQuoteLabel(pick, true) : pick.indicative ? PRICE_PLACEHOLDER : percent(pick.probability),
-        color: pickColor(item, pick, snapshot, side),
+      const picks: RowPick[] = item.outcomes.map((pick, index_) => ({
+        key: pick.id, label: pick.label, tone: index_ === 0 ? 'yes' : 'no',
+        price: item.onchain?.family === 'SOLANA' ? quoteLabel(pick, true, side) : pick.indicative ? PRICE_PLACEHOLDER : percent(pick.probability),
+        color: pickColor(item, pick, snapshot, index_),
         ariaLabel: `${pick.label} on ${marketLineTitle(item)}`,
         pressed: item.id === market.id && outcome.id === pick.id,
         onClick: () => onSelect(item, pick),

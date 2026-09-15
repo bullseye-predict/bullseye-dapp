@@ -1,4 +1,5 @@
 import type { ArenaMarketOutcome } from '../../solz/model'
+import type { TradeSide } from './tradeSide'
 
 /** One placeholder for "this side has no price to show", whatever the reason.
  *  The reason belongs in the ticket's help text, not stamped on a Buy button:
@@ -19,10 +20,28 @@ export function chanceLabel(outcome: ArenaMarketOutcome | undefined): string {
   return `${Math.round(outcome.probability * 100)}%`
 }
 
+/** The price on an outcome's trading control, for the direction the trader is
+ *  actually in: buying takes somebody's ask, selling hits somebody's bid. The
+ *  trade ticket has always priced its own two buttons this way; this is the same
+ *  rule, so a market row and the ticket cannot quote one outcome differently.
+ *
+ *  `complement` is for a NO contract built by predictionContract(), which
+ *  complements the probability but carries the YES book's quote untouched. In a
+ *  binary market the two books are one: buying NO costs what is left of a pound
+ *  after selling YES at the best bid, and vice versa. Without it a NO button
+ *  silently printed the YES book's price. */
+export function quoteLabel(outcome: ArenaMarketOutcome, solana: boolean, side: TradeSide, complement = false): string {
+  if (!solana) return `${Math.round((complement ? 1 - outcome.probability : outcome.probability) * 100)}¢`
+  const quote = outcome.marketQuote
+  const value = complement
+    ? (side === 'buy' ? quote?.bid : quote?.ask)
+    : (side === 'buy' ? quote?.ask : quote?.bid)
+  if (value === undefined) return PRICE_PLACEHOLDER
+  return centsLabel(complement ? 1 - value : value)
+}
+
 export function buyQuoteLabel(outcome: ArenaMarketOutcome, solana: boolean): string {
-  if (!solana) return `${Math.round(outcome.probability * 100)}¢`
-  if (outcome.marketQuote?.ask !== undefined) return centsLabel(outcome.marketQuote.ask)
-  return PRICE_PLACEHOLDER
+  return quoteLabel(outcome, solana, 'buy')
 }
 
 /** A single bid or ask cannot establish a midpoint probability. */

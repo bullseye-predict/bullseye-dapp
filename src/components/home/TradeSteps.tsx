@@ -105,8 +105,8 @@ export function TradeSteps({ rows, collateralSymbol, collateralDecimals, settled
                   <strong>{row.title}</strong>
                   <span className="ch-tx-status">
                     {STATUS[row.status]}
-                    {row.legs > 1 ? ` · leg ${row.legs}` : ''}
-                    {row.attempts > 1 && row.legs <= 1 ? ` · try ${row.attempts}` : ''}
+                    {row.leg ? ` · leg ${row.leg}` : ''}
+                    {row.attempts > 1 ? ` · try ${row.attempts}` : ''}
                   </span>
                   <span className="ch-tx-cost">
                     {row.status === 'skipped' ? '—' : chip(row.costs, collateralDecimals, collateralSymbol)}

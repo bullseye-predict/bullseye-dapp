@@ -12,8 +12,7 @@
     sans-serif;
 }
 .sp-page .pf-main {
-  max-width: 1600px;
-  padding: 32px var(--site-gutter, 32px) 64px;
+  padding-block: 32px 64px;
 }
 .sp-page .pf-hero {
   grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
@@ -338,6 +337,5 @@
 }
 @media (max-width: 600px) {
   .sp-page .pf-main {
-    padding-inline: 16px;
   }
 }

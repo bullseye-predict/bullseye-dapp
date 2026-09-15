@@ -41,7 +41,7 @@
 </div>
 
 <style is:inline>
-  #boot-skeleton { max-width: 1660px; margin: auto; padding: 26px 32px 52px; }
+  #boot-skeleton { max-width: calc(var(--site-content-width, 1600px) + var(--site-gutter, 32px) * 2); margin: auto; padding: 26px var(--site-gutter, 32px) 52px; }
   #boot-skeleton .bs-bar { min-height: 65px; display: flex; align-items: center; margin-bottom: 13px; border-bottom: 1px solid #2a2b31; }
   #boot-skeleton .bs-layout { display: grid; grid-template-columns: 206px minmax(0, 1fr) 326px; gap: 26px; }
   #boot-skeleton .bs-panel { display: grid; align-content: start; gap: 11px; padding: 14px; border: 1px solid #2a2b31; border-radius: 5px; }

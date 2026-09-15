@@ -3,29 +3,69 @@
    across two files and four selector families. Everything that governs a row's
    layout, type scale and trading colours lives here and nowhere else. */
 
+/* Three tracks with symmetric flexible sides, so the chance sits on the row's
+   true centre line at every width. A fixed 208px picks track put it 290px right
+   of centre on the home panel and 213px right on the events page, and no hand
+   tuned pixel value survives hosts whose breakpoints do not line up with these.
+   The chance and the picks claim their tracks explicitly: that is what keeps a
+   priceless row's buttons on the same vertical line as a chance row's in one
+   list, now that the middle track exists on both. */
 .mk-row-columns,
 .mk-row-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px 208px;
+  grid-template-columns: minmax(0, 1fr) 104px minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   padding: 18px 17px;
 }
+.mk-row-chance { grid-column: 2; }
+.mk-row-picks { grid-column: 3; }
+/* The captions read as a table header rather than three words floating over a
+   list: a hairline above them closes the gap to whatever precedes the list, the
+   tracking separates them from the row subtitles directly below, and the middle
+   caption carries the emphasis now that the chance sits on the centre line. */
 .mk-row-columns {
-  padding-top: 0;
-  padding-bottom: 11px;
-  color: #9da9b7;
-  font: 400 8px var(--sh-mono);
+  padding-top: 11px;
+  padding-bottom: 9px;
+  border-top: 1px solid #2f3842;
+  color: #8fa0b1;
+  font: 500 8px var(--sh-mono);
+  letter-spacing: .15em;
+  text-transform: uppercase;
 }
+.mk-row-columns > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-row-columns > span:nth-child(2) { color: #cbd6e2; }
 .mk-row-columns > span:nth-child(2) { text-align: center; }
-.mk-row-columns > span:last-child { text-align: center; }
+/* The caption tracks the buttons it names, which sit at the right of their
+   track rather than filling it. */
+.mk-row-columns > span:last-child { width: min(100%, var(--mk-picks-width)); margin-left: auto; text-align: center; }
 
+.mk-row-columns, .mk-row-summary { --mk-picks-width: 236px; }
 .mk-row { background: #1d2229; border: 1px solid #363f49; }
 .mk-row:has(+ .mk-row) { border-bottom: 0; }
+/* An open row is a panel in its own right, not one more line in the list, so it
+   parts from whatever follows it. Without the gap the order book ran straight
+   into the next answer's portrait and read as belonging to that answer.
+   The bottom border has to come back with it: the rule above drops it so
+   stacked rows share one edge, which leaves an open bottom the moment the rows
+   stop touching. Both :has() are top level — one cannot be nested in the other.
+   Only below, never above: the row before this one also has its bottom border
+   dropped, and no selector can reach backwards to restore it. */
+.mk-row:has(+ .mk-row):has(> .ch-collapse.is-expanded) {
+  margin-bottom: 10px;
+  border-bottom-width: 1px;
+}
 .mk-row.is-selected { border-color: #7d8b56; background: #1e2422; }
 
 .mk-row-summary.is-headline { grid-template-columns: minmax(0, 1fr); }
-.mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 208px; }
+/* The whole row is the target, so it has to look like one. */
+.mk-row-summary.is-expandable { cursor: pointer; }
+.mk-row-summary.is-expandable:hover { background: #222831; }
+.ch-options-scroll > .mk-row.is-selected > .mk-row-summary.is-expandable:hover { background: #232a27; }
 .mk-row-name { min-width: 0; }
 .mk-row-name > button {
   display: flex;
@@ -76,7 +116,9 @@
 .mk-row-move.is-up { color: #5be5a9; }
 .mk-row-move.is-down { color: #ff8b9d; }
 
-.mk-row-picks { display: flex; gap: 8px; }
+/* Capped rather than filling the flexible track: the pair is the size of a
+   trading control, and the slack left over is what centres the chance. */
+.mk-row-picks { display: flex; gap: 8px; width: min(100%, var(--mk-picks-width)); margin-left: auto; }
 .mk-row-picks button {
   display: flex;
   flex: 1;
@@ -84,10 +126,10 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 46px;
+  min-height: 56px;
   padding: 10px;
   border: 1px solid;
-  font: 600 12px var(--sh-heading);
+  font: 600 13px var(--sh-heading);
 }
 .mk-row-picks button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-row-picks button:hover { filter: brightness(1.2); }
@@ -105,29 +147,32 @@
 .mk-row-picks .has-pick-color[aria-pressed='true'] { color: var(--pick-ink, #071a12); background: var(--pick-color); border-color: var(--pick-color); }
 
 @media (max-width: 1440px) and (min-width: 901px) {
-  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 84px 176px; gap: 12px; padding-right: 13px; padding-left: 13px; }
-  .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 176px; }
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); gap: 12px; padding-right: 13px; padding-left: 13px; --mk-picks-width: 200px; }
   .mk-row-name > button { gap: 10px; min-height: 52px; }
   .mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) { font-size: 14px; }
   .mk-row-chance { font-size: 19px; }
-  .mk-row-picks button { font-size: 11px; gap: 5px; padding: 9px 6px; }
+  .mk-row-picks button { font-size: 12px; gap: 5px; padding: 9px 6px; min-height: 52px; }
 }
 @media (max-width: 900px) and (min-width: 601px) {
-  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 68px 148px; gap: 10px; padding: 14px 12px; }
-  .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr) 148px; }
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr); gap: 10px; padding: 14px 12px; --mk-picks-width: 168px; }
+  /* Restated because the shorthand above resets the header's own vertical
+     padding, which is set earlier in the file at the same specificity. */
+  .mk-row-columns { padding-top: 9px; padding-bottom: 8px; }
   .mk-row-name > button { gap: 9px; min-height: 48px; }
   .mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) { font-size: 13px; }
   .mk-row-name .sh-portrait { width: 32px; height: 37px; }
   .mk-row-name .sh-team-mark { width: 27px; height: 30px; }
   .mk-row-chance { font-size: 16px; }
   .mk-row-picks { gap: 5px; }
-  .mk-row-picks button { font-size: 10px; gap: 4px; padding: 8px 5px; min-height: 42px; }
+  .mk-row-picks button { font-size: 11px; gap: 4px; padding: 8px 5px; min-height: 48px; }
 }
 @media (max-width: 600px) {
   .mk-row-columns { display: none; }
   .mk-row-summary { grid-template-columns: minmax(0, 1fr) 86px; gap: 12px; padding: 16px; }
   .mk-row-summary.is-priceless { grid-template-columns: minmax(0, 1fr); }
-  .mk-row-picks { grid-column: 1 / -1; }
-  .mk-row-picks button { min-height: 44px; }
+  /* Below 600 the pair drops to its own full-width row, so it neither claims
+     the third track — there isn't one — nor keeps its cap. */
+  .mk-row-picks { grid-column: 1 / -1; width: auto; margin-left: 0; }
+  .mk-row-picks button { min-height: 48px; }
   .mk-row-chance { font-size: 22px; }
 }

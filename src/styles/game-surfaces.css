@@ -43,6 +43,18 @@
 .solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row { overflow: clip; }
 .solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:first-of-type { border-radius: var(--radius-panel) var(--radius-panel) 0 0; }
 .solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:last-of-type { border-radius: 0 0 var(--radius-panel) var(--radius-panel); }
+/* Once an open row detaches from the one below it, both of the new edges are
+   corners of the group and get rounded like any other. Longhands, not the
+   shorthand: the first/last-of-type rules above own the other two corners, and
+   a shorthand here would reset the ones it does not mean to set. */
+.solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:has(+ .mk-row):has(> .ch-collapse.is-expanded) {
+  border-end-start-radius: var(--radius-panel);
+  border-end-end-radius: var(--radius-panel);
+}
+.solz-home :is(.ch-options-scroll, .ev-markets) > .mk-row:has(> .ch-collapse.is-expanded) + .mk-row {
+  border-start-start-radius: var(--radius-panel);
+  border-start-end-radius: var(--radius-panel);
+}
 
 /* The entry banner shares the card's outer corners, with a straight inner seam. */
 .solz-home .sh-entry-panel { border-radius: var(--radius-panel); overflow: clip; }

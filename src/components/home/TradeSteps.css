@@ -42,21 +42,20 @@
 .ch-trade-dialog .ch-tx-actions button:disabled { opacity: .5; }
 .ch-trade-dialog .ch-tx-actions a { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #7ecbff; }
 
-/* Desktop: a horizontal rail. The longest run this flow can produce is six
-   steps, and at the dialog's 760px that leaves ~716px of content, so the floor
-   is set low enough that six fit without scrolling; fewer steps simply share
-   the width. The track still scrolls rather than wrapping, so an unplanned
-   seventh keeps the reading order left to right instead of folding a row. */
+/* Desktop: a horizontal rail that wraps rather than scrolls.
+   At the dialog's 760px this fits six across, which covers a first trade and a
+   six-transaction limit run. A limit order can walk eight legs, though, and a
+   track that scrolled would put the extra ones off-screen with no hint they
+   were there — which is exactly the complaint that made every leg its own row
+   in the first place. auto-fit folds them onto a second line instead, keeping
+   the reading order left to right and every signature in view. */
 .ch-trade-dialog .ch-tx-steps {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(110px, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 6px;
   margin: 0;
-  padding: 0 0 4px;
+  padding: 0;
   list-style: none;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
 }
 
 .ch-trade-dialog .ch-tx-steps > li { min-width: 0; }
@@ -143,11 +142,7 @@
 /* Mobile: the same rail, stacked. One column per step reads as a checklist and
    leaves each title room to breathe at 390px. */
 @media (max-width: 760px) {
-  .ch-trade-dialog .ch-tx-steps {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    overflow-x: visible;
-  }
+  .ch-trade-dialog .ch-tx-steps { grid-template-columns: minmax(0, 1fr); }
   .ch-trade-dialog .ch-tx-steps > li > button { align-items: center; }
   .ch-trade-dialog .ch-tx-body {
     grid-template-columns: 1fr auto;

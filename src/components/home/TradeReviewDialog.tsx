@@ -44,13 +44,20 @@ export function TradeReviewDialog({ open, onClose, onConfirm, pending, disabled,
   }, [open])
   const number = (value: number) => amountLabel(Number.isFinite(value) ? value : 0)
 
-  const signing = pending || steps.some(step => step.status !== 'planned')
+  // Attempts, not statuses: a reconciled row can read 'skipped' purely because
+  // the run settled, and deriving the pane from that flipped an empty dialog
+  // into a stepper for a trade that had not started. `attempts` counts sends,
+  // so it is zero until the wallet has actually been asked for something.
+  const signing = pending || steps.some(step => step.attempts > 0)
   const terms = tradeAgreement({ simulation, network, side, type, completeSet: upfrontCollateral !== undefined, collateralSymbol })
   const heading = !signing ? 'Review your trade' : error ? 'Trade stopped' : settled ? 'Trade submitted' : 'Signing your trade'
   const confirmLabel = pending ? 'Submitting…' : error ? 'Try again' : simulation ? 'Agree and confirm' : network === 'SOLANA' ? 'Agree and sign on Solana' : 'Agree and sign on Somnia'
-  // A stopped run with a rail already carries its own retry, beside the step
-  // that stopped. A second one in the footer would be the same button twice.
-  const footerConfirm = !(settled && !error) && !(error && plan && signing)
+  // On the order tray the button is always there. On the signing tray it goes:
+  // a finished run has nothing left to confirm, and a stopped one already
+  // carries its retry beside the step that stopped, so a footer copy would be
+  // the same button twice. `settled` is only read here, never on the order
+  // tray, so a previous run's flag cannot disarm the next trade's confirm.
+  const footerConfirm = !signing || (!(settled && !error) && !(error && plan))
 
   return <dialog ref={dialog} className="ch-event-dialog ch-trade-dialog" aria-labelledby={headingId} onClose={onClose} onCancel={(event) => { if (pending) event.preventDefault() }}>
     <header><span className="ch-simulation">{simulation ? 'SIMULATION' : network === 'SOLANA' ? 'SOLANA' : 'SOMNIA'}</span><button aria-label="Close trade review" disabled={pending} onClick={() => dialog.current?.close()}><X size={20}/></button></header>

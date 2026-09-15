@@ -64,6 +64,7 @@ import { takerFee } from "../../../packages/adapters/solana/manifest/wire";
 import { parseUnitsExact } from "../prediction/amounts";
 import { PRICE_PLACEHOLDER } from "./venue/quoteLabels";
 import { clearBookPick, getBookPick, useBookPick } from "./venue/bookPick";
+import { setTradeSide, useTradeSide } from "./venue/tradeSide";
 import { pickColor, pickInk } from "../markets/moneyline";
 
 /** The countdown badge appears only inside the last five minutes. */
@@ -117,7 +118,10 @@ export function TradeTicket({
   const solanaWallet = useSolanaWallet();
 
   const pushAlert = (alert: Parameters<typeof pushGlobalAlert>[0]) => pushGlobalAlert({ ...alert, marketScope: solanaBinding ? `${solanaBinding.rpcUrl}:${solanaBinding.marketId}` : undefined });
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  // Published rather than local: the market rows beside this ticket quote a
+  // price per outcome, and that price only means anything against a direction.
+  const side = useTradeSide();
+  const setSide = setTradeSide;
   const [type, setType] = useState<"market" | "limit">("market");
   const [priceFormat, setPriceFormat] = useState<
     "cents" | "decimal" | "percent"
@@ -609,15 +613,36 @@ export function TradeTicket({
     if (bookPick.outcomeId !== outcome.id || bookPick.no !== ticketIsNo) return;
     appliedPick.current = bookPick.nonce;
     pickOwner.current = pickedContract;
+    // A price, and only a price. Buy/Sell stays the trader's, and so does the
+    // share count: the size resting at a level is liquidity to report, not an
+    // order to place. Limit, because a price has nowhere else to live.
     setType("limit");
-    setSide(bookPick.side);
-    setLimitPrice(bookPick.cents);
+    // A limit is a ceiling on a buy and a floor on a sell, so a level that is
+    // not a whole cent rounds toward the side the trader is actually on, and
+    // still reaches the level either way.
+    const exact = Number(bookPick.cents);
+    const whole = side === "buy" ? Math.ceil(exact) : Math.floor(exact);
+    setLimitPrice(String(Math.min(99, Math.max(1, whole))));
     // The field prefers the draft to the value, so a stale draft would hide the
     // picked price and then win it back on blur.
     setLimitPriceDraft(null);
-    setShares(bookPick.shares);
     setFeedback(null);
-  }, [bookPick, outcome.id, ticketIsNo, pickedContract]);
+  }, [bookPick, outcome.id, ticketIsNo, pickedContract, side]);
+  /** The level the trader last chose in the book, if it speaks for the contract
+   *  this ticket is on. Buying takes asks and selling hits bids, so the very
+   *  same level is executable in one direction and a bare price choice in the
+   *  other — which is the thing worth saying out loud, since clicking it no
+   *  longer silently turns the trader around. */
+  const pickedLevel =
+    bookPick && bookPick.outcomeId === outcome.id && bookPick.no === ticketIsNo
+      ? bookPick
+      : null;
+  const levelLiquidity =
+    pickedLevel === null
+      ? null
+      : (pickedLevel.side === "ask") === (side === "buy")
+        ? Number(pickedLevel.quantity)
+        : 0;
   const displayedLimitPrice =
     priceFormat === "decimal"
       ? (Number(limitPrice) / 100).toFixed(2)
@@ -1042,7 +1067,9 @@ export function TradeTicket({
               className={`is-${value}`}
               aria-pressed={side === value}
               onClick={() => {
-                releasePick();
+                // Deliberately keeps the picked level: the trader chose that
+                // price, and changing direction only changes whether it is
+                // executable — which the line under Shares now says.
                 setSide(value);
                 setFeedback(null);
                 if (value === "sell")
@@ -1105,7 +1132,6 @@ export function TradeTicket({
               className="ch-order-type-trigger"
               aria-label={`Order type: ${type === "market" ? "Market" : "Limit"}. Switch to ${type === "market" ? "Limit" : "Market"}.`}
               onClick={() => {
-                releasePick();
                 setType((current) => (current === "market" ? "limit" : "market"));
                 setFeedback(null);
               }}
@@ -1298,18 +1324,24 @@ export function TradeTicket({
                   : "any"
               }
               value={side === "buy" && type === "market" ? amount : shares}
-              onChange={(event) => {
-                releasePick();
-                return side === "buy" && type === "market"
+              onChange={(event) =>
+                side === "buy" && type === "market"
                   ? setAmount(event.target.value)
-                  : setShares(event.target.value);
-              }}
+                  : setShares(event.target.value)
+              }
             />
             {/* Only the currency earns a caption. "SHARES" under a field
                 already labelled "Shares" said it twice and pushed the label out
                 of alignment with the number. */}
             {side === "buy" && type === "market" && <span>{collateralSymbol}</span>}
           </div>
+          {levelLiquidity !== null && type === "limit" && (
+            <p className={`ch-level-liquidity${levelLiquidity > 0 ? "" : " is-empty"}`} role="status">
+              {levelLiquidity > 0
+                ? `${levelLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${outcome.label} available at ${displayedLimitPrice}${priceFormat === "cents" ? "¢" : ""} to ${side}`
+                : `Nothing to ${side} at ${displayedLimitPrice}${priceFormat === "cents" ? "¢" : ""} — this order would rest`}
+            </p>
+          )}
         </div>
         <div className="ch-trade-presets">
           {side === "sell"
@@ -1317,10 +1349,9 @@ export function TradeTicket({
                 <button
                   type="button"
                   key={value}
-                  onClick={() => {
-                    releasePick();
-                    setShares(String(Math.floor(available * value) / 100));
-                  }}
+                  onClick={() =>
+                    setShares(String(Math.floor(available * value) / 100))
+                  }
                 >
                   {value === 100 ? "Max" : `${value}%`}
                 </button>
@@ -1329,12 +1360,11 @@ export function TradeTicket({
                 <button
                   type="button"
                   key={value}
-                  onClick={() => {
-                    releasePick();
-                    return type === "market"
+                  onClick={() =>
+                    type === "market"
                       ? setAmount(String(value))
-                      : setShares(String(value));
-                  }}
+                      : setShares(String(value))
+                  }
                 >
                   {value}
                 </button>

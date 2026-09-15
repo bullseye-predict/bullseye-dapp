@@ -63,7 +63,10 @@ export type ArenaMarketOutcome = {
   priceHistory?: ArenaPricePoint[]
   /** Observed exchange quotes, kept distinct from executed trade prices. */
   quoteHistory?: ArenaPricePoint[]
-  historyStatus?: 'ready' | 'unavailable'
+  /** 'pending' is a read in flight or a backfill that has not decoded a trade
+   *  yet; 'unavailable' is terminal for this reader — not the focused market,
+   *  or the read failed. The chart must not print "no trades" for either. */
+  historyStatus?: 'ready' | 'pending' | 'unavailable'
   /** True when probability is an order-entry seed, not an observed venue price. */
   indicative?: boolean
   participantId?: string

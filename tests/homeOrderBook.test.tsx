@@ -22,10 +22,17 @@ test('totals read as money and the spread sits in the price column', () => {
   expect(html).toContain('<td>Last: \u2014</td><td>Spread: 1\u00a2</td><td colSpan="2">')
 })
 
-test('depth bands follow the 1–99¢ price scale rather than share quantity', () => {
-  const html = renderToStaticMarkup(<OrderBookTable asks={[]} bids={[{ price: 500_000n, quantity: 53_787_000n }, { price: 200_000n, quantity: 1_000_000n }]} decimals={6} label="YES"/>)
-  expect(html).toContain('style="--depth:50%"')
-  expect(html).toContain('style="--depth:20%"')
+test('depth bands use each side’s cumulative dollar total rather than price or shares', () => {
+  const html = renderToStaticMarkup(<OrderBookTable asks={[{ price: 500_000n, quantity: 1_000_000n }, { price: 250_000n, quantity: 1_000_000n }]} bids={[{ price: 500_000n, quantity: 1_000_000n }, { price: 200_000n, quantity: 1_000_000n }]} decimals={6} label="YES"/>)
+  expect(html).toContain('style="--depth:33.33%"')
+  // Bid and ask groups normalize independently; the 20¢ bid reaches 100%.
+  expect(html).toContain('style="--depth:71.42%"')
+  expect(html).toContain('style="--depth:100%"')
+})
+
+test('a nonzero cumulative level keeps a visible depth floor', () => {
+  const html = renderToStaticMarkup(<OrderBookTable asks={[{ price: 990_000n, quantity: 1_000_000n }, { price: 10_000n, quantity: 1_000_000n }]} bids={[]} decimals={6} label="YES"/>)
+  expect(html).toContain('style="--depth:2%"')
 })
 
 test('a loading book retains its table structure and exposes one status message', () => {
@@ -37,17 +44,17 @@ test('a loading book retains its table structure and exposes one status message'
   expect(html).toContain('class="ch-book-skeleton-row is-bid"')
 })
 
-test('a level picks the whole sweep from the best price, on the side that takes it', () => {
+test('a level hands over a price and its liquidity, and never a trade direction', () => {
   const rows = depthRows(asks, 'ask', 6)
-  expect(levelPick(rows[0].price, rows[0].cumulative, 'ask', 6)).toEqual({ side: 'buy', price: '550000', cents: '55', shares: '35' })
-  expect(levelPick(rows[1].price, rows[1].cumulative, 'ask', 6)).toEqual({ side: 'buy', price: '100000', cents: '10', shares: '25' })
-  // A limit is a ceiling on a buy and a floor on a sell, so a half-cent level
-  // rounds the way that still sweeps it rather than the way that misses it.
-  expect(levelPick(505_000n, 1_000_000n, 'ask', 6).cents).toBe('51')
-  expect(levelPick(505_000n, 1_000_000n, 'bid', 6)).toEqual({ side: 'sell', price: '505000', cents: '50', shares: '1' })
-  // The field takes 1..99 and nothing else; a level outside it is clamped in.
-  expect(levelPick(0n, 1_000_000n, 'bid', 6).cents).toBe('1')
-  expect(levelPick(1_000_000n, 1_000_000n, 'ask', 6).cents).toBe('99')
+  // No `side: buy`, no share count: clicking a row must not turn the trader
+  // around, and must not write their order size.
+  expect(levelPick(rows[0], 'ask', 6)).toEqual({ side: 'ask', price: '550000', cents: '55', quantity: '10' })
+  expect(levelPick(rows[1], 'bid', 6)).toEqual({ side: 'bid', price: '100000', cents: '10', quantity: '25' })
+  // The reported size is what somebody else is resting there, so a trader's own
+  // order is taken out of it — they cannot fill themselves.
+  expect(levelPick({ price: 200_000n, quantity: 5_000_000n, own: 2_000_000n }, 'ask', 6).quantity).toBe('3')
+  // The exact price travels; the ticket rounds it toward its own side.
+  expect(levelPick({ price: 505_000n, quantity: 1_000_000n }, 'ask', 6).cents).toBe('50.5')
 })
 
 test('rows are inert without an onPick and named, focusable levels with one', () => {
@@ -59,7 +66,7 @@ test('rows are inert without an onPick and named, focusable levels with one', ()
   expect(live).toContain('is-pickable')
   expect(live).toContain('is-picked')
   expect(live).not.toContain('is-sweep')
-  expect(live).toContain('aria-label="Buy 35 YES shares through 55\u00a2"')
+  expect(live).toContain('aria-label="Use 55\u00a2 as the limit price. 10 YES resting at this level"')
   // The picked row is the one that was picked, and only that one.
   expect(live.match(/is-picked/g)).toHaveLength(1)
   // One tab stop for the whole book, and it follows the picked level.
@@ -100,7 +107,7 @@ test('a book whose only depth is on the other outcome is not reported as empty',
   expect(html).toContain('via NO')
   expect(html).toContain('routed through NO bids')
   // Still one pickable level on the standard path: same sweep, same handoff.
-  expect(html).toContain('aria-label="Buy 132.5739 YES shares through 20¢. This level is routed through NO bids"')
+  expect(html).toContain('aria-label="Use 20¢ as the limit price. 132.5739 YES resting at this level. This level is routed through NO bids"')
   expect(html).toContain('No bids')
 })
 
@@ -113,9 +120,10 @@ test('the spread measures the best price a trader can reach, whichever book hold
   expect(renderToStaticMarkup(<OrderBookTable asks={[]} bids={bids} crossAsks={[]} decimals={6} label="YES"/>)).toContain('Spread: —')
 })
 
-test('a complemented half-cent still rounds the way that sweeps it', () => {
-  // A NO bid at 80.5¢ is a YES ask at 19.5¢; a buy limit is a ceiling, so 20¢.
-  expect(levelPick(195_000n, 1_000_000n, 'ask', 6).cents).toBe('20')
+test('a complemented half-cent travels exactly, for the ticket to round', () => {
+  // A NO bid at 80.5¢ is a YES ask at 19.5¢. The book reports 19.5¢; a buy limit
+  // is a ceiling and a sell limit a floor, and only the ticket knows which.
+  expect(levelPick({ price: 195_000n, quantity: 1_000_000n }, 'ask', 6).cents).toBe('19.5')
 })
 
 test('an unpublished cross ladder renders exactly what it did before', () => {

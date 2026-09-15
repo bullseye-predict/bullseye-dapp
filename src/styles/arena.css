@@ -635,11 +635,9 @@
 .arena-success .arena-primary { width: 100%; }
 
 .arena-boot {
-  min-height: calc(100vh - 104px);
   display: grid;
-  align-content: center;
   gap: 18px;
-  padding: clamp(20px, 4vw, 64px);
+  padding-block: clamp(20px, 4vw, 64px);
 }
 .arena-boot-line { display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--arena-muted); font: 500 11px/1 'Geist Mono', monospace; }
 .arena-boot-chart { height: min(42vh, 360px); display: flex; align-items: end; gap: 8px; padding: 28px; border: 1px solid var(--arena-border); background: #12140f; }

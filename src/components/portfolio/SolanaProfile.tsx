@@ -358,14 +358,15 @@ export function SolanaProfile({
   return (
     <AppShell
       className="solz-home pf-page sp-page"
+      mainId="portfolio"
+      mainClassName="pf-main"
       active="profile"
       skipTo="#portfolio"
       skipLabel="Skip to portfolio"
       backToTopHref="#portfolio"
     >
-      <main id="portfolio" className="pf-main">
         <div className="pf-heading">
-          <h1>{isSelf ? 'My portfolio' : 'Portfolio'}</h1>
+          <h1 className="sz-page-title">{isSelf ? 'My portfolio' : 'Portfolio'}</h1>
           <span className="sp-muted">
             {venue?.label ?? 'Solana'} · {symbol}
           </span>
@@ -953,7 +954,6 @@ export function SolanaProfile({
           Traded is remaining cost basis. To win is gross payout. P/L includes
           verified trading fees and excludes SOL network fees.
         </p>
-      </main>
     </AppShell>
   )
 }

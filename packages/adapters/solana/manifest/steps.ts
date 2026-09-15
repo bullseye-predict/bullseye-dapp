@@ -194,8 +194,13 @@ export type StepRow = PlannedStep & {
   status: StepStatus
   /** Sends of this step so far. Above one after a retry or a second leg. */
   attempts: number
-  /** Confirmed repeats of a repeating node, including the one in flight. */
+  /** How many rows this planned step produced in total. */
   legs: number
+  /** Which of them this row is, when there is more than one. A repeating step
+   *  is one wallet prompt per leg, so it is one row per leg — collapsing five
+   *  signatures into a single cell labelled "leg 5" hid four transactions the
+   *  trader had already approved. */
+  leg?: number
   signature?: string
   error?: string
   skipped?: SkipReason
@@ -237,6 +242,12 @@ export type StepFacts = {
    *  on the complete-set route, the selected one otherwise. Null while holdings
    *  have not been read. */
   accounts: SetupAccounts | null
+  /** The other outcome's setup accounts, on a limit buy.
+   *
+   *  placeBinaryLimitBuy prepares whichever binding the leg it is about to send
+   *  uses, and re-picks that per leg, so one run can prepare both. Reading only
+   *  one of them let a real prepare() arrive as an unplanned step. */
+  accountsAlternate?: SetupAccounts | null
   /** Collateral the order needs from the wallet beyond the seat balance. */
   fundingAtoms: bigint
   /** Complete-set upfront in atoms. Zero on the direct route. */
@@ -449,29 +460,33 @@ const opposite = (outcome: Outcome): Outcome => (outcome === 0 ? 1 : 0)
  * step that turns out to be unnecessary. All five accounts are read, so the
  * rent is the exact rent for the ones actually missing.
  */
-function plannedSetup(facts: StepFacts): PlannedStep | null {
-  const accounts = facts.accounts
-  // A sell only prepares when something has to move into the seat.
-  if (facts.side === 'sell' && !facts.sell?.exportAtoms && !facts.sell?.depositAtoms) return null
-  if (
-    accounts &&
-    accounts.vault &&
-    accounts.position &&
-    accounts.walletQuote &&
-    accounts.walletClaims &&
-    accounts.venueQuote
-  )
-    return null
+const complete = (accounts: SetupAccounts) =>
+  accounts.vault && accounts.position && accounts.walletQuote && accounts.walletClaims && accounts.venueQuote
 
-  const missing = accounts
+/** Rent for the accounts this set is missing. The vault and its escrow are
+ *  created together, and the two vault-wide accounts are only ever paid once
+ *  however many bindings ask for them. */
+const setupRent = (accounts: SetupAccounts | null, shared: boolean) =>
+  accounts
     ? [
-        accounts.vault ? 0n : VAULT_RENT,
-        accounts.position ? 0n : rentLamports(SIZE.position),
-        accounts.walletQuote ? 0n : rentLamports(SIZE.token),
+        accounts.vault || shared ? 0n : VAULT_RENT,
+        accounts.position || shared ? 0n : rentLamports(SIZE.position),
+        accounts.walletQuote || shared ? 0n : rentLamports(SIZE.token),
         accounts.walletClaims ? 0n : rentLamports(SIZE.token),
-        accounts.venueQuote ? 0n : rentLamports(SIZE.token),
+        accounts.venueQuote || shared ? 0n : rentLamports(SIZE.token),
       ].reduce((total, item) => total + item, 0n)
     : VAULT_RENT + rentLamports(SIZE.position) + 3n * rentLamports(SIZE.token)
+
+function plannedSetup(facts: StepFacts): PlannedStep | null {
+  const accounts = facts.accounts
+  const alternate = facts.accountsAlternate ?? null
+  // A sell only prepares when something has to move into the seat.
+  if (facts.side === 'sell' && !facts.sell?.exportAtoms && !facts.sell?.depositAtoms) return null
+  if (accounts && complete(accounts) && (!alternate || complete(alternate))) return null
+
+  // Only the outcome's own claim account differs between the two bindings;
+  // everything else prepare() creates belongs to the wallet, not the outcome.
+  const missing = setupRent(accounts, false) + (alternate && !complete(alternate) ? setupRent(alternate, true) : 0n)
 
   return {
     id: 'prepare-accounts',
@@ -483,6 +498,9 @@ function plannedSetup(facts: StepFacts): PlannedStep | null {
       'Creates the accounts that hold your collateral and your shares on this venue. One time for your wallet — every later trade skips it.',
     // Unread holdings are the only reason this can turn out to be unnecessary.
     certain: accounts !== null,
+    // Two bindings that both need work are two prompts under one label, which
+    // the rail already counts as legs of this step.
+    ...(alternate && accounts && !complete(accounts) && !complete(alternate) ? { repeats: { most: 2 } } : {}),
     costs: [sol(missing + SIGNATURE_LAMPORTS, 'rent', accounts === null)],
   }
 }
@@ -547,36 +565,51 @@ export function applyStage(rows: readonly LiveStep[], stage: StepStage): LiveSte
  */
 export function reconcileSteps(plan: StepPlan, live: readonly LiveStep[], settled: boolean): StepRow[] {
   const consumed = new Set<number>()
-  const rows: StepRow[] = plan.steps.map(step => {
+  const rows: StepRow[] = plan.steps.flatMap<StepRow>(step => {
     const attempts = live
       .map((entry, index) => ({ entry, index }))
       .filter(item => step.matches.includes(item.entry.step))
     attempts.forEach(item => consumed.add(item.index))
-    const latest = attempts[attempts.length - 1]?.entry
-    if (!latest) {
-      return {
+    if (!attempts.length)
+      return [{
         ...step,
         status: settled ? 'skipped' : 'planned',
         attempts: 0,
         legs: 0,
         unplanned: false,
         ...(settled ? { skipped: skipReason(step) } : {}),
+      }]
+
+    /** A confirmed send closes a leg: anything after it is a different
+     *  transaction and gets its own row. A failure does not — the attempt that
+     *  follows one is a retry of the same transaction, and belongs in the row
+     *  whose error it is retrying. */
+    const legs: (typeof attempts)[] = []
+    for (const item of attempts) {
+      const current = legs[legs.length - 1]
+      if (!current || current[current.length - 1]!.entry.status === 'sent') legs.push([item])
+      else current.push(item)
+    }
+
+    return legs.map((tries, index) => {
+      const latest = tries[tries.length - 1]!.entry
+      const unconfirmed = latest.status === 'failed' ? uncertainSignature(latest.error) : undefined
+      return {
+        ...step,
+        // One row per leg needs one key per leg, and the plan's id is shared.
+        id: legs.length > 1 ? `${step.id}#${index + 1}` : step.id,
+        // The label that actually arrived, so the detail can say whether the
+        // order matched or rested rather than repeating what the plan guessed.
+        step: latest.step,
+        status: unconfirmed ? 'uncertain' : latest.status,
+        attempts: tries.length,
+        legs: legs.length,
+        ...(legs.length > 1 ? { leg: index + 1 } : {}),
+        ...(latest.signature || unconfirmed ? { signature: latest.signature ?? unconfirmed } : {}),
+        ...(latest.error ? { error: latest.error } : {}),
+        unplanned: false,
       }
-    }
-    const failed = latest.status === 'failed'
-    const unconfirmed = failed ? uncertainSignature(latest.error) : undefined
-    return {
-      ...step,
-      // The label that actually arrived, so the detail can say whether the order
-      // matched or rested rather than repeating what the plan guessed.
-      step: latest.step,
-      status: unconfirmed ? 'uncertain' : latest.status,
-      attempts: attempts.length,
-      legs: attempts.filter(item => item.entry.status === 'sent').length || (latest.status === 'sent' ? 1 : 0),
-      ...(latest.signature || unconfirmed ? { signature: latest.signature ?? unconfirmed } : {}),
-      ...(latest.error ? { error: latest.error } : {}),
-      unplanned: false,
-    }
+    })
   })
 
   // A run that stopped did not skip what came after the stop — it never got
@@ -591,14 +624,21 @@ export function reconcileSteps(plan: StepPlan, live: readonly LiveStep[], settle
     }
 
   // A step the plan did not anticipate is still a wallet prompt the trader saw,
-  // so it belongs on the rail rather than being silently dropped.
+  // so it belongs on the rail rather than being silently dropped — and at the
+  // point in the run where it actually happened. Appending it to the end put a
+  // transaction that ran first in third place, which reads as a different bug.
+  const firstLive = (row: StepRow) => {
+    const index = live.findIndex(entry => row.matches.includes(entry.step))
+    return index === -1 ? Number.POSITIVE_INFINITY : index
+  }
   live.forEach((entry, index) => {
     if (consumed.has(index)) return
     if (rows.some(row => row.unplanned && row.step === entry.step)) return
     const attempts = live.filter(item => item.step === entry.step)
     const latest = attempts[attempts.length - 1]!
     const unconfirmed = latest.status === 'failed' ? uncertainSignature(latest.error) : undefined
-    rows.push({
+    const at = rows.filter(row => firstLive(row) < index).length
+    rows.splice(at, 0, {
       id: `unplanned-${entry.step}`,
       kind: 'submit-order',
       step: entry.step,

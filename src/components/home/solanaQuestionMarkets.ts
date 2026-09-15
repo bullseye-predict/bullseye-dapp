@@ -181,9 +181,12 @@ export function linkedQuestionTitle(labels: readonly string[]) {
 export function linkedAnswerLabel(label: string, eventTitle: string) {
   const withoutQuestion = label.replace(/^Will\s+/i, '').replace(/[?]\s*$/, '').trim()
   const tail = eventTitle.replace(/[?]\s*$/, '').replace(/^Will\s+/i, '').trim()
-  const answer = tail && withoutQuestion.toLowerCase().endsWith(tail.toLowerCase())
+  // An arena draft asks "Will COKE win?", so stripping only the question leaves
+  // the verb behind ("COKE win"). The subject is what differs between linked
+  // answers; the predicate is the shared tail whichever way it is phrased.
+  const answer = (tail && withoutQuestion.toLowerCase().endsWith(tail.toLowerCase())
     ? withoutQuestion.slice(0, -tail.length).trim()
-    : withoutQuestion.replace(/\s+finish\b.*$/i, '').trim()
+    : withoutQuestion.replace(/\s+finish\b.*$/i, '').trim()).replace(/\s+wins?$/i, '').trim()
   return answer || label
 }
 

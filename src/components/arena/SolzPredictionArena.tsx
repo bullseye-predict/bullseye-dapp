@@ -822,7 +822,7 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady }: Pro
   }, [adapter.mode, loadState, snapshot])
 
   return (
-    <AppShell className="arena-app" active="highlight">
+    <AppShell className="arena-app" active="highlight" bleed>
       <div className="arena-mode-strip"><ModeNav mode={adapter.mode} /></div>
 
       <div className="arena-ticker"><span><Radio size={13} aria-hidden="true" /><b>{adapter.mode === 'demo' ? 'SIMULATION' : 'REGIONAL LIVE'}</b></span><span>{snapshot?.matches.filter((item) => item.phase === 'live').length ?? 0} matches on air</span><span>{match ? `${match.title} · ${match.participants.filter((item) => item.status === 'active').length || '—'} active` : 'Waiting for next match'}</span><span className="ticker-end">SOL + SOLZ only</span></div>
@@ -832,15 +832,15 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady }: Pro
       )}
 
       {loadState === 'loading' && !snapshot ? (
-        <main className="arena-boot" aria-busy="true">
+        <div className="arena-boot" aria-busy="true">
           <div className="arena-boot-line"><LoaderCircle className="spin" size={16} aria-hidden="true" /><span>{adapter.mode === 'demo' ? 'Loading practice match and simulated order book…' : 'Linking SOLZ match sources…'}</span></div>
           <div className="arena-boot-chart" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-        </main>
+        </div>
       ) : loadState === 'error' ? (
-        <main className="arena-load-error" role="alert"><Radio size={25} aria-hidden="true" /><h1>Live link unavailable</h1><p>{loadError}</p><button type="button" onClick={() => void load()}><RefreshCcw size={15} aria-hidden="true" /> Retry</button><a href="/demo">Open practice arena</a></main>
+        <div className="arena-load-error" role="alert"><Radio size={25} aria-hidden="true" /><h1>Live link unavailable</h1><p>{loadError}</p><button type="button" onClick={() => void load()}><RefreshCcw size={15} aria-hidden="true" /> Retry</button><a href="/demo">Open practice arena</a></div>
       ) : (
         <>
-          <main className="arena-layout" aria-busy={loadState === 'loading'}>
+          <div className="arena-layout" aria-busy={loadState === 'loading'}>
             <aside className="arena-left-rail">
               <section className="arena-panel match-selector-panel">
                 <header className="arena-panel-heading"><div><span>Broadcasts</span><h1>SOLZ matches</h1></div><b>{snapshot?.matches.length ?? 0}</b></header>
@@ -1011,7 +1011,7 @@ export function SolzPredictionArena({ adapter, walletAddress, walletReady }: Pro
                 )}
               </section>
             </aside>
-          </main>
+          </div>
 
           <section className="arena-bottom-grid">
             <section className="arena-panel arena-positions"><header className="arena-panel-heading"><div><span>Portfolio</span><h2>Open predictions</h2></div><div className="arena-balance-pair"><span>{tokenAmount(snapshot?.account.balances.SOL ?? Number.NaN, 'SOL')}</span><span>{tokenAmount(snapshot?.account.balances.SOLZ ?? Number.NaN, 'SOLZ', true)}</span></div>{adapter.reset && <button type="button" onClick={() => void adapter.reset?.().then(setSnapshot)}><RefreshCcw size={14} aria-hidden="true" /> Reset</button>}</header>{snapshot?.account.positions.length ? <div className="arena-table-scroll" tabIndex={0} role="region" aria-label="Open prediction positions"><table><thead><tr><th>Market</th><th>Outcome</th><th>Stake</th><th>Avg.</th><th>Value</th><th>P&amp;L</th></tr></thead><tbody>{snapshot.account.positions.map((position) => <tr key={position.id}><td>{position.marketTitle}</td><td><b>{position.outcomeLabel}</b></td><td>{tokenAmount(position.stake, position.token)}</td><td>{probability(position.averagePrice)}</td><td>{tokenAmount(position.value, position.token)}</td><td className={position.pnl >= 0 ? 'positive' : 'negative'}>{position.pnl >= 0 ? '+' : ''}{tokenAmount(position.pnl, position.token)}</td></tr>)}</tbody></table></div> : <div className="arena-empty horizontal"><Gamepad2 size={19} aria-hidden="true" /><span><strong>No open predictions</strong> Pick a SOLZ match outcome to create the first position.</span></div>}</section>

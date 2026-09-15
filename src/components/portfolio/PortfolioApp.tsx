@@ -204,9 +204,8 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
     if (profile?.chain === 'somnia') window.location.assign(profileHref('somnia', next === '5031' ? 'mainnet' : 'testnet', profile.address))
   }
   if (solana) return <SolanaProfile apiUrl={apiUrl} venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} retry={retry} onRefresh={() => setRetry(n => n + 1)}/>
-  return <AppShell className="solz-home pf-page" active="profile" skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
-    <main id="portfolio" className="pf-main">
-      <div className="pf-heading"><h1>{isSelf ? 'My portfolio' : 'Portfolio'}</h1>{!solana && <label className="pf-network">Network<select value={chain} onChange={e => selectNetwork(e.target.value as typeof chain)}><option value="50312">Somnia testnet · tUSDC</option><option value="5031">Somnia mainnet · USDso</option></select></label>}</div>
+  return <AppShell className="solz-home pf-page" mainId="portfolio" mainClassName="pf-main" active="profile" skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
+      <div className="pf-heading"><h1 className="sz-page-title">{isSelf ? 'My portfolio' : 'Portfolio'}</h1>{!solana && <label className="pf-network">Network<select value={chain} onChange={e => selectNetwork(e.target.value as typeof chain)}><option value="50312">Somnia testnet · tUSDC</option><option value="5031">Somnia mainnet · USDso</option></select></label>}</div>
       <div className="pf-hero">
         <PortfolioSummary owner={owner} meta={meta} value={value} claimable={claimableCount} orders={{ total: orderRows.length, expired: expiredOrders }} collateral={solana ? solFunds : null} decimals={decimals} symbol={symbol} ready={ready} copyStatus={copyStatus} refreshing={balancesLoading || !owner}
           onCopy={() => void navigator.clipboard.writeText(owner!).then(() => setCopyStatus('Address copied')).catch(() => setCopyStatus('Could not copy address'))}
@@ -267,6 +266,5 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
       <p className="pf-footnote">{solana
         ? 'Holdings are read from the chain across every configured question: shares on the venue seat, shares reserved by your resting orders, claim tokens in your wallet, and complete sets held in the prediction vault. Shares are marked at the best bid, which is not a guaranteed sale price. Selling, cancelling an order and claiming a settled payout all need your wallet signature, so on your own profile each row links to the question’s market page where it is signed.'
         : 'Holdings are read from the chain across configured DreamDEX events. Shares are marked at the best bid, which is not a guaranteed sale price, and shares reserved by an open order have left your balance until it is cancelled. Selling depends on buyers and market cutoff; claims require confirmed settlement and your wallet signature.'}</p>
-    </main>
   </AppShell>
 }

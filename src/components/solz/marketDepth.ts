@@ -11,17 +11,15 @@ export function sampleOrderBook(outcome: ArenaMarketOutcome): { asks: DepthRow[]
   const middle = Math.max(2, Math.min(98, Math.round(outcome.probability * 100)))
   const rows = (side: 'ask' | 'bid') => {
     let cumulative = 0
-    let cumulativeShares = 0
     const available = side === 'ask' ? 99 - middle : middle - 1
     const result = Array.from({ length: Math.min(5, available) }, (_, index) => {
       const price = (middle + (side === 'ask' ? 1 : -1) * (index + 1)) / 100
       const shares = 120 + nameSeed(`${outcome.id}:${side}:${index}`) % 3400
       cumulative += shares * price
-      cumulativeShares += shares
-      return { price, shares, total: cumulative, depth: cumulativeShares }
+      return { price, shares, total: cumulative, depth: cumulative }
     })
-    const max = Math.max(cumulativeShares, 1)
-    return result.map((row) => ({ ...row, depth: row.depth / max * 100 }))
+    const maximum = Math.max(...result.map((row) => row.total), 1)
+    return result.map((row) => ({ ...row, depth: row.depth / maximum * 100 }))
   }
   return { asks: rows('ask').reverse(), bids: rows('bid'), spread: .02 }
 }

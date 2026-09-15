@@ -1,8 +1,8 @@
 /* The directory uses one compact stage at every width, so filters never
    reserve empty sections for statuses with no published markets. */
-.mk-app .mk-main { width: calc(100% - var(--site-gutter) * 2); max-width: 1800px; padding-top: 28px; }
+.mk-app .mk-main { padding-top: 28px; }
 .mk-app .mk-heading { max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.mk-app .mk-heading h1 { margin: 0; font: 600 26px/1.2 var(--sh-heading); letter-spacing: -.02em; }
+.mk-app .mk-heading h1 { margin: 0; }
 .mk-search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: 10px; color: #b7bac3; }
 .mk-search input { width: 220px; min-width: 0; border: 0; background: transparent; color: var(--sh-text); font: 14px var(--sh-heading); outline: none; }
 .mk-search:focus-within { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
@@ -16,18 +16,26 @@
 .mk-app .mk-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .mk-app .mk-card { min-width: 0; min-height: 230px; border-radius: 14px; padding: 18px; }
 .mk-app .mk-card-title { font-size: 18px; line-height: 1.35; }
-.mk-app .mk-card-status > span, .mk-app .mk-card-note { font-size: 11px; color: #b7bac3; letter-spacing: 0; }
-.mk-app .mk-card-bottom { font-size: 12px; color: #b7bac3; border: 0; }
+.mk-app .mk-card-status > span, .mk-app .mk-card-note { color: #b7bac3; letter-spacing: 0; }
+.mk-app .mk-card-bottom { color: #b7bac3; border: 0; }
 .mk-app .mk-ffa-row { font-size: 12px; }
 .mk-app .mk-binary-side { border-radius: 8px; font-size: 12px; }
+.mk-app .mk-card--pending { gap: 14px; justify-content: start; cursor: default; }
+.mk-app .mk-card--pending:hover { border-color: var(--sh-line); background: var(--sh-panel); }
+.mk-pending { display: block; border-radius: 6px; background: linear-gradient(90deg, #212328 25%, #2b2e35 50%, #212328 75%) 100% 0 / 300% 100%; animation: mk-pending-sweep 1.4s ease-in-out infinite; }
+.mk-pending--title { height: 19px; width: 76%; }
+.mk-pending--detail { height: 11px; width: 48%; }
+.mk-pending--row { height: 12px; width: 100%; }
+.mk-pending--row:last-child { width: 64%; }
+@keyframes mk-pending-sweep { to { background-position: 0 0; } }
 @media (max-width: 600px) {
   .mk-app .mk-main { padding-top: 18px; }
   .mk-app .mk-heading { flex-wrap: wrap; gap: 12px; }
-  .mk-app .mk-heading h1 { font-size: 23px; }
   .mk-search { flex: 1; min-width: 170px; }
   .mk-search input { width: 100%; }
   .mk-filters button { padding-inline: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mk-app .mk-card, .mk-app .mk-split i, .mk-app .mk-ffa-bar i { transition: none; }
+  .mk-pending { animation: none; }
 }
