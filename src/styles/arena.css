@@ -470,12 +470,21 @@
 .market-chart-tooltip span.tone-3 { color: #e8d88e; }
 .market-chart-tooltip span i { width: 7px; height: 2px; background: currentColor; }
 .market-chart-tooltip span b { margin-left: auto; font: 600 9px/1 'Geist Mono', monospace; }
-.market-chart-empty { height: 100%; display: grid; place-items: center; align-content: center; gap: 7px; color: var(--arena-muted); text-align: center; }
-.market-chart-empty strong { color: var(--arena-text); font-size: 12px; }
+/* THE CHART IS NOT ONLY THE ARENA'S. These four selectors are unscoped but were
+   written against --arena-*, which only exists under .arena-app — so on the
+   events page every one of them was invalid at computed-value time and silently
+   dropped, taking the chip's border and both text colours with it. Each now
+   names what it falls back to off the arena. */
+.market-chart-empty { height: 100%; display: grid; place-items: center; align-content: center; gap: 7px; color: var(--arena-muted, #a1a5b1); text-align: center; }
+.market-chart-empty strong { color: var(--arena-text, #e7eef7); font-size: 12px; }
 .market-chart-empty span { font-size: 10px; }
-.market-chart-collecting { display: flex; align-items: center; gap: 8px; position: absolute; right: 14px; bottom: 15px; padding: 8px 10px; border: 1px solid var(--arena-border); border-radius: 5px; color: var(--arena-muted); background: rgba(24, 26, 22, .94); font-size: 9px; }
+.market-chart-collecting { display: flex; align-items: center; gap: 8px; position: absolute; right: 14px; bottom: 15px; padding: 8px 10px; border: 1px solid var(--arena-border, #3a3f49); border-radius: 5px; color: var(--arena-muted, #a1a5b1); background: rgba(24, 26, 22, .94); font-size: 9px; }
 .market-chart-collecting span { display: grid; gap: 3px; }
-.market-chart-collecting strong { color: var(--arena-text); font-size: 10px; }
+.market-chart-collecting strong { color: var(--arena-text, #e7eef7); font-size: 10px; }
+/* The spinner sizes from its own text (1em of 9px), which is smaller than the
+   glyph it replaced; it gets the chip's headline size so it reads as the chip's
+   subject rather than as punctuation. */
+.market-chart-collecting .cc-spinner { font-size: 15px; color: var(--arena-accent, var(--sh-lime, #c7ff00)); }
 
 .outcome-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; padding: 1px; background: var(--arena-border); }
 .outcome-grid > button { min-height: 63px; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; overflow: hidden; position: relative; padding: 10px 13px; border: 0; background: var(--arena-panel); text-align: left; cursor: pointer; }

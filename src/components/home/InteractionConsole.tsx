@@ -253,7 +253,7 @@ export function InteractionConsole({
                 <div><dt>Total</dt><dd>—</dd></div>
                 <div><dt>To win</dt><dd>—</dd></div>
               </dl>
-              <button type="button" className="ch-trade-skeleton__action" disabled>Trade</button>
+              <button type="button" className="ch-submit-trade ch-trade-skeleton__action" disabled>Trade</button>
             </div>
           ))}
       </ConsolePanel>

@@ -3,7 +3,10 @@
 .ch-collapse.is-expanded { grid-template-rows: 1fr; }
 .ch-collapse-inner { min-height: 0; overflow: hidden; }
 .ch-collapse[aria-hidden='true'] { pointer-events: none; }
-.ch-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: stretch; }
+/* The console rail is the trade ticket's Yes/No pair plus the ticket's own
+   frame (16px padding, 1px border, each side). The market rows below size
+   their pair from --trade-pair-width too, so both panels' buttons match. */
+.ch-hero-grid { --trade-pair-width: 306px; --ch-rail: calc(var(--trade-pair-width) + 34px); display: grid; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 18px; align-items: stretch; }
 .ch-viewer { display: flex; flex-direction: column; min-width: 0; }
 .ch-screen { flex-shrink: 0; aspect-ratio: 16 / 9; position: relative; border: 1px solid var(--sh-line); background: #17191e; min-width: 0; overflow: clip; }
 .ch-screen > [role='tabpanel'] { position: absolute; inset: 0; min-width: 0; overflow: clip; }
@@ -177,18 +180,42 @@
    order type changed. */
 .ch-order-type-trigger { display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px; width: 86px; min-height: 28px; padding: 0 7px !important; color: #e2e7ee !important; border: 1px solid transparent !important; border-bottom: 1px solid transparent !important; }
 .ch-order-type-trigger:hover { border-color: #536170 !important; background: #222b34 !important; }
-.ch-trade-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 14px 0 19px; }
-.ch-trade-outcomes > button { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 7px; min-width: 0; min-height: 58px; padding: 12px 14px; border: 1px solid transparent; background: #2d3540; color: #b6c0cf; font: 600 16px var(--sh-heading); }
-.ch-trade-outcomes b { font-size: 18px; font-weight: 700; }
-.ch-trade-outcomes > .is-yes { color: #78e6bc; background: #193c33; border-color: #285e4c; }
-.ch-trade-outcomes > .is-no { color: #ff99af; background: #442832; border-color: #71404e; }
-.ch-trade-outcomes > .is-yes[aria-pressed='true'] { background: #49dda5; border-color: #49dda5; color: #09291d; }
-.ch-trade-outcomes > .is-no[aria-pressed='true'] { background: #f17c9a; border-color: #f17c9a; color: #37101b; }
+/* The Yes/No pair, in the catwalk tab's treatment. Every colour is a token
+   from game-surfaces.css and every metric is one of --trade-pair-*, because the
+   market rows draw the same pair from the same numbers: that is what keeps this
+   panel's Yes button the same size as the one in the list.
+   NO OUTLINE IN ANY STATE. The 1px border is transparent and exists only so
+   that picked and rest measure identically; a state is a fill and a bar. */
+.ch-trade-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--trade-pair-gap); margin: 14px 0 19px; }
+/* The 3px bar is an inset shadow rather than a border, so it takes no part in
+   the box and a picked button is exactly as tall as an unpicked one.
+   nowrap, not wrap: a label long enough to wrap made this button two lines tall
+   while its neighbour stayed one, and the pair stopped being a pair. It elides
+   instead, which is what the market row has always done. */
+.ch-trade-outcomes > button { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 8px; min-width: 0; min-height: var(--trade-pair-height); padding: 11px 13px; border: 1px solid transparent; box-shadow: inset 0 -3px 0 transparent; background: var(--trade-off-fill); color: var(--trade-off-ink); font: 600 15px var(--sh-heading); }
+.ch-trade-outcomes > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Fixed width, centred: a quote arriving as "--" and resolving to "32¢" must
+   not shift the label it sits beside. */
+.ch-trade-outcomes b { flex: none; display: grid; place-items: center; width: var(--trade-chip-width); height: 26px; border-radius: 999px; background: var(--trade-chip-rest); font: 700 14px var(--sh-heading); font-variant-numeric: tabular-nums; }
+.ch-trade-outcomes > .is-yes { color: var(--trade-yes-rest-ink); background: var(--trade-yes-rest-fill); box-shadow: inset 0 -3px 0 var(--trade-yes-rest-bar); }
+.ch-trade-outcomes > .is-no { color: var(--trade-no-rest-ink); background: var(--trade-no-rest-fill); box-shadow: inset 0 -3px 0 var(--trade-no-rest-bar); }
+.ch-trade-outcomes > .is-yes[aria-pressed='true'] { color: var(--trade-yes-ink); background: var(--trade-yes-fill); box-shadow: inset 0 -3px 0 var(--trade-yes-bar); }
+.ch-trade-outcomes > .is-no[aria-pressed='true'] { color: var(--trade-no-ink); background: var(--trade-no-fill); box-shadow: inset 0 -3px 0 var(--trade-no-bar); }
+.ch-trade-outcomes > button[aria-pressed='true'] b { background: var(--trade-chip-on); }
+.ch-trade-outcomes > button:hover:not(:disabled) { filter: brightness(1.12); }
+/* Dimmed whole. The chip keeps its fill rather than gaining an outline: this
+   pair does not draw outlines. */
+.ch-trade-outcomes > button:disabled { opacity: var(--trade-disabled-opacity); cursor: not-allowed; filter: none; }
 .ch-trade > form { display: flex; flex: 1; flex-direction: column; }
 .ch-limit-price { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 17px; font-size: 11px; }
 .ch-limit-price > label { font: 500 14px var(--sh-heading); }
 .ch-price-format { position: relative; }
+.ch-sound-toggle,
 .ch-price-format > button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0 !important; color: #b8c6d6; border: 1px solid #4d5b6b !important; border-bottom: 1px solid #4d5b6b !important; background: #222b34; }
+/* Muted is a state worth seeing at a glance, so it reads as off rather than as
+   one more icon: dimmed ink on no fill. */
+.ch-sound-toggle[aria-pressed='false'] { color: #79838f; background: transparent; }
+.ch-sound-toggle:hover { color: #eff6fc; border-color: #82a9c8 !important; background: #2e3b47; }
 .ch-price-format > button:hover, .ch-price-format > button[aria-expanded='true'] { color: #eff6fc; border-color: #82a9c8; background: #2e3b47; }
 .ch-price-format-menu { position: absolute; z-index: 4; top: calc(100% + 5px); right: 0; display: grid; width: 142px; padding: 5px; background: #1e252c; border: 1px solid #536170; box-shadow: 0 6px 8px rgb(0 0 0 / .28); }
 .ch-price-format-menu > strong { padding: 5px 7px 6px; color: #aebdca; font: 700 8px var(--sh-mono); letter-spacing: .05em; }
@@ -242,7 +269,7 @@
 .ch-ticket-summary .is-win strong { color: #78e6bc; font: 700 21px/1.15 var(--sh-heading); }
 .ch-ticket-summary .is-win strong > small { display: block; margin-top: 3px; color: #a7b5c9; font: 500 11px var(--sh-mono); }
 .ch-ticket-summary strong > small { display: block; margin-top: 3px; color: #a7b5c9; font: 500 11px var(--sh-mono); }
-.ch-submit-trade { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; min-height: 42px; border: 0; border-radius: 0; color: #071b2d; background: #51b6ff; font: 700 13px var(--sh-heading) !important; text-decoration: none; }
+.ch-submit-trade { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; min-height: 42px; border: 0; border-radius: 0; color: #071b2d; background: #51b6ff; font: 700 15px var(--sh-heading) !important; text-decoration: none; }
 .ch-submit-trade:hover { background: #7ecbff; }
 .ch-sample-note { text-align: center; font-size: 8px; color: #aab7c9; margin-top: 9px !important; }
 .ch-trade-feedback { padding: 9px 0 0; font-size: 10px; line-height: 1.6; color: #d4ec9d; overflow-wrap: anywhere; }
@@ -350,9 +377,9 @@
 .ch-performance-actions button:hover { border-color: var(--sh-lime); color: var(--sh-lime); }
 .ch-performance-actions button:last-child { border-color: var(--sh-lime); background: var(--sh-lime); color: #15180c; }
 .ch-performance-actions button:last-child:hover { background: #d9ff61; color: #15180c; }
-@media (min-width: 1500px) { .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 360px; } }
+@media (min-width: 1500px) { .ch-hero-grid { --trade-pair-width: 326px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); } }
 @media (max-width: 1190px) {
-  .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 315px; gap: 14px; }
+  .ch-hero-grid { --trade-pair-width: 281px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 14px; }
   .ch-activity { gap: 12px; }
   .ch-scoreboard strong { font-size: 15px; }
   .ch-scoreboard { left: 12px; right: 12px; gap: 10px; }
@@ -367,7 +394,7 @@
   .ch-chart-close { display: none; }
 }
 @media (max-width: 960px) {
-  .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+  .ch-hero-grid { --trade-pair-width: 266px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 12px; }
   .ch-screen { flex-shrink: 0; aspect-ratio: auto; height: 360px; }
   .ch-scoreboard { gap: 8px; top: 57px; }
   .ch-scoreboard .sh-team-mark { display: none; }
@@ -424,8 +451,7 @@
   .ch-trade { min-height: 0; }
   .ch-trade-title span { font-size: 12px; }
   .ch-trade-title strong { font-size: 17px; }
-  .ch-trade-outcomes > button { min-height: 54px; font-size: 15px; }
-  .ch-trade-outcomes b { font-size: 17px; }
+  .ch-hero-grid, .ev-layout { --trade-pair-height: 54px; }
   .ch-trade-amount input { max-width: 195px; }
   .ch-trade-amount small { font-size: 9px; }
   .ch-console-accordion.is-open { flex: 1 1 0; }
@@ -554,6 +580,11 @@
 }
 
 /* An expanded detail remains part of its selected market row. */
+/* THE BOOK KEEPS THE ROW'S WIDTH. Capping this panel to the ticket's width was
+   tried and reverted: the book is a four-column table with a 620px floor, so at
+   326px it lost the spread line to a wrap and left two thirds of the row empty
+   beside it. The pair above it matches the ticket; the table under it does not,
+   because a table and a pair of buttons do not want the same measure. */
 .ch-topic-detail { background: #1e2422; }
 .ch-topic-tabs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; }
 .solz-home .ch-topic-tabs .mx-tabs { gap: 17px; padding: 0; }
@@ -656,7 +687,7 @@
 .ch-home .sh-header nav a { font-size: 12px; padding-inline: 15px; }
 .ch-home .sh-highlight-heading h1 { font-size: 38px; }
 .ch-home .sh-highlight-heading p { font-size: 12px; }
-.ch-home .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; }
+.ch-home .ch-hero-grid { --trade-pair-width: 326px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 20px; }
 .ch-home .ch-screen { min-height: 440px; max-height: 620px; }
 .ch-home .ch-view-navigation .mx-tabs__tab { min-height: 40px; font-size: 12px; padding-inline: 12px; }
 .ch-home .ch-view-navigation h2 { font-size: 20px; }
@@ -673,7 +704,7 @@
 @media (max-width: 1190px) {
   .ch-home .sh-header { gap: 30px; }
   .ch-home .sh-header nav a { font-size: 10px; padding-inline: 8px; }
-  .ch-home .ch-hero-grid { grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; }
+  .ch-home .ch-hero-grid { --trade-pair-width: 296px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 16px; }
   .ch-home .ch-screen { min-height: 450px; }
   .ch-home .ch-view-navigation .mx-tabs__tab { font-size: 10px; padding-inline: 10px; }
 }

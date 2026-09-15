@@ -49,13 +49,20 @@
 .ch-trade-skeleton__notice { display: grid; gap: 8px; color: var(--ch-ink); }
 .ch-trade-skeleton__notice strong { font-size: 13px; }
 .ch-trade-skeleton__notice span { color: var(--ch-muted); font-size: 10px; line-height: 1.6; }
-.ch-trade-skeleton__outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ch-trade-skeleton__outcomes span { padding: 16px 12px; border: 1px solid var(--ch-line); background: var(--ch-field); color: var(--ch-muted); font-size: 12px; text-align: center; opacity: .5; }
+/* The same pair as the loaded ticket, down to the token: this placeholder is
+   replaced in place, so any difference in size, type or edge is a jump the
+   trader sees at exactly the moment the panel becomes usable. */
+.ch-trade-skeleton__outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--trade-pair-gap); }
+.ch-trade-skeleton__outcomes span { display: grid; place-items: center; min-height: var(--trade-pair-height); padding: 11px 13px; border: 1px solid transparent; box-shadow: inset 0 -3px 0 var(--trade-off-bar); background: var(--trade-off-fill); color: var(--trade-off-ink); font: 600 15px var(--sh-heading); text-align: center; opacity: .5; }
 .ch-trade-skeleton__fields { display: grid; gap: 9px; margin: 0; }
 .ch-trade-skeleton__fields > div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--ch-line); }
 .ch-trade-skeleton__fields dt { color: var(--ch-muted); font-size: 10px; }
 .ch-trade-skeleton__fields dd { margin: 0; color: var(--ch-muted); font-size: 11px; }
-.ch-trade-skeleton__action { width: 100%; padding: 13px; border: 1px solid var(--ch-line); background: var(--ch-field); color: var(--ch-muted); font: inherit; font-size: 12px; opacity: .45; cursor: not-allowed; }
+/* Carries .ch-submit-trade as well, so it IS the ticket's Trade button rather
+   than a second button dressed like it; everything this rule adds is what makes
+   that button a placeholder. Nothing here restates its type or its box - the
+   two used to drift, and the placeholder rendered at the body's 12px mono. */
+.ch-trade-skeleton__action { opacity: .45; cursor: not-allowed; }
 /* Shimmer sweeps the placeholders so the panel reads as loading rather than as
    a rendered-but-empty ticket. Motion is opt-out; the static state stays legible. */
 .ch-trade-skeleton__outcomes span,

@@ -1,5 +1,5 @@
-import { Radio } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { Spinner } from '../home/HomePrimitives'
 import type { ArenaPricePoint } from '../solz/model'
 import type { PriceBasis } from '../../../packages/prediction-core/pricing'
 
@@ -406,7 +406,7 @@ export function ProbabilityChart({ title, series, headline, legend = true, scale
             <span>{empty?.hint ?? 'The chart starts when this market records its first price.'}</span>
           </div>
         )}
-        {loading && <div className="market-chart-collecting" role="status"><Radio size={14} aria-hidden="true" /><span><strong>Collecting price history</strong> No synthetic history is added.</span></div>}
+        {loading && <div className="market-chart-collecting" role="status"><Spinner /><span><strong>Collecting price history</strong> No synthetic history is added.</span></div>}
       </div>
       {footer && <div className="market-chart-footer">{footer}</div>}
     </section>

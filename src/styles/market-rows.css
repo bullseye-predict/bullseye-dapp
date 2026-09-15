@@ -13,7 +13,7 @@
 .mk-row-columns,
 .mk-row-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 104px minmax(var(--mk-picks-width), 1fr);
   align-items: center;
   gap: 16px;
   padding: 18px 17px;
@@ -44,7 +44,13 @@
    track rather than filling it. */
 .mk-row-columns > span:last-child { width: min(100%, var(--mk-picks-width)); margin-left: auto; text-align: center; }
 
-.mk-row-columns, .mk-row-summary { --mk-picks-width: 236px; }
+/* NOT A NUMBER OF THIS FILE'S OWN. The pair in a row and the pair in the trade
+   ticket are the same control seen twice, so the row takes the ticket's width
+   (game-surfaces.css) instead of a value tuned against the list alone. It used
+   to be 236px against the ticket's 292px, which left one Yes button visibly
+   narrower than the Yes button directly beside it. Hosts that change their rail
+   restate --trade-pair-width and both move together. */
+.mk-row-columns, .mk-row-summary { --mk-picks-width: var(--trade-pair-width, 292px); }
 .mk-row { background: #1d2229; border: 1px solid #363f49; }
 .mk-row:has(+ .mk-row) { border-bottom: 0; }
 /* An open row is a panel in its own right, not one more line in the list, so it
@@ -118,7 +124,10 @@
 
 /* Capped rather than filling the flexible track: the pair is the size of a
    trading control, and the slack left over is what centres the chance. */
-.mk-row-picks { display: flex; gap: 8px; width: min(100%, var(--mk-picks-width)); margin-left: auto; }
+.mk-row-picks { display: flex; gap: var(--trade-pair-gap, 7px); width: min(100%, var(--mk-picks-width)); margin-left: auto; }
+/* Metrics and treatment are the ticket's, down to the 3px picked bar drawn as
+   an inset shadow so it never adds to the box, and down to the transparent 1px
+   border: no state of this pair draws an outline. */
 .mk-row-picks button {
   display: flex;
   flex: 1;
@@ -126,35 +135,39 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 56px;
-  padding: 10px;
-  border: 1px solid;
-  font: 600 13px var(--sh-heading);
+  min-height: var(--trade-pair-height, 58px);
+  padding: 11px 13px;
+  border: 1px solid transparent;
+  box-shadow: inset 0 -3px 0 transparent;
+  font: 600 15px var(--sh-heading);
 }
-.mk-row-picks button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-row-picks button:hover { filter: brightness(1.2); }
+.mk-row-picks button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-row-picks button > b { flex: none; display: grid; place-items: center; width: var(--trade-chip-width); height: 26px; border-radius: 999px; background: var(--trade-chip-rest); font: 700 14px var(--sh-heading); font-variant-numeric: tabular-nums; }
+.mk-row-picks button[aria-pressed='true'] > b { background: var(--trade-chip-on); }
+.mk-row-picks button:hover:not(:disabled) { filter: brightness(1.12); }
+.mk-row-picks button:disabled { opacity: var(--trade-disabled-opacity); cursor: not-allowed; filter: none; }
 
 /* Trading colours. `--pick-color` is set inline only on a moneyline, where the
-   two sides are teams rather than Yes/No; everywhere else the green/red
+   two sides are teams rather than Yes/No; everywhere else the lime/red
    fallbacks apply and team identity stays on the text and the mark. */
-.mk-row-picks .is-yes { color: var(--trade-yes-rest-ink); border-color: var(--trade-yes-rest-edge); background: var(--trade-yes-rest-fill); }
-.mk-row-picks .is-no { color: var(--trade-no-rest-ink); border-color: var(--trade-no-rest-edge); background: var(--trade-no-rest-fill); }
-.mk-row-picks .is-yes[aria-pressed='true'] { color: var(--trade-yes-ink); background: var(--trade-yes-fill); border-color: var(--trade-yes-edge); }
-.mk-row-picks .is-no[aria-pressed='true'] { color: var(--trade-no-ink); background: var(--trade-no-fill); border-color: var(--trade-no-edge); }
+.mk-row-picks .is-yes { color: var(--trade-yes-rest-ink); background: var(--trade-yes-rest-fill); box-shadow: inset 0 -3px 0 var(--trade-yes-rest-bar); }
+.mk-row-picks .is-no { color: var(--trade-no-rest-ink); background: var(--trade-no-rest-fill); box-shadow: inset 0 -3px 0 var(--trade-no-rest-bar); }
+.mk-row-picks .is-yes[aria-pressed='true'] { color: var(--trade-yes-ink); background: var(--trade-yes-fill); box-shadow: inset 0 -3px 0 var(--trade-yes-bar); }
+.mk-row-picks .is-no[aria-pressed='true'] { color: var(--trade-no-ink); background: var(--trade-no-fill); box-shadow: inset 0 -3px 0 var(--trade-no-bar); }
 /* Moneyline only. --pick-ink is chosen from the fill's luminance, so an
-   arbitrary team colour stays readable in both directions. */
-.mk-row-picks .has-pick-color[aria-pressed='false'] { color: var(--trade-off-ink); border-color: var(--trade-off-edge); background: var(--trade-off-fill); }
-.mk-row-picks .has-pick-color[aria-pressed='true'] { color: var(--pick-ink, #071a12); background: var(--pick-color); border-color: var(--pick-color); }
+   arbitrary team colour stays readable in both directions, and the bar is
+   mixed from that same colour because there is no second token to name. */
+.mk-row-picks .has-pick-color[aria-pressed='false'] { color: var(--trade-off-ink); background: var(--trade-off-fill); box-shadow: inset 0 -3px 0 var(--trade-off-bar); }
+.mk-row-picks .has-pick-color[aria-pressed='true'] { color: var(--pick-ink, #071a12); background: var(--pick-color); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--pick-color) 72%, #000); }
 
 @media (max-width: 1440px) and (min-width: 901px) {
-  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); gap: 12px; padding-right: 13px; padding-left: 13px; --mk-picks-width: 200px; }
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 84px minmax(var(--mk-picks-width), 1fr); gap: 12px; padding-right: 13px; padding-left: 13px; }
   .mk-row-name > button { gap: 10px; min-height: 52px; }
   .mk-row-name > button > span:not(.sh-portrait):not(.sh-team-mark) { font-size: 14px; }
   .mk-row-chance { font-size: 19px; }
-  .mk-row-picks button { font-size: 12px; gap: 5px; padding: 9px 6px; min-height: 52px; }
 }
 @media (max-width: 900px) and (min-width: 601px) {
-  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr); gap: 10px; padding: 14px 12px; --mk-picks-width: 168px; }
+  .mk-row-columns, .mk-row-summary { grid-template-columns: minmax(0, 1fr) 68px minmax(var(--mk-picks-width), 1fr); gap: 10px; padding: 14px 12px; }
   /* Restated because the shorthand above resets the header's own vertical
      padding, which is set earlier in the file at the same specificity. */
   .mk-row-columns { padding-top: 9px; padding-bottom: 8px; }
@@ -163,8 +176,6 @@
   .mk-row-name .sh-portrait { width: 32px; height: 37px; }
   .mk-row-name .sh-team-mark { width: 27px; height: 30px; }
   .mk-row-chance { font-size: 16px; }
-  .mk-row-picks { gap: 5px; }
-  .mk-row-picks button { font-size: 11px; gap: 4px; padding: 8px 5px; min-height: 48px; }
 }
 @media (max-width: 600px) {
   .mk-row-columns { display: none; }
@@ -173,6 +184,6 @@
   /* Below 600 the pair drops to its own full-width row, so it neither claims
      the third track — there isn't one — nor keeps its cap. */
   .mk-row-picks { grid-column: 1 / -1; width: auto; margin-left: 0; }
-  .mk-row-picks button { min-height: 48px; }
+  .mk-row-summary { --trade-pair-height: 48px; }
   .mk-row-chance { font-size: 22px; }
 }

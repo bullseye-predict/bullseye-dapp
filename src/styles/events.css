@@ -17,9 +17,14 @@
 .ev-layout-bar nav a:hover { background: #24262c; color: #fff; }
 .ev-layout-bar nav a[aria-current='page'] { border-color: #62694b; color: var(--sh-lime); background: #20251b; }
 .ev-layout-bar nav a[aria-current='page'] > span { color: var(--sh-lime); }
-.ev-layout { display: grid; grid-template-columns: 206px minmax(0, 1fr) 326px; align-items: stretch; gap: 26px; }
-.ev-app--community .ev-layout { grid-template-columns: 300px minmax(0, 1fr) 326px; gap: 22px; }
-.ev-app--agents .ev-layout { grid-template-columns: 270px minmax(0, 1fr) 326px; gap: 24px; }
+/* THE RAIL IS DERIVED, NOT TYPED. The trade ticket fills this rail, and the
+   market rows in the centre size their Yes/No pair from --trade-pair-width, so
+   the rail has to be that pair plus the ticket's own frame (16px padding and a
+   1px border on each side) or the two pairs stop lining up. Change the pair
+   width at a breakpoint and the rail follows; never the other way round. */
+.ev-layout { --trade-pair-width: 292px; --ev-rail: calc(var(--trade-pair-width) + 34px); display: grid; grid-template-columns: 206px minmax(0, 1fr) var(--ev-rail); align-items: stretch; gap: 26px; }
+.ev-app--community .ev-layout { grid-template-columns: 300px minmax(0, 1fr) var(--ev-rail); gap: 22px; }
+.ev-app--agents .ev-layout { grid-template-columns: 270px minmax(0, 1fr) var(--ev-rail); gap: 24px; }
 .ev-center, .ev-left-rail, .ev-right-rail { min-width: 0; }
 .ev-sticky-rail { position: sticky; top: var(--ev-sticky-top); max-height: calc(100dvh - var(--ev-sticky-top) - 16px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #45474e transparent; overscroll-behavior-y: contain; }
 .ev-right-rail .ev-sticky-rail { padding: 1px 3px 3px; margin: -1px -3px -3px; }
@@ -358,13 +363,13 @@
 .ev-toast { position: fixed; z-index: 40; bottom: 25px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 9px; background: #d1f694; color: #17220c; padding: 14px 20px; font-size: 11px; max-width: calc(100% - 30px); }
 .ev-mobile-actions, .ev-mobile-rail-heading { display: none; }
 @media (min-width: 1700px) {
-  .ev-app--community .ev-layout { grid-template-columns: 320px minmax(0, 1fr) 350px; gap: 26px; }
-  .ev-app--agents .ev-layout { grid-template-columns: 290px minmax(0, 1fr) 350px; gap: 28px; }
+  .ev-app--community .ev-layout { --trade-pair-width: 316px; grid-template-columns: 320px minmax(0, 1fr) var(--ev-rail); gap: 26px; }
+  .ev-app--agents .ev-layout { --trade-pair-width: 316px; grid-template-columns: 290px minmax(0, 1fr) var(--ev-rail); gap: 28px; }
 }
 @media (max-width: 1350px) {
-  .ev-layout { grid-template-columns: 180px minmax(0, 1fr) 298px; gap: 20px; }
-  .ev-app--community .ev-layout { grid-template-columns: 255px minmax(0, 1fr) 298px; gap: 18px; }
-  .ev-app--agents .ev-layout { grid-template-columns: 240px minmax(0, 1fr) 298px; gap: 18px; }
+  .ev-layout { --trade-pair-width: 264px; grid-template-columns: 180px minmax(0, 1fr) var(--ev-rail); gap: 20px; }
+  .ev-app--community .ev-layout { grid-template-columns: 255px minmax(0, 1fr) var(--ev-rail); gap: 18px; }
+  .ev-app--agents .ev-layout { grid-template-columns: 240px minmax(0, 1fr) var(--ev-rail); gap: 18px; }
   .ev-title-row h1 { font-size: 26px; }
   .ev-app .ev-community > .mx-tabs { gap: 19px; }
   .ev-app .ev-community > .mx-tabs .mx-tabs__tab { font-size: 14px; }
@@ -378,7 +383,7 @@
   .ev-related .sh-match-card { padding: 10px; }
 }
 @media (max-width: 1120px) {
-  .ev-layout, .ev-app--community .ev-layout, .ev-app--agents .ev-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; }
+  .ev-layout, .ev-app--community .ev-layout, .ev-app--agents .ev-layout { --trade-pair-width: 266px; grid-template-columns: minmax(0, 1fr) var(--ev-rail); gap: 22px; }
   .ev-left-rail { display: none; grid-column: 1 / -1; }
   .ev-left-rail.is-mobile-open { display: block; }
   .ev-left-rail .ev-sticky-rail { position: static; max-height: 500px; }

@@ -2,7 +2,6 @@ import { placeBinaryLimitBuy } from '../../../packages/adapters/solana/manifest/
 import {
   ArrowLeftRight,
   ArrowUpRight,
-  Check,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -50,7 +49,8 @@ import { binaryBuyQuote } from "../../../packages/adapters/solana/manifest/quote
 import { nextBinaryBuy } from "../../../packages/adapters/solana/manifest/limit";
 import { planSellInventory, quoteSell } from "../../../packages/adapters/solana/manifest/inventory";
 import { explorerTxUrl } from "../../../packages/adapters/explorer";
-import { toast } from "sonner";
+import { notify } from "../feedback/notify";
+import { SoundToggle } from "../feedback/SoundToggle";
 import { pushAlert as pushGlobalAlert } from "./alerts/store";
 import { createToastIds } from "./alerts/toastIds";
 import { useEvmWallet, useSolanaWallet } from "../session/store";
@@ -590,6 +590,29 @@ export function TradeTicket({
     setLimitPrice(String(Math.round(contract.probability * 100)));
     setLimitPriceDraft(null);
   }, [contract.id, market.id, market.onchain?.marketId, pickedContract]);
+  /** A market order needs somebody already resting on the other side. Until this
+   *  question is opened on-chain there is no book at all, so the ticket opens on
+   *  Limit — the order type that actually opens the market and rests, rather
+   *  than one that can only cancel for want of a counterparty.
+   *
+   *  `status === 'indicative'` is the market's own word for "not opened yet",
+   *  and it is the only signal that means it. A missing venue binding is NOT:
+   *  that is also what a question which has traded for hours looks like while
+   *  its venue configuration is still loading, and defaulting off it would flip
+   *  the order type on every slow load. PredictionDetail's Activity tab makes
+   *  the same distinction for the same reason.
+   *
+   *  Applied once per contract and never enforced: it decides where the ticket
+   *  opens, not what the trader is allowed to choose. Someone who reads the
+   *  note under the button and still wants a market order keeps it, and a
+   *  market that opens while the ticket is up does not yank them back. */
+  const limitDefault = useRef<string | null>(null);
+  useEffect(() => {
+    if (simulation || market.status !== "indicative") return;
+    if (limitDefault.current === pickedContract) return;
+    limitDefault.current = pickedContract;
+    setType("limit");
+  }, [simulation, market.status, pickedContract]);
   useEffect(() => {
     setFeedback(null);
     setReview(false);
@@ -768,11 +791,11 @@ export function TradeTicket({
           setLiveSteps((rows) => applyStage(rows, stage));
           const id = toasts.idFor(stage.step);
           if (stage.status === "preparing") {
-            toast.loading(stage.step, { id, description: "Checking the transaction on Solana" });
+            notify.loading(stage.step, { id, description: "Checking the transaction on Solana" });
             pushAlert({ level: "info", title: stage.step, detail: "Checking the transaction on Solana" });
           }
           else if (stage.status === "signing") {
-            toast.loading(stage.step, { id, description: "Approve in your wallet" });
+            notify.loading(stage.step, { id, description: "Approve in your wallet" });
             pushAlert({ level: "info", title: stage.step, detail: "Waiting for your wallet signature" });
           }
           else if (stage.status === "failed") {
@@ -781,14 +804,14 @@ export function TradeTicket({
             // Transient like every other toast. The failure is not lost when it
             // fades: the step keeps it on the dialog's rail, and AlertsDock holds
             // the record until the trader clears it.
-            toast.error(stage.step, { id, description: stage.error, duration: 12_000 });
+            notify.error(stage.step, { id, description: stage.error, duration: 12_000 });
             pushAlert({ level: "error", title: stage.step, detail: stage.error });
           }
           else {
             toasts.settle(stage.step);
             const href = stage.signature ? explorerTxUrl(solanaVenue, stage.signature) : undefined;
             pushAlert({ level: "success", title: stage.step, detail: "Confirmed on Solana", href });
-            toast.success(stage.step, {
+            notify.step(stage.step, {
               id,
               description: "Confirmed on Solana",
               ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}),
@@ -860,7 +883,7 @@ export function TradeTicket({
               ? `Sold ${Number(match.quantity) / 1_000_000} ${outcome.label} shares at ${(Number(match.price) / 10_000).toFixed(2)}¢`
               : `Offer resting: ${shares} ${outcome.label} shares at ${limitPrice}¢`;
             const href = explorerTxUrl(solanaVenue, hash);
-            toast.success(summary, { id: `solana-sell:${hash}`, duration: 12_000, ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}) });
+            notify.success(summary, { id: `solana-sell:${hash}`, duration: 12_000, ...(href ? { action: { label: "View", onClick: () => window.open(href, "_blank", "noreferrer") } } : {}) });
             pushAlert({ level: "success", title: summary, detail: match ? "Proceeds are on your book seat; withdraw them to your wallet." : "It stays until it is filled, cancelled, or the question closes.", href });
             setFeedback({ text: `${summary}.`, hash });
             return;
@@ -926,7 +949,7 @@ export function TradeTicket({
           const href = explorerTxUrl(solanaVenue, hash);
           // Surfaced as a toast rather than text under the button, which sits
           // below the fold once the ticket is scrolled.
-          toast.success(summary, {
+          notify.success(summary, {
             id: `solana-order:${hash}`,
             description: complementary ? "Purchased through opposite bids. Your selected shares are in your prediction position; sale proceeds returned to your wallet." : type === "market" ? "Only matched shares were purchased. Any unfilled remainder was cancelled; unused funds remain in your book balance." : `Matched ${Number(limitResult?.matched ?? 0n) / 1_000_000} shares; ${Number(limitResult?.resting ?? 0n) / 1_000_000} shares remain in your limit order. Check Activity for fills.`,
             duration: 12_000,
@@ -983,7 +1006,7 @@ export function TradeTicket({
       setFeedback({ text, error: true });
       const detail = text.replace("Trade not completed: ", "");
       if (!solanaFailureReported) {
-        toast.error("Trade not completed", { description: detail, duration: 12_000 });
+        notify.error("Trade not completed", { description: detail, duration: 12_000 });
         pushAlert({ level: "error", title: "Trade not completed", detail });
       }
       setOrdersExpanded(true);
@@ -1106,6 +1129,7 @@ export function TradeTicket({
           ))}
         </div>
         <div className="ch-trade-order-actions">
+          <SoundToggle />
           <div className="ch-price-format">
             <button
               type="button"
@@ -1175,6 +1199,7 @@ export function TradeTicket({
               <button
                 type="button"
                 className={`is-${value}`}
+                data-fx="select"
                 key={value}
                 aria-pressed={answer === value}
                 onClick={() => onAnswer(value)}
@@ -1187,13 +1212,13 @@ export function TradeTicket({
                       : 1 - outcome.probability,
                   )}
                 </b>
-                {answer === value && <Check size={12} />}
               </button>
             ))
           : market.outcomes.map((item, index) => (
               <button
                 type="button"
                 className={`${index === 0 ? "is-yes" : "is-no"}${pickColor(market, item, snapshot, index) ? " has-pick-color" : ""}`}
+                data-fx="select"
                 key={item.id}
                 style={(() => {
                   // Both vars or neither: the fill alone left near-white text
@@ -1225,7 +1250,6 @@ export function TradeTicket({
                       })()
                     : formatOutcomePrice(item.probability)}
                 </b>
-                {item.id === outcome.id && <Check size={12} />}
               </button>
             ))}
       </div>
@@ -1462,6 +1486,7 @@ export function TradeTicket({
         <div className="ch-trade-action">
           <button
             className="ch-submit-trade"
+            data-fx="commit"
             disabled={pending || unavailable || !valid}
           >
             {pending && liveSolana ? "Trading on Solana…" : "Trade"} <ArrowUpRight size={17} />

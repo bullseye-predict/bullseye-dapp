@@ -1,22 +1,66 @@
 /* Trading palette. ONE definition for every Yes/No control on the page: the
    market rows and the trade ticket read the same tokens, so "selected" looks
-   identical wherever a trader sees it. */
+   identical wherever a trader sees it.
+
+   THE SHAPE COMES FROM THE CATWALK TAB (catwalk.css:161-166). A picked side is
+   a flat high-chroma fill, dark ink, and a 3px bar of the same hue darkened
+   along the bottom edge; the price rides in a chip that inverts with the fill.
+   Rest is a real muted fill of the same hue, not the picked fill at reduced
+   opacity - opacity is reserved for :disabled, which is the one state that
+   means "this control is not yours to press".
+
+   WHY YES IS LIME AND NOT EMERALD: the tab this treatment comes from earns its
+   authority from the brand accent, and a second green beside it read as two
+   systems. Lime is the picked colour; the movement green (#5be5a9, .mk-row-
+   move.is-up) stays emerald because "price up" is a different statement from
+   "this is my side". */
 :root {
-  --trade-yes-fill: #0b8a55;
-  --trade-yes-ink: #f4fff9;
-  --trade-yes-edge: #48e3a0;
-  --trade-yes-rest-fill: #102d21;
-  --trade-yes-rest-ink: #5be5a9;
-  --trade-yes-rest-edge: #256749;
-  --trade-no-fill: #d92e47;
-  --trade-no-ink: #fff6f7;
-  --trade-no-edge: #ff8194;
-  --trade-no-rest-fill: #371820;
-  --trade-no-rest-ink: #ff7b91;
-  --trade-no-rest-edge: #843847;
-  --trade-off-fill: #2d3540;
-  --trade-off-ink: #b6c0cf;
-  --trade-off-edge: #46515e;
+  /* PICKED. --*-bar is the 3px bottom edge, ~75% luminance of the fill. */
+  --trade-yes-fill: #c7ff00;
+  --trade-yes-ink: #0d1202;
+  --trade-yes-bar: #96c000;
+  --trade-no-fill: #ff4d64;
+  --trade-no-ink: #2b060f;
+  --trade-no-bar: #c02a41;
+  /* REST. Legible on its own, and clearly the unlit form of the fill above.
+     It carries a bar too: the pair is two keys side by side, and a key with no
+     edge beside one with an edge reads as a hole rather than as the side you
+     did not pick. Only the colour changes when you pick - never the shape. */
+  --trade-yes-rest-fill: #1c2408;
+  --trade-yes-rest-ink: #c7ff00;
+  --trade-yes-rest-bar: #0d1203;
+  --trade-no-rest-fill: #2c1219;
+  --trade-no-rest-ink: #ff8394;
+  --trade-no-rest-bar: #17080d;
+  /* GRAY-DISABLED. A head-to-head's two sides are teams, so the side you did
+     not pick cannot borrow NO's red - it would read as betting against a team
+     rather than as simply not chosen. Grey, still readable, visibly inert. */
+  --trade-off-fill: #23272e;
+  --trade-off-ink: #9aa0ac;
+  --trade-off-bar: #15181d;
+  /* DISABLED. Dimmed whole. No outline is added: an outline is the one thing
+     these buttons never draw, in any state. */
+  --trade-disabled-opacity: .45;
+  /* PRICE CHIP. Translucent, so it sits on any fill including --pick-color.
+     Its width is FIXED, not fitted, because the price is the one thing on the
+     button that changes while you look at it: "--" becoming "32¢" must not move
+     the label beside it. In px rather than em, so it cannot drift with whatever
+     font-size a breakpoint hands the button.
+     50px AND 14px ARE MEASURED, NOT CHOSEN. The widest string either caller can
+     produce is centsLabel()'s two decimal places - "99.99¢" - which is 46px at
+     700 14px Archivo. 50px clears it, and leaves 56.5px of label in a 142.5px
+     button, which is enough for the longest agent ticker ("ANSEM", 54.4px) to
+     render whole rather than elided. */
+  --trade-chip-rest: #ffffff14;
+  --trade-chip-on: #0000001f;
+  --trade-chip-width: 50px;
+  /* THE TRADING COLUMN. The ticket's outcome pair is the reference width: the
+     right rail (326px) less its border and padding. The market rows size their
+     own pair from this, which is what puts one Yes button directly above the
+     other across the two panels. Hosts with a different rail restate it. */
+  --trade-pair-width: 292px;
+  --trade-pair-gap: 7px;
+  --trade-pair-height: 58px;
 }
 /* Rounding is reserved for standalone cards and conversation surfaces. */
 .solz-home {

@@ -103,7 +103,7 @@ export function TradeReviewDialog({ open, onClose, onConfirm, pending, disabled,
 
     <footer className="ch-trade-actions">
       <button type="button" className="ch-dismiss-trade" disabled={pending} onClick={() => dialog.current?.close()}>{signing ? 'Close' : 'Cancel'}</button>
-      {footerConfirm && <button className="ch-submit-trade" disabled={pending || disabled} onClick={onConfirm}>{confirmLabel}</button>}
+      {footerConfirm && <button className="ch-submit-trade" data-fx="commit" disabled={pending || disabled} onClick={onConfirm}>{confirmLabel}</button>}
     </footer>
     {!signing && <p className="ch-dialog-note">Confirming accepts the terms above.</p>}
   </dialog>

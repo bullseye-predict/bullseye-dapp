@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Toaster } from 'sonner'
 import { AlertsDock } from './AlertsDock'
+import { installFeedbackDelegation } from '../../feedback/feedback'
 
 /** Narrow enough that a stack of toasts anchored to the bottom covers the
  *  trade ticket's own action row. Matches the breakpoint the events page
@@ -25,6 +26,12 @@ const NARROW = '(max-width: 760px)'
 export function OverlayLayer() {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   const [narrow, setNarrow] = useState(false)
+
+  // The app's one press-feedback listener. It lives here because this component
+  // is already the single mount point for everything that answers a trade —
+  // toasts, the alert log — and because it must exist exactly once no matter
+  // how many panels are on screen. Controls opt in with `data-fx`.
+  useEffect(() => installFeedbackDelegation(), [])
 
   useEffect(() => {
     const media = window.matchMedia(NARROW)

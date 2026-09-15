@@ -92,6 +92,7 @@ export function OutcomeRow({ id, media, title, subtitle, chance, chanceLabel, mo
           key={pick.key}
           type="button"
           className={classes(`is-${pick.tone}`, pick.color && 'has-pick-color')}
+          data-fx="select"
           style={pick.color ? { '--pick-color': pick.color, '--pick-ink': pickInk(pick.color) } as React.CSSProperties : undefined}
           aria-label={pick.ariaLabel}
           aria-pressed={pick.pressed}

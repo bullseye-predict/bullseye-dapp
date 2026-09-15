@@ -1,13 +1,16 @@
-/* Trade-panel outcome buttons. `--pick-color` is set inline only on a
-   moneyline, where the two sides are teams rather than Yes/No; everywhere else
-   the green/red fallbacks apply and team identity stays on text and marks. */
-.solz-home .ch-trade-outcomes > .is-yes { opacity: .68; background: var(--trade-yes-rest-fill); color: var(--trade-yes-rest-ink); border: 1px solid var(--trade-yes-rest-edge); }
-.solz-home .ch-trade-outcomes > .is-no { opacity: .68; background: var(--trade-no-rest-fill); color: var(--trade-no-rest-ink); border: 1px solid var(--trade-no-rest-edge); }
-.solz-home .ch-trade-outcomes > .is-yes[aria-pressed='true'] { opacity: 1; background: var(--pick-color, var(--trade-yes-fill)); color: var(--pick-ink, var(--trade-yes-ink)); border-color: var(--pick-color, var(--trade-yes-edge)); }
-.solz-home .ch-trade-outcomes > .is-no[aria-pressed='true'] { opacity: 1; background: var(--pick-color, var(--trade-no-fill)); color: var(--pick-ink, var(--trade-no-ink)); border-color: var(--pick-color, var(--trade-no-edge)); }
-.solz-home .ch-trade-outcomes > button:hover { filter: brightness(1.14); }
+/* Trade-panel outcome buttons. The whole treatment lives in home-hero.css and
+   reads the same tokens the market rows do; this file adds only `--pick-color`,
+   which is set inline on a moneyline where the two sides are teams rather than
+   Yes/No. The four Yes/No colour rules that used to be restated here were an
+   exact copy of that treatment, one dimming step out of date.
+   The picked bar is mixed from the team colour rather than named: an arbitrary
+   team colour has no second token to reach for.
+   Neither rule sets border-color. The pair draws no outline in any state, and a
+   border-color naming a token that no longer exists is worse than none: an
+   undefined var makes the property inherit, which puts the outline back. */
+.solz-home .ch-trade-outcomes > button.has-pick-color[aria-pressed='true'] { background: var(--pick-color); color: var(--pick-ink); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--pick-color) 72%, #000); }
 /* Only the selected outcome carries trading color in the trade panel. */
-.solz-home .ch-trade-outcomes > button.has-pick-color[aria-pressed='false'] { opacity: 1; background: var(--trade-off-fill); color: var(--trade-off-ink); border-color: var(--trade-off-edge); box-shadow: none; }
+.solz-home .ch-trade-outcomes > button.has-pick-color[aria-pressed='false'] { background: var(--trade-off-fill); color: var(--trade-off-ink); box-shadow: inset 0 -3px 0 var(--trade-off-bar); }
 /* A book's horizontal scale is its 1–99¢ price scale. A 50¢ order occupies
    half the row; 25¢ occupies a quarter, regardless of share quantity. */
 .solz-home .ch-order-book { font-variant-numeric: tabular-nums; }
