@@ -387,7 +387,12 @@ describe("highlight livestream navigation", () => {
     expect(html).toContain("Match winner · all 12 agents");
     for (let index = 1; index <= 12; index += 1)
       expect(html).toContain(`AGENT ${index}`);
-    expect(html).toContain("No trades recorded yet.");
+    // The chart states what it has, not what it has looked for. "No trades"
+    // asserted a fact about books the old component had never read; the reader
+    // only needs to know there is no history and what makes that stop.
+    // Reached only when the market has neither trades nor a sampled book — the
+    // chart falls back to live quotes before it gives up.
+    expect(html).toContain("No price recorded yet.");
     expect(html).toContain("AWAITING PRICES");
     expect(html).not.toContain("REFERENCE SAMPLE");
     expect(html).toContain("Predictions <span>13</span>");

@@ -1,0 +1,22 @@
+/* Trader identity — the one stylesheet for wallet avatars and handles.
+   Loaded once by SiteLayout, never per page: a token block repeated per app
+   root is the same bug as a component mounted per app root. */
+
+.id-trader { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.id-trader .id-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.id-trader .id-name { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.id-trader .id-name a { color: inherit; text-decoration: none; border-bottom: 1px solid transparent; }
+.id-trader .id-name a:hover, .id-trader .id-name a:focus-visible { color: var(--sh-lime); border-bottom-color: currentColor; }
+.id-trader .id-sub { display: block; font-size: 8px; color: #a6b2c4; }
+.id-trader.is-self .id-name { color: var(--sh-lime); }
+
+/* The avatar box is the host panel's (.ev-avatar, .pf-avatar …); this only
+   makes whatever sits inside it fill the frame instead of being centred in it. */
+.id-avatar { position: relative; flex-shrink: 0; overflow: hidden; }
+.id-avatar > img, .id-avatar > .id-glyph { display: block; width: 100%; height: 100%; border-radius: inherit; }
+.id-avatar > img { object-fit: cover; background: #1b2027; }
+
+/* Standalone: an avatar mounted without a host class still needs a size. */
+.id-avatar--bare { width: 28px; height: 28px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--avatar-color, #8fa2bd) 45%, #17191f); }
+
+.id-glyph { shape-rendering: crispEdges; }

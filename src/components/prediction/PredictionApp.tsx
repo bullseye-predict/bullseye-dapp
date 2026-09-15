@@ -10,6 +10,7 @@ import { useEvmWallet, useSolanaWallet } from '../session/store'
 import { useTradingMarket } from './useTradingMarket'
 import { connectEvmTradingWallet, connectSolanaTradingWallet, maximumOrderCost, type TradingWallet } from './wallets'
 import { formatUnitsExact, parseUnitsExact, priceLabel } from './amounts'
+import { TraderIdentity } from '../identity/TraderIdentity'
 import { ConfirmedPriceChart } from './ConfirmedPriceChart'
 import { HermesControls } from './HermesControls'
 import { NetworkTabs, NetworkTrading, type TradingNetwork } from './NetworkTrading'
@@ -76,7 +77,7 @@ export function VenueTerminal({ venue, apiUrl, audience, allowedMarketIds }: { a
     finally { setConnecting(false) }
   }
   const market = markets.find(value => value.id === marketId) ?? markets[0]
-  return <><div className="pt-toolbar"><label>Match market<select aria-label="Match market" value={market?.id ?? ''} onChange={event => setMarketId(event.target.value)} disabled={!markets.length}>{markets.map(value => <option key={value.id} value={value.id}>{value.outcomes.map(outcome => outcome.label).join(' / ')} · {value.status.toLowerCase()} · {value.id.slice(0, 10)}</option>)}</select></label><div>{wallet ? <span className="pt-connection">Trading as {wallet.owner.slice(0, 6)}…{wallet.owner.slice(-4)}</span> : <button disabled={connecting} onClick={() => void connect()}>{connecting ? 'Connecting wallet…' : `Connect ${venue.family === 'SOLANA' ? 'Solana' : 'EVM'} trading wallet`}</button>}</div></div>
+  return <><div className="pt-toolbar"><label>Match market<select aria-label="Match market" value={market?.id ?? ''} onChange={event => setMarketId(event.target.value)} disabled={!markets.length}>{markets.map(value => <option key={value.id} value={value.id}>{value.outcomes.map(outcome => outcome.label).join(' / ')} · {value.status.toLowerCase()} · {value.id.slice(0, 10)}</option>)}</select></label><div>{wallet ? <span className="pt-connection">Trading as <TraderIdentity address={wallet.owner} avatar={false}/></span> : <button disabled={connecting} onClick={() => void connect()}>{connecting ? 'Connecting wallet…' : `Connect ${venue.family === 'SOLANA' ? 'Solana' : 'EVM'} trading wallet`}</button>}</div></div>
     {connectionError && <p role="alert" className="pt-error">{connectionError}</p>}{marketsError && <p role="alert" className="pt-error">{marketsError}</p>}
     {market ? <MarketTerminal key={`${market.id}:${client.account}`} client={client} marketId={market.id} wallet={wallet} venue={venue}/> : <div className="pt-empty"><h2>No markets listed yet</h2><p>The prediction worker will list markets discovered on this network.</p></div>}
   </>

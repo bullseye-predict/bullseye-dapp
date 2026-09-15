@@ -1,3 +1,4 @@
+import { marketPrice, priceFraction, priceMicros } from '../../../packages/prediction-core/pricing'
 import type { ArenaMarketOutcome } from '../solz/model'
 import { PRICE_PLACEHOLDER } from '../home/venue/quoteLabels'
 
@@ -28,22 +29,22 @@ import { PRICE_PLACEHOLDER } from '../home/venue/quoteLabels'
 export function referencePrice(outcome: ArenaMarketOutcome | undefined): number | undefined {
   if (!outcome) return undefined
   const quote = outcome.marketQuote
-  if (quote && !quote.crossed && quote.mid !== undefined) return clamp(quote.mid)
   const lastTrade = outcome.priceHistory?.at(-1)?.probability
-  if (lastTrade !== undefined) return clamp(lastTrade)
-  // A crossed book is two disagreeing prices, not one; wait for it to clear.
-  if (quote && !quote.crossed) {
-    const oneSided = quote.bid ?? quote.ask
-    if (oneSided !== undefined) return clamp(oneSided)
-  }
+  const price = marketPrice(
+    quote && { bid: micros(quote.bid), ask: micros(quote.ask), mid: micros(quote.mid), crossed: quote.crossed },
+    lastTrade === undefined ? undefined : priceMicros(lastTrade),
+  )
+  if (price) return priceFraction(price.value)
   // No venue book at all: a simulated or arena market states its own
   // probability directly, and `indicative` marks the ones that are only a
-  // 50/50 order-entry seed.
-  if (!quote && !outcome.indicative && outcome.probability > 0) return clamp(outcome.probability)
+  // 50/50 order-entry seed. This stays here rather than in the shared rule —
+  // it is knowledge about this app's simulated markets, and the indexer must
+  // never learn it and persist a fabricated price.
+  if (!quote && !outcome.indicative && outcome.probability > 0) return Math.min(1, Math.max(0, outcome.probability))
   return undefined
 }
 
-const clamp = (value: number) => Math.min(1, Math.max(0, value))
+const micros = (value: number | undefined) => value === undefined ? undefined : priceMicros(value)
 
 /** Normalises a field of mutually exclusive answers so the displayed chances
  *  total 100%.

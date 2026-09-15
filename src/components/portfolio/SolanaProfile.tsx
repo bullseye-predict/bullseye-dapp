@@ -3,7 +3,7 @@ import { ArrowUpRight, Link as LinkIcon, Search } from 'lucide-react'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { PositionAccounting } from '../../../packages/prediction-core/portfolio/model'
 import { AppShell } from '../solz/AppShell'
-import { formatUnitsExact } from '../prediction/amounts'
+import { formatUnitsExact, sharePrice } from '../prediction/amounts'
 import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
 import type { SolanaPortfolioState } from './useSolanaPortfolio'
 import {
@@ -60,13 +60,9 @@ const eventHref = (identity: SolanaIdentity) =>
   identity.eventId
     ? `/events/${encodeURIComponent(identity.eventId)}${identity.questionId ? `#event-${encodeURIComponent(identity.questionId)}` : ''}`
     : undefined
-export const sharePrice = (
-  value: string | bigint | null | undefined,
-  decimals = 6,
-) =>
-  value == null
-    ? '—'
-    : `${formatUnitsExact(BigInt(value) * 100n, decimals, 4)}¢`
+/** Re-exported: the price of one share is the same thing on this page, on the
+ *  events Positions tab and in the ticket, so it is formatted in one place. */
+export { sharePrice }
 const money = (value: string | bigint | null | undefined, decimals: number) =>
   value == null ? '—' : formatUnitsExact(BigInt(value), decimals, 2)
 function Identity({
@@ -82,6 +78,9 @@ function Identity({
   quantity?: bigint
   decimals: number
 }) {
+  // The generated avatar is keyed on the QUESTION, not the event: an event's
+  // twelve questions share one eventId, so every row in a twelve-answer event
+  // drew the identical picture and none of them identified anything.
   const href = eventHref(identity),
     image =
       identity.presentation?.answer?.imageUrl ??
@@ -92,7 +91,7 @@ function Identity({
       {image ? (
         <img src={image} alt="" loading="lazy" />
       ) : (
-        <MatchAvatar id={identity.eventId ?? identity.marketId} />
+        <MatchAvatar id={identity.questionId ?? identity.marketId} />
       )}
       <div>
         {href ? (

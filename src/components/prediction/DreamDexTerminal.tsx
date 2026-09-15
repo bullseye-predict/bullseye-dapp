@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEvmWallet } from '../session/store'
+import { shortAddress } from '../identity/profile'
 import type { BinarySide } from "@somnia-chain/markets-sdk";
 import type {
   Candle,
@@ -435,7 +436,7 @@ function DreamEvent({
         </span>
         <button onClick={connect} disabled={busy}>
           {wallet
-            ? `${wallet.owner.slice(0, 6)}…${wallet.owner.slice(-4)}`
+            ? shortAddress(wallet.owner, 6, 4)
             : "Connect Somnia wallet"}
         </button>
       </div>

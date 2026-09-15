@@ -2,7 +2,7 @@ import '../../styles/home.css'
 import '../../styles/home-hero.css'
 import '../../styles/home-markets.css'
 import '../../styles/events.css'
-import { ArrowLeft, ArrowUpRight, Bookmark, Check, ChevronRight, Eye, Link as LinkIcon, X } from 'lucide-react'
+import { ArrowUpRight, Bookmark, Check, ChevronRight, Eye, Link as LinkIcon, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
@@ -14,13 +14,13 @@ import { useSolanaVenue } from '../home/useSolanaVenue'
 import { useSolanaMarketPrices } from '../home/useSolanaMarketPrices'
 import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
 import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
+import { MatchAvatar } from '../portfolio/matchIdentity'
 import { AppShell } from '../solz/AppShell'
-import { TradeContextBar } from '../home/TradeContextBar'
 import { EventStage, type EventView } from './EventStage'
 import { EventMarkets } from './EventMarkets'
 import { EventComments, EventCommunity } from './EventCommunity'
 import { EventAgentRail, EventMarketRail } from './EventRails'
-import { eventAnswerMarket, eventHref, eventMarketVolume, linkedEventMarket, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
+import { eventAnswerMarket, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
 import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predictionContracts'
 import { matchLabel } from '../home/heroMarket'
 
@@ -75,7 +75,6 @@ function EventShell({ apiUrl, eventId, predictionId, initialOutcomeId, variant, 
 function EventSkeleton() {
   return <div className="ev-loading" aria-busy="true">
     <p className="sr-only" role="status">Loading the event…</p>
-    <div className="ev-layout-bar"><span className="ev-sk ev-sk-line" style={{ width: 96 }}/></div>
     <div className="ev-layout" aria-hidden="true">
       <aside className="ev-left-rail"><div className="ev-sk-rail">
         <span className="ev-sk ev-sk-line" style={{ width: '60%' }}/>
@@ -112,7 +111,7 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   // venue, so any team-less event renders as a question.
   // A question backed by a real venue opens live, not in simulation, so its
   // book is the on-chain one rather than sample depth.
-  const [simulation, setSimulation] = useState(!solanaQuestions?.length)
+  const simulation = !solanaQuestions?.length
   const referenceSnapshot = useRef(snapshot).current
   const hasBroadcast = match.roster.length > 0
   const view: EventView = cataloguePrediction || !hasBroadcast ? 'market' : 'live'
@@ -162,16 +161,23 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   // you are already on is not navigation.
   const parentCrumb = prediction && prediction.title !== heading ? heading : null
   return <div>
-    <div className="ev-layout-bar"><a href={prediction ? eventHref(paths.variants[variant], match.id) : '/markets'}><ArrowLeft size={13}/>{prediction ? 'BACK TO MATCH' : 'ALL MARKETS'}</a></div>
     <div className="ev-mobile-actions"><button onClick={() => setMobileRail(!mobileRail)} aria-expanded={mobileRail} aria-controls="event-left-rail">{variant === 'community' ? 'Comments' : variant === 'agents' ? 'Agents & prompts' : 'Explore events'}<ChevronRight size={14}/></button><button onClick={() => setMobileTrade(!mobileTrade)} aria-expanded={mobileTrade} aria-controls="event-trade-rail">Trade {market.outcomes.length > 2 ? `${answer.label} · ${outcome.label}` : outcome.label} <span>{percent(outcome.probability)}</span></button></div>
     <div className="ev-layout" id="event-detail" aria-label="Event details">
       <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail">{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</div></aside>
-      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div><p><StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE NOW' : match.phase.toUpperCase()}</StatusDot><span>{match.map}</span><span>{compact(linkedOverview?.volume.COOLA ?? eventMarketVolume(market))} {solanaQuestions?.length ? 'fUSDC' : 'COOLA'} VOL.</span>{match.roster.length ? <span>{match.roster.length} agents · {match.round}</span> : !match.round.startsWith('LIVE') && <span>{match.round}</span>}</p></div>
-      <TradeContextBar simulation={simulation} onSimulationChange={setSimulation} liveMatchCount={snapshot.matches.filter((item) => item.phase === 'live').length}/>
+      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div></div>
+      {/* Was a "Chart simulation OFF" switch beside a count of unrelated live
+          matches — a developer toggle and a number about other events. What a
+          reader needs here is whether THIS event is live, and which one it is. */}
+      <div className="ev-event-status">
+        <MatchAvatar id={match.id}/>
+        <StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot>
+        <span>{match.map}</span>
+        {match.roster.length > 0 && <span>{match.roster.length} agents</span>}
+      </div>
       <div className="ev-center">
         <EventStage simulation={simulation} referenceMarket={linkedOverview ? undefined : referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={linkedOverview ?? market} snapshot={snapshot} outcome={linkedOverview?.outcomes.find((item) => item.id === market.id) ?? answer} onOutcome={(pick) => { const linkedMarket = linkedOverview && markets.find((item) => item.id === pick.id); if (linkedMarket) select(linkedMarket, linkedMarket.outcomes[0]!, false); else { setOutcomeId(pick.id); setSection('trade') } }} prediction={!!prediction} broadcast={hasBroadcast} collateral={solanaQuestions?.length ? 'fUSDC' : 'COOLA'}/>
         <EventMarkets simulation={simulation} collateral={solanaQuestion ? 'fUSDC' : 'COOLA'} actions={<div className="ev-market-actions"><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div>} markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/>
-        <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} priced={markets} collateral={solanaQuestions?.length ? 'fUSDC' : 'COOLA'} hideComments={variant === 'community'}/>
+        <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} priced={markets} collateral={solanaQuestions?.length ? 'fUSDC' : 'COOLA'} apiUrl={apiUrl} hideComments={variant === 'community'}/>
         <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
       </div>
       <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={solanaQuestion ? 'fUSDC' : undefined} simulation={!solanaQuestion} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>

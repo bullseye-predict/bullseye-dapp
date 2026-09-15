@@ -2,6 +2,44 @@ type Level = { price: bigint; quantity: bigint }
 const SCALE = 1_000_000n
 const cost = (quantity: bigint, price: bigint) => (quantity * price + SCALE - 1n) / SCALE
 
+/** Manifest quotes raw prices at 1e18; a market price is 1e6 micros. */
+const RAW_PRICE_DIVISOR = 10n ** 12n
+
+/** One row per PRICE, not one per resting order.
+ *
+ *  Twelve orders resting at 50c are one level at 50c, and every consumer of a
+ *  ladder assumes that — an order book keys its rows by price, so a 1:1 map
+ *  rendered twelve identical rows sharing one React key. Aggregated on the
+ *  post-scale price so two raw prices that truncate to the same micro merge
+ *  rather than collide.
+ *
+ *  This lives beside `binaryQuotes`, which consumes it, so the browser and the
+ *  server-side sampler cannot aggregate a book two different ways and then
+ *  disagree about its best bid. */
+export function bookLevels(orders: readonly { price: unknown; numBaseAtoms: unknown }[]): Level[] {
+  const totals = new Map<bigint, bigint>()
+  for (const order of orders) {
+    const price = BigInt((order.price as { toString(): string }).toString()) / RAW_PRICE_DIVISOR
+    const quantity = BigInt((order.numBaseAtoms as { toString(): string }).toString())
+    totals.set(price, (totals.get(price) ?? 0n) + quantity)
+  }
+  return [...totals].map(([price, quantity]) => ({ price, quantity }))
+}
+
+/** The consolidated quote for a market, from its two raw books. The one entry
+ *  point a caller needs when it holds the books and wants the price. */
+export function marketBookQuote(
+  yes: { asks(): unknown[]; bids(): unknown[] } | null | undefined,
+  no: { asks(): unknown[]; bids(): unknown[] } | null | undefined,
+) {
+  const side = (book: { asks(): unknown[]; bids(): unknown[] } | null | undefined) => book
+    ? { asks: bookLevels(book.asks() as never[]), bids: bookLevels(book.bids() as never[]) }
+    : { asks: [] as Level[], bids: [] as Level[] }
+  const a = side(yes), b = side(no)
+  if (!a.asks.length && !a.bids.length && !b.asks.length && !b.bids.length && !yes && !no) return undefined
+  return binaryQuotes(a.asks, a.bids, b.asks, b.bids)
+}
+
 /** IOC bounds are derived only from asks. Cap the entire order at the reviewed
  * budget even if every share executes at the worst price on its path. */
 export function marketBuyQuote(asks: readonly Level[], budget: bigint) {

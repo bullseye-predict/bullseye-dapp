@@ -11,6 +11,29 @@ import { outcomeColor } from '../home/heroMarket'
 export const isMoneyline = (market: ArenaMarket) =>
   market.presentation?.kind === 'head-to-head' && market.outcomes.length === 2
 
+/** What a chart should draw for this market.
+ *
+ *  The one place that answers it. Four different signals each half-answered it
+ *  before — `outcomes.length > 2`, `presentation.kind`, `ArenaMarketKind`, and a
+ *  `nested` prop — at four different layers, so a binary market could be drawn
+ *  as one series on one surface and two on another.
+ *
+ *  - `both-sides`: one market, two complementary books. NO is 1 - YES, so both
+ *    lines belong on one axis at once with no toggle between them.
+ *  - `all-answers`: a field of independent books, one line per answer.
+ *  - `single-answer`: one answer of a field, viewed on its own. Its NO leg is a
+ *    mirror of its YES leg, so drawing both would be one line rendered twice.
+ */
+export type ChartShape = 'both-sides' | 'all-answers' | 'single-answer'
+
+export function chartShape(market: ArenaMarket, { nested = false }: { nested?: boolean } = {}): ChartShape {
+  if (nested) return 'single-answer'
+  if (isMoneyline(market)) return 'both-sides'
+  if (market.outcomes.length > 2) return 'all-answers'
+  if (market.outcomes.length === 2) return 'both-sides'
+  return 'single-answer'
+}
+
 /** The colour a trading control should take, or undefined when the default
  *  green/red trading semantics apply. One rule, called from every list and from
  *  the trade ticket, so the three surfaces cannot disagree about a market. */

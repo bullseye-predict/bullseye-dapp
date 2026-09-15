@@ -9,6 +9,8 @@ import type { DynamicEvmWalletPort } from './DynamicSolanaSession'
 import { SomniaWalletBalances } from '../home/SomniaWalletBalances'
 import { SolanaWalletBalances } from '../home/SolanaWalletBalances'
 import { profileHref } from '../portfolio/profileRoute'
+import { TraderIdentity } from '../identity/TraderIdentity'
+import { shortAddress } from '../identity/profile'
 import { getWallets } from '@wallet-standard/app'
 import type { Wallet } from '@wallet-standard/base'
 import { compatibleSolanaWallets, connectStandardSolanaWallet, withWalletMetadataRecovery, type DirectSolanaSession } from './walletStandardSolana'
@@ -46,9 +48,9 @@ const somniaTestnet: EvmNetwork = {
 
 const DYNAMIC_LOAD_TIMEOUT_MS = 10_000
 
-function compactAddress(address: string) {
-  return address.length > 11 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address
-}
+/** The app's one truncation. The chip shows a resolved handle where there is
+ *  one — see WalletName below — and this for every wallet that has none. */
+const compactAddress = (address: string) => shortAddress(address)
 
 function WalletControl({ allowEvm, predictionApiUrl, directSession, onDirectSession, solanaAddress, solanaSignerError }: Pick<Props, 'allowEvm' | 'predictionApiUrl'> & { directSession: DirectSolanaSession | null; onDirectSession: (session: DirectSolanaSession | null) => void; solanaAddress?: string; solanaSignerError?: string }) {
   const { primaryWallet, sdkHasLoaded, setShowAuthFlow, handleLogOut, showAuthFlow, user } = useDynamicContext()
@@ -111,7 +113,7 @@ function WalletControl({ allowEvm, predictionApiUrl, directSession, onDirectSess
     }
   }
 
-  if (directSession && (solanaSignerError || !(sessionState === 'ready' && primaryWallet))) return <div className="arena-wallet-status"><SolanaWalletBalances address={directSession.port.address} apiUrl={predictionApiUrl}/><details className="arena-wallet-menu"><summary aria-label={`${directSession.name} account ${compactAddress(directSession.port.address)}`}><i /><span>{directSession.name} · {compactAddress(directSession.port.address)}</span></summary><div><button type="button" onClick={() => void navigator.clipboard.writeText(directSession.port.address).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={`https://solscan.io/account/${directSession.port.address}?cluster=devnet`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Solscan</a><button type="button" onClick={() => void directSession.disconnect().finally(() => onDirectSession(null))}><LogOut size={14} aria-hidden="true" /> Disconnect</button></div></details></div>
+  if (directSession && (solanaSignerError || !(sessionState === 'ready' && primaryWallet))) return <div className="arena-wallet-status"><SolanaWalletBalances address={directSession.port.address} apiUrl={predictionApiUrl}/><details className="arena-wallet-menu"><summary aria-label={`${directSession.name} account ${compactAddress(directSession.port.address)}`}><i /><span>{directSession.name} · <TraderIdentity address={directSession.port.address} avatar={false}/></span></summary><div><button type="button" onClick={() => void navigator.clipboard.writeText(directSession.port.address).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={`https://solscan.io/account/${directSession.port.address}?cluster=devnet`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Solscan</a><button type="button" onClick={() => void directSession.disconnect().finally(() => onDirectSession(null))}><LogOut size={14} aria-hidden="true" /> Disconnect</button></div></details></div>
   if (!sdkHasLoaded && loadTimedOut) return <div className="arena-wallet-recovery"><div><button className="arena-wallet-button" type="button" onClick={retryInitialization}><WalletCards size={15} aria-hidden="true" /> Retry login</button>{detectedWallets.slice(0, 4).map(wallet => <button className="arena-wallet-button" type="button" key={wallet.name} disabled={Boolean(directBusy)} onClick={() => void connectDirect(wallet)}><WalletCards size={15} aria-hidden="true" />{directBusy === wallet.name ? `Connecting ${wallet.name}…` : `Use ${wallet.name} directly`}</button>)}</div><span role="alert">Dynamic login was blocked. You can still connect a detected Solana wallet directly.</span>{error && <span role="alert">{error}</span>}</div>
   if (!sdkHasLoaded) return <button className="arena-wallet-button" type="button" disabled><LoaderCircle className="spin" size={15} aria-hidden="true" /> Loading login…</button>
   if (sessionState === 'needs-signature') {
@@ -127,7 +129,7 @@ function WalletControl({ allowEvm, predictionApiUrl, directSession, onDirectSess
   const evmWallet = evm ? { address: primaryWallet.address, getWalletClient: (chainId?: string) => primaryWallet.getWalletClient(chainId) } : null
   const activeAddress = evm ? primaryWallet.address : solanaAddress ?? primaryWallet.address
   const profile = profileHref(evm ? 'somnia' : 'solana', evm ? 'testnet' : 'devnet', activeAddress)
-  return <div className="arena-wallet-status">{evmWallet ? <SomniaWalletBalances compact wallet={evmWallet}/> : <SolanaWalletBalances address={activeAddress} apiUrl={predictionApiUrl}/>}<details className="arena-wallet-menu"><summary aria-label={`Dynamic account ${compactAddress(activeAddress)}`}><i /><span>Dynamic · {compactAddress(activeAddress)}</span></summary><div><a href={profile}><UserRound size={14} aria-hidden="true" /> Profile</a><button type="button" onClick={() => void navigator.clipboard.writeText(activeAddress).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={evm ? `https://shannon-explorer.somnia.network/address/${activeAddress}` : `https://solscan.io/account/${activeAddress}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> {evm ? 'Somnia explorer' : 'Solscan'}</a><button type="button" onClick={() => void handleLogOut()}><LogOut size={14} aria-hidden="true" /> Log out</button></div></details></div>
+  return <div className="arena-wallet-status">{evmWallet ? <SomniaWalletBalances compact wallet={evmWallet}/> : <SolanaWalletBalances address={activeAddress} apiUrl={predictionApiUrl}/>}<details className="arena-wallet-menu"><summary aria-label={`Dynamic account ${compactAddress(activeAddress)}`}><i /><span>Dynamic · <TraderIdentity address={activeAddress} avatar={false}/></span></summary><div><a href={profile}><UserRound size={14} aria-hidden="true" /> Profile</a><button type="button" onClick={() => void navigator.clipboard.writeText(activeAddress).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button><a href={evm ? `https://shannon-explorer.somnia.network/address/${activeAddress}` : `https://solscan.io/account/${activeAddress}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> {evm ? 'Somnia explorer' : 'Solscan'}</a><button type="button" onClick={() => void handleLogOut()}><LogOut size={14} aria-hidden="true" /> Log out</button></div></details></div>
 }
 
 function DynamicSessionContent({ children, allowEvm, predictionApiUrl }: Pick<Props, 'children' | 'allowEvm' | 'predictionApiUrl'>) {

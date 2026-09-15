@@ -359,7 +359,11 @@ function Home({
             // The books, not a guess: a reserved question stops being 50/50 the
             // moment anyone rests an order on it, and the producer knows how
             // many of its books are actually readable.
-            : `${solanaCluster.toUpperCase()} · ${solana.status.replace(/^DEVNET · /, "")}`
+            // The producer names its own cluster now, from the venue's genesis
+            // hash. This used to strip a hardcoded 'DEVNET' off the status and
+            // prepend the reader's toggle instead — a label describing which
+            // button was clicked, not which chain answered.
+            : solana.status
           : `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
         : somnia.status;
   const collateralSymbol =

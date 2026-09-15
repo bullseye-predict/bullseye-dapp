@@ -4,3 +4,10 @@
 .cc-loading-state i { display: block; width: 10px; height: 10px; border: 2px solid var(--sh-line); border-top-color: var(--sh-lime); border-radius: 50%; animation: cc-loading-spin .75s linear infinite; }
 @keyframes cc-loading-spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .cc-loading-state i { animation: none; } }
+
+/* The app's one in-place spinner: a panel that is refreshing, not a page that is
+   booting. Sized from the text it sits beside so it works in a toolbar chip and
+   in a body paragraph without a variant per caller. */
+.cc-spinner { display: inline-block; flex-shrink: 0; width: 1em; height: 1em; vertical-align: -.15em; border: 2px solid color-mix(in srgb, currentColor 28%, transparent); border-top-color: currentColor; border-radius: 50%; animation: cc-loading-spin .75s linear infinite; }
+.cc-spinner--sm { width: .8em; height: .8em; border-width: 1.5px; }
+@media (prefers-reduced-motion: reduce) { .cc-spinner { animation-duration: 2.4s; } }

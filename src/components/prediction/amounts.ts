@@ -15,3 +15,8 @@ export function formatUnitsExact(amount: bigint, decimals: number, maximumFracti
   return `${negative ? '−' : ''}${value / scale}${fraction ? `.${fraction}` : ''}`
 }
 export const priceLabel = (price: bigint | null | undefined): string => price == null ? '—' : `${formatUnitsExact(price, 4, 2)}¢`
+/** A share price, in the collateral's own atoms, printed in cents. One outcome
+ *  share pays one unit of collateral, so a price is a fraction of that unit and
+ *  reads as 0–100¢ on every surface that quotes one. */
+export const sharePrice = (value: string | bigint | null | undefined, decimals = 6): string =>
+  value == null ? '—' : `${formatUnitsExact(BigInt(value) * 100n, decimals, 4)}¢`

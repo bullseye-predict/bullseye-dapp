@@ -82,6 +82,19 @@ export function decodeBookActivity(logs: readonly string[], manifestProgram: str
 export const sortActivity = (rows: VenueActivityRow[]) =>
   rows.sort((a, b) => a.block === b.block ? b.at - a.at || b.id.localeCompare(a.id) : a.block > b.block ? -1 : 1)
 
+/** Newest first, and each receipt once.
+ *
+ *  Every row a book produces carries an id derived from its signature and its
+ *  position inside that transaction, so the same event decoded twice is the same
+ *  id twice. That happens whenever a pass re-reads a page the cache already
+ *  holds, and whenever a transaction touches both outcome books. The feed is the
+ *  wrong place to notice it — a duplicate row is also a duplicate React key —
+ *  so every path out of this reader goes through here. */
+export function mergeActivity(rows: VenueActivityRow[]) {
+  const seen = new Set<string>()
+  return sortActivity(rows.filter(row => !seen.has(row.id) && seen.add(row.id)))
+}
+
 type Receipt = NonNullable<Awaited<ReturnType<Connection['getTransaction']>>>
 
 /** Some deployed Manifest builds omit event logs. A successful instruction
@@ -180,7 +193,7 @@ export class ManifestActivityReader {
         }
         let capped = false
         for (const entry of page) {
-          if (signal?.aborted) return { rows: sortActivity(rows), partial }
+          if (signal?.aborted) return { rows: mergeActivity(rows), partial }
           if (entry.err) continue
           const key = `${book.address}:${entry.signature}`
           let parsed = this.decoded.get(key)
@@ -210,12 +223,12 @@ export class ManifestActivityReader {
       } catch { partial = true }
     }
     while (this.decoded.size > this.cacheLimit) this.decoded.delete(this.decoded.keys().next().value as string)
-    return { rows: sortActivity(rows.filter(row => Number.isSafeInteger(row.at))), partial }
+    return { rows: mergeActivity(rows.filter(row => Number.isSafeInteger(row.at))), partial }
   }
 
   /** Cached rows only, so a re-render between polls keeps its list. */
   cached(books: readonly ActivityBook[]): VenueActivityRow[] {
     const wanted = new Set(books.map(book => book.address))
-    return sortActivity([...this.decoded].flatMap(([key, rows]) => wanted.has(key.split(':')[0]!) ? rows : []))
+    return mergeActivity([...this.decoded].flatMap(([key, rows]) => wanted.has(key.split(':')[0]!) ? rows : []))
   }
 }

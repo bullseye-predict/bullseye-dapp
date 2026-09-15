@@ -582,6 +582,49 @@
 .ch-order-book .is-bid td > span { background: #1c5140; color: #a0f0d1; }
 .ch-order-book .ch-book-spread td { border-block: 1px solid #34414d; color: #8fa8c0; font-size: 9px; padding-block: 5px; background: #1d252d; }
 .ch-topic-graph { height: 310px; }
+/* The market chart sizes itself. The fixed 310px panel was built for a chart
+   that was only a plot; this one carries a header and, on a field, a legend —
+   so a fixed height cropped the plot off the bottom of its own panel. */
+/* The old chart carried its own `.ch-chart` padding and panel colour; this one
+   insets itself with --pc-gutter, so the panel supplies only the surface. */
+.ch-topic-graph:has(.probability-chart) { height: auto; min-height: 310px; background: #181e24; }
+/* --pc-gutter is the chart's own inset. The header, legend and plot all share
+   it so the three read as one column rather than three boxes that happen to be
+   stacked. */
+.probability-chart { --pc-gutter: 16px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: 100%; background: transparent; border-bottom: 0; }
+/* No padding on the canvas: canvasWidth is measured from getBoundingClientRect,
+   which is the BORDER box, while the svg at width:100% fills the CONTENT box —
+   padding here would make the viewBox wider than the element and squash every
+   plotted x. The plot's own left/right gutters, in viewBox units, do this job. */
+.probability-chart .market-chart-canvas { height: clamp(238px, 32vh, 340px); background: transparent; }
+.probability-chart .market-chart-header { min-height: 0; padding: 14px var(--pc-gutter) 12px; border-bottom: 1px solid var(--arena-border); }
+.probability-chart .market-chart-header > div:first-child { gap: 2px; }
+.probability-chart .pc-headline { font: 700 19px/1.15 var(--sh-heading); color: var(--sh-text); }
+.probability-chart .market-chart-header small { font-size: 11px; }
+/* ONE line that scrolls, never a wrapping block. Wrapping looks tidy at twelve
+   answers and pushes the plot off the page at thirty; a scroller costs the same
+   height whatever the field size. */
+.probability-chart .market-chart-legend {
+  min-height: 0; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+  gap: 4px; padding: 6px var(--pc-gutter); background: transparent;
+  scrollbar-width: thin; scrollbar-color: var(--arena-border-strong) transparent;
+}
+.probability-chart .market-chart-legend::-webkit-scrollbar { height: 4px; }
+.probability-chart .market-chart-legend::-webkit-scrollbar-thumb { border-radius: 2px; background: var(--arena-border-strong); }
+.probability-chart .market-chart-legend button { min-height: 24px; flex: 0 0 auto; gap: 5px; padding: 0 6px; border-color: transparent; font-size: 8px; }
+.probability-chart .market-chart-legend button b { font-size: 8px; }
+.probability-chart .market-chart-legend button.selected { border-color: currentColor; background: color-mix(in srgb, currentColor 12%, transparent); }
+.probability-chart .market-chart-legend button i { width: 8px; height: 2px; border-radius: 1px; }
+.probability-chart .market-chart-legend button.is-hidden { opacity: .35; }
+.probability-chart .market-chart-legend button.is-hidden i { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+/* No picture of a chart to say there is no chart. `.market-chart-canvas svg`
+   is width:100%/height:100%, which inflated a 21px glyph to fill the panel. */
+.probability-chart .market-chart-empty { gap: 5px; padding: 24px; }
+/* Top-right: dropping the end labels freed that corner, and on the left the
+   badge sat on top of the 100¢ axis label. */
+.probability-chart .market-chart-domain { left: auto; right: 10px; letter-spacing: .08em; }
+.probability-chart .market-chart-tooltip { color: var(--arena-text); }
+@media (max-width: 720px) { .probability-chart { --pc-gutter: 10px; } }
 /* .ch-chart-empty is min-height 340px, taller than this fixed panel, so a market
    with no prices spilled its message over the card below. Grow only in that
    case; a panel holding an actual chart keeps its fixed height. The :has()

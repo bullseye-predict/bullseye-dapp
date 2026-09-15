@@ -1,6 +1,13 @@
 /* Event detail reuses the homepage's Marathon tokens and interaction surfaces. */
 .ev-app { --ev-sticky-top: 96px; --ev-positive: #8bdfa9; --ev-negative: #ff859b; color-scheme: dark; }
 .ev-main { padding-block: 0 52px; }
+/* Replaces the simulation switch and the count of unrelated live matches: this
+   event's own identity and state, which is what a reader standing on this page
+   actually needs. */
+.ev-event-status { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 10px; color: #a1a2ac; }
+.ev-event-status img, .ev-event-status svg { width: 22px; height: 22px; flex: 0 0 auto; border-radius: 4px; }
+.ev-event-status > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .ev-event-status > span:last-child { display: none; } }
 .ev-layout-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 65px; margin-bottom: 13px; border-bottom: 1px solid #2a2b31; }
 .ev-layout-bar > a { display: inline-flex; align-items: center; gap: 8px; font-size: 9px; color: #b2b4be; }
 .ev-layout-bar > a:hover { color: var(--sh-lime); }
@@ -212,6 +219,15 @@
 .ev-holders-status { min-height: 1em; margin: 0 0 6px !important; color: #a8b3c5; font-size: 9px; }
 .ev-holder-name { flex: 1; font-size: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ev-holder-name small { display: block; font-size: 8px; color: #a6b2c4; margin-top: 4px; }
+/* The holders board, the tape and Positions all render one <TraderIdentity>
+   where each used to hand-truncate an address. The name column keeps the
+   metrics of .ev-holder-name so a resolved handle and a bare address sit on the
+   same line at every width. */
+.ev-holder-identity { flex: 1; min-width: 0; }
+.ev-holder-identity .id-name { font-size: 10px; font-variant-numeric: tabular-nums; }
+.ev-holder-row > strong small { display: block; margin-top: 4px; font-size: 8px; font-weight: 400; color: #a6b2c4; }
+.ev-activity-feed p .id-trader { display: inline-flex; vertical-align: baseline; }
+.ev-activity-feed p .id-name { font-weight: 500; color: #edf1f6; }
 .ev-holder-row > strong { font-size: 12px; font-weight: 500; white-space: nowrap; }
 .ev-positive { color: var(--ev-positive); }
 .ev-negative { color: var(--ev-negative); }
@@ -328,6 +344,10 @@
 .ev-sk-stage { width: 100%; aspect-ratio: 16 / 9; max-height: 430px; border-radius: 5px; }
 .ev-sk-rail, .ev-sk-ticket { display: grid; gap: 11px; padding: 14px; border: 1px solid #2a2b31; border-radius: 5px; }
 .ev-sk-row { height: 42px; }
+/* A holder/activity row's avatar, so a loading list keeps the shape of the
+   loaded one instead of collapsing to a sentence. */
+.ev-sk-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
+.ev-activity-feed .ev-sk-line, .ev-holder-row .ev-sk-line { height: 11px; }
 .ev-sk-heading { display: grid; justify-items: start; padding: 4px 0 20px; }
 .ev-sk-markets { display: grid; gap: 11px; margin-top: 22px; }
 .ev-sk-market { height: 74px; }
@@ -351,7 +371,7 @@
   .ev-holders-grid { gap: 14px; }
   .ev-holder-row { gap: 8px; }
   .ev-holder-row .ev-avatar { width: 27px; height: 27px; font-size: 9px; }
-  .ev-holder-name { font-size: 9px; }
+  .ev-holder-name, .ev-holder-identity .id-name { font-size: 9px; }
   .ev-holder-row > strong { font-size: 10px; }
   .ev-book-outcome > span { font-size: 7px; }
   .ev-related-teams strong { font-size: 17px; }
@@ -438,7 +458,7 @@
   .ev-table-toolbar > div { margin-left: auto; }
   .ev-holders-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .ev-holder-row .ev-avatar { width: 34px; height: 34px; }
-  .ev-holder-name, .ev-holder-row > strong { font-size: 12px; }
+  .ev-holder-name, .ev-holder-identity .id-name, .ev-holder-row > strong { font-size: 12px; }
   .ev-holder-column h3 { font-size: 14px; }
   .ev-holder-column h3 > span { font-size: 8px; }
   .ev-activity-toolbar { flex-wrap: wrap; gap: 6px; }

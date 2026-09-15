@@ -44,6 +44,23 @@ export interface Candle {
   collateralVolume: bigint
   trades: number
 }
+/** One sampled market price, YES-denominated micros.
+ *
+ *  Separate from `Candle` on purpose: a candle describes trades in a bucket,
+ *  and cannot say "bid 40, ask 60, and this number is a wide-spread midpoint".
+ *  Overloading the candle shape to carry that would make `Candle[]` lie about
+ *  what it is. */
+export interface PricePoint {
+  t: number
+  p: bigint
+  basis: string
+  bid?: bigint
+  ask?: bigint
+}
+export interface PriceSeries {
+  fidelityMs: number
+  points: PricePoint[]
+}
 export interface MarketSnapshot {
   market: Market
   book: OrderBook

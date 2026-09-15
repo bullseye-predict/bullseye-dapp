@@ -2,6 +2,7 @@ import type {
   Candle,
   MarketSnapshot,
   PredictionPublicConfig,
+  PriceSeries,
 } from "../prediction-core/market-data";
 import type {
   MarketExecution,
@@ -62,6 +63,20 @@ export class PredictionTradingClient extends HttpPredictionVenue {
   ): Promise<Candle[]> {
     return this.request(
       `/markets/${encodeURIComponent(marketId)}/candles?outcomeId=${outcomeId}&intervalMs=${intervalMs}`,
+    );
+  }
+  /** The sampled price series: what the market was worth over time, including
+   *  between trades. `getCandles` answers a different question — what traded —
+   *  and on a thin book the two look nothing alike. */
+  getPrices(
+    marketId: string,
+    options: { from?: number; to?: number; fidelityMs?: number; limit?: number } = {},
+  ): Promise<PriceSeries> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(options))
+      if (value !== undefined) query.set(key, String(value));
+    return this.request(
+      `/markets/${encodeURIComponent(marketId)}/prices?${query.toString()}`,
     );
   }
   quoteMarketOrder(

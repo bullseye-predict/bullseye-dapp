@@ -3,6 +3,7 @@ import { Buffer } from 'buffer'
 import { FillLog } from '@bonasa-tech/manifest-sdk'
 import type { Connection } from '@solana/web3.js'
 import type { Candle } from '../../../prediction-core/market-data'
+import { PRICE_SCALE } from '../../../prediction-core/types'
 import type { ManifestBinding } from './wire'
 
 export function manifestCandles(logs: string[], binding: ManifestBinding, timestamp: number): Candle[] {
@@ -25,6 +26,43 @@ export function manifestCandles(logs: string[], binding: ManifestBinding, timest
   if (logs.some(line => /log truncated/i.test(line))) throw new Error('Trade history contains truncated logs')
   return result
 }
+/**
+ * One market's trades, denominated in YES, from a book that may be either side.
+ *
+ * A prediction market has one price. The YES book and the NO book are two
+ * venues for trading it, and a NO fill at 30c *is* the statement that YES is at
+ * 70c — so a chart that plots only the YES book's fills is throwing away half
+ * of what the market said. That is what shipped: `manifestCandles` filters to
+ * one book by `fill.market === binding.venue`, and the caller read the two
+ * sides into two separate series.
+ *
+ * High and low swap under complement, because 1 - high is the low.
+ */
+export function yesDenominated(candles: readonly Candle[], outcome: 0 | 1): Candle[] {
+  if (outcome === 0) return [...candles]
+  const flip = (price: bigint) => PRICE_SCALE - price
+  return candles.map(candle => ({
+    ...candle,
+    open: flip(candle.open),
+    high: flip(candle.low),
+    low: flip(candle.high),
+    close: flip(candle.close),
+  }))
+}
+
+/** Both books' trades as one chronological series.
+ *
+ *  Ties are left in argument order, which puts the YES book first. Two fills
+ *  sharing a block time are genuinely simultaneous — blockTime has one-second
+ *  granularity against ~400ms slots — so there is no true order to recover and
+ *  a stable sort is the honest answer. */
+export function mergeCandles(...series: readonly (readonly Candle[])[]): Candle[] {
+  return series
+    .flatMap((rows, source) => rows.map(candle => ({ candle, source })))
+    .sort((a, b) => a.candle.timestamp - b.candle.timestamp || a.source - b.source)
+    .map(row => row.candle)
+}
+
 /**
  * Paging, caching, non-throwing candle reader for the market pages.
  *

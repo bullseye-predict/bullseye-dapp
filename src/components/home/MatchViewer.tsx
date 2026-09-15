@@ -23,7 +23,9 @@ import type {
 import type { PredictionAnswer } from "../solz/predictionContracts";
 import { Tabs, TabPanel, formatClock } from "../solz/ui";
 import { AgentPortrait, compact, TeamMark } from "./HomePrimitives";
-import { HighlightChart } from "./HighlightChart";
+import { ProbabilityChart } from "../markets/ProbabilityChart";
+import { chartHeadline, chartSeries } from "../markets/chartSeries";
+import { emptyChart } from "../markets/chartEmpty";
 import { PredictionOptions } from "./PredictionOptions";
 import { HeroActivity } from "./HeroActivity";
 import { matchIdLabel, teamLabel, type HighlightView } from "./heroMarket";
@@ -376,6 +378,12 @@ export function MatchViewer({
   );
   const boardOutcome =
     board.outcomes.find((item) => item.id === market.id) ?? board.outcomes[0];
+  // matchWinnerBoard folds each match-winner market into one synthetic market,
+  // taking that market's YES leg as its line — so this is a field of answers,
+  // and `chartShape` reads it as one.
+  const boardChart = chartSeries(board, snapshot, {
+    selectedId: boardOutcome?.id,
+  });
   const intermission =
     match.phase === "countdown" ||
     broadcastStatus?.state === "preview" ||
@@ -672,17 +680,17 @@ export function MatchViewer({
             active={view === "market"}
           >
             {boardOutcome ? (
-              <HighlightChart
-                sourceLabel={marketSourceLabel}
-                collateral={collateralSymbol}
-                simulation={simulation}
+              <ProbabilityChart
                 key={board.id}
-                market={board}
-                snapshot={snapshot}
-                outcome={boardOutcome}
-                onOutcome={(item) => {
+                title={board.title}
+                series={boardChart.series}
+                unit={boardChart.unit}
+                headline={chartHeadline(board, { selectedId: boardOutcome.id, collateral: collateralSymbol })}
+                source={marketSourceLabel}
+                empty={emptyChart(boardChart.series)}
+                onSelect={(id: string) => {
                   const next = winnerMarkets.find(
-                    (candidate) => candidate.id === item.id,
+                    (candidate) => candidate.id === id,
                   );
                   const yes =
                     next?.outcomes.find(
@@ -690,7 +698,6 @@ export function MatchViewer({
                     ) ?? next?.outcomes[0];
                   if (next && yes) onSelect(next, yes);
                 }}
-                onMarket={() => {}}
               />
             ) : (
               <div className="ch-market-empty ch-panel-empty" role="status">

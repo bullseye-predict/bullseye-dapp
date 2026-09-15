@@ -6,7 +6,11 @@ import { sampleOrderBook } from '../solz/marketDepth'
 import { baseOutcomeId, isNoContract, predictionContract, type PredictionAnswer } from '../solz/predictionContracts'
 import { Tabs, TabPanel } from '../solz/ui'
 import { amountLabel } from './HomePrimitives'
-import { HighlightChart } from './HighlightChart'
+import { TraderIdentity } from '../identity/TraderIdentity'
+import { shortAddress } from '../identity/profile'
+import { ProbabilityChart } from '../markets/ProbabilityChart'
+import { chartHeadline, chartSeries } from '../markets/chartSeries'
+import { emptyChart } from '../markets/chartEmpty'
 import { LiveOrderBook, OrderBookTable } from './LiveOrderBook'
 import { bookTarget, pickBookLevel, useBookPick } from './venue/bookPick'
 import { useVenueActivity } from './venue/useVenueActivity'
@@ -22,7 +26,11 @@ type Props = {
   active?: boolean
   onSelect: (outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void
 }
-export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, referenceMarket, simulation, nested = false, active = true, onSelect, collateral = 'COOLA' }: Props) {
+// `referenceMarket` stays in Props but is deliberately not destructured: it was
+// only ever forwarded to the old chart, which declared it and never read it. The
+// whole HomeApp -> MatchViewer -> PredictionOptions -> here chain is dead, and
+// removing it is its own change rather than a rider on this one.
+export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, simulation, nested = false, active = true, onSelect, collateral = 'COOLA' }: Props) {
   const [tab, setTab] = useState<'book' | 'graph' | 'activity' | 'info'>('book')
   // Every venue branch in this panel goes through one hook. The panel never
   // imports a chain adapter and never reads a chain-specific field.
@@ -47,8 +55,9 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
   // Side as well as price: a crossed book quotes the same price on both sides,
   // and matching on price alone marked the bid as well as the ask.
   const picked = pick?.target === target ? `${pick.side}:${pick.price}` : undefined
+  const graph = chartSeries(market, snapshot, { selectedId: contract.id, nested })
   return <div className="ch-topic-detail">
-    <div className="ch-topic-tabs"><Tabs idPrefix={prefix} label={`${nested ? outcome.label : market.title} details`} value={tab} onChange={(value) => { setTab(value as typeof tab); onSelect(outcome, answer) }} tabs={[{ id: 'book', label: 'Order Book' }, { id: 'graph', label: 'Graph' }, { id: 'activity', label: 'Activity' }, { id: 'info', label: 'Info' }]}/><div className="ch-topic-tab-tools">{simulation && <span>SAMPLE DATA</span>}{!simulation && binding && tab === 'book' && <button type="button" className="ch-book-refresh" aria-label={`Refresh ${contract.label} order book`} disabled={view.refreshing} onClick={view.refresh}><RefreshCw size={14}/></button>}</div></div>
+    <div className="ch-topic-tabs"><Tabs idPrefix={prefix} label={`${nested ? outcome.label : market.title} details`} value={tab} onChange={(value) => { setTab(value as typeof tab); onSelect(outcome, answer) }} tabs={[{ id: 'book', label: 'Order Book' }, { id: 'graph', label: 'Graph' }, { id: 'activity', label: 'Activity' }, { id: 'info', label: 'Info' }]}/><div className="ch-topic-tab-tools">{simulation && <span>SAMPLE DATA</span>}{!simulation && binding && (tab === 'book' || tab === 'graph') && <button type="button" className="ch-book-refresh" aria-label={`Refresh ${contract.label} ${tab === 'graph' ? 'price history' : 'order book'}`} disabled={view.refreshing} onClick={view.refresh}><RefreshCw size={14}/></button>}</div></div>
     <TabPanel id="book" idPrefix={prefix} active={tab === 'book'}>
 
       {!book ? !simulation && binding ? tab === 'book' ? <LiveOrderBook market={market} view={view} isNo={isNo} label={contract.label} picked={picked} onPick={(level) => { onSelect(outcome, answer); pickBookLevel({ ...level, target, outcomeId, no: isNo }) }}/> : null : <div className="ch-empty-book" role="status"><OrderBookTable asks={[]} bids={[]} decimals={6} label={contract.label}/><div className="ch-market-empty"><strong>No market opened for this match.</strong><span>Open this question from the trade ticket to start a separate {collateral} market for this match.</span></div></div> :
@@ -58,7 +67,19 @@ export function PredictionDetail({ market, outcome, answer = 'yes', snapshot, re
         {book.bids.map((row, index) => <tr className="is-bid" key={row.price} style={{ '--depth': `${row.depth}%` } as CSSProperties}><td>{index === 0 && <span>Bids</span>}</td><td>{Math.round(row.price * 100)}¢</td><td>{amountLabel(row.shares)}</td><td>{amountLabel(row.total)} {collateral}</td></tr>)}
       </tbody></table>}
     </TabPanel>
-    <TabPanel id="graph" idPrefix={prefix} active={tab === 'graph'} className="ch-topic-graph"><HighlightChart collateral={collateral} market={market} outcome={contract} snapshot={snapshot} referenceMarket={referenceMarket} simulation={simulation} focusOnly historyPicker={false} onOutcome={(item) => onSelect(item, answer)} onMarket={() => {}}/></TabPanel>
+    {/* Both sides of a binary market, every answer of a field. This used to
+        pass `focusOnly`, which drew exactly one line — so a head-to-head showed
+        one team and eleven of twelve answers in an event showed nothing. The
+        shape is decided by `chartShape`, once, not by this component. */}
+    <TabPanel id="graph" idPrefix={prefix} active={tab === 'graph'} className="ch-topic-graph"><ProbabilityChart
+      title={market.title}
+      series={graph.series}
+      unit={graph.unit}
+      headline={chartHeadline(market, { selectedId: contract.id, nested, collateral })}
+      legend={graph.shape === 'all-answers'}
+      onSelect={(id) => { const item = market.outcomes.find(entry => entry.id === id); if (item) onSelect(item, answer) }}
+      empty={emptyChart(graph.series)}
+    /></TabPanel>
     <TabPanel id="activity" idPrefix={prefix} active={tab === 'activity'} className="ch-topic-activity">
       {/* A missing binding is not proof the market is unopened: it is also the
           state while venue configuration is still loading for a question that
@@ -85,12 +106,14 @@ function OnchainActivity({ market, active }: { market: ArenaMarket; active: bool
   ].reverse()
   // Derived from the venue so a Solana signature never links to a Somnia explorer.
   const explorerFor = (hash: string) => explorerTxUrl(venueBinding(market)?.explorer, hash)
-  const short = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`
+  // Transaction signatures only. A wallet on one of these rows is rendered by
+  // TraderIdentity, which is the app's one answer to "what is this address called".
+  const short = (value: string) => shortAddress(value, 6, 4)
   return <div className="ch-onchain-activity">
     {attempts.length > 0 && <details open className="ch-setup-activity"><summary>Your recent transaction steps</summary><ol>{attempts.map(record => <li key={record.id}><div><strong>{record.title}</strong><span>{record.detail}</span></div><div><time>{new Date(record.at).toLocaleTimeString()}</time>{record.href && <a href={record.href} target="_blank" rel="noreferrer">View transaction <ExternalLink size={12}/></a>}</div></li>)}</ol></details>}
     <header><div><strong>Market activity</strong><span>Trades, placements and cancels · newest first</span></div></header>
-    {loading ? <p role="status">Loading market activity…</p> : error ? <p role="alert">{error}</p> : !rows.length ? <p>No indexed trades or orders yet.</p> : null}
-    <ol>{rows.slice(0, 40).map(row => <li key={row.id}><div><strong>{row.label}</strong><span>{row.detail}{row.owner ? ` · ${short(row.owner)}` : ''}</span></div><div><time dateTime={new Date(row.at).toISOString()}>{new Date(row.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time><a href={explorerFor(row.hash)} target="_blank" rel="noreferrer" aria-label={`View ${row.label} transaction`}>{short(row.hash)} <ArrowUpRight size={12}/></a></div></li>)}</ol>
+    {loading && !rows.length ? <p className="sr-only" role="status">Loading market activity…</p> : error ? <p role="alert">{error}</p> : !rows.length ? <p>No indexed trades or orders yet.</p> : null}
+    <ol aria-busy={loading}>{loading && !rows.length ? [0, 1, 2].map(row => <li key={row} aria-hidden="true"><div><span className="ev-sk ev-sk-line" style={{ width: `${58 - row * 12}%` }}/></div><div><span className="ev-sk ev-sk-line" style={{ width: 54 }}/></div></li>) : rows.slice(0, 40).map(row => <li key={row.id}><div><strong>{row.label}</strong><span>{row.detail}{row.owner ? <> · <TraderIdentity address={row.owner} avatar={false}/></> : ''}</span></div><div><time dateTime={new Date(row.at).toISOString()}>{new Date(row.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time><a href={explorerFor(row.hash)} target="_blank" rel="noreferrer" aria-label={`View ${row.label} transaction`}>{short(row.hash)} <ArrowUpRight size={12}/></a></div></li>)}</ol>
     {/* Solana bindings carry no setup receipts, so an unconditional drawer
         advertised an empty list on every question on that venue. */}
     {setup.length > 0 && <details className="ch-setup-activity"><summary>Market setup <span>{setup.length} receipts · newest first</span></summary><ol>{setup.map(transaction => <li key={transaction.hash}><span>{transaction.label}</span><a href={explorerFor(transaction.hash)} target="_blank" rel="noreferrer">{short(transaction.hash)} <ExternalLink size={12}/></a></li>)}</ol></details>}

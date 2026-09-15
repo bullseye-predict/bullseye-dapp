@@ -1,3 +1,5 @@
+import { solanaCluster } from '../../../packages/adapters/solana/cluster'
+
 export type ProfileChain = 'solana' | 'somnia'
 export type ProfileNetwork = 'devnet' | 'testnet' | 'mainnet'
 
@@ -11,14 +13,10 @@ export function profileHref(chain: ProfileChain, network: ProfileNetwork, addres
   return `/${chain}/${network}/${encodeURIComponent(address)}`
 }
 
-/** Solana identifies a cluster by its genesis hash; the route needs the name. */
-const SOLANA_GENESIS: Record<string, ProfileNetwork> = {
-  '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d': 'mainnet',
-  '4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY': 'testnet',
-  EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG: 'devnet',
-}
-
-export const solanaNetwork = (genesisHash: string | undefined): ProfileNetwork | undefined => genesisHash ? SOLANA_GENESIS[genesisHash] : undefined
+/** Solana identifies a cluster by its genesis hash; the route needs the name.
+ *  One table, in packages/adapters/solana/cluster.ts — the second copy that used
+ *  to live here disagreed with the explorer's on testnet. */
+export const solanaNetwork = (genesisHash: string | undefined): ProfileNetwork | undefined => solanaCluster(genesisHash)
 
 /** Base58 is case sensitive and EVM hex is not, so the comparison has to know
  *  which chain it is on: lowercasing a Solana address can equate two distinct

@@ -1,3 +1,4 @@
+import { solanaClusterLabel } from '../../../packages/adapters/solana/cluster'
 import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import { useEffect, useMemo, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
@@ -81,9 +82,13 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
   // snapshot lookup can never resolve them.
   const identityColor = (item: (typeof displayedOutcomes)[number], index: number) =>
     'color' in item && typeof item.color === 'string' ? item.color : teams[index]?.color
+  // The cluster the venue is actually bound to, not a literal. These two strings
+  // are the badge and the chart's source label, so hardcoding 'DEVNET' made a
+  // mainnet deployment announce itself as devnet on every question on the page.
+  const cluster = solanaClusterLabel(venue?.chainId)
   return {
     match: {
-      id: question.eventId, displayMatchId: 'SOLANA DEVNET', kind: 'highlight', mode: headToHead ? 'HEAD-TO-HEAD' : 'PREDICTION', map: 'MANIFEST DEVNET',
+      id: question.eventId, displayMatchId: `SOLANA ${cluster}`, kind: 'highlight', mode: headToHead ? 'HEAD-TO-HEAD' : 'PREDICTION', map: `MANIFEST ${cluster}`,
       // A reserved market has a real settlement cutoff, but it is not a
       // running match or a five-minute break. Treat its clock as open-ended
       // so a future scheduled start is never rendered as a multi-day timer.

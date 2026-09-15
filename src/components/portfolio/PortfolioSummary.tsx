@@ -1,6 +1,9 @@
 import { Copy, RefreshCw, WalletCards } from 'lucide-react'
 import { formatUnitsExact } from '../prediction/amounts'
 import { matchGlyph } from './matchIdentity'
+import { TraderAvatar } from '../identity/TraderIdentity'
+import { useTraderProfile } from '../identity/store'
+import { shortAddress, traderName } from '../identity/profile'
 
 /** Marked value of the positions in the list, or the reason it is withheld. */
 export type MarkedValue = { total?: bigint; unpriced: number; priced: number; mixed?: boolean }
@@ -40,6 +43,10 @@ const count = (ready: boolean, value: number) => ready ? String(value) : '—'
  */
 export function PortfolioSummary({ compact = false, publicView = false, valuationLabel, owner, meta, value, claimable, orders, collateral, decimals, symbol, ready, copyStatus, onCopy, onRefresh, refreshing }: Props) {
   const hue = matchGlyph(owner ?? 'unconnected').hue
+  // The same directory the holders board and the tape read, so a trader is
+  // called one thing across the app rather than being an address here and a
+  // handle three panels away.
+  const { profile } = useTraderProfile(owner)
   const marked = !ready ? '—' : value.total === undefined ? '—' : formatUnitsExact(value.total, decimals, 2)
   // One unpriced book withholds the whole total: an outcome no one is bidding on
   // is not worth zero, and summing only the priced rows would under-report it.
@@ -48,10 +55,12 @@ export function PortfolioSummary({ compact = false, publicView = false, valuatio
     : `${value.unpriced} of ${value.unpriced + value.priced} positions have ${valuationLabel ?? 'no bid'}`
   return <section className={`pf-card pf-profile ${publicView ? 'is-public' : ''}`} aria-label="Account summary">
     <div className="pf-identity">
-      <div className="pf-avatar" style={{ background: `hsl(${hue} 30% 16%)`, color: `hsl(${hue} 70% 72%)` }}><WalletCards size={21}/></div>
+      {owner
+        ? <TraderAvatar address={owner} className="pf-avatar"/>
+        : <div className="pf-avatar" style={{ background: `hsl(${hue} 30% 16%)`, color: `hsl(${hue} 70% 72%)` }}><WalletCards size={21}/></div>}
       <div>
-        <h2>{owner ? `${owner.slice(0, 4)}…${owner.slice(-4)}` : 'Not connected'}</h2>
-        <p>{meta}</p>
+        <h2 title={owner}>{owner ? traderName(owner, profile) : 'Not connected'}</h2>
+        <p>{profile?.username && owner ? `${shortAddress(owner)} · ${meta}` : meta}</p>
         <span role="status">{copyStatus}</span>
       </div>
       {owner && <button className="pf-icon" onClick={onCopy} aria-label="Copy address" title="Copy address"><Copy size={14}/></button>}

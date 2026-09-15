@@ -13,6 +13,8 @@ import {
 import { isSolanaWalletAccount, signTransaction } from '@dynamic-labs-sdk/solana'
 import type { SolanaWalletAccount } from '@dynamic-labs-sdk/solana'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TraderIdentity } from '../identity/TraderIdentity'
+import { shortAddress } from '../identity/profile'
 import { base58 } from '@scure/base'
 import { Check, Copy, ExternalLink, LoaderCircle, LogOut, WalletCards } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -47,9 +49,9 @@ type Props = {
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } })
 
-function compactAddress(address: string) {
-  return address.length > 11 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address
-}
+/** The app's one truncation. The chip shows a resolved handle where there is
+ *  one — see WalletName below — and this for every wallet that has none. */
+const compactAddress = (address: string) => shortAddress(address)
 
 function decodeSignature(value: string) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
@@ -164,7 +166,7 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
     <div className="arena-wallet-status">
       <SolanaWalletBalances address={selectedWallet.address} apiUrl={predictionApiUrl}/>
       <details className="arena-wallet-menu">
-        <summary aria-label={`${selectedProviderName} account ${compactAddress(selectedWallet.address)}`}><i /><span>{selectedProviderName} · {compactAddress(selectedWallet.address)}</span></summary>
+        <summary aria-label={`${selectedProviderName} account ${compactAddress(selectedWallet.address)}`}><i /><span>{selectedProviderName} · <TraderIdentity address={selectedWallet.address} avatar={false}/></span></summary>
         <div>
           {walletChoices.length > 1 && <div className="arena-wallet-account-switcher" role="group" aria-label="Transaction wallet">
             <small>TRANSACTION WALLET</small>
@@ -175,7 +177,7 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
               const active = account.address === selectedWallet.address
               return <button type="button" key={account.address} aria-pressed={active} onClick={() => selectWallet(account)}>
                 {active ? <Check size={14} aria-hidden="true" /> : <WalletCards size={14} aria-hidden="true" />}
-                <span><b>{name}</b><small>{compactAddress(account.address)}</small></span>
+                <span><b>{name}</b><small><TraderIdentity address={account.address} avatar={false}/></small></span>
               </button>
             })}
             <p>Orders, positions, and payouts use the selected wallet.</p>

@@ -1,7 +1,9 @@
+import { marketPrice, priceFraction, priceMicros } from '../../../packages/prediction-core/pricing'
+import { solanaClusterLabel } from '../../../packages/adapters/solana/cluster'
 import { binaryQuotes } from '../../../packages/adapters/solana/manifest/quotes'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PublicKey } from '@solana/web3.js'
-import { ManifestCandleReader } from '../../../packages/adapters/solana/manifest/history'
+import { ManifestCandleReader, mergeCandles, yesDenominated } from '../../../packages/adapters/solana/manifest/history'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { ArenaMarket, ArenaPricePoint } from '../solz/model'
 import { manifestClient } from './venue/manifestClients'
@@ -16,13 +18,27 @@ type Result = { markets: ArenaMarket[]; status: string }
  *  for exactly one collateral unit, so a 500000-atom price at 6dp is 50%. */
 const fraction = (atoms: bigint, decimals: number) => Math.min(1, Math.max(0, Number(atoms) / 10 ** decimals))
 
-/** A crossed interval has no probability midpoint. Only a known execution
- * can provide a reference price until the crossing orders are consumed. */
+/** One book's price, via the shared rule in packages/prediction-core/pricing.
+ *
+ *  This used to prefer mid, then either resting side, then the last trade —
+ *  while the chart's headline used `referencePrice`, which preferred mid, then
+ *  the last trade, then a resting side. Neither gated on spread width, and the
+ *  two disagreed on exactly the books where it matters: a wide one-sided book
+ *  that has traded. `marketPrice` is now the single answer, and the backend
+ *  indexer applies the identical rule at write time. */
 export function outcomeProbability(quote: VenueQuote | undefined, decimals: number, lastTrade?: number) {
-  const price = quote?.crossed ? undefined : quote?.mid ?? quote?.ask ?? quote?.bid
-  if (price !== undefined) return { probability: fraction(price, decimals), indicative: false }
-  if (lastTrade !== undefined) return { probability: Math.min(1, Math.max(0, lastTrade)), indicative: false }
-  return { probability: .5, indicative: true }
+  // The shared rule works in 1e6 micros; a venue's book may be at other
+  // decimals, so normalise on the way in rather than teaching the rule about
+  // per-venue scales.
+  const scale = (atoms: bigint | undefined) => atoms === undefined ? undefined : priceMicros(fraction(atoms, decimals))
+  const price = marketPrice(
+    quote && { bid: scale(quote.bid), ask: scale(quote.ask), mid: scale(quote.mid), crossed: quote.crossed },
+    lastTrade === undefined ? undefined : priceMicros(lastTrade),
+  )
+  // Still a 50/50 seed when nothing prices the book, but `indicative` is what
+  // marks it as an order-entry placeholder rather than an observation — every
+  // consumer gates on that flag, not on the number.
+  return price ? { probability: priceFraction(price.value), indicative: false } : { probability: .5, indicative: true }
 }
 
 /** Quote series survive a panel collapsing and remounting, so a chart does not
@@ -69,6 +85,12 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
     [bindings],
   )
   const revision = useVenueRevisions(scopes)
+  // The cluster this venue is actually bound to. Every status line below used to
+  // hardcode the literal 'DEVNET', which HomeApp then stripped back off with a
+  // regex before prepending the cluster it thought was right — two wrong answers
+  // cancelling out. assertNetwork checks `chainId` against the live RPC, so this
+  // is the one cluster fact on the page that cannot be stale.
+  const cluster = solanaClusterLabel(venue?.chainId)
   // The page identity, deliberately WITHOUT the focused market. Focus only
   // decides whose candles are read; every price comes from the two batched
   // account reads. Folding focus in here made selecting a question tear down the
@@ -98,7 +120,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
   useEffect(() => {
     if (!enabled) return
     if (!venue?.publicRpcUrl || !latest.current.bindings.some(item => item.binding)) {
-      setResult({ scope, markets: base, status: venue?.publicRpcUrl ? 'DEVNET · 0 BOUND' : 'DEVNET · NOT CONFIGURED' })
+      setResult({ scope, markets: base, status: venue?.publicRpcUrl ? `${cluster} · 0 BOUND` : `${cluster} · NOT CONFIGURED` })
       return
     }
     let active = true
@@ -113,7 +135,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
     try {
       client = manifestClient(venue.publicRpcUrl, { genesisHash: venue.chainId, predictionProgram: venue.programId!, manifestProgram: venue.manifestProgramId!, collateralMint: venue.collateralToken })
     } catch (reason) {
-      setResult({ scope, markets: base, status: reason instanceof Error ? reason.message.toUpperCase() : 'DEVNET · MISCONFIGURED' })
+      setResult({ scope, markets: base, status: reason instanceof Error ? reason.message.toUpperCase() : `${cluster} · MISCONFIGURED` })
       return
     }
     const adapter = client.adapter
@@ -164,11 +186,39 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
           // and its headline number under the user — the same divergence two
           // browsers showed, reproducible by clicking between answers in one.
           const history = index === focus ? focusCandles : cachedFor(market.id) ?? []
+          // ONE series for the market, not one per book. A prediction market has
+          // a single price; the YES and NO books are two venues for trading it,
+          // so a NO fill at 30c is the market saying YES is 70c. Reading the two
+          // sides into two series threw away half the trades on each chart —
+          // and let the two sides of one market contradict each other.
+          const yesTrades = mergeCandles(
+            yesDenominated(history[0]?.candles ?? [], 0),
+            yesDenominated(history[1]?.candles ?? [], 1),
+          ).map(candle => ({ at: candle.timestamp, probability: fraction(candle.close, binding.collateralDecimals) }))
+          // Per market, like the series it describes. Three distinct states,
+          // because the chart says three different things: candles are read for
+          // the focused market only, so anything else is "not read" rather than
+          // "no trades" — and `read` has not returned on the first publish of a
+          // pass, so a focused market with no entry yet is "still loading".
+          // Calling that 'ready' let the chart assert an empty book it had never
+          // actually looked at.
+          const sides = [history[0], history[1]] as const
+          const marketHistoryStatus = index === focus
+            ? yesTrades.length ? 'ready' as const
+              : sides.every(entry => entry?.failed) ? 'unavailable' as const
+                : sides.some(entry => !entry || entry.partial) ? 'pending' as const
+                  : 'ready' as const
+            // A market that has lost focus is judged on what was actually
+            // decoded, and is never 'pending' — no read will advance it now, so
+            // "loading" would be a promise nothing keeps.
+            : yesTrades.length ? 'ready' as const : 'unavailable' as const
           const outcomes = market.outcomes.map((outcome, side) => {
             // Outcomes beyond the binary pair have no book of their own; leave
             // them on the blank the base markets already carry.
             if (side > 1) return outcome
-            const trades = (history[side]?.candles ?? []).map(candle => ({ at: candle.timestamp, probability: fraction(candle.close, binding.collateralDecimals) }))
+            // Side 1 is the same series read the other way round, never a second
+            // measurement of it.
+            const trades = side === 0 ? yesTrades : yesTrades.map(point => ({ at: point.at, probability: 1 - point.probability }))
             const { probability, indicative } = outcomeProbability(quotes[side], binding.collateralDecimals, trades.at(-1)?.probability)
             const key = seriesKey(binding, side)
             // Only while the question can still trade: a locked market must not
@@ -187,20 +237,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
               } : undefined,
               quoteHistory: series,
               priceHistory: trades,
-              // Three distinct states, because the chart says three different
-              // things. Candles are read for the focused market only, so anything
-              // else is "not read" rather than "no trades". And `read` has not
-              // returned on the first publish of a pass, so a focused market with
-              // no entry yet is "still loading" — calling that 'ready' let the
-              // chart assert an empty book it had never actually looked at.
-              historyStatus: index === focus
-                ? history[side]?.failed && !trades.length ? 'unavailable' as const
-                  : !history[side] || (history[side]!.partial && !trades.length) ? 'pending' as const
-                    : 'ready' as const
-                // A market that has lost focus is judged on what was actually
-                // decoded, and is never 'pending' — no read will advance it now,
-                // so "loading" would be a promise nothing keeps.
-                : trades.length ? 'ready' as const : 'unavailable' as const,
+              historyStatus: marketHistoryStatus,
             }
           })
           const executed = history.flatMap(item => item.candles).filter(candle => at - candle.timestamp <= 86_400_000)
@@ -228,7 +265,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
         // Markets with no Solana binding pass through unpriced rather than being
         // dropped from the page.
         const byId = new Map(markets.map(market => [market.id, market]))
-        if (active) setResult({ scope, markets: base.map(market => byId.get(market.id) ?? market), status: `DEVNET · ${opened} / ${bound.length * 2} BOOKS` })
+        if (active) setResult({ scope, markets: base.map(market => byId.get(market.id) ?? market), status: `${cluster} · ${opened} / ${bound.length * 2} BOOKS` })
         }
         // Quotes must render before slow receipt backfills complete.
         publish()
@@ -246,7 +283,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
       } catch (reason) {
         // Keep the last good prices through a transient RPC failure; replacing
         // them with 50/50 would read as the market having moved.
-        if (active) setResult(previous => ({ scope, markets: previous.scope === scope ? previous.markets : base, status: reason instanceof Error && /429|rate/i.test(reason.message) ? 'DEVNET · THROTTLED' : 'DEVNET · DATA UNAVAILABLE' }))
+        if (active) setResult(previous => ({ scope, markets: previous.scope === scope ? previous.markets : base, status: reason instanceof Error && /429|rate/i.test(reason.message) ? `${cluster} · THROTTLED` : `${cluster} · DATA UNAVAILABLE` }))
       } finally {
         running = false
         if (active) timer = setTimeout(() => void load(), requested ? 0 : 10_000)
@@ -259,6 +296,6 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
   }, [scope, enabled, revision])
 
   return enabled
-    ? result.scope === scope ? result : { markets: base, status: 'DEVNET · LOADING' }
+    ? result.scope === scope ? result : { markets: base, status: `${cluster} · LOADING` }
     : { markets: sourceMarkets, status: '' }
 }

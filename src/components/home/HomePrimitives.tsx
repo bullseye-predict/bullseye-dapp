@@ -27,3 +27,11 @@ export function AgentPortrait({ number, className = '' }: { number: number; clas
 export function StatusDot({ children, pink = false }: { children: React.ReactNode; pink?: boolean }) {
   return <span className={`sh-status ${pink ? 'sh-status--pink' : ''}`}><i aria-hidden="true"/>{children}</span>
 }
+
+/** The app's one in-place spinner, for a panel that is re-reading rather than a
+ *  page that is booting. Styled in site-loading.css, which SiteLayout already
+ *  loads on every page, so no surface has to ship its own keyframes. */
+export function Spinner({ small = false, label }: { small?: boolean; label?: string }) {
+  return <i className={`cc-spinner ${small ? 'cc-spinner--sm' : ''}`} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}/>
+}
+

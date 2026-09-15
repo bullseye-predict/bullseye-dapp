@@ -2,7 +2,9 @@ import { ChartNoAxesCombined, Crosshair, Eye, Maximize, Radio } from 'lucide-rea
 import { memo, useRef, useState } from 'react'
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
 import { Tabs, TabPanel, formatClock } from '../solz/ui'
-import { HighlightChart } from '../home/HighlightChart'
+import { ProbabilityChart } from '../markets/ProbabilityChart'
+import { chartHeadline, chartSeries } from '../markets/chartSeries'
+import { emptyChart } from '../markets/chartEmpty'
 import { AgentPortrait, compact, TeamMark } from '../home/HomePrimitives'
 
 const EventMedia = memo(function EventMedia({ source }: { source?: string }) {
@@ -16,9 +18,10 @@ export type EventView = 'live' | 'market'
 
 type Props = { simulation?: boolean; referenceMarket?: ArenaMarket; view: EventView; match: SolzMatch; market: ArenaMarket; snapshot: SolzSnapshot; outcome: ArenaMarketOutcome; onOutcome: (outcome: ArenaMarketOutcome) => void; prediction?: boolean; broadcast?: boolean; collateral?: string }
 
-export function EventStage({ simulation = true, referenceMarket, view, match, market, snapshot, outcome, onOutcome, prediction = false, broadcast = true, collateral }: Props) {
+export function EventStage({ view, match, market, snapshot, outcome, onOutcome, prediction = false, broadcast = true, collateral }: Props) {
   const [message, setMessage] = useState('')
   const screen = useRef<HTMLDivElement>(null)
+  const stage = chartSeries(market, snapshot, { selectedId: outcome.id })
   async function fullscreen() {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await screen.current?.requestFullscreen() }
     catch { setMessage('Full screen is unavailable in this browser.') }
@@ -37,7 +40,18 @@ export function EventStage({ simulation = true, referenceMarket, view, match, ma
           {message && <p className="sh-fullscreen-error" role="status">{message}</p>}
         </div>
       </TabPanel>}
-      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><HighlightChart simulation={simulation} referenceMarket={referenceMarket} key={market.id} market={market} snapshot={snapshot} outcome={outcome} onOutcome={onOutcome} onMarket={() => {}} showTitle={false} historyPicker={false} collateral={collateral}/></TabPanel>
+      {/* A linked overview arrives here as one synthetic market carrying every
+          answer, and a bare binary as its own two real books — `chartShape`
+          tells them apart, so both draw every line they have. */}
+      <TabPanel id="market" idPrefix="event-view" active={view === 'market'}><ProbabilityChart
+        key={market.id}
+        title={market.title}
+        series={stage.series}
+        unit={stage.unit}
+        headline={chartHeadline(market, { selectedId: outcome.id, collateral })}
+        onSelect={(id) => { const item = market.outcomes.find(entry => entry.id === id); if (item) onOutcome(item) }}
+        empty={emptyChart(stage.series)}
+      /></TabPanel>
     </div>
 
   </section>

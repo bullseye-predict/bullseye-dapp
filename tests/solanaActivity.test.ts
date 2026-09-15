@@ -3,7 +3,7 @@ import BN from 'bn.js'
 import { Buffer } from 'buffer'
 import { PublicKey } from '@solana/web3.js'
 import { CancelOrderLog, FillLog, OrderType, PlaceOrderLog, genAccDiscriminator } from '@bonasa-tech/manifest-sdk'
-import { decodeBookActivity, sortActivity, type ActivityBook } from '../src/components/home/venue/solanaActivity'
+import { decodeBookActivity, mergeActivity, sortActivity, type ActivityBook } from '../src/components/home/venue/solanaActivity'
 
 const MANIFEST = 'MNFSTGUARDEDaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const YES_BOOK = new PublicKey('11111111111111111111111111111112')
@@ -97,6 +97,16 @@ test('rows sort newest slot first and stay deterministic within one slot', () =>
     { id: 'c', at: 20, hash: 'h', label: 'c', detail: '', kind: 'fill', block: 5n },
   ])
   expect(rows.map(row => row.id)).toEqual(['b', 'c', 'a'])
+})
+
+test('a receipt decoded twice reaches the feed once', () => {
+  // Every pass merges the decoded-receipt cache with a page that may re-read
+  // rows the cache already holds, so the same id can arrive twice. A duplicate
+  // row is also a duplicate React key, which is why it is collapsed here rather
+  // than left for whichever panel happens to notice.
+  const row = { id: 'fill:sig:2', at: 10, hash: 'sig', label: 'Buy YES filled', detail: '', kind: 'fill' as const, block: 5n }
+  expect(mergeActivity([row, { ...row }, { ...row, id: 'order:sig:3' }]).map(entry => entry.id))
+    .toEqual(['order:sig:3', 'fill:sig:2'])
 })
 
 import { Connection, Keypair, Transaction } from '@solana/web3.js'
