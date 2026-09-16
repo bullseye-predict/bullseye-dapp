@@ -1,5 +1,4 @@
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
-import { outcomeColor } from '../home/heroMarket'
 import { logoHue } from './logoIdentity'
 
 /** A moneyline is a two-sided TEAM market: its outcomes are the teams
@@ -115,5 +114,13 @@ export function pickInk(color: string | undefined) {
     return value <= .03928 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4
   }
   const luminance = .2126 * channel(0) + .7152 * channel(2) + .0722 * channel(4)
-  return luminance > .35 ? '#0b1410' : '#f6fbff'
+  // WHERE THE TWO INKS TIE, not an eyeballed midpoint. The fill should take
+  // whichever ink contrasts better, so the threshold is the luminance at which
+  // they are equal: (L + .05) / (Ld + .05) = (Ll + .05) / (L + .05), solved as
+  // L = sqrt((Ld + .05)(Ll + .05)) - .05 for Ld = .00609 (#0b1410) and
+  // Ll = .95807 (#f6fbff). The .35 this replaces sat far above that tie, so
+  // every fill between .188 and .35 - the hot magentas and pinks especially -
+  // took the light ink when the dark one was strictly more readable: #fd30c6
+  // scored 3.14:1 white against 5.72:1 dark.
+  return luminance > .1878 ? '#0b1410' : '#f6fbff'
 }

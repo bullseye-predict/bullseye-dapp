@@ -32,6 +32,22 @@
   /* = --cw-lane-champion on the CATWALK board. The same lane is the same colour
      on both pages, which is the whole point of stating it as a token. */
   --mp-champion: #ffc53d;
+  /* THE STANDINGS TABLE IS A LIGHT PANEL, and it is the site's own, not a local
+     one. .sh-entry-panel on the home page is a --sh-gray body under a --sh-lime
+     band, and those tokens are declared on .solz-home - this page's root element
+     too (AppShell renders "solz-home mp-app") - so they are ALIASED here rather
+     than copied. A hex typed again here would be a second source of truth for one
+     system colour.
+     Only the TABLE takes this surface. Its section heading stays on the page like
+     every other heading, and the pager and the rule sit outside the table on the
+     page's own background. */
+  --mp-standings-panel: var(--sh-gray); --mp-standings-ink: var(--sh-gray-ink);
+  --mp-standings-ink-muted: var(--sh-gray-ink-muted); --mp-standings-line: var(--sh-gray-line);
+  --mp-standings-hover: #b1b3bd;
+  /* LIME IS STILL THE SPORT COLOUR, but #c7ff00 on #a6a8b3 is barely a colour at
+     all. The win count keeps the hue and drops the value, so the rule at the top
+     of this file survives the change of surface instead of being abandoned on it. */
+  --mp-lime-on-gray: #3b4f00;
   --mp-head: 'Archivo', sans-serif; --mp-mono: 'Geist Mono', monospace;
   /* A CREST, not a favicon. CATWALK sets --cw-crest: 34px on a 64px row that
      carries one line of text; a standings row here carries three — ticker, name
@@ -60,6 +76,19 @@
 .mp-heading-season { display: grid; gap: 10px; justify-items: end; min-width: 0; }
 .mp-refresh { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid #666974; border-radius: var(--mp-radius-control); background: transparent; color: var(--mp-text); font: 700 9px var(--mp-head); letter-spacing: .08em; text-transform: uppercase; }
 .mp-refresh:hover:not(:disabled) { border-color: var(--mp-lime); color: var(--mp-lime); }
+.mp-refresh:disabled { opacity: .55; }
+/* A title-bar control, not a masthead one: it sits on the same baseline as a
+   9px count, so it is quieter and shorter than the button it replaced. Declared
+   after the base rule because both are a single class - at equal specificity
+   source order is the only thing deciding which wins. */
+.mp-refresh--section { min-height: 26px; padding: 0 9px; gap: 6px; font-size: 8px; color: var(--mp-dim); border-color: #4a4d57; flex: none; }
+.mp-refresh--section:hover:not(:disabled),
+.mp-refresh--section:focus-visible { border-color: var(--mp-lime); color: var(--mp-lime); outline: none; }
+/* Only the control that was pressed spins. One read answers for all three
+   tables, but the reader asked THIS table to re-read and that is the button
+   that should say so. */
+.mp-spin { animation: mp-spin 900ms linear infinite; }
+@keyframes mp-spin { to { rotate: 360deg; } }
 
 /* ── Season ───────────────────────────────────────────────────────────────── */
 .mp-season { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px 32px; padding: 20px 22px; border: 1px solid var(--mp-line); border-radius: var(--mp-radius); background: var(--mp-panel); }
@@ -109,9 +138,17 @@
 
 /* ── Sections ─────────────────────────────────────────────────────────────── */
 .mp-section { display: grid; gap: 9px; }
-.mp-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+/* Wraps rather than crushes: the schedule's count is a whole sentence and now
+   shares the bar with a control, so on a narrow column the group drops to its
+   own line instead of squeezing the title. */
+.mp-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.mp-section-heading h2 { flex: none; }
 .mp-section-heading h2 { margin: 0; font: 700 11px var(--mp-head); letter-spacing: .18em; text-transform: uppercase; }
 .mp-section-heading span { color: var(--mp-dim); font: 500 9px var(--mp-mono); letter-spacing: .1em; text-transform: uppercase; }
+/* The count and the control read as one right-hand group, so the title keeps the
+   left edge and the button never drifts into the middle of a narrow column. */
+.mp-section-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mp-section-tools span { text-align: right; }
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
 /* Tables are the one surface allowed to out-run the content column, and only
@@ -120,6 +157,7 @@
 .mp-table-scroll { overflow-x: auto; border: 1px solid var(--mp-line); border-radius: var(--mp-radius); background: var(--mp-panel); }
 .mp-table-scroll--schedule { max-height: min(480px, 58vh); overflow: auto; scrollbar-gutter: stable; }
 .mp-table-scroll--results { border-color: #42503f; background: #121914; }
+.mp-table-scroll--standings { border-color: var(--mp-standings-line); background: var(--mp-standings-panel); }
 .mp-table-scroll--schedule thead { position: sticky; top: 0; z-index: 1; }
 .mp-table-scroll:focus-visible { outline: 2px solid var(--mp-lime); outline-offset: 2px; }
 .mp-table { width: 100%; min-width: 720px; border-collapse: collapse; font: 400 12px var(--mp-mono); }
@@ -140,6 +178,24 @@
 /* A table showing the last read that landed says so ON those rows, rather
    than printing an outage banner over rows it is still displaying. */
 .mp-message-row.is-stale td { padding: 16px 14px; border-top: 1px solid #5c4a31; background: #241d14; color: #f0c98a; text-align: left; font-size: 11px; }
+/* ── Pager ───────────────────────────────────────────────────────────────── */
+/* SIZE FIRST, THEN THE CONTROLS. The range line states how big the thing is
+   before the reader decides whether to walk it, which is the fact a scroller
+   never gave them. It stays when there is only one page; the nav does not,
+   because a control that can never light is noise. */
+.mp-results { display: grid; gap: 8px; }
+.mp-pager { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding-inline: 2px; }
+.mp-pager-range { color: var(--mp-dim); font: 500 9px var(--mp-mono); letter-spacing: .1em; text-transform: uppercase; }
+.mp-pager-nav { display: flex; align-items: center; gap: 8px; }
+.mp-pager-nav span { color: var(--mp-dim); font: 500 9px var(--mp-mono); letter-spacing: .1em; text-transform: uppercase; }
+.mp-pager-nav b { color: var(--mp-text); font-weight: 700; }
+.mp-pager-nav button { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border: 1px solid #4a4d57; border-radius: var(--mp-radius-control); background: transparent; color: var(--mp-text); font: 700 8px var(--mp-head); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.mp-pager-nav button:hover:not(:disabled),
+.mp-pager-nav button:focus-visible { border-color: var(--mp-lime); color: var(--mp-lime); outline: none; }
+/* Disabled rather than hidden: the ends of the range stay where they were, so
+   the two buttons never swap places under the pointer. */
+.mp-pager-nav button:disabled { opacity: .4; cursor: default; }
+
 .mp-rule { margin: 0; padding-inline: 2px; color: var(--mp-dim); font: 500 8px var(--mp-mono); letter-spacing: .12em; text-transform: uppercase; }
 
 /* ── Standings ────────────────────────────────────────────────────────────── */
@@ -157,8 +213,29 @@
 .mp-table--standings tr[data-pos='3'] .mp-rank {
   border-color: var(--mp-champion); color: var(--mp-champion);
 }
-.mp-table--standings tbody .mp-col-wins b { font: 700 19px var(--mp-head); color: var(--mp-lime); }
-.mp-table--standings tbody td:not(.mp-col-wins) { color: var(--mp-muted); }
+/* THE COLUMN HEADER IS THE NEON BAND, sitting straight on the light body. Dark
+   ink on lime is the pairing --mp-lime-ink already names for every other
+   lime-filled control on the page. */
+.mp-table--standings thead th { background: var(--mp-lime); border-bottom-color: var(--mp-lime); color: var(--mp-lime-ink); }
+/* EVERY INK BELOW IT INVERTS, because the surface does. The page's greys are
+   tuned for #191a1e and all of them - muted, dim, faint, the hairline, the lime -
+   fail on #a6a8b3 in the same direction at once. */
+.mp-table--standings tbody tr + tr { border-top-color: var(--mp-standings-line); }
+.mp-table--standings tbody tr:hover:not(.mp-pending-row):not(.mp-message-row) { background: var(--mp-standings-hover); }
+.mp-table--standings tbody .mp-col-wins b { font: 700 19px var(--mp-head); color: var(--mp-lime-on-gray); }
+.mp-table--standings tbody td:not(.mp-col-wins) { color: var(--mp-standings-ink-muted); }
+.mp-table--standings tbody th { color: var(--mp-standings-ink); }
+.mp-table--standings .mp-rank { border-color: #6d6f7a; color: var(--mp-standings-ink); }
+/* The champion lane's gold is a dark-surface colour; on grey it turns to sand.
+   The three CATWALK seats keep a lane of their own by going solid ink instead. */
+.mp-table--standings tr[data-pos='1'] .mp-rank,
+.mp-table--standings tr[data-pos='2'] .mp-rank,
+.mp-table--standings tr[data-pos='3'] .mp-rank { border-color: #111215; background: #111215; color: var(--mp-lime); }
+.mp-table--standings .mp-tie { border-color: #71737e; color: #3a3c46; }
+.mp-table--standings .mp-unknown { color: #4c4e59; }
+.mp-table--standings .mp-coin-text small { color: var(--mp-standings-ink-muted); }
+.mp-table--standings .mp-pending { background: #9497a2; }
+.mp-table--standings .mp-message-row td { color: #3a3c46; }
 .mp-tie { display: inline-block; margin-left: 7px; padding: 1px 5px; border: 1px solid #3c3e46; border-radius: var(--mp-radius-control); color: var(--mp-faint); font: 500 7px var(--mp-mono); font-style: normal; letter-spacing: .14em; text-transform: uppercase; vertical-align: middle; }
 
 /* ── Coin identity ────────────────────────────────────────────────────────── */
@@ -219,6 +296,32 @@
 .mp-table--final tbody tr:not(.mp-message-row):hover { background: #1b281c; }
 .mp-table--final tbody tr.is-cancelled { opacity: .55; }
 
+/* ── The result, told by the surface ──────────────────────────────────────── */
+/* WHO WON IS THE POINT OF THIS TABLE. It used to be carried by fading the
+   loser alone, which at 28px crests in the side column is easy to miss and
+   reads as "stale row" rather than "this coin lost". Each side of the matchup
+   now sits on its own block: the winner on the page's sport colour (lime, per
+   the token rules at the top of this file - a win is sport, never money), the
+   loser on a flat sunken one. The fade stays as a second, weaker signal, lifted
+   from .42 because the background is now doing the work.
+   Only a settled match carries data-outcome, so a live or upcoming pairing is
+   untouched and keeps one flat cell. */
+.mp-table--final .mp-pair-side[data-outcome] {
+  align-self: stretch; padding: 7px 9px; border-radius: var(--mp-radius-control);
+}
+.mp-table--final .mp-pair-side[data-outcome='win'] {
+  background: color-mix(in srgb, var(--mp-lime) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mp-lime) 38%, transparent);
+}
+.mp-table--final .mp-pair-side[data-outcome='loss'] {
+  background: #0e120f; box-shadow: inset 0 0 0 1px #283028;
+}
+.mp-table--final .mp-pair-side[data-outcome='loss'] .mp-coin.is-muted { opacity: .62; }
+/* A cancelled match is not 'final', so PairingCell gives neither side a
+   data-outcome and both stay on the plain cell - no winner block, and no loser
+   block either. "No result was recorded" is a different fact from "this coin
+   lost", and the row's own .is-cancelled fade already carries it. */
+
 .mp-error { margin: 0; padding: 13px 16px; border: 1px solid #5c3138; border-radius: var(--mp-radius); background: #251a1c; color: #ffb4b4; font-size: 12px; }
 /* Not an error: the programme is intact and readable. Only the joined
    Volume column is unknown, and saying so is what keeps every em dash in
@@ -268,6 +371,7 @@
   .mp-table th, .mp-table td { padding-inline: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .mp-spin { animation: none; }
   .mp-pending { animation: none; }
 }
 

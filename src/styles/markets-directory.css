@@ -5,55 +5,126 @@
 .mk-app .mk-heading > div { max-width: 680px; }
 .mk-app .mk-heading > div > span { color: var(--sh-lime); font: 700 10px var(--sh-mono); letter-spacing: .12em; }
 .mk-app .mk-heading h1 { margin: 7px 0 8px; }
-.mk-app .mk-heading p { max-width: 620px; margin: 0; color: #b7bac3; font-size: 13px; line-height: 1.55; }
-.mk-search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: 10px; color: #b7bac3; }
+.mk-app .mk-heading p { max-width: 620px; margin: 0; color: var(--sh-muted); font-size: 13px; line-height: 1.55; }
+.mk-search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: var(--radius-panel); color: var(--sh-muted); }
 .mk-search input { width: 220px; min-width: 0; border: 0; background: transparent; color: var(--sh-text); font: 14px var(--sh-heading); outline: none; }
 .mk-search:focus-within { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-search input::placeholder { color: #b7bac3; }
+.mk-search input::placeholder { color: var(--sh-dim); }
 .mk-directory-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-block: 1px solid var(--sh-line); padding: 10px 0; }
 .mk-filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
-.mk-filters button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: transparent; color: #b7bac3; font: 500 14px var(--sh-heading); cursor: pointer; }
-.mk-filters button:hover { background: #25272b; color: #fff; }
-.mk-filters button[aria-pressed='true'] { background: #c7ff0020; color: var(--sh-lime); }
+.mk-filters button { min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius-panel); background: transparent; color: var(--sh-muted); font: 500 14px var(--sh-heading); cursor: pointer; }
+.mk-filters button:hover { background: var(--sh-card-hover); color: var(--sh-text); }
+.mk-filters button[aria-pressed='true'] { background: color-mix(in srgb, var(--sh-lime) 13%, transparent); color: var(--sh-lime); }
 .mk-filters button:focus-visible, .mk-app .mk-card:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-type-filter { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: #8e929d; font: 700 10px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; }
-.mk-type-filter select { min-height: 42px; max-width: 250px; border: 1px solid var(--sh-line); border-radius: 9px; padding: 0 36px 0 12px; background: #17191d; color: var(--sh-text); font: 600 12px var(--sh-heading); }
+.mk-type-filter { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--sh-dim); font: 700 10px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; }
+.mk-type-filter select { min-height: 42px; max-width: 250px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); padding: 0 36px 0 12px; background: var(--sh-panel-2); color: var(--sh-text); font: 600 12px var(--sh-heading); }
 .mk-type-filter select:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-filter-note { margin: 10px 0 0; color: #8e929d; font: 11px/1.5 var(--sh-mono); }
-.mk-filter-note b { color: #c8cbd2; }
+.mk-filter-note { margin: 10px 0 0; color: var(--sh-dim); font: 11px/1.5 var(--sh-mono); }
+.mk-filter-note b { color: var(--sh-text); }
 .mk-results-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 54px; }
-.mk-result-count { display: block; color: #b7bac3; font: 12px var(--sh-heading); }
+.mk-result-count { display: block; color: var(--sh-muted); font: 12px var(--sh-heading); }
 .mk-pagination { display: flex; align-items: center; gap: 8px; }
-.mk-pagination button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; border: 1px solid var(--sh-line); border-radius: 8px; padding: 0 11px; background: #17191d; color: #d3d5db; font: 600 11px var(--sh-heading); cursor: pointer; }
-.mk-pagination button:hover:not(:disabled) { border-color: var(--sh-lime); color: #fff; }
+.mk-pagination button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); padding: 0 11px; background: var(--sh-panel-2); color: var(--sh-muted); font: 600 11px var(--sh-heading); cursor: pointer; }
+.mk-pagination button:hover:not(:disabled) { border-color: var(--sh-lime); color: var(--sh-text); }
 .mk-pagination button:disabled { opacity: .38; cursor: not-allowed; }
-.mk-pagination span { padding: 0 5px; color: #8e929d; font: 11px var(--sh-mono); }
+.mk-pagination span { padding: 0 5px; color: var(--sh-dim); font: 11px var(--sh-mono); }
 .mk-pagination span b { color: var(--sh-text); }
 .mk-pagination-bottom { display: flex; justify-content: center; padding-top: 24px; }
 /* A fixed twelve so a card's width is a decision, not a leftover: auto-fill
    sized tracks to the narrowest card that would fit and then reserved the
    remainder as empty columns, which both squeezed the titles and left a gap. */
 .mk-app .mk-card-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
-.mk-app .mk-card { grid-column: span 4; min-width: 0; min-height: 290px; border-radius: 14px; padding: 18px; }
-.mk-card-kicker { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 16px; color: #9da1aa; font: 700 9px var(--sh-mono); letter-spacing: .1em; }
+/* One radius for every standalone card on the site. 14px was this grid's own
+   invention and it showed: beside the agent and match cards, which are 7px,
+   the market grid read as a second design system pasted onto the page. */
+.mk-app .mk-card { grid-column: span 4; min-width: 0; min-height: 290px; border-radius: var(--radius-panel); padding: 18px; }
+
+/* THE CARD IS THE ENTRY PANEL (home.css:357-358): a full-bleed neon band over
+   a light grey body in dark ink. That panel is the site's signature surface, so
+   the market grid wears it rather than the cyan-ringed dark slab it replaces -
+   a 2px inset shadow that, on a rounded card, painted round the corner arc and
+   rendered as a ring in a hue the palette does not contain.
+
+   BOTH FAMILIES ARE GAMES OR THEY ARE NOT. A MIAW Prix round, a ranked match
+   and a Genesis FFA are all game markets and all take the main plate with the
+   lime band. A general market is the other taxonomy, so it takes a lighter
+   grey and the panel's dark control colour for its band. Nothing rides on
+   colour alone: the band spells out the category in words. */
+.mk-app .mk-card {
+  overflow: clip;                       /* clips the band to the card's corners */
+  border-color: color-mix(in srgb, var(--sh-gray-ink) 18%, var(--mk-plate));
+  background: var(--mk-plate);
+  color: var(--sh-gray-ink);
+}
+/* THE BAND IS MIXED DOWN, NOT SPENT AT FULL STRENGTH. --sh-lime is the loudest
+   colour on the site and the entry panel spends it once, on a single spotlight
+   CTA. Twelve of them in a grid is twelve CTAs: the accent stops meaning "look
+   here" and starts meaning "this is a card", while out-shouting the titles it
+   sits above. Mixed into the plate it still reads as the brand lime and still
+   tells the two families apart, at a volume a grid can carry. */
+.mk-app .mk-card.is-game { --mk-plate: var(--sh-gray); --mk-band: color-mix(in srgb, var(--sh-lime) 46%, var(--sh-gray)); --mk-band-ink: var(--sh-gray-ink); }
+/* Mixed toward white on the same grey axis, so it is the same family one step
+   up rather than a second grey chosen by eye. */
+.mk-app .mk-card.is-general { --mk-plate: color-mix(in srgb, #fff 22%, var(--sh-gray)); --mk-band: var(--sh-gray-ink); --mk-band-ink: #f3f3f5; }
+.mk-app .mk-card:hover { border-color: var(--sh-gray-ink); background: color-mix(in srgb, var(--sh-gray-ink) 7%, var(--mk-plate)); }
+/* The lime focus ring is invisible on the plate; the entry panel already swaps
+   it for the ink (home.css:213) and the cards follow. */
+.mk-app .mk-card:focus-visible, .mk-app .mk-card :focus-visible { outline-color: var(--sh-gray-ink); }
+
+/* THE BAND. Full-bleed by cancelling the card's own padding, which is why the
+   card clips: the kicker is already a space-between row carrying the category
+   on the left and the match number on the right, so it needs no new markup. */
+.mk-app .mk-card-kicker {
+  margin: -18px -18px 0;
+  padding: 9px 18px;
+  background: var(--mk-band);
+  color: var(--mk-band-ink);
+}
+.mk-app .mk-card-kicker b { color: inherit; opacity: .72; }
+
+/* Every colour inside the card is restated against the plate: these rules are
+   tuned for a dark surface, and left alone they put #a1a2ac body text and a
+   #ff475e status on light grey. */
+.mk-app .mk-card :is(.mk-card-status > span, .mk-card-note, .mk-card-bottom, .mk-card-time) { color: var(--sh-gray-ink-muted); }
+.mk-app .mk-card :is(.mk-card-title, .mk-card-volume, .mk-card-open, .mk-ffa-row b) { color: var(--sh-gray-ink); }
+.mk-app .mk-card:hover .mk-card-open { color: var(--sh-gray-ink); }
+.mk-app .mk-card-program { border-color: var(--sh-gray-ink-muted); background: #0000000f; color: var(--sh-gray-ink-muted); }
+.mk-app .mk-card :is(.mk-ffa-bar, .mk-versus-meter, .mk-ffa-dot) { background: color-mix(in srgb, var(--sh-gray-ink) 26%, var(--mk-plate)); }
+/* The dark-surface status colours are all high-lightness; on the plate they
+   need the same hues taken down rather than swapped for other ones.
+   `> span.sh-status` because the muted rule above already matches this element
+   as `.mk-card-status > span` - one class lighter but one element heavier, so
+   a bare `.sh-status` here loses the cascade and the status renders grey. */
+.mk-app .mk-card .mk-card-status > span.sh-status { color: #7a0f20; }
+.mk-app .mk-card:not(.is-live):not(.is-past) .mk-card-status > span.sh-status { color: #4d3600; }
+.mk-app .mk-card.is-past .mk-card-status > span.sh-status { color: #3a3d47; }
+.mk-card-kicker { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 16px; font: 700 9px var(--sh-mono); letter-spacing: .1em; }
 .mk-card-kicker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-card-kicker b { flex-shrink: 0; color: var(--sh-lime); font: inherit; }
+.mk-card-kicker b { flex-shrink: 0; font: inherit; }
 /* Reserve both lines whether or not the second is used: the status row, the
    outcomes and the footer then line up across every card in a row. */
 .mk-app .mk-card-title { font-size: 18px; line-height: 1.35; min-height: 2.7em; }
+/* The badge rides on the title's own line here, so it centres on the text
+   rather than carrying the block margin it needs when it wraps below. */
+.mk-app .mk-card-program { margin: 0 0 0 7px; }
 .mk-app .mk-card-open { margin-top: 5px; }
-.mk-app .mk-card-status > span, .mk-app .mk-card-note { color: #b7bac3; letter-spacing: 0; }
-.mk-card-time { display: block; margin-top: -6px; color: #8e929d; font: 10px/1.4 var(--sh-mono); }
-.mk-app .mk-card-bottom { color: #b7bac3; border: 0; }
+.mk-app .mk-card-status > span, .mk-app .mk-card-note { color: var(--sh-muted); letter-spacing: 0; }
+.mk-card-time { display: block; margin-top: -6px; color: var(--sh-dim); font: 10px/1.4 var(--sh-mono); }
+.mk-app .mk-card-bottom { color: var(--sh-muted); border: 0; }
 .mk-app .mk-ffa-row { font-size: 12px; }
-.mk-app .mk-agent-portrait { width: 24px; height: 24px; border-radius: 6px; }
+.mk-app .mk-agent-portrait { width: 24px; height: 24px; border-radius: var(--radius-control); }
 .mk-app .mk-versus { gap: 8px; }
-.mk-app .mk-versus-side { flex: 1; min-height: 58px; border: 1px solid color-mix(in srgb, var(--mk-identity) 44%, var(--sh-line)); border-radius: 10px; padding: 8px; background: color-mix(in srgb, var(--mk-identity) 9%, transparent); }
+.mk-app .mk-versus-side { flex: 1; min-height: 58px; border: 1px solid color-mix(in srgb, var(--mk-identity) 44%, var(--sh-line)); border-radius: var(--radius-control); padding: 8px; background: color-mix(in srgb, var(--mk-identity) 9%, transparent); }
 .mk-app .mk-versus-side:last-child { justify-content: flex-start; }
-.mk-app .mk-binary-side { border-radius: 8px; font-size: 12px; }
-.mk-app .mk-card--pending { gap: 14px; justify-content: start; cursor: default; }
-.mk-app .mk-card--pending:hover { border-color: var(--sh-line); background: var(--sh-panel); }
-.mk-pending { display: block; border-radius: 6px; background: linear-gradient(90deg, #212328 25%, #2b2e35 50%, #212328 75%) 100% 0 / 300% 100%; animation: mk-pending-sweep 1.4s ease-in-out infinite; }
+.mk-app .mk-binary-side { border-radius: var(--radius-control); font-size: 12px; }
+/* The skeleton carries no category - nothing has loaded to say which it is - so
+   it takes the game plate, the one the great majority of cards resolve to. It
+   must be plated at all: --mk-plate is what paints the card, and a placeholder
+   that left it unset computed to transparent rather than falling back. */
+.mk-app .mk-card--pending { --mk-plate: var(--sh-gray); --mk-band: color-mix(in srgb, var(--sh-lime) 46%, var(--sh-gray)); --mk-band-ink: var(--sh-gray-ink); gap: 14px; justify-content: start; cursor: default; }
+.mk-app .mk-card--pending:hover { border-color: color-mix(in srgb, var(--sh-gray-ink) 18%, var(--mk-plate)); background: var(--mk-plate); }
+/* Sweeps dark over the plate, the inverse of what it did on the dark card. */
+.mk-pending { display: block; border-radius: var(--radius-control); background: linear-gradient(90deg, #8f919c 25%, #7a7c88 50%, #8f919c 75%) 100% 0 / 300% 100%; animation: mk-pending-sweep 1.4s ease-in-out infinite; }
 .mk-pending--title { height: 19px; width: 76%; }
 .mk-pending--detail { height: 11px; width: 48%; }
 .mk-pending--row { height: 12px; width: 100%; }

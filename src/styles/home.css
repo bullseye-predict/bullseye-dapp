@@ -4,8 +4,20 @@
 html { min-width: 320px; background: #111215; scroll-behavior: smooth; }
 body { margin: 0; }
 .solz-home {
-  --sh-bg: #111215; --sh-panel: #191a1e; --sh-line: #33343a; --sh-text: #eeeef0;
+  --sh-bg: #111215; --sh-panel: #191a1e; --sh-panel-2: #16171b; --sh-line: #33343a; --sh-text: #eeeef0;
   --sh-muted: #a1a2ac; --sh-lime: #c7ff00; --sh-pink: #ff579d; --sh-gray: #a6a8b3;
+  /* The two steps below --sh-muted. Catwalk and MIAW Prix already ship this
+     exact ladder (catwalk.css:27, miaw-prix.css:28); naming it here stops every
+     other surface inventing its own #8e929d / #8793a5 / #9da1aa. */
+  --sh-dim: #8d8f99; --sh-faint: #6f7280; --sh-hair: #ffffff0f;
+  /* A CARD IS A STEP ABOVE THE PAGE, NOT THE PAGE WITH A LINE ON IT. These are
+     .sh-match-card's own values (home.css:287) lifted into tokens so the market
+     grid raises to the same height as the match cards it sits beside. */
+  --sh-card: #1b1c21; --sh-card-line: #353740;
+  --sh-card-hover: #23252b; --sh-card-edge: #9d9fa9;
+  /* The light plate and the ink that goes on it, as the entry panel
+     (home.css:345) and the agent name block (home.css:387) already pair them. */
+  --sh-gray-ink: #1a1b21; --sh-gray-ink-muted: #363945; --sh-gray-line: #8b8d98;
   --sh-heading: 'Archivo', sans-serif; --sh-mono: 'Geist Mono', monospace;
   --arena-accent: var(--sh-lime); --arena-coral: var(--sh-pink); --arena-blue: #66caff;
   --arena-muted: var(--sh-muted); --arena-border: var(--sh-line); --arena-border-strong: #5a5c65;
@@ -284,8 +296,8 @@ body { margin: 0; }
 .sh-section-heading h2 > span { display: inline-block; vertical-align: middle; margin-left: 14px; font: 500 8px var(--sh-mono); padding: 3px 6px; border: 1px solid #595c64; color: var(--sh-lime); }
 .sh-section-meta { display: flex; align-items: center; gap: 8px; color: var(--sh-muted); font-size: 9px; }
 .sh-live-matches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
-.sh-match-card { text-align: left; display: block; width: 100%; background: #1b1c21; color: #eeeef2; padding: 14px; border: 1px solid #353740; transition: border-color .18s ease-out, background .18s ease-out; }
-.sh-match-card:hover { border-color: #9d9fa9; background: #23252b; }
+.sh-match-card { text-align: left; display: block; width: 100%; background: var(--sh-card); color: #eeeef2; padding: 14px; border: 1px solid var(--sh-card-line); transition: border-color .18s ease-out, background .18s ease-out; }
+.sh-match-card:hover { border-color: var(--sh-card-edge); background: var(--sh-card-hover); }
 .sh-match-card-top { display: flex; align-items: center; gap: 12px; }
 .sh-match-card-top > span:nth-child(2) { font-size: 8px; color: #b5b6c0; margin-left: auto; }
 .sh-match-card-top > span:nth-child(2) > span { margin: 0 5px; color: #7f818b; }
@@ -342,7 +354,7 @@ body { margin: 0; }
 .sh-results strong span { color: #6c6f7a; }
 .sh-results > div > span:nth-last-child(2) { text-align: right; }
 .sh-results small { font-size: 7px; color: #a6a9b4; }
-.sh-entry-panel { background: var(--sh-gray); color: #1a1b21; border-radius: 2px; }
+.sh-entry-panel { background: var(--sh-gray); color: var(--sh-gray-ink); border-radius: 2px; }
 .sh-entry-banner { display: flex; justify-content: space-between; padding: 9px 14px; background: var(--sh-lime); font-size: 9px; font-weight: 600; }
 .sh-entry-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 21px 20px; }
 .sh-entry-intro h3 { font-size: 32px; font-weight: 700; line-height: 1.05; letter-spacing: -.02em; }
@@ -384,10 +396,10 @@ body { margin: 0; }
 .sh-portrait { aspect-ratio: 384 / 336; background: #1b1b1b url('/images/solz/genesis-agents.jpg') 0 0 / 400% 300% no-repeat; }
 .sh-agent-card > .sh-portrait { width: 100%; transition: filter .2s; }
 .sh-agent-card:hover > .sh-portrait { filter: brightness(1.12); }
-.sh-agent-card-name { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 12px 13px; background: #a6a8b3; color: #181920; }
+.sh-agent-card-name { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 12px 13px; background: var(--sh-gray); color: #181920; }
 .sh-agent-card-name h3 { font-size: 24px; line-height: 1.15; font-weight: 700; }
 .sh-agent-card-name svg { align-self: center; }
-.sh-agent-card-name > span { grid-column: 1/-1; font-size: 8px; color: #3c3f4a; }
+.sh-agent-card-name > span { grid-column: 1/-1; font-size: 8px; color: var(--sh-gray-ink-muted); }
 .sh-agent-card-stats { display: flex; justify-content: space-between; gap: 8px; padding: 9px 12px; font-size: 8px; background: #2a2d34; color: #c0c3ce; }
 .sh-agent-profile { position: relative; display: grid; grid-template-columns: 200px 1fr; gap: 24px; background: #26292e; border: 1px solid #666b78; padding: 20px; margin-bottom: 22px; }
 .sh-agent-profile > .sh-portrait { align-self: start; }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowUpRight, Check, Copy } from 'lucide-react'
 import type { MiawPrixMatch } from './miawPrixSource'
 import { CoinIdentity } from './CoinIdentity'
+import { Pager, usePaged } from './Pager'
 import { eventHref } from '../events/eventModel'
 import {
   countdown, EM_DASH, isWinner, kickoffParts, matchState, pairingNotice, programmeLabel,
@@ -10,6 +11,10 @@ import {
 type Variant = 'upcoming' | 'finished'
 
 const SKELETON_ROWS = 4
+/** A month of settled matches is a list nobody scrolls to the end of. Eight
+ *  rows is what the results column shows without the board growing a second
+ *  screen of its own. The schedule is not paged - see Pager.tsx. */
+const RESULTS_PAGE_SIZE = 8
 
 function PendingRows() {
   return <>{Array.from({ length: SKELETON_ROWS }, (_, index) => <tr key={index} className="mp-pending-row" aria-hidden="true">
@@ -31,15 +36,23 @@ function PairingCell({ match, now }: { match: MiawPrixMatch; now: number }) {
   const final = matchState(match) === 'final'
   const [home, away] = match.sides
   if (!home || !away) return <span className="mp-unbound">Pairing pending</span>
+  // WHO WON IS THE POINT OF A RESULT, so it is carried by the surface each coin
+  // sits on and not only by fading the other one. Dimming alone reads as "this
+  // row is stale" rather than "this coin lost", and at the crest sizes in the
+  // side column the difference between .42 and 1 opacity is easy to miss
+  // entirely. data-outcome splits the cell; the muting stays as a second,
+  // weaker signal on top of it. Only a settled match has an outcome: a live or
+  // upcoming pairing carries no attribute and keeps one flat background.
+  const outcome = (side: typeof home) => final ? (isWinner(match, side) ? 'win' : 'loss') : undefined
   return <span className="mp-pair">
-    <span className="mp-pair-side is-home">
+    <span className="mp-pair-side is-home" data-outcome={outcome(home)}>
       <CoinIdentity
         mint={home.mint} symbol={home.symbol} name={home.name} logoUrl={home.logoUrl} color={home.color}
         muted={final && !isWinner(match, home)}
       />
     </span>
     <i className="mp-versus" aria-hidden="true">VS</i>
-    <span className="mp-pair-side is-away">
+    <span className="mp-pair-side is-away" data-outcome={outcome(away)}>
       <CoinIdentity
         mint={away.mint} symbol={away.symbol} name={away.name} logoUrl={away.logoUrl} color={away.color}
         muted={final && !isWinner(match, away)}
@@ -114,7 +127,12 @@ export function MatchTable({ variant, matches, missed = 0, now, loading, unavail
       : 'No locked matchup yet. The schedule appears when CATWALK freezes both sides.'
   const message = tableMessage(loading, unavailable, matches.length, staleCopy, emptyCopy)
   const stale = message === staleCopy
-  return <div className={`mp-table-scroll${finished ? ' mp-table-scroll--results' : ' mp-table-scroll--schedule'}`} tabIndex={0} aria-label={finished ? 'MIAW PRIX results' : 'MIAW PRIX schedule'}>
+  // Only the results are paged. The schedule is the short live surface and keeps
+  // its sticky-header scroller, so a kickoff cannot move to page two while
+  // someone is watching it.
+  const paged = usePaged(matches, finished ? RESULTS_PAGE_SIZE : matches.length || 1)
+  const visible = loading ? [] : finished ? paged.visible : matches
+  const table = <div className={`mp-table-scroll${finished ? ' mp-table-scroll--results' : ' mp-table-scroll--schedule'}`} tabIndex={0} aria-label={finished ? 'MIAW PRIX results' : 'MIAW PRIX schedule'}>
     <table className={`mp-table mp-table--matches ${finished ? 'mp-table--final' : 'mp-table--next'}`}>
       <caption className="sr-only">
         {finished
@@ -128,7 +146,7 @@ export function MatchTable({ variant, matches, missed = 0, now, loading, unavail
       </tr></thead>
       <tbody aria-busy={loading}>
         {loading && <PendingRows />}
-        {!loading && matches.map((match) => {
+        {!loading && visible.map((match) => {
           const state = matchState(match, now)
           const kickoff = kickoffParts(match.scheduledStartAt)
           const winner = match.sides.find((side) => isWinner(match, side))
@@ -163,5 +181,10 @@ export function MatchTable({ variant, matches, missed = 0, now, loading, unavail
         {message && <tr className={`mp-message-row${stale ? ' is-stale' : ''}`}><td colSpan={columns}>{message}</td></tr>}
       </tbody>
     </table>
+  </div>
+  if (!finished) return table
+  return <div className="mp-results">
+    {table}
+    <Pager {...paged} noun="matches" label="Results pages" onMove={paged.move} />
   </div>
 }

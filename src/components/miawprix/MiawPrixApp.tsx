@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { AppShell } from '../solz/AppShell'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { MatchTable } from './MatchTable'
-import { ProgrammeLayout, useNarrow } from './ProgrammeLayout'
+import { ProgrammeLayout, useNarrow, type ProgrammeSurface } from './ProgrammeLayout'
 import { SeasonPanel } from './SeasonPanel'
 import { StandingsTable } from './StandingsTable'
 import { miawPrixSource, type MiawPrixBoard } from './miawPrixSource'
@@ -22,6 +22,48 @@ type Props = {
 }
 
 const EMPTY_BOARD: MiawPrixBoard = { season: null, seasons: [], standings: [], matches: [] }
+
+/**
+ * A table's title bar: what the table is, how much of it there is, and the
+ * control that reloads it.
+ *
+ * REFRESH LIVES HERE, NOT IN THE MASTHEAD. On a two-column board the reader is
+ * at the bottom of the results when they want them re-read, and a single button
+ * beside the season panel is off-screen by then. One button per title puts it
+ * where the table is. All three reload the whole programme - the season, the
+ * schedule and the standings arrive in one read - so all three say the same
+ * word and the title attribute states the scope rather than implying each
+ * table refreshes alone.
+ */
+export function SectionHeading({ id, title, count, busy, blocked, onRefresh }: {
+  id: string
+  title: string
+  count: string
+  /** THIS table's control was the one pressed. */
+  busy: boolean
+  /** A read is already in flight, from here or from another title. */
+  blocked: boolean
+  onRefresh: () => void
+}) {
+  return <div className="mp-section-heading">
+    <h2 id={id}>{title}</h2>
+    <div className="mp-section-tools">
+      <span>{count}</span>
+      <button
+        type="button"
+        className="mp-refresh mp-refresh--section"
+        disabled={blocked}
+        onClick={onRefresh}
+        // Said plainly rather than implied: one read answers for all three
+        // tables, so the other two update as well. The button no longer
+        // pretends otherwise by blanking them.
+        title="Re-reads the MIAW PRIX programme, which updates all three tables"
+      >
+        <RefreshCw size={13} aria-hidden="true" className={busy ? 'mp-spin' : undefined} /> {busy ? 'Refreshing' : 'Refresh'}
+      </button>
+    </div>
+  </div>
+}
 
 /** Countdowns are read in minutes, so a half-minute tick is enough and keeps a
  *  page full of tables from re-rendering once a second for no visible change. */
@@ -52,15 +94,33 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
+  /** Which table's REFRESH was pressed, or null when nothing is in flight.
+   *
+   *  ONE READ, BUT NOT ONE PAGE TEARDOWN. source.board() is a single request to
+   *  ?kind=miawPrix that answers with the season, the standings AND the matches
+   *  together - there is no per-surface endpoint, so any refresh necessarily
+   *  re-reads all three. That is fine and cheap. What was not fine was showing
+   *  it: every button drove the global loading flag, so pressing REFRESH on
+   *  the results blanked the standings and the schedule to skeletons too and
+   *  set all three buttons to "Refreshing". A control inside a table's title
+   *  that visibly reloads the other two reads as a whole-page refresh, which is
+   *  exactly what it looked like. */
+  const [refreshingFrom, setRefreshingFrom] = useState<ProgrammeSurface | null>(null)
+  /** The season the rows on screen belong to. A refresh re-reads the same
+   *  season and keeps them; a season change has nothing worth keeping. */
+  const shownSeason = useRef<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
-    setLoading(true)
+    // Skeletons only when there is nothing to keep. Re-reading the season that
+    // is already on screen leaves it there and lets the new rows replace it in
+    // place, so a refresh no longer looks like a navigation.
+    if (shownSeason.current !== seasonId) { setLoading(true); setRefreshingFrom(null) }
     setError('')
     source.board(seasonId, controller.signal)
-      .then((next) => { if (!controller.signal.aborted) setBoard(next) })
+      .then((next) => { if (!controller.signal.aborted) { setBoard(next); shownSeason.current = seasonId } })
       .catch(() => { if (!controller.signal.aborted) setError('The MIAW PRIX programme is unavailable. Retry to reconnect.') })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setRefreshingFrom(null) } })
     return () => controller.abort()
   }, [source, seasonId, revision])
 
@@ -115,6 +175,13 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   // contradiction the viewer has to resolve. Only a first load with nothing to
   // show has no count to state.
   const counted = !loading && !!board
+  const refresh = (from: ProgrammeSurface) => {
+    if (refreshingFrom || loading) return
+    setRefreshingFrom(from)
+    setRevision((value) => value + 1)
+  }
+  const busy = (surface: ProgrammeSurface) => refreshingFrom === surface
+  const blocked = loading || refreshingFrom !== null
   return <AppShell
     className="solz-home mp-app"
     mainId="miaw-prix"
@@ -139,9 +206,6 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
           venue={venue}
           onSelect={setSeasonId}
         />
-        <button type="button" className="mp-refresh" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
-          <RefreshCw size={15} /> {loading ? 'Refreshing' : 'Refresh'}
-        </button>
       </div>
     </header>
 
@@ -154,24 +218,24 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
     <ProgrammeLayout
       narrow={narrow}
       standings={<section className="mp-section" aria-labelledby="mp-standings">
-        <div className="mp-section-heading">
-          <h2 id="mp-standings">Standings</h2>
-          <span>{sectionCount({ loading, counted }, standings.length, { one: 'coin on the board', many: 'coins on the board', unavailable: 'Standings unavailable' })}</span>
-        </div>
+        <SectionHeading
+          id="mp-standings" title="Standings" busy={busy('standings')} blocked={blocked} onRefresh={() => refresh('standings')}
+          count={sectionCount({ loading, counted }, standings.length, { one: 'coin on the board', many: 'coins on the board', unavailable: 'Standings unavailable' })}
+        />
         <StandingsTable rows={standings} loading={loading} venue={venue} unavailable={error ? 'Standings are unavailable while the programme is unreachable.' : ''} />
       </section>}
       schedule={<section className="mp-section" aria-labelledby="mp-schedule">
-        <div className="mp-section-heading">
-          <h2 id="mp-schedule">Schedule</h2>
-          <span>{missed ? `${missed} past ${missed === 1 ? 'slot' : 'slots'} without a verified result` : 'Cycle locks before its first kickoff'}</span>
-        </div>
+        <SectionHeading
+          id="mp-schedule" title="Schedule" busy={busy('schedule')} blocked={blocked} onRefresh={() => refresh('schedule')}
+          count={missed ? `${missed} past ${missed === 1 ? 'slot' : 'slots'} without a verified result` : 'Cycle locks before its first kickoff'}
+        />
         <MatchTable variant="upcoming" matches={upcoming} missed={missed} now={now} loading={loading} unavailable={error ? 'The schedule is unavailable while the programme is unreachable.' : ''} />
       </section>}
       results={<section className="mp-section" aria-labelledby="mp-results">
-        <div className="mp-section-heading">
-          <h2 id="mp-results">Results</h2>
-          <span>{sectionCount({ loading, counted }, finished.length, { one: 'completed match', many: 'completed matches', unavailable: 'Results unavailable' })}</span>
-        </div>
+        <SectionHeading
+          id="mp-results" title="Results" busy={busy('results')} blocked={blocked} onRefresh={() => refresh('results')}
+          count={sectionCount({ loading, counted }, finished.length, { one: 'completed match', many: 'completed matches', unavailable: 'Results unavailable' })}
+        />
         <MatchTable variant="finished" matches={finished} now={now} loading={loading} unavailable={error ? 'Results are unavailable while the programme is unreachable.' : ''} />
       </section>}
     />

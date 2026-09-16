@@ -334,6 +334,7 @@ export function TradeTicket({
   // A head-to-head side is coloured from its crest, which is read asynchronously.
   useLogoPalette();
   const linkedAnswer = market.presentation?.kind === "linked" ? market.presentation.answer : undefined;
+  const outcomeTeam = match?.teams.find((team) => team.teamId === (linkedAnswer?.teamId ?? outcome.teamId));
   // The header names the ANSWER, so it takes the answer's identity. The Yes/No
   // contract underneath has no colour of its own — reading it gave every answer
   // in a twelve-row prediction the same palette entry.
@@ -1081,7 +1082,7 @@ export function TradeTicket({
         ) : outcome.participantId ? (
           <AgentPortrait number={Number(outcome.participantId.split("-")[1])} />
         ) : (
-          <TeamMark id={linkedAnswer?.teamId ?? outcome.teamId ?? outcome.id} color={color} />
+          <TeamMark id={linkedAnswer?.teamId ?? outcome.teamId ?? outcome.id} color={color} logoUrl={outcomeTeam?.logoUrl} />
         )}
         <div>
           {/* A head-to-head names its fixture, exactly as the page H1 does —

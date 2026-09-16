@@ -240,7 +240,7 @@ export function linkedAnswerLabel(label: string, eventTitle: string) {
   return answer || label
 }
 
-export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null) {
+export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null, enabled = true) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
   // Distinguishes "no questions" from "not fetched yet": the event page must
   // not render EVENT NOT FOUND for a standalone question while it is in flight.
@@ -248,7 +248,7 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
   useEffect(() => {
     setQuestions([])
     setLoaded(false)
-    if (!apiUrl) { setLoaded(true); return }
+    if (!apiUrl || !enabled) { setLoaded(true); return }
     const controller = new AbortController()
     let timer: number | undefined
     const load = async () => {
@@ -269,7 +269,7 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
     }
     void load()
     return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
-  }, [apiUrl])
+  }, [apiUrl, enabled])
   const identified = useQuestionIdentity(questions)
   // The venue supplies the binding the shared venue hook needs to read this
   // question's Manifest books. Without it every Solana market renders as if no

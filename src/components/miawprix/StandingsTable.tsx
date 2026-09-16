@@ -1,8 +1,12 @@
 import { CoinIdentity } from './CoinIdentity'
 import type { ExplorerVenue } from './explorerLink'
+import { Pager, usePaged } from './Pager'
 import { EM_DASH, type RankedStanding } from './board'
 
 const SKELETON_ROWS = 6
+/** The rank badge carries the real position, so page two opens at #21 rather
+ *  than restarting the numbering. */
+const PAGE_SIZE = 20
 
 /** The loading state is the same table with its cells un-inked, rather than a
  *  different surface that will be replaced: the column widths, the row height
@@ -45,8 +49,12 @@ export function StandingsTable({ rows, loading, unavailable, venue }: {
 }) {
   const message = loading ? '' : rows.length > 0 ? (unavailable ? STALE : '') : (unavailable || EMPTY)
   const stale = message === STALE
+  const paged = usePaged(rows, PAGE_SIZE)
+  // A message is about the table, not about a page of it, so it stays on screen
+  // whichever page is open.
+  const visible = loading ? [] : paged.visible
   return <div className="mp-standings">
-    <div className="mp-table-scroll" tabIndex={0} aria-label="MIAW PRIX standings">
+    <div className="mp-table-scroll mp-table-scroll--standings" tabIndex={0} aria-label="MIAW PRIX standings">
       <table className="mp-table mp-table--standings">
         <caption className="sr-only">Season standings. The season is won on raw win count; losses break a tie and nothing else. Prediction pool and volume totals are reserved for the prediction-market aggregate.</caption>
         <thead><tr>
@@ -63,10 +71,10 @@ export function StandingsTable({ rows, loading, unavailable, venue }: {
           {/* data-pos marks the first three, who are exactly the coins the
               CHAMPION lane admits to CATWALK — not a podium.
               Any deeper rank is a number, not a place. */}
-          {!loading && rows.map((row) => {
+          {!loading && visible.map((row) => {
             return <tr key={row.mint} data-pos={row.rank <= 3 ? row.rank : undefined}>
               <td className="mp-col-rank"><span className="mp-rank">{row.rank}</span>{row.tiedOnWins && <i className="mp-tie" title="Tied on wins; ordered by losses, then by who reached the win count first">tie</i>}</td>
-              <th scope="row"><CoinIdentity mint={row.mint} symbol={row.symbol} name={row.name} logoUrl={row.logoUrl} color={row.color} address venue={venue} /></th>
+              <th scope="row"><CoinIdentity mint={row.mint} symbol={row.symbol} name={row.name} logoUrl={row.logoUrl} color={row.color} address onLight venue={venue} /></th>
               <td className="mp-col-num mp-col-wins"><b>{row.wins}</b></td>
               <td className="mp-col-num">{row.losses}</td>
               <td className="mp-col-num">{row.matches}</td>
@@ -78,6 +86,7 @@ export function StandingsTable({ rows, loading, unavailable, venue }: {
         </tbody>
       </table>
     </div>
+    <Pager {...paged} noun="coins" label="Standings pages" onMove={paged.move} />
     {/* The rule sits outside the horizontal scroller: it explains the table and
         must stay readable at the page's own width rather than scrolling with it. */}
     <p className="mp-rule">Won on raw wins{rows.length ? ` ${EM_DASH} losses break a tie and nothing else` : ''}.</p>

@@ -16,7 +16,7 @@ import { normalisedChances } from './chance'
 import { catalogueQuestions, type CatalogueItem } from './marketList'
 import { useMarketCatalogue } from './useMarketCatalogue'
 import { eventTimingLabel } from '../events/eventTiming'
-import { teamIdentityColor } from './moneyline'
+import { pickInk, teamIdentityColor } from './moneyline'
 import { useLogoPalette } from './logoIdentity'
 
 type Props = { apiUrl?: string }
@@ -46,7 +46,7 @@ export type DirectoryRow = {
 const filters = ['Featured', 'Live', 'Upcoming', 'History', 'All'] as const
 type MarketFilter = typeof filters[number]
 type EventTypeFilter = 'all' | NonNullable<DirectoryRow['eventType']>
-const PAGE_SIZE = 24
+const PAGE_SIZE = 12
 const AGENT_COLORS = ['#c7ff00', '#ff579d', '#65cfff', '#ffac57', '#bd9afa', '#f9e071']
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
@@ -59,6 +59,13 @@ const eventTypeLabel = (row: DirectoryRow) => row.hasHumans ? 'HUMAN MATCH' : ro
   ? 'GENESIS AGENT FFA'
   : row.eventType === 'miaw-prix' ? 'MIAW PRIX · COLOSSEUM'
     : row.eventType === 'general' ? 'GENERAL MARKET' : 'RANKED / STAKE MATCH'
+
+/** General is a market taxonomy, not a game mode. A two-sided general question
+ * may be a future human match, but it must never be marketed as a token duel
+ * until that product actually exists. */
+const cardProgram = (row: DirectoryRow) => row.eventType === 'miaw-prix'
+  ? 'MIAW PRIX GAME'
+    : row.hasHumans || row.eventType === 'match' ? 'SOLZ.FUN GAME' : null
 
 const absoluteTime = (match: SolzMatch, now: number) => {
   const terminal = match.phase === 'settled' || (match.timingType !== 'open-ended' && match.endsAt <= now)
@@ -77,6 +84,21 @@ const agentNumber = (participantId?: string) => {
 }
 
 const agentColor = (number?: number) => number ? AGENT_COLORS[(number - 1) % AGENT_COLORS.length] : undefined
+
+/** teamIdentityColor hashes into a 44-50% lightness band (moneyline.ts:31), which
+ *  is tuned for a control that lights up when you pick it. A directory card has
+ *  nothing to pick, so every outcome here is drawn already lit: the same x1.18
+ *  the button's :hover used to apply, applied once, up front, to all of them.
+ *
+ *  Done here and not with a CSS filter because the ink is chosen from the fill's
+ *  luminance - brightening after pickInk saw the colour could leave white ink on
+ *  a fill that had crossed into needing dark. */
+function litIdentity(hex: string, by = 1.18) {
+  const raw = hex.replace('#', '')
+  if (raw.length !== 6) return hex
+  const channel = (at: number) => Math.min(255, Math.round(parseInt(raw.slice(at, at + 2), 16) * by))
+  return `#${[0, 2, 4].map((at) => channel(at).toString(16).padStart(2, '0')).join('')}`
+}
 
 const phaseRank = (row: DirectoryRow) => {
   const realMatch = row.eventType !== 'general'
@@ -129,37 +151,47 @@ function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: numbe
     : terminal ? row.opened ? 'ON-CHAIN · CLOSED' : 'OFF-CHAIN · NEVER OPENED'
       : row.opened ? 'ON-CHAIN' : 'OFF-CHAIN · OPENS ON FIRST TRADE'
   const href = `/events/${encodeURIComponent(match.id)}`
-  return <article className={`mk-card mk-card--${kind}`}>
+  const program = cardProgram(row)
+  // The card's surface states which family it belongs to, so it keys off the
+  // event type rather than off whether a programme badge happens to be printed.
+  // A Genesis FFA round is a game and carries no badge; tying the two together
+  // dropped it onto the general-market grey for want of a label it never has.
+  const category = (row.eventType ?? row.kind) === 'general' ? 'is-general' : 'is-game'
+  return <article className={`mk-card mk-card--${kind} ${category}${match.phase === 'live' ? ' is-live' : terminal ? ' is-past' : ''}`}>
     <div className="mk-card-kicker">
       <span>{eventTypeLabel(row)}</span>
       {row.matchNumber && <b>MATCH #{row.matchNumber}</b>}
     </div>
     <a className="mk-card-head" href={href} aria-label={`Open ${row.title ?? match.map}`}>
-      <h3 className="mk-card-title">{row.title ?? match.map}</h3>
+      <h3 className="mk-card-title">{row.title ?? match.map}{program && <small className="mk-card-program">{program}</small>}</h3>
       <ArrowUpRight className="mk-card-open" size={15}/>
     </a>
     <div className="mk-card-status">
       <StatusDot pink={match.phase !== 'live'}>{row.status ?? timing}</StatusDot>
       <span>{detail}</span>
     </div>
-    {Number.isFinite(absoluteTimeAt(match, now)) && <time className="mk-card-time" dateTime={new Date(absoluteTimeAt(match, now)).toISOString()}>{absoluteTime(match, now)}</time>}
+    {Number.isFinite(absoluteTimeAt(match, now)) && <time className={`mk-card-time${terminal ? ' is-past' : ''}`} dateTime={new Date(absoluteTimeAt(match, now)).toISOString()}>{absoluteTime(match, now)}</time>}
     {children}
     <div className="mk-card-bottom">
-      <span>{compact(marketVolume)} {row.collateral ?? 'COOLA'} Vol.</span>
+      <span className="mk-card-volume">{compact(marketVolume)} {row.collateral ?? 'COOLA'} Vol.</span>
       <span><Eye size={12}/>{compact(match.viewers)}</span>
     </div>
   </article>
 }
 
 function VersusPick({ team, probability, indicative, href }: { team: SolzMatch['teams'][number]; probability: number; indicative: boolean; href: string }) {
+  // The fill spans from a dark indigo to a bright olive even before it is lit,
+  // so the ink is read off the final colour rather than fixed - the same call
+  // the market rows and the ticket make, on the value actually painted.
   // The crest beside the fill is what the fill is coloured from; it is read
   // asynchronously, so this card re-renders when its hue lands.
   useLogoPalette()
-  const color = teamIdentityColor(team.symbol, team.logoUrl)
-  return <div className="mk-versus-pick" style={{ '--mk-identity': color } as CSSProperties}>
+  const color = litIdentity(teamIdentityColor(team.symbol, team.logoUrl))
+  return <div className="mk-versus-pick" style={{ '--mk-identity': color, '--mk-ink': pickInk(color) } as CSSProperties}>
     <div className="mk-versus-identity">
       <TeamMark id={team.teamId} color={color} logoUrl={team.logoUrl}/>
-      <strong>{team.symbol}</strong>
+      <strong>{team.name || team.symbol}</strong>
+      {!indicative && <span className="mk-versus-meter" aria-hidden="true"><i style={{ width: percent(probability), background: color }}/></span>}
     </div>
     <a className="mk-versus-button" href={href} aria-label={`Open ${team.symbol} market`}>
       <span>{team.symbol}</span>
@@ -172,14 +204,10 @@ function VersusPick({ team, probability, indicative, href }: { team: SolzMatch['
  * the trade ticket's label-plus-quote treatment and is coloured from the crest. */
 function VersusCard({ row, now }: { row: DirectoryRow; now: number }) {
   const odds = teamOdds(row.match, row.market)
-  const [home, away] = odds
   return <CardFrame row={row} now={now} kind="versus">
     <div className="mk-versus">
       {odds.map(({ team, probability, indicative }) => <VersusPick key={team.teamId} team={team} probability={probability} indicative={indicative} href={`/events/${encodeURIComponent(row.match.id)}`}/>) }
     </div>
-    {!odds.some(item => item.indicative) && <div className="mk-split" style={{ background: away ? teamIdentityColor(away.team.symbol) : 'var(--sh-line)' }}>
-      <i style={{ width: percent(home?.probability ?? .5), background: home ? teamIdentityColor(home.team.symbol) : 'var(--sh-lime)' }}/>
-    </div>}
   </CardFrame>
 }
 
@@ -274,7 +302,13 @@ export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
   return <FreeForAllCard row={row} now={now}/>
 }
 
-export function MarketDirectory({ snapshot, questions, loaded = true, error, retry }: { snapshot: SolzSnapshot | null; questions: DirectoryRow[]; loaded?: boolean; error: string; retry: () => void }) {
+export function MarketDirectory({ snapshot, questions, loaded = true, error, retry }: {
+  snapshot: SolzSnapshot | null
+  questions: DirectoryRow[]
+  loaded?: boolean
+  error: string
+  retry: () => void
+}) {
   const [filter, setFilter] = useState<MarketFilter>('Featured')
   const [eventType, setEventType] = useState<EventTypeFilter>('all')
   const [search, setSearch] = useState('')
@@ -285,22 +319,23 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
     return () => window.clearInterval(timer)
   }, [])
   const allRows = useMemo(() => {
-    // match.marketId is roomId-derived (predictionArena.ts:87) and is no market's
-    // id anywhere in the snapshot, so it never resolved. Join on matchId, the
-    // predicate every event surface already uses (EventApp.tsx:106).
-    const matches: DirectoryRow[] = (snapshot?.matches ?? []).map(match => {
-      const markets = snapshot?.markets.filter(item => item.matchId === match.id) ?? []
-      const catalogue = questions.find(row => row.match.id === match.id)
-      const resolved = markets.length ? markets : catalogue?.markets ?? []
-      return { ...catalogue, match, market: resolved[0], markets: resolved, title: catalogue?.title ?? matchTitle(match), kind: catalogue?.kind ?? 'match' }
-    })
-    // Questions and arena matches share one stage; status is a filter, never a
-    // separate section that pushes the next available market below the fold.
-    const liveIds = new Set(matches.map(row => row.match.id))
-    return sortMarketRows([...questions.filter(row => !liveIds.has(row.match.id)), ...matches].filter(row => {
+    const snapshotMatches = new Map((snapshot?.matches ?? []).map(match => [match.id, match]))
+    const snapshotMarkets = new Map<string, ArenaMarket[]>()
+    for (const market of snapshot?.markets ?? []) {
+      if (!market.matchId) continue
+      const current = snapshotMarkets.get(market.matchId) ?? []
+      current.push(market)
+      snapshotMarkets.set(market.matchId, current)
+    }
+    return sortMarketRows(questions.map(row => {
+      const match = snapshotMatches.get(row.match.id)
+      if (!match) return row
+      const markets = snapshotMarkets.get(match.id) ?? row.markets ?? []
+      return { ...row, match, market: markets[0] ?? row.market, markets: markets.length ? markets : row.markets, title: row.title ?? matchTitle(match) }
+    }).filter(row => {
       const phase = row.match.phase
       const selected = filter === 'All'
-        || (filter === 'Featured' ? phase !== 'settled' && (eventType !== 'all' || row.eventType !== 'genesis-ffa')
+        || (filter === 'Featured' ? phase !== 'settled' && row.eventType !== 'genesis-ffa'
           : filter === 'Live' ? phase === 'live'
             : filter === 'History' ? phase === 'settled'
               : phase === 'countdown' || phase === 'queued')

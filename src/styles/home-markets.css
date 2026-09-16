@@ -131,42 +131,70 @@
 .mk-group-heading p { margin-top: 4px; color: var(--sh-muted); font-size: 10px; }
 .mk-group-heading > span { display: grid; min-width: 28px; height: 28px; place-items: center; border: 1px solid var(--sh-line); color: var(--sh-lime); font: 600 10px var(--sh-mono); }
 .mk-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 12px; padding-top: 4px; }
-.mk-card { display: flex; flex-direction: column; gap: 12px; padding: 15px; border: 1px solid var(--sh-line); background: var(--sh-panel); transition: border-color .18s ease-out, background .18s ease-out; }
-.mk-card:hover { border-color: var(--sh-lime); background: #1d2019; }
+.mk-card { display: flex; flex-direction: column; gap: 12px; padding: 15px; border: 1px solid var(--sh-card-line); background: var(--sh-card); transition: border-color .18s ease-out, background .18s ease-out; }
+/* Hover lifts the card one more step and brightens its edge, the same move a
+   match card makes (home.css:287). The edge is not the lime accent: twelve
+   cards in a grid each claiming the brand colour on pointer-over made the
+   accent mean 'the cursor is here' rather than 'this is the action'. */
+.mk-card:hover { border-color: var(--sh-card-edge); background: var(--sh-card-hover); }
+.mk-card.is-past { opacity: .64; }
+.mk-card.is-past:hover { opacity: .84; }
 /* The question leads the card; the arrow rides beside it without stealing a row. */
 .mk-card-head { display: flex; align-items: start; justify-content: space-between; gap: 10px; color: inherit; text-decoration: none; }
 .mk-card-head:focus-visible, .mk-versus-button:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
 .mk-card-title { overflow: hidden; margin: 0; font: 600 19px/1.15 var(--sh-heading); letter-spacing: -.01em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mk-card-program { display: inline-flex; align-items: center; width: max-content; min-height: 18px; margin: 8px 0 0; padding: 0 6px; border: 1px solid var(--sh-card-line); background: var(--sh-hair); color: var(--sh-dim); font: 700 8px var(--sh-mono); letter-spacing: .09em; vertical-align: middle; }
 .mk-card-open { flex-shrink: 0; margin-top: 2px; color: var(--sh-muted); }
 .mk-card:hover .mk-card-open { color: var(--sh-lime); }
 .mk-card-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: -4px; }
 .mk-card-status > span { color: var(--sh-muted); font-size: 11px; letter-spacing: .06em; }
+.mk-card.is-live .sh-status { color: #ff475e; }
+.mk-card:not(.is-live):not(.is-past) .sh-status { color: #efbd5f; }
+.mk-card.is-past .sh-status { color: var(--sh-faint); }
+.mk-card-time { color: var(--sh-dim); font-variant-numeric: tabular-nums; }
+.mk-card-time.is-past { color: var(--sh-faint); }
 .mk-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--sh-line); color: var(--sh-muted); font-size: 12px; }
 .mk-card-bottom span { display: inline-flex; align-items: center; gap: 5px; }
+.mk-card-volume { color: var(--sh-text); font-weight: 600; }
 .mk-card-note { display: flex; align-items: center; gap: 6px; color: var(--sh-muted); font-size: 11px; }
 
-/* Two teams: the crest is identity information, while the separate price
-   control below follows the same label-plus-quote vocabulary as the ticket. */
-.mk-versus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-.mk-versus-pick { display: grid; gap: 7px; min-width: 0; }
-.mk-versus-identity { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 24px; padding-inline: 2px; font-size: 11px; }
-.mk-versus-identity .sh-team-mark { width: 20px; height: 22px; flex: none; }
+/* Head-to-head cards read as two outcome rows. The logo and the name occur
+   once; the right-side control is only the price, so a fast scan never repeats
+   a symbol three times. */
+.mk-versus { display: grid; gap: 10px; }
+.mk-versus-pick { display: grid; grid-template-columns: minmax(0, 1fr) 126px; align-items: center; gap: 14px; min-width: 0; }
+.mk-versus-identity { display: grid; grid-template-columns: 58px minmax(0, 1fr); grid-template-rows: 1fr 4px; align-items: center; column-gap: 11px; min-width: 0; min-height: 62px; font-size: 14px; }
+.mk-versus-identity .sh-team-mark { grid-row: 1 / -1; width: 58px; height: 62px; }
 .mk-versus-identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-versus-button { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 46px; padding: 9px 11px 12px; border: 1px solid color-mix(in srgb, var(--mk-identity) 76%, var(--sh-line)); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--mk-identity) 86%, #000); background: color-mix(in srgb, var(--mk-identity) 32%, #1a2027); color: #f6fbff; font: 600 12px var(--sh-heading); text-decoration: none; transition: filter .18s ease-out, background .18s ease-out; }
+.mk-versus-meter { display: block; width: 100%; height: 4px; overflow: hidden; background: var(--sh-line); }
+.mk-versus-meter i { display: block; height: 100%; }
+/* A PICKED SIDE, painted the one way the site paints them: a flat high-chroma
+   fill, dark ink, and a 3px bar of the same hue darkened along the bottom edge
+   (game-surfaces.css:5-9, and the same mix .mk-row-picks uses at
+   market-rows.css:161). What this replaces was the REST form - the hue muted to
+   32% over a dark base with fixed white ink - which is the vocabulary for the
+   side you did not choose, and over the light plate it read as disabled.
+   The `a.` is load-bearing: `.solz-home a { color: inherit }` is (0,1,1) and
+   outranks a bare `.mk-versus-button`, so the ink has to be stated here or the
+   button silently takes the card's text colour instead. */
+.solz-home a.mk-versus-button { display: flex; min-width: 0; min-height: 46px; align-items: center; justify-content: center; gap: 8px; padding: 7px 10px 10px; border: 1px solid color-mix(in srgb, var(--mk-identity) 72%, #000); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--mk-identity) 72%, #000); background: var(--mk-identity); color: var(--mk-ink, #071a12); font: 600 12px var(--sh-heading); text-decoration: none; }
 .mk-versus-button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-versus-button > b { display: grid; flex: none; place-items: center; min-width: 35px; height: 24px; padding-inline: 6px; border-radius: 999px; background: color-mix(in srgb, var(--mk-identity) 68%, #11161c); color: #fff; font: 700 13px var(--sh-heading); font-variant-numeric: tabular-nums; }
-.mk-versus-button:hover { filter: brightness(1.18); }
-.mk-split { display: flex; width: 100%; height: 5px; overflow: hidden; }
-.mk-split i { display: block; height: 100%; border-right: 3px solid var(--sh-panel); transition: width .25s ease-out; }
+/* The price rides in a chip that inverts with the fill (game-surfaces.css:43):
+   translucent black, so it sits on any team hue, and the fill's own ink. */
+.mk-versus-button > b { display: grid; place-items: center; min-width: 44px; height: 25px; padding-inline: 7px; border-radius: 999px; background: var(--trade-chip-on); color: inherit; font: 700 14px var(--sh-heading); font-variant-numeric: tabular-nums; }
+/* No hover step. The fill already arrives at the lit value this used to reach
+   on pointer-over (MarketsDirectoryApp.tsx:88), so every outcome in the grid
+   reads at the same strength whether the cursor is near it or not - a card is a
+   listing, not a control surface, and the card's own hover still answers. */
 
 /* More than two teams: one ranked row per contender, tail collapsed to a count. */
 .mk-ffa { display: grid; gap: 7px; }
 .mk-ffa-row { display: grid; grid-template-columns: 20px minmax(42px, auto) 1fr auto; align-items: center; gap: 8px; font-size: 10px; }
 .mk-ffa-row .sh-team-mark { width: 20px; height: 22px; }
 /* Linked questions have no team to mark; a neutral dot keeps the grid aligned. */
-.mk-ffa-dot { width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: #3c4048; }
+.mk-ffa-dot { width: 7px; height: 7px; margin: 0 6px; border-radius: 50%; background: var(--sh-line); }
 .mk-ffa-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-ffa-bar { display: block; height: 4px; background: #2a2c31; }
+.mk-ffa-bar { display: block; height: 4px; background: var(--sh-line); }
 .mk-ffa-bar i { display: block; height: 100%; transition: width .25s ease-out; }
 .mk-ffa-row b { font: 600 11px var(--sh-mono); }
 

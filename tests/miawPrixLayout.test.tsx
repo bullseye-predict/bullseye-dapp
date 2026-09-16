@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { MiawPrixApp } from '../src/components/miawprix/MiawPrixApp'
+import { MiawPrixApp, SectionHeading } from '../src/components/miawprix/MiawPrixApp'
 import { ProgrammeLayout } from '../src/components/miawprix/ProgrammeLayout'
 import { SeasonPanel } from '../src/components/miawprix/SeasonPanel'
 import { StandingsTable } from '../src/components/miawprix/StandingsTable'
@@ -199,4 +199,41 @@ test('the page separates facts with layout and labels, not with middle dots', ()
   // perfectly well known. On this page an em dash means UNKNOWN.
   expect(winner).not.toContain('7—4')
   expect(winner).toContain('Matches')
+})
+
+/* ── One read, three titles ───────────────────────────────────────────────── */
+/* source.board() is a single request to ?kind=miawPrix that answers with the
+ * season, the standings and the matches together, so any refresh necessarily
+ * re-reads all three. The bug was never the read - it was that every button
+ * drove the page's global loading flag, so pressing REFRESH on the results
+ * blanked the other two tables to skeletons and set all three buttons to
+ * "Refreshing", which is what a whole-page refresh looks like. */
+
+const heading = (over: { busy?: boolean; blocked?: boolean } = {}) => renderToStaticMarkup(<SectionHeading
+  id="mp-results" title="Results" count="39 completed matches"
+  busy={over.busy ?? false} blocked={over.blocked ?? false} onRefresh={() => {}}
+/>)
+
+test('only the title that was pressed reports that it is refreshing', () => {
+  const pressed = heading({ busy: true, blocked: true })
+  expect(pressed).toContain('Refreshing')
+  expect(pressed).toContain('mp-spin')
+  // The other two titles are held while the read is in flight, but they do not
+  // claim to be refreshing - that is the whole-page reading being removed.
+  const other = heading({ busy: false, blocked: true })
+  expect(other).toContain('Refresh<')
+  expect(other).not.toContain('Refreshing')
+  expect(other).not.toContain('mp-spin')
+  expect(other).toContain('disabled')
+})
+
+test('an idle title offers a live control', () => {
+  const idle = heading()
+  expect(idle).toContain('Refresh<')
+  expect(idle).not.toContain('disabled')
+  expect(idle).not.toContain('mp-spin')
+})
+
+test('the control states that one read answers for every table', () => {
+  expect(heading()).toContain('updates all three tables')
 })

@@ -18,7 +18,7 @@ const market = (probabilities: number[], teams: SolzMatch['teams']): ArenaMarket
   rules: '',
 })
 
-test('two teams render one head-to-head bar carrying both shares', () => {
+test('two teams render a head-to-head row for each team with its own share meter', () => {
   const teams = [team('COKE', '#ff0000'), team('PEPSI', '#0000ff')]
   const row: DirectoryRow = { match: baseMatch(teams), market: market([0.7, 0.3], teams), title: 'COKE VS PEPSI' }
   const html = renderToStaticMarkup(<MarketCard row={row} now={0}/>)
@@ -26,7 +26,7 @@ test('two teams render one head-to-head bar carrying both shares', () => {
   expect(html).toContain('COKE VS PEPSI')
   expect(html).toContain('70%')
   expect(html).toContain('30%')
-  expect(html).toContain('mk-split')
+  expect(html).toContain('mk-versus-meter')
   // The other two shapes must not leak into a head-to-head.
   expect(html).not.toContain('mk-ffa')
   expect(html).not.toContain('mk-binary')

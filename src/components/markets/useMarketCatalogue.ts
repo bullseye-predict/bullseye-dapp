@@ -13,6 +13,9 @@ import { parseMarketList, type CatalogueItem } from './marketList'
  */
 export type MarketCatalogueState = { items: CatalogueItem[]; nextCursor: string | null; asOf: number; loaded: boolean; available: boolean }
 
+/** Fetch the complete opaque-cursor catalogue before client filtering.  Status,
+ * event-type, and search filters operate across the inventory, never only the
+ * current transport page.  The UI still slices that inventory into 12 cards. */
 export function useMarketCatalogue(apiUrl: string, status: 'eligible' | 'all' = 'eligible'): MarketCatalogueState {
   const [state, setState] = useState<MarketCatalogueState>({ items: [], nextCursor: null, asOf: Date.now(), loaded: false, available: true })
   useEffect(() => {

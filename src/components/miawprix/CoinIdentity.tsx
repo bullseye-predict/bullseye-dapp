@@ -13,7 +13,7 @@ import { explorerAddressUrl, type ExplorerVenue } from './explorerLink'
  * other — CATWALK is the lineup, this is the programme it feeds — and a coin
  * that shrank between them read as a different, lesser thing.
  */
-export function CoinIdentity({ mint, symbol, name, logoUrl, color, muted = false, address = false, venue }: {
+export function CoinIdentity({ mint, symbol, name, logoUrl, color, muted = false, address = false, onLight = false, venue }: {
   mint: string
   symbol: string
   name: string
@@ -25,6 +25,16 @@ export function CoinIdentity({ mint, symbol, name, logoUrl, color, muted = false
    *  On for the surfaces that list a coin once (standings, champion); off in a
    *  pairing cell, where two of them would bury the fixture. */
   address?: boolean
+  /** This coin is drawn on the light --sh-gray standings table rather than on
+   *  the page's dark panel.
+   *
+   *  IDENTITY MOVES TO THE CREST, IT DOES NOT DISAPPEAR. The ticker colours are
+   *  chosen against #191a1e, and half of them - every lime, sky and violet the
+   *  board issues - drop to near-invisible on #a6a8b3. The crest keeps the coin's
+   *  colour at full strength on a surface it still works on, and the ticker takes
+   *  the table's ink so the row can actually be read. The alternative is a second
+   *  colour per coin per surface, which is two sources of truth for one identity. */
+  onLight?: boolean
   /** Venue record for the explorer link. Absent means no link is rendered —
    *  never a guessed one. */
   venue?: ExplorerVenue | null
@@ -32,7 +42,7 @@ export function CoinIdentity({ mint, symbol, name, logoUrl, color, muted = false
   return <span className={`mp-coin ${muted ? 'is-muted' : ''}`}>
     <TeamMark id={mint} color={color} logoUrl={logoUrl} className="mp-crest" />
     <span className="mp-coin-text">
-      <b style={color && !muted ? { color } : undefined}>{symbol}</b>
+      <b style={color && !muted && !onLight ? { color } : undefined}>{symbol}</b>
       <small>{name}</small>
       {address && mint ? <CoinAddress mint={mint} symbol={symbol} venue={venue} /> : null}
     </span>
