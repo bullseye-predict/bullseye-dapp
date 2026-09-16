@@ -17,7 +17,8 @@ const season = (over: Partial<MiawPrixSeason> = {}): MiawPrixSeason => ({
 
 const match = (over: Partial<MiawPrixMatch> = {}): MiawPrixMatch => ({
   matchId: '0xMATCH1', displayMatchId: 'MP-014', scheduledStartAt: NOW + 86_400_000, status: 'scheduled',
-  definitionId: 'colosseum_team_deathmatch_3v3', title: '', sides: [], result: null, rewardPoolL: null, ...over,
+  definitionId: 'colosseum_team_deathmatch_3v3', title: '', cycleIndex: null,
+  cycleMatchIndex: null, cycleMatchCount: null, sides: [], result: null, rewardPoolL: null, ...over,
 })
 
 const sideA = { teamId: 'team-a', mint: 'MintA', symbol: '$ALPHA', name: 'Alpha' }
@@ -151,14 +152,32 @@ test('a published result outranks whatever the status string still says', () => 
   expect(matchState(match({ status: 'planned' }))).toBe('upcoming')
 })
 
+test('an expired live flag cannot overlap the next single broadcast', () => {
+  const stale = match({ status: 'live', scheduledStartAt: NOW - 6 * 60_000, matchDurationMs: 5 * 60_000 })
+  const current = match({ status: 'live', scheduledStartAt: NOW - 60_000, matchDurationMs: 5 * 60_000 })
+  expect(matchState(stale, NOW)).toBe('upcoming')
+  expect(matchState(current, NOW)).toBe('live')
+  expect(splitMatches([stale, current], NOW).upcoming.map((row) => row.matchId)).toEqual([current.matchId])
+})
+
 test('upcoming runs forward and results run backward', () => {
   const soon = match({ matchId: 'soon', scheduledStartAt: NOW + 3_600_000 })
   const later = match({ matchId: 'later', scheduledStartAt: NOW + 7_200_000 })
   const old = match({ matchId: 'old', scheduledStartAt: NOW - 7_200_000, status: 'settled' })
   const recent = match({ matchId: 'recent', scheduledStartAt: NOW - 3_600_000, status: 'settled' })
-  const { upcoming, finished } = splitMatches([later, old, soon, recent])
+  const { upcoming, finished } = splitMatches([later, old, soon, recent], NOW)
   expect(upcoming.map((entry) => entry.matchId)).toEqual(['soon', 'later'])
   expect(finished.map((entry) => entry.matchId)).toEqual(['recent', 'old'])
+})
+
+test('a past planned slot is neither upcoming nor a fabricated result', () => {
+  const split = splitMatches([
+    match({ matchId: 'missed', scheduledStartAt: NOW - 1, status: 'planned' }),
+    match({ matchId: 'future', scheduledStartAt: NOW + 1, status: 'planned' }),
+  ], NOW)
+  expect(split.upcoming.map((row) => row.matchId)).toEqual(['future'])
+  expect(split.finished).toEqual([])
+  expect(split.missed).toBe(1)
 })
 
 test('a cancelled match belongs with what is done, not with what is coming', () => {

@@ -2,12 +2,15 @@ import { expect, test } from 'bun:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MiawPrixApp } from '../src/components/miawprix/MiawPrixApp'
+import { EventApp } from '../src/components/events/EventApp'
 import { MatchTable } from '../src/components/miawprix/MatchTable'
+import { MiawPrixEventApp, isMiawPrixMatchId } from '../src/components/miawprix/MiawPrixEventApp'
+import { miawPrixEventView } from '../src/components/miawprix/miawPrixEventView'
 import { SeasonPanel } from '../src/components/miawprix/SeasonPanel'
 import { StandingsTable } from '../src/components/miawprix/StandingsTable'
-import { EM_DASH, NO_MARKET_NOTE, PAIRING_LOCK_MS, champion, rankStandings } from '../src/components/miawprix/board'
+import { PAIRING_LOCK_MS, champion, rankStandings } from '../src/components/miawprix/board'
 import {
-  MARKETS_FAILED, MARKETS_UNREAD, marketsRead,
+  marketsRead,
   type MiawPrixMarkets, type MiawPrixMatch, type MiawPrixSeason,
 } from '../src/components/miawprix/miawPrixSource'
 
@@ -22,7 +25,8 @@ const season = (over: Partial<MiawPrixSeason> = {}): MiawPrixSeason => ({
 
 const match = (over: Partial<MiawPrixMatch> = {}): MiawPrixMatch => ({
   matchId: '0xMATCH1', displayMatchId: 'MP-014', scheduledStartAt: NOW + 86_400_000, status: 'scheduled',
-  definitionId: 'colosseum_team_deathmatch_3v3', title: '', sides: [], result: null, rewardPoolL: null, ...over,
+  definitionId: 'colosseum_team_deathmatch_3v3', title: '', cycleIndex: 0, cycleMatchIndex: 4,
+  cycleMatchCount: 30, sides: [], result: null, rewardPoolL: null, ...over,
 })
 
 const sideA = { teamId: 'team-a', mint: 'MintA', symbol: '$ALPHA', name: 'Alpha', color: '#c7ff00' }
@@ -39,7 +43,7 @@ test('the loading state is the tables with their cells un-inked, never a sentenc
   // The final surface's structure, headers and column layout are already there.
   expect(html).toContain('<table')
   expect(html).toContain('Matches')
-  expect(html).toContain('Reward pool')
+  expect(html).toContain('Prediction pool')
   expect(html).toContain('Volume')
   expect(html).toContain('mp-pending')
   expect(html).toContain('aria-busy="true"')
@@ -57,24 +61,63 @@ test('the page renders inside the shared shell and brings no header of its own',
   expect(html).not.toContain('sz-site-header')
 })
 
-test('a match with no prediction market shows an em dash and never a zero', () => {
+test('a match row leads with its matchup and offers a compact market reference', () => {
   const html = renderToStaticMarkup(createElement(MatchTable, {
     variant: 'finished', now: NOW, loading: false, unavailable: '', markets: NO_MARKETS,
     matches: [match({ status: 'settled', sides: [sideA, sideB], result: { winnerTeamId: 'team-b', winnerMint: 'MintB' }, rewardPoolL: 4200 })],
   }))
-  expect(html).toContain('No prediction market opened for this match')
-  expect(html).toContain(EM_DASH)
-  expect(html).not.toContain('$0')
+  expect(html.indexOf('Matchup')).toBeLessThan(html.indexOf('Team Deathmatch 3v3'))
+  expect(html).toContain('$ALPHA')
+  expect(html).toContain('$BETA')
+  expect(html).toContain('aria-label="Open event details"')
+  expect(html).toContain('href="/events/0xMATCH1"')
+  expect(html).toContain('aria-label="Copy match ID"')
+  expect(html).not.toContain('>Copy ID</button>')
+  expect(html.indexOf('mp-date')).toBeLessThan(html.indexOf('mp-time'))
+  expect(html).not.toContain('0xMATCH1</')
+  expect(html).not.toContain('Reward pool')
 })
 
-test('a market that exists and traded nothing is allowed to say zero', () => {
-  const html = renderToStaticMarkup(createElement(MatchTable, {
-    variant: 'finished', now: NOW, loading: false, unavailable: '',
-    markets: marketsRead(new Map([['0xmatch1', { listed: true, volumeUsd: 0 }]]) as MiawPrixMarkets),
-    matches: [match({ status: 'settled', sides: [sideA, sideB], result: { winnerTeamId: 'team-a', winnerMint: 'MintA' } })],
+test('Colosseum match IDs open a dedicated event detail, not an arena-only event', () => {
+  expect(isMiawPrixMatchId(`0x534f4c5a${'a'.repeat(56)}`)).toBe(true)
+  expect(isMiawPrixMatchId('0xMATCH1')).toBe(false)
+  const html = renderToStaticMarkup(createElement(MiawPrixEventApp, {
+    matchId: `0x534f4c5a${'a'.repeat(56)}`, endpoint: '/api/agent-arena',
   }))
-  expect(html).toContain('$0')
-  expect(html).toContain('no trades yet')
+  expect(html).toContain('MIAW PRIX schedule')
+  expect(html).toContain('Loading the match event.')
+})
+
+test('a recorded Colosseum card adapts into the shared closed moneyline surface', () => {
+  const view = miawPrixEventView(match({
+    matchId: `0x534f4c5a${'a'.repeat(56)}`,
+    scheduledStartAt: NOW - 300_000,
+    matchDurationMs: 300_000,
+    status: 'settled',
+    sides: [sideA, sideB],
+    result: { winnerTeamId: 'team-b', winnerMint: 'MintB' },
+  }), NOW)
+  expect(view?.match.phase).toBe('settled')
+  expect(view?.match.teams.map((team) => team.symbol)).toEqual(['$ALPHA', '$BETA'])
+  expect(view?.market.status).toBe('closed')
+  expect(view?.market.presentation?.kind).toBe('head-to-head')
+  expect(view?.market.outcomes.map((outcome) => outcome.probability)).toEqual([0, 1])
+})
+
+test('the MIAW route mounts the shared prediction event shell', () => {
+  const html = renderToStaticMarkup(createElement(EventApp, {
+    apiUrl: '/api/prediction',
+    eventId: `0x534f4c5a${'b'.repeat(56)}`,
+    variant: 'markets',
+    paths: {
+      home: '/',
+      demo: '/demo',
+      live: '/live',
+      variants: { markets: '/events', community: '/events-2', agents: '/events-3' },
+    },
+  }))
+  expect(html).toContain('ev-loading')
+  expect(html).not.toContain('mp-event-main')
 })
 
 test('an unlocked pairing counts down instead of inventing an opponent', () => {
@@ -83,6 +126,8 @@ test('an unlocked pairing counts down instead of inventing an opponent', () => {
     matches: [match({ scheduledStartAt: NOW + PAIRING_LOCK_MS + 7 * 3_600_000 })],
   }))
   expect(html).toContain('Pairing locks in 7h 00m')
+  expect(html).toContain('In 19h 00m')
+  expect(html).toContain('CATWALK #1 · Match 5/30')
   expect(html).not.toContain('$ALPHA')
   expect(html).not.toContain('Team 1')
 })
@@ -183,60 +228,18 @@ test('an unreachable programme says so instead of showing an empty season', () =
   expect(html).toContain('<table')
 })
 
-/* THE BLOCKER, as a reader saw it.
- *
- * `volumeCell` was handed one empty `Map` for the initial state, for the error
- * state and for a real answer, so a fully loaded board with the catalogue still
- * in flight - the normal load window of EVERY page view - published "No
- * prediction market opened for this match" on every row, including rows that
- * carry real volume the moment the join lands. A catalogue that was down said
- * it forever, and silently. */
-test('a board that has loaded before the catalogue has answered claims nothing about a market', () => {
+test('match rows do not render prediction pool or volume figures', () => {
   const rows = [
     match({ matchId: '0xMATCH1', status: 'settled', sides: [sideA, sideB], result: { winnerTeamId: 'team-a', winnerMint: 'MintA' } }),
     match({ matchId: '0xMATCH2', status: 'settled', sides: [sideA, sideB], result: { winnerTeamId: 'team-b', winnerMint: 'MintB' } }),
   ]
-  const render = (markets: Parameters<typeof MatchTable>[0]['markets']) => renderToStaticMarkup(createElement(MatchTable, {
-    variant: 'finished', now: NOW, loading: false, unavailable: '', markets, matches: rows,
-  }))
-
-  const unread = render(MARKETS_UNREAD)
-  const failed = render(MARKETS_FAILED)
-
-  for (const html of [unread, failed]) {
-    // The rows themselves are fully rendered - this is not a loading table.
-    expect(html).toContain('$ALPHA')
-    expect(html).not.toContain('mp-pending-row')
-    // ...and not one of them states a fact about a market that was never read.
-    expect(html).not.toContain(NO_MARKET_NOTE)
-    expect(html).not.toContain('No prediction market opened')
-    // Nor does either invent liquidity in its place.
-    expect(html).not.toContain('$0')
-    expect(html).not.toContain('mp-volume')
-  }
-
-  // Unread is drawn as an un-inked value, like every other value being read.
-  expect(unread).toContain('mp-pending--num')
-  expect(unread).toContain('Reading the prediction catalogue')
-  // Failed says what failed, and says it is not about this match.
-  expect(failed).toContain('could not be read')
-  expect(failed).toContain('not a statement about this match')
-  expect(failed).not.toContain('mp-pending')
-
-  // And once the catalogue HAS answered, the sentence is allowed again.
-  expect(render(NO_MARKETS)).toContain(NO_MARKET_NOTE)
-})
-
-test('a catalogue outage is disclosed on the page, not only in a title attribute', () => {
   const html = renderToStaticMarkup(createElement(MatchTable, {
-    variant: 'finished', now: NOW, loading: false, unavailable: '', markets: MARKETS_FAILED,
-    matches: [match({ status: 'settled', sides: [sideA, sideB], result: { winnerTeamId: 'team-a', winnerMint: 'MintA' } })],
+    variant: 'finished', now: NOW, loading: false, unavailable: '', matches: rows,
   }))
-  // Every volume cell is an em dash, which on this page otherwise reads as "we
-  // looked and there is no market" - so the cell carries the distinction.
-  expect(html).toContain('mp-unknown')
-  expect(html).toContain(EM_DASH)
-  expect(html).not.toContain(NO_MARKET_NOTE)
+  expect(html).not.toContain('Reward pool')
+  expect(html).not.toContain('Volume')
+  expect(html).not.toContain('mp-volume')
+  expect(html.match(/aria-label="Copy match ID"/g) ?? []).toHaveLength(2)
 })
 
 /* A refresh that fails keeps the rows that already landed AND used to print

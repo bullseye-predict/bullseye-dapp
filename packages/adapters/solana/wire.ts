@@ -18,6 +18,8 @@ export const INSTRUCTION = {
   authorizeAgent: 14, revokeAgent: 15, fillOrders: 16, initializeOrCancelNonce: 17,
   cancelAllOrders: 18,
   createQuestionMarket: 27,
+  rotateOracle: 29,
+  rotateAuthority: 30,
 } as const
 export type AddressInput = PublicKey | string
 export const address = (value: AddressInput): PublicKey => typeof value === 'string' ? new PublicKey(value) : value
@@ -63,6 +65,8 @@ export const positionAddress = (programId: AddressInput, market: AddressInput, v
 export const orderStateAddress = (programId: AddressInput, vault: AddressInput, nonce: bigint) => pda(programId, encoder.encode('order'), keyBytes(vault), u64(nonce))
 export const vaultCollateralAddress = (programId: AddressInput, vault: AddressInput) => pda(programId, encoder.encode('vault_collateral'), keyBytes(vault))
 export const marketCollateralAddress = (programId: AddressInput, market: AddressInput) => pda(programId, encoder.encode('market_collateral'), keyBytes(market))
+/** Derived here rather than imported from ./manifest/wire, which imports this file. */
+export const predictionManifestConfigAddress = (programId: AddressInput) => pda(programId, encoder.encode('manifest_config'))
 
 export interface SolanaOrder {
   signer: AddressInput
@@ -170,7 +174,10 @@ export function buildCreateQuestionMarket(programId: AddressInput, payer: Addres
   const payload = encodeQuestionCreationInstructionData(matchId, questionId, permit)
   return [
     ix(ED25519_PROGRAM_ID, [], encodeQuestionCreationEd25519Descriptor(createInstructionIndex)),
-    ix(programId, [meta(payer, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID), meta(SYSVAR_INSTRUCTIONS_PUBKEY)], payload),
+    // The trailing manifest config decides the execution engine at creation, so
+    // it cannot be raced for afterwards. Read-only, and unset on a deployment
+    // that has not frozen a Manifest venue.
+    ix(programId, [meta(payer, true, true), meta(configAddress(programId)), meta(market, true), meta(marketCollateralAddress(programId, market), true), meta(collateralMint), meta(SystemProgram.programId), meta(TOKEN_PROGRAM_ID), meta(SYSVAR_INSTRUCTIONS_PUBKEY), meta(predictionManifestConfigAddress(programId))], payload),
   ]
 }
 export function initializeVault(programId: AddressInput, owner: AddressInput, collateralMint: AddressInput, maxCapital: bigint): TransactionInstruction {
@@ -197,6 +204,14 @@ export function resolveMarket(programId: AddressInput, oracle: AddressInput, mar
 }
 export function voidMarket(programId: AddressInput, actor: AddressInput, market: AddressInput, resultHash: Uint8Array): TransactionInstruction {
   return ix(programId, [meta(actor, false, true), meta(configAddress(programId)), meta(market, true)], data(INSTRUCTION.voidMarket, fixedBytes(resultHash, 32)))
+}
+/** Admin-only recovery while globally paused. Replaces the resolver for every open market. */
+export function rotateOracle(programId: AddressInput, admin: AddressInput, newOracle: AddressInput): TransactionInstruction {
+  return ix(programId, [meta(admin, false, true), meta(configAddress(programId), true)], data(INSTRUCTION.rotateOracle, keyBytes(newOracle)))
+}
+/** Globally paused two-party handover. Both the current and replacement admin sign. */
+export function rotateAuthority(programId: AddressInput, currentAdmin: AddressInput, newAdmin: AddressInput): TransactionInstruction {
+  return ix(programId, [meta(currentAdmin, false, true), meta(newAdmin, false, true), meta(configAddress(programId), true)], data(INSTRUCTION.rotateAuthority))
 }
 export function setPause(programId: AddressInput, admin: AddressInput, paused: boolean, market?: AddressInput): TransactionInstruction {
   return ix(programId, [meta(admin, false, true), meta(configAddress(programId), market === undefined), ...(market === undefined ? [] : [meta(market, true)])], data(market === undefined ? INSTRUCTION.pauseGlobal : INSTRUCTION.pauseMarket, flag(paused)))

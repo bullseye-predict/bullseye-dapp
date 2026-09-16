@@ -459,7 +459,7 @@ export function MatchViewer({
       ease: "inOutSine",
       loop: true,
     });
-    return () => pulse.cancel();
+    return () => { pulse.cancel(); };
   }, [isLiveBroadcast]);
   return (
     <section className="ch-viewer" aria-label="Highlighted event viewer">

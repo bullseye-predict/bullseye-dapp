@@ -62,9 +62,17 @@ export type MiawPrixMatch = {
   displayMatchId: string
   /** Epoch ms. 0 when the programme has not scheduled it yet. */
   scheduledStartAt: number
+  /** Authoritative room length. The public board uses it to reject a stale
+   *  `live` database flag after the room's single broadcast window has ended. */
+  matchDurationMs?: number
   status: string
   definitionId: string
   title: string
+  /** Zero-based immutable CATWALK cycle and card positions. The UI labels them
+   *  one-based so the first frozen board is CATWALK #1. */
+  cycleIndex: number | null
+  cycleMatchIndex: number | null
+  cycleMatchCount: number | null
   /** Empty until CATWALK binds the pairing. An empty array is "not locked yet",
    *  never "no opponents" — the page must not invent teams to fill it. */
   sides: MiawPrixCoinSide[]
@@ -128,6 +136,7 @@ function object(value: unknown): Record<string, any> {
 
 const text = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback)
 const count = (value: unknown) => (Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : 0)
+const optionalCount = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : null
 
 /** A non-negative finite figure, from a number or from the string a Postgres
  *  `numeric` serialises to. Anything else — absent, null, NaN, negative, an
@@ -250,9 +259,13 @@ export function parseMiawPrixBoard(value: unknown): MiawPrixBoard {
         matchId,
         displayMatchId: text(match.displayMatchId, matchId.slice(0, 10)),
         scheduledStartAt: moment(match.scheduledStartAt),
+        matchDurationMs: count(match.matchDurationMs),
         status: text(match.status, 'scheduled'),
         definitionId: text(match.definitionId),
         title: text(match.title),
+        cycleIndex: optionalCount(match.cycleIndex),
+        cycleMatchIndex: optionalCount(match.cycleMatchIndex),
+        cycleMatchCount: optionalCount(match.cycleMatchCount),
         sides: (Array.isArray(match.sides) ? match.sides : []).flatMap((side: unknown) => {
           const parsed = parseSide(side)
           return parsed ? [parsed] : []
@@ -318,7 +331,17 @@ export function miawPrixSource(arenaEndpoint: string, predictionEndpoint: string
   return {
     async board(seasonId = '', signal?: AbortSignal): Promise<MiawPrixBoard> {
       const query = new URLSearchParams({ kind: 'miawPrix', ...(seasonId ? { seasonId } : {}) })
+      // This endpoint is the CATWALK projection. Its cards are immutable lock
+      // snapshots, so the frequently-changing live board can no longer alter a
+      // published matchup. Raw Colosseum planning slots are deliberately not
+      // merged here: a room without CATWALK sides is not a MIAW PRIX card.
       return parseMiawPrixBoard(await read(`${arenaEndpoint}?${query}`, 'The MIAW PRIX programme is unavailable', signal))
+    },
+    async match(matchId: string, signal?: AbortSignal): Promise<MiawPrixMatch | null> {
+      const query = new URLSearchParams({ kind: 'miawPrix', matchId })
+      const payload = object(await read(`${arenaEndpoint}?${query}`, 'The MIAW PRIX match is unavailable', signal))
+      if (!payload.match) return null
+      return parseMiawPrixBoard({ ok: true, seasons: [], standings: [], matches: [payload.match] }).matches[0] ?? null
     },
     /**
      * Volume is a join, not the page. A catalogue that is down must leave the

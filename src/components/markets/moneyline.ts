@@ -11,6 +11,34 @@ import { outcomeColor } from '../home/heroMarket'
 export const isMoneyline = (market: ArenaMarket) =>
   market.presentation?.kind === 'head-to-head' && market.outcomes.length === 2
 
+/**
+ * A head-to-head side needs one portable identity, even when its logo arrives
+ * from a different source on the directory and event screens. Hashing the
+ * canonical displayed team name gives the same vivid, readable hex everywhere
+ * without waiting for an image download or depending on its CORS policy.
+ *
+ * This is intentionally for team-versus-team markets only. Yes/No contracts
+ * remain semantic green/red rather than acquiring a decorative identity.
+ */
+export function teamIdentityColor(name: string) {
+  const input = name.trim().toLocaleUpperCase() || 'TEAM'
+  let hash = 2_166_136_261
+  for (const character of input) {
+    hash ^= character.codePointAt(0) ?? 0
+    hash = Math.imul(hash, 16_777_619)
+  }
+  const hue = (hash >>> 0) % 360
+  const saturation = 58 + ((hash >>> 9) % 11)
+  const lightness = 44 + ((hash >>> 17) % 7)
+  const chroma = (1 - Math.abs(2 * lightness / 100 - 1)) * saturation / 100
+  const segment = hue / 60
+  const x = chroma * (1 - Math.abs(segment % 2 - 1))
+  const [red, green, blue] = segment < 1 ? [chroma, x, 0] : segment < 2 ? [x, chroma, 0] : segment < 3 ? [0, chroma, x] : segment < 4 ? [0, x, chroma] : segment < 5 ? [x, 0, chroma] : [chroma, 0, x]
+  const offset = lightness / 100 - chroma / 2
+  const channel = (value: number) => Math.round((value + offset) * 255).toString(16).padStart(2, '0')
+  return `#${channel(red)}${channel(green)}${channel(blue)}`
+}
+
 /** What a chart should draw for this market.
  *
  *  The one place that answers it. Four different signals each half-answered it
@@ -39,7 +67,7 @@ export function chartShape(market: ArenaMarket, { nested = false }: { nested?: b
  *  the trade ticket, so the three surfaces cannot disagree about a market. */
 export function pickColor(market: ArenaMarket, outcome: ArenaMarketOutcome, snapshot: SolzSnapshot, index: number) {
   if (!isMoneyline(market)) return undefined
-  return outcomeColor(outcome, snapshot, index)
+  return teamIdentityColor(outcome.label)
 }
 
 /** The display name for a market line. Head-to-head questions are written as a

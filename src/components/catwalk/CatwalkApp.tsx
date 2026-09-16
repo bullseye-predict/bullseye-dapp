@@ -1,36 +1,63 @@
 import '../../styles/home.css'
 import '../../styles/catwalk.css'
 import { ArrowUpRight, Search } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppShell } from '../solz/AppShell'
-import { DEFAULT_CATWALK_EXPLORER, catwalkSeasonLabel, usdLabel } from '../solz/catwalkSource'
+import { DEFAULT_CATWALK_EXPLORER, usdLabel, type CatwalkRankedLaneRead, type CatwalkSeatPlan } from '../solz/catwalkSource'
 import type { ExplorerVenue } from '../../../packages/adapters/explorer'
 import { Tabs, TabPanel } from '../solz/ui'
 import {
   bandRange, buildBoard, cheapestSeat, pad, seatHeld,
-  type CatwalkBoardShape, type CatwalkRow, type LadderState,
+  type CatwalkBoardShape, type CatwalkLadderSeat, type CatwalkRow, type LadderState,
 } from './catwalkBands'
 import {
-  CATWALK_TABS, isCatwalkTab, matchedSpots, parseCatwalkQuery, tabLens, tabRows,
-  type CatwalkQuery, type CatwalkTab,
+  // NO `boardSearchLayer`. The left board's dim/match layer is derived by
+  // `catwalkBoardLayer` and nowhere else, so this file has no way to hand the
+  // layer a tab-filtered list of rows - which is the regression that made the
+  // whole board fade out on a tab click. `tabRows` stays because the tab COUNTS
+  // are a genuinely per-lane figure.
+  CATWALK_NARROW, CATWALK_TABS, catwalkBoardLayer, isCatwalkTab, matchedSpots, parseCatwalkQuery, tabRows,
+  type CatwalkPanelId, type CatwalkQuery, type CatwalkTab,
 } from './catwalkQuery'
 import {
-  CatwalkBandHead, CatwalkSlotRow, CatwalkSlotSkeleton, CatwalkWalkLine,
+  CatwalkBandHead, CatwalkSlotRow, CatwalkSlotSkeleton, CatwalkWalkLine, LaneNote,
   type CatwalkMetric, type CatwalkRowState,
 } from './CatwalkSlotRow'
-import { CatwalkLadderList, type ClaimHandler } from './CatwalkLadder'
-import { CatwalkCounter, CatwalkExplain, CatwalkHero, daysLeft } from './CatwalkHero'
+import { CatwalkComposition } from './CatwalkComposition'
+import { CatwalkRankedRail } from './CatwalkRankedRail'
+import { CatwalkChampionRail } from './CatwalkChampionRail'
+import { CatwalkOutbidList, type ClaimHandler } from './CatwalkLadder'
+import { buildOutbidList } from './catwalkOutbid'
+import { CatwalkHero } from './CatwalkHero'
+import { CatwalkClock } from './CatwalkLockFace'
+import { useNarrow } from '../miawprix/ProgrammeLayout'
+import { nextCatwalkLock, type CatwalkLock } from './catwalkLock'
 import { useCatwalkBoard } from './useCatwalkBoard'
+import { useCatwalkCycles } from './useCatwalkCycles'
+import { CatwalkCycleBanner, CatwalkCyclePicker } from './CatwalkCyclePicker'
+import { resolvedTokenLogo } from '../solz/tokenIcon'
+import { overlayTokenMeta, useTokenMeta } from '../solz/tokenMeta'
+import { CatwalkClaimDialog } from './CatwalkClaimDialog'
 
 /**
  * CATWALK - the table the top twelve walk every MIAW PRIX rotation.
  *
- * The board is one list of numbered positions, and EVERY TAB RENDERS ALL OF
- * THEM. A tab chooses a lane to look through and search dims the rest, but
- * neither ever renumbers and neither ever removes a position: a slot number is
- * absolute identity in every tab, which is why an open slot is a first-class
- * row rather than a gap, and why a lane with nothing in it still shows
- * thirty-six numbered positions rather than one centred card over a dashed box.
+ * THE LEFT BOARD IS THE SAME BOARD ON EVERY TAB. Not "the same structure" and
+ * not "the same rows in a different state" - byte for byte the same markup. A
+ * tab changes the RIGHT RAIL and nothing else, which is the one promise this
+ * screen makes and the one thing tests/catwalkBoard.test.tsx proves outright.
+ *
+ * It got there in three steps, each of which was the owner rejecting a screen.
+ * First a lane tab drew ONLY its own lane's rows, so SOLZ RANKED with nothing in
+ * it rendered a single centred card over a dashed box and no numbered positions
+ * at all. Then every tab drew all thirty-six but looked at them through a LENS,
+ * so choosing a lane repainted two thirds of the board as TAKEN - still a board
+ * that changed under a reader who had only asked what a lane was. Now the lens
+ * is gone from this panel: the board is one list of numbered positions, drawn
+ * once, and the explaining happens beside it.
+ *
+ * A slot number is absolute identity in every tab, which is why an open slot is
+ * a first-class row rather than a gap, and why search dims rather than removes.
  *
  * COLOUR FOLLOWS THE LANE. A row is tinted by how its coin arrived - OUTBID,
  * CHAMPION, RANKED - and the same lane carries the same colour in the rows, the
@@ -48,34 +75,73 @@ import { useCatwalkBoard } from './useCatwalkBoard'
  * skeletons of the size the rows will occupy, and says nothing.
  */
 
-const TAB_LABEL: Record<CatwalkTab, string> = {
-  catwalk: 'CATWALK', outbid: 'OUTBID', ranked: 'SOLZ RANKED', champions: 'CHAMPIONS', agents: 'AGENTS',
+/** THE FIRST TAB IS THE PROGRAMME, NOT THE PAGE. The whole numbered board IS
+ *  the MIAW PRIX field - its top `activeSlots` walk every rotation and the rest
+ *  walk them in turn - so the tab that shows all of it is named for the thing it
+ *  shows. Labelling it CATWALK named the page the viewer was already on. The tab
+ *  ID stays 'catwalk' because it is this page's URL vocabulary (`?lane=`), and
+ *  renaming it would break every deep link already in the wild. */
+const TAB_LABEL: Record<CatwalkPanelId, string> = {
+  catwalk: 'MIAW PRIX', outbid: 'OUTBID', ranked: 'SOLZ RANKED', champions: 'CHAMPIONS', agents: 'AGENTS',
+  // Only ever rendered below the split breakpoint - see `panels` in CatwalkApp.
+  info: 'INFO',
 }
 
 /** Which lane colour a tab wears. The table itself and the not-yet-scheduled
  *  agents lane wear none, because neither is a lane a coin can arrive through. */
-const TAB_LANE: Partial<Record<CatwalkTab, string>> = {
+const TAB_LANE: Partial<Record<CatwalkPanelId, string>> = {
   outbid: 'outbid', champions: 'champion', ranked: 'ranked',
 }
 
-const TAB_SUB: Record<CatwalkTab, string> = {
-  catwalk: 'THE WHOLE TABLE, MERGED. ONE COIN HOLDS ONE SLOT.',
-  outbid: 'THE SPOT LADDER. SEAT NUMBERS ARE THE SALE’S OWN, NOT BOARD POSITIONS.',
-  ranked: 'COINS THAT CLIMBED IN. NOTHING PAID.',
-  champions: 'TOP THREE BY SEASON WINS. CANNOT BE OUTBID.',
-  agents: 'AGENT-OWNED SLOTS ARE NOT SCHEDULED YET.',
+/* THE LINE UNDER THE TAB ROW IS GONE. A TAB_SUB table stood here and printed
+   one sentence per tab directly beneath the tabs - "COINS THAT CLIMBED IN.
+   NOTHING PAID." and its four siblings. Every one of them is said again, at
+   more length, either on the rail the tab opens or in the band heads a
+   centimetre below; it cost a row above the board to restate what the next
+   thing on screen already says. Nothing is lost with it, and the toolbar now
+   sits directly on the board, which is what lets it stick cleanly. */
+
+/** The one line under the outbid list's head. It states what the SALE is doing,
+ *  which is the only thing about that list the ladder's state changes: the coins
+ *  standing on the board are there whether or not anyone can buy one. */
+const LADDER_NOTE: Record<LadderState, string> = {
+  open: 'A PRICE MEANS THE SEAT IS PUBLISHED AND CAN BE TAKEN NOW',
+  closed: 'BIDDING IS CLOSED — THESE COINS KEEP THEIR SLOTS',
+  unknown: 'THE LADDER COULD NOT BE READ — NO PRICE HERE IS A CLAIM ABOUT THE SALE',
 }
 
-const TAB_METRIC: Record<CatwalkTab, CatwalkMetric> = {
-  catwalk: 'record', outbid: 'take', ranked: 'lane', champions: 'wins', agents: 'record',
+/**
+ * What the RIGHT RAIL is, per tab, for the landmark that wraps it.
+ *
+ * The `<aside>` carried 'Take a slot' on every tab it appeared on. That is a
+ * commerce label, and on three of the four tabs it named something that is not
+ * for sale: a screen reader announced a sales rail over an explanation of what
+ * winning a champion slot means.
+ *
+ * A TAB_METRIC table used to stand here, choosing which figure the board's
+ * metric column printed per tab - a record on MIAW PRIX, an ask on OUTBID, a
+ * lane name on SOLZ RANKED. It is gone with the lens: the board prints the same
+ * column on every tab because it IS the same board, and a column that changed
+ * under the reader was the last thing making the left side look tab-dependent.
+ */
+const RAIL_LABEL: Record<CatwalkPanelId, string> = {
+  catwalk: 'How the list is composed',
+  outbid: 'Take a slot',
+  ranked: 'What the SOLZ ranked lane is',
+  champions: 'What the champion lane is',
+  agents: 'What the agent lane is',
+  // The narrow-width tab that IS the composition rail, so it is named for the
+  // same thing the MIAW PRIX rail is named for.
+  info: 'How the list is composed',
 }
 
 type Props = {
   /** Same-origin proxy. Injected rather than built here, per the adapter rule. */
   endpoint?: string
+  /** Where the MIAW PRIX programme lives. The hero's kicker links the season's
+   *  name to it; it no longer feeds an explainer cell. */
   miawPrixHref?: string
   rankedHref?: string
-  standingsHref?: string
   /**
    * Where a coin's symbol links.
    *
@@ -88,9 +154,17 @@ type Props = {
   /** The chain contract-address links are built against, when the host knows
    *  better than the board's own payload. */
   explorer?: ExplorerVenue | null
-  /** Supplied by a host that owns the wallet flow. Without it the claim controls
-   *  render inert with a stated reason; they never simulate a purchase. A claim
-   *  takes a LADDER SEAT, because a seat is the only thing on sale. */
+  /**
+   * A HOST THAT WANTS TO OWN THE CLAIM ITSELF.
+   *
+   * Without it this app opens its OWN dialog - the one that issues a quote and
+   * publishes the payment instructions, with no wallet connection anywhere in
+   * it. src/pages/catwalk.astro cannot pass this: Astro serializes island props
+   * and a function will not cross, which is why every claim control was dead
+   * with "the wallet flow is not wired up yet" written on it.
+   *
+   * A claim takes a LADDER SEAT, because a seat is the only thing on sale.
+   */
   onClaim?: ClaimHandler
 }
 
@@ -101,7 +175,7 @@ type Props = {
  *  colour, and the one head that does (the spot ladder's) sets it itself. */
 type Group = {
   key: string
-  head?: { label: string; range?: string; note: string }
+  head?: { label: string; range?: string; note: string; walks?: boolean }
   rows: CatwalkRow[]
   walkLineAfter?: boolean
 }
@@ -117,6 +191,8 @@ type ListProps = {
   onLadder?: () => void
   coinHref?: (mint: string) => string
   explorer?: ExplorerVenue | null
+  /** Filter the board in place instead of reloading the page it is on. */
+  onCoin?: (mint: string) => void
   /** The lane this tab looks through, or null for the whole table. A held row
    *  outside the lens renders 'other' - taken, and plainly not through this
    *  lane - which is what lets a lane tab show every numbered position without
@@ -139,7 +215,7 @@ export function catwalkGroups(shape: CatwalkBoardShape): Group[] {
   const hasChallenge = shape.bands.some((band) => !band.walks)
   return shape.bands.map((band) => ({
     key: band.key,
-    head: { label: band.label, range: bandRange(band), note: band.note },
+    head: { label: band.label, range: bandRange(band), note: band.note, walks: band.walks },
     rows: shape.rows.filter((row) => row.spot >= band.start && row.spot <= band.end),
     walkLineAfter: hasChallenge && band === walkIn,
   }))
@@ -160,7 +236,7 @@ function SlotList(props: ListProps) {
     <>
       {groups.map((group) => (
         <div className="cw-band" key={group.key}>
-          {group.head ? <CatwalkBandHead label={group.head.label} range={group.head.range} note={group.head.note} /> : null}
+          {group.head ? <CatwalkBandHead label={group.head.label} range={group.head.range} note={group.head.note} walks={group.head.walks} /> : null}
           {/* EVERY POSITION, AT FULL HEIGHT. Runs of vacancies used to collapse
               into a strip of number chips behind a SHOW ALL control, which on
               an empty board - the state this one launches in - hid most of the
@@ -179,6 +255,7 @@ function SlotList(props: ListProps) {
                 onLadder={props.onLadder}
                 coinHref={props.coinHref}
                 explorer={props.explorer}
+                onCoin={props.onCoin}
               />
             ))}
           </ol>
@@ -202,7 +279,7 @@ function SkeletonList({ groups, shape }: { groups: Group[]; shape: CatwalkBoardS
     <>
       {groups.map((group) => (
         <div className="cw-band" key={group.key}>
-          {group.head ? <CatwalkBandHead label={group.head.label} range={group.head.range} note={group.head.note} /> : null}
+          {group.head ? <CatwalkBandHead label={group.head.label} range={group.head.range} note={group.head.note} walks={group.head.walks} /> : null}
           <ol>{group.rows.map((row) => <CatwalkSlotSkeleton key={row.spot} spot={row.spot} />)}</ol>
           {group.walkLineAfter ? <CatwalkWalkLine activeSlots={shape.activeSlots} /> : null}
         </div>
@@ -211,25 +288,9 @@ function SkeletonList({ groups, shape }: { groups: Group[]; shape: CatwalkBoardS
   )
 }
 
-/**
- * A lane's own state, said ABOVE the table rather than instead of it.
- *
- * This used to be a centred card with a headline over a large dashed box, and
- * it REPLACED the board: the SOLZ RANKED tab with nothing in it rendered
- * "NOBODY HAS CLIMBED IN YET" and no numbered positions at all, which is the
- * screen the owner rejected. An empty lane is a fact about the lane, not the
- * disappearance of the board, so it is now a slim banner and the thirty-six
- * numbered positions render underneath it exactly as on every other tab.
- */
-function LaneNote({ title, body, cta, lane }: { title: string; body: string; cta?: { label: string; href: string }; lane: string }) {
-  return (
-    <div className="cw-lane-note" data-lane={lane}>
-      <strong>{title}</strong>
-      <p>{body}</p>
-      {cta ? <a className="cw-act" href={cta.href}>{cta.label}<ArrowUpRight size={12} aria-hidden="true" /></a> : null}
-    </div>
-  )
-}
+/* `LaneNote` now lives beside the band head and the walk line in
+   CatwalkSlotRow.tsx. Three rails render one and this file imports all three, so
+   it could not stay here without an import cycle. */
 
 /** A pasted contract address is long enough to break the layout, so it is shown
  *  head and tail. Shared by both search outcomes so they echo identically. */
@@ -409,24 +470,114 @@ export function CatwalkFooter({ pending, openCount, shape, ladder }: {
 }
 
 /**
+ * THE SPLIT ITSELF, AND THE PAGE'S ONE CLOCK - built in exactly one place.
+ *
+ * THIS MARKUP USED TO BE WRITTEN THREE TIMES: once in CatwalkPanel for the read
+ * board, once for the pending frame and once for the search miss, each with its
+ * own `<div className="cw-split">`, its own `<aside>`, and its own mount of the
+ * countdown. Three copies of one frame is three places to forget the clock, and
+ * exactly that happened - deleting the countdown from the search-miss copy left
+ * the whole suite green, because no test could reach that copy. There is one
+ * copy now and one `<CatwalkClock>` in this file, so the frame cannot disagree
+ * with itself and a deletion cannot hide in the branch nobody renders.
+ *
+ * WHERE THE CLOCK SITS IS A WIDTH QUESTION, NOT A TAB QUESTION.
+ *
+ * At >= 1280px the rail is a sticky column beside the board and the clock is
+ * its head, which is on screen for the whole scroll. Below that breakpoint the
+ * split collapses to one column and the rail follows the board, so the clock -
+ * the one thing on this page a holder acts on - landed roughly two thousand
+ * pixels down: thirty-six rows at 56px, three band heads and the hero, on the
+ * tab a reader LANDS on. The stylesheet's `order: -1` rescue only ever covered
+ * OUTBID and INFO, so MIAW PRIX, SOLZ RANKED and CHAMPIONS still buried it.
+ *
+ * So below the breakpoint the clock leaves the rail and becomes a child of the
+ * split in its own right, ordered ahead of both columns. It is NOT the whole
+ * rail that moves: hoisting the rail would push the board itself below the fold
+ * on the landing tab, which is the argument catwalk.css makes for leaving the
+ * legend where it is. Only the clock moves, because only the clock is a fact
+ * about the page rather than about the lane.
+ *
+ * IT IS STILL ONE INSTANCE. Not one per breakpoint hidden with `display:none` -
+ * two countdowns of one instant, one of them announced to a screen reader on a
+ * width where it is invisible. `narrow` answers false until the browser does, so
+ * the server and the first paint render the desktop arrangement.
+ *
+ * THE BOARD IS FIRST IN THE DOM AT EVERY WIDTH. The clock is a single short box
+ * ahead of it; the rail stays after it and is moved on screen by `order` alone,
+ * so a reader tabbing through still reaches the numbered table before whatever
+ * is explaining it.
+ */
+export function CatwalkSplit({ tab, lock, leadMs, narrow = false, board, rail }: {
+  tab: CatwalkPanelId
+  /** The page's single lock memo. 'unread' draws the pending face, so the first
+   *  paint needs no separate branch and no second component. */
+  lock: CatwalkLock
+  /** The server's own lock lead, so the clock states the rule the board keeps
+   *  rather than a hardcoded twelve hours. */
+  leadMs?: number | null
+  narrow?: boolean
+  board: ReactNode
+  rail: ReactNode
+}) {
+  const clock = <CatwalkClock lock={lock} leadMs={leadMs} />
+  return (
+    <div className="cw-split" data-rail={tab}>
+      {narrow ? <div className="cw-split-clock">{clock}</div> : null}
+      <div className="cw-split-board">{board}</div>
+      <aside className="cw-split-rail" aria-label={RAIL_LABEL[tab]}>
+        {narrow ? null : clock}
+        {rail}
+      </aside>
+    </div>
+  )
+}
+
+/**
  * ONE TAB'S PANEL, ONCE THE BOARD HAS BEEN READ.
  *
- * Exported so the promise this component makes is testable on its own: EVERY
- * TAB RENDERS THE WHOLE NUMBERED TABLE. The SOLZ RANKED tab with nothing in it
- * used to render one centred card - "NOBODY HAS CLIMBED IN YET" over a large
- * dashed box - and no numbered positions at all, which is the screen the owner
- * rejected. A lane's own state is a BANNER above the table now, never instead
- * of it, and the structure below the banner is the same structure on all five
- * tabs: same bands, same thirty-six numbers, same walk line.
+ * ONE SHAPE, EVERY TAB: the MIAW PRIX board on the left, a rail that explains
+ * something on the right. It is exported so the promise it makes is testable on
+ * its own, and the promise is now stronger than "every tab renders the whole
+ * table" - it is that the LEFT COLUMN IS BYTE-IDENTICAL on every tab.
+ *
+ * That is why the board takes no `tab`. It used to take three things from one:
+ * a metric per tab, a crown on CHAMPIONS, and a lane LENS that repainted every
+ * row outside the lane as TAKEN. All three made the left column change when a
+ * reader clicked a tab to ask what a lane WAS - "what change is not left side,
+ * but right side", in the owner's words. The board draws its record column, no
+ * crown and no lens, always.
+ *
+ * WHAT THAT COSTS, STATED RATHER THAN HIDDEN. `SlotList`'s `lens` prop and the
+ * `cw-slot--other` row it draws are now unreachable from this panel. Both are
+ * left standing: they are a working render state, CatwalkSearchPanel's callers
+ * can still ask for them, and deleting a working state to make a diff tidy is
+ * not what was asked for. The Crown at CatwalkSlotRow.tsx is unreachable from
+ * here for the same reason and stays for the same one.
+ *
+ * THE THREE BRANCHES THAT USED TO BE HERE ARE GONE. CATWALK returned a split,
+ * OUTBID returned a DIFFERENT split with the list leading and the board second,
+ * and every other tab returned a bare banner-over-table with no rail at all. So
+ * the board moved, changed width and changed DOM position as the reader moved
+ * between tabs - which is the "annoyingly bad" screen. One shape now, and only
+ * `rail()` reads the tab.
  */
 export function CatwalkPanel({
   tab, shape, ladder, dimmed = () => false, matched = () => false,
-  onLadder, onClaim, claimReason, coinHref, explorer,
-  rankedHref, standingsHref, daysRemaining,
+  onLadder, onClaim, claimReason, coinHref, explorer, onCoin, logoFor,
+  configuredSeats, closedReason, narrow = false,
+  seats = null, rankedLane = null, lastSeatPaidAt = null, lock = { state: 'unread' }, now = 0, leadMs = null,
 }: {
-  tab: CatwalkTab
+  tab: CatwalkPanelId
   shape: CatwalkBoardShape
   ladder: LadderState
+  /** The server's own lock lead. Handed to the clock so its copy states the
+   *  rule this board keeps rather than a hardcoded twelve hours. */
+  leadMs?: number | null
+  /** Whether the split has collapsed to one column - passed through to
+   *  `CatwalkSplit`, which is the only thing that reads it. Defaults to the
+   *  desktop arrangement, which is what the server renders. */
+  narrow?: boolean
   dimmed?: (row: CatwalkRow) => boolean
   matched?: (row: CatwalkRow) => boolean
   onLadder?: () => void
@@ -434,90 +585,134 @@ export function CatwalkPanel({
   claimReason?: string
   coinHref?: (mint: string) => string
   explorer?: ExplorerVenue | null
-  rankedHref?: string
-  standingsHref?: string
-  daysRemaining?: number | null
+  /** A coin click filters the board IN PLACE. Optional with no default, so a
+   *  panel rendered without it keeps every anchor's own navigation. */
+  onCoin?: (mint: string) => void
+  /** The ranked rail's crest resolver. See `logoFor` in CatwalkApp. */
+  logoFor?: (mint: string, boardLogo?: string | null) => string | undefined
+  /* NO `rankedHref`. The only thing in this panel that used it was the SOLZ
+     RANKED rail's VIEW RANKED LADDER control, and that control now points at
+     the real leaderboard on another site. HOW TO QUALIFY FREE still takes the
+     prop - it is a DIFFERENT destination - and it lives in the search miss,
+     which CatwalkApp renders itself. A prop this panel accepted and ignored
+     would read as though it still steered something here. */
+  configuredSeats?: number
+  closedReason?: string
+  /** The guaranteed seat plan, straight off the wire. Null when the server did
+   *  not send a whole readable one, and the rail then omits the guarantee
+   *  rather than quoting a figure this repo remembered. */
+  seats?: CatwalkSeatPlan | null
+  rankedLane?: CatwalkRankedLaneRead | null
+  /** When a seat was last paid for, epoch ms, or null. A board-wide aggregate;
+   *  never a per-coin purchase time. */
+  lastSeatPaidAt?: number | null
+  /** The page's single lock memo and the page's single clock, handed down. The
+   *  rail head renders the one clock on this page from it; a rail deriving its
+   *  own would print NO ROTATION IS SCHEDULED YET over a failed read. */
+  lock?: CatwalkLock
+  now?: number
 }) {
-  /** The whole numbered table, under this tab's lens. One call site, so no tab
-   *  can quietly render a different structure from the others. */
+  /**
+   * THE WHOLE NUMBERED TABLE. One call site, and it takes no tab at all, so no
+   * tab can render a different left column from any other.
+   */
   const table = (
     <SlotList
       groups={catwalkGroups(shape)}
-      metric={TAB_METRIC[tab]}
+      metric="rotation"
       shape={shape}
       ladder={ladder}
       dimmed={dimmed}
       matched={matched}
-      crowned={tab === 'champions'}
+      crowned={false}
       onLadder={onLadder}
       coinHref={coinHref}
       explorer={explorer}
-      lens={tabLens(tab)}
+      onCoin={onCoin}
     />
   )
 
   /**
-   * What a lane tab says about ITSELF, above the table. Null when the lane has
-   * coins in it and there is nothing to explain. Never a replacement for the
-   * board: the thirty-six numbered positions render underneath it either way.
+   * THE OUTBID LIST, BUILT ONCE.
+   *
+   * It is the subject of the OUTBID tab, and it is a rail there rather than a
+   * column of its own. It used to render on the CATWALK tab as well; the right
+   * side of that tab is now what the list is made OF rather than what it costs,
+   * which is what the owner asked for, and the price list is one click away on
+   * the tab named after it.
    */
-  const laneNote = () => {
-    const rows = tabRows(tab, shape.rows)
-    if (tab === 'agents') {
-      return <LaneNote
-        lane="open"
-        title="AGENT-OWNED SLOTS ARE NOT SCHEDULED YET."
-        body="No position is held through this lane, so every slot below is either open or taken through another one."
-      />
-    }
-    if (tab === 'ranked' && rows.length === 0) {
-      return <LaneNote
-        lane="ranked"
-        title="NOBODY HAS CLIMBED IN YET."
-        body="High coins on the SOLZ ranked ladder take a slot free at season roll. Nothing to pay, nothing to bid."
-        cta={rankedHref ? { label: 'VIEW RANKED LADDER', href: rankedHref } : undefined}
-      />
-    }
-    if (tab === 'champions' && rows.length === 0) {
-      return <LaneNote
-        lane="champion"
-        title="CHAMPION SLOTS UNLOCK WHEN THE SEASON CLOSES."
-        body={`Top 3 by MIAW PRIX season wins take slots 1–3 free, and those three cannot be outbid at any price.${daysRemaining === null || daysRemaining === undefined ? '' : ` ${daysRemaining}d to go.`}`}
-        cta={standingsHref ? { label: 'SEE SEASON STANDINGS', href: standingsHref } : undefined}
-      />
-    }
-    return null
-  }
+  const outbidList = (
+    <CatwalkOutbidList
+      rows={buildOutbidList(shape, ladder)}
+      note={LADDER_NOTE[ladder]}
+      onClaim={onClaim}
+      claimReason={claimReason}
+      coinHref={coinHref}
+      explorer={explorer}
+      onLadder={onLadder}
+      onCoin={onCoin}
+    />
+  )
 
-  if (tab === 'outbid') {
-    // Only a ladder that ANSWERED may be reported shut. An unreadable one is its
-    // own sentence: a 502 from the proxy is not a closed sale, and announcing
-    // one shut the whole board's pricing over a blip. Either way the numbered
-    // table renders beside it - the ladder's state is news about the ladder,
-    // not about the thirty-six positions.
-    const head = ladder === 'closed'
-      ? <LaneNote lane="outbid" title="THE SPOT LADDER IS CLOSED BETWEEN SEASONS." body="Seats reopen when the next season starts." />
-      : ladder === 'unknown'
-        ? <LaneNote lane="outbid" title="THE SPOT LADDER COULD NOT BE READ." body="Prices are unavailable for the moment. This page retries on its own; nothing about the sale has changed." />
-        : !shape.seats.length
-          ? <LaneNote lane="outbid" title="THE LADDER IS PUBLISHING NO SEATS." body="The sale is open but carries no positions at the moment." />
-          : <CatwalkLadderList seats={shape.seats} onClaim={onClaim} claimReason={claimReason} coinHref={coinHref} explorer={explorer} />
-    return (
-      <div className="cw-outbid">
-        <div className="cw-outbid-list">{head}</div>
-        <div className="cw-outbid-board">{table}</div>
-      </div>
-    )
-  }
+  // WHAT THE SALE IS DOING, said once above a list that renders either way.
+  //
+  // Only a ladder that ANSWERED may be reported shut. An unreadable one is its
+  // own sentence: a 502 from the proxy is not a closed sale, and announcing one
+  // shut the whole board's pricing over a blip.
+  const note = ladder === 'closed'
+    ? <LaneNote
+        lane="outbid"
+        title={closedReason === 'program_disabled' ? 'OUTBID IS NOT ENABLED YET.' : closedReason === 'lane_disabled' ? 'OUTBID IS DISABLED.' : 'THE SPOT LADDER IS CLOSED BETWEEN SEASONS.'}
+        body={`Bidding requires an enabled Outbid lane and a live season.${configuredSeats ? ` ${configuredSeats} ${configuredSeats === 1 ? 'seat is' : 'seats are'} configured for when it opens.` : ''} Every coin standing on the board is still listed below.`}
+      />
+    : ladder === 'unknown'
+      ? <LaneNote lane="outbid" title="THE SPOT LADDER COULD NOT BE READ." body="Prices are unavailable for the moment. This page retries on its own; nothing about the sale has changed." />
+      : !shape.seats.length
+        ? <LaneNote lane="outbid" title="THE LADDER IS PUBLISHING NO SEATS." body="The sale is open but carries no positions at the moment." />
+        : null
 
-  return <>{laneNote()}{table}</>
+  /**
+   * THE ONLY THING A TAB CHANGES.
+   *
+   * 'agents' falls to the composition legend rather than carrying a rail of its
+   * own: it is in the CatwalkTab union but not in CATWALK_TABS, so the tab never
+   * renders and a lane rail for it would be a screen nobody can reach.
+   */
+  const rail = (id: CatwalkPanelId) =>
+    id === 'outbid' ? <>{note}{outbidList}</>
+      : id === 'ranked' ? <CatwalkRankedRail
+            shape={shape}
+            rankedLane={rankedLane}
+            explorer={explorer}
+            coinHref={coinHref}
+            onCoin={onCoin}
+            logoFor={logoFor}
+          />
+        : id === 'champions' ? <CatwalkChampionRail shape={shape} />
+          // 'info' falls through with 'catwalk' and 'agents': it IS the
+          // composition rail, shown as a tab at the widths where the rail is not
+          // a column. No new branch, and no second copy of the legend.
+          : <CatwalkComposition
+              shape={shape}
+              seats={seats}
+              rankedLane={rankedLane}
+              ladder={ladder}
+              lastSeatPaidAt={lastSeatPaidAt}
+              leadMs={leadMs}
+              now={now}
+            />
+
+  // THE FRAME IS NOT BUILT HERE. `CatwalkSplit` owns the split markup, the one
+  // clock and where that clock sits at a given width, so this panel and the two
+  // frames CatwalkApp renders itself cannot drift apart - which is what let a
+  // missing countdown sit unnoticed in the search-miss copy.
+  return <CatwalkSplit tab={tab} lock={lock} leadMs={leadMs} narrow={narrow} board={table} rail={rail(tab)} />
 }
 
 export function CatwalkApp({
   endpoint = '/api/agent-arena',
   miawPrixHref = '/miaw-prix',
   rankedHref = '/agent-arena',
-  standingsHref = '/miaw-prix#standings',
   // A coin's own section on this site is its row on this board, reached by
   // contract address. It is a real route this repo serves; a guessed /coin/:mint
   // would not be.
@@ -526,24 +721,205 @@ export function CatwalkApp({
   onClaim,
 }: Props) {
   const feed = useCatwalkBoard(endpoint)
-  const [tab, setTab] = useState<CatwalkTab>('catwalk')
+  const history = useCatwalkCycles(endpoint)
+  const [tab, setTab] = useState<CatwalkPanelId>('catwalk')
+  /**
+   * THE FOURTH TAB EXISTS ONLY WHERE THE RAIL IS NOT A COLUMN.
+   *
+   * Below 1280px the split collapses and the composition legend lands about two
+   * thousand pixels under the board with nothing pointing at it; at or above it
+   * the legend is already on screen beside the table, so a tab pointing at it
+   * would be a lie about a place the reader is looking at.
+   *
+   * IT IS ABSENT FROM THE TABLIST AT DESKTOP WIDTH, NOT HIDDEN. `Tabs` fills its
+   * button refs positionally and moves focus by index (src/components/solz/
+   * ui.tsx), so a `display:none` fourth button would still take its index -
+   * ArrowRight from CHAMPIONS would select a panel nobody can see and then focus
+   * a hidden node. `visibility:hidden` is worse: it stays in the accessibility
+   * tree and is announced on a desktop that has no such tab.
+   *
+   * `useNarrow` answers false until the browser does, so the server and the
+   * first paint render the four-tab desktop list.
+   */
+  const narrow = useNarrow(CATWALK_NARROW)
+  const panels: CatwalkPanelId[] = narrow ? [...CATWALK_TABS, 'info'] : CATWALK_TABS
   const [typed, setTyped] = useState('')
   const [applied, setApplied] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  /**
+   * A ROW CLICK IS A SEARCH, NOT A NAVIGATION.
+   *
+   * Every coin link on this page points at `/catwalk?q=<mint>` - the page the
+   * reader is already on - and four surfaces answered a click by calling
+   * `window.location.assign` on it, so pressing a row tore the document down
+   * and rebuilt it in order to run a filter. This writes exactly what the URL
+   * hydrate below writes, so the `?q=` effect then produces the identical
+   * address a reload would have produced: shareable, with no document load.
+   *
+   * BOTH HALVES, DELIBERATELY. `typed` is what the search box shows, so the
+   * reader can see what is filtered and clear it; `applied` is what
+   * `parseCatwalkQuery` reads. The 120ms debounce re-sets `applied` to the same
+   * value a moment later, which is a no-op.
+   *
+   * AND IT GOES THROUGH THE SAME STATE AS TYPING, which is what keeps the left
+   * board's promise intact: the dim/match layer is derived by
+   * `catwalkBoardLayer(shape.rows, query, tab)` over the WHOLE board, so
+   * feeding `applied` cannot make the board tab-dependent. There is no second
+   * filter path here and there must never be one.
+   *
+   * Clicking the coin that is already filtered clears the filter.
+   */
+  /** THE SEAT THE DIALOG IS OPEN FOR, or null. A host that passed its own
+   *  `onClaim` never reaches this; everybody else gets this page's own dialog. */
+  const [claimSeat, setClaimSeat] = useState<CatwalkLadderSeat | null>(null)
+  const onCoin = useCallback((mint: string) => {
+    setTyped((current) => (current === mint ? '' : mint))
+    setApplied((current) => (current === mint ? '' : mint))
+  }, [])
   const searchRef = useRef<HTMLInputElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
 
-  const shape = useMemo(
-    () => buildBoard({
-      standingsState: feed.standingsState,
-      board: feed.board,
-      spots: feed.spots,
-      outbidSpots: feed.outbidSpots,
-      standings: feed.standings,
-      ladder: feed.ladder,
-    }),
-    [feed.board, feed.spots, feed.outbidSpots, feed.standings, feed.standingsState, feed.ladder],
+  /**
+   * HOW TALL THE PAGE'S STICKY CHROME ACTUALLY IS - measured, not guessed.
+   *
+   * `--cw-sticky-top` is what every offset that has to clear the sticky header
+   * AND this page's sticky toolbar is expressed against: the rail's own sticky
+   * top, and `scroll-margin-block-start` on every row, which is what search uses
+   * to land its first hit. The stylesheet could only ESTIMATE the toolbar - its
+   * own comment said so - and the estimate was wrong wherever the toolbar wrapped
+   * to more rows than the estimate allowed for. At phone width it allowed 98px
+   * for a bar that is 106px with the lane tabs on one line and 141px with them on
+   * two, so `scrollIntoView` put the row search had just found 43px underneath an
+   * opaque bar: a 13px sliver of the answer.
+   *
+   * The toolbar's height is a runtime fact - it depends on how five tab labels in
+   * the reader's own font wrap into the width they were given - so it is read
+   * from the element rather than predicted from a breakpoint. The CSS constants
+   * stay as the pre-hydration fallback and nothing else.
+   *
+   * NOT a layout effect. `useLayoutEffect` warns on every server render of this
+   * page, and the value it writes changes nothing that is on screen at the
+   * moment it lands - it is read when the reader scrolls or searches, both of
+   * which are a great many frames away.
+   */
+  const [chromeHeight, setChromeHeight] = useState(0)
+  useEffect(() => {
+    const node = toolbarRef.current
+    if (!node) return
+    const measure = () => setChromeHeight(Math.round(node.getBoundingClientRect().height))
+    measure()
+    // A bar that wraps when the window narrows, when a tab count arrives, or
+    // when the reader's font loads has changed height without a re-render.
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  // Undefined before the measurement lands, so the stylesheet's own fallback is
+  // what the first paint uses rather than a zero that would put every row's
+  // scroll target under the site header.
+  const boardStyle = chromeHeight
+    ? ({ '--cw-sticky-top': `calc(var(--site-header-height) + ${chromeHeight}px)` } as CSSProperties)
+    : undefined
+
+  // IDENTITY THE BOARD DID NOT CARRY, read from the chain's own token registry.
+  // The game API names its coins by mint and publishes a bare ticker and a
+  // root-relative logo path beside them; both mints on this board are mainnet,
+  // so what a coin is CALLED and what it LOOKS LIKE are knowable. The overlay
+  // never touches a ticker and never overrides a logo the board published that
+  // actually resolves - see src/components/solz/tokenMeta.ts.
+  //
+  // THE RANKED LADDER'S COINS ARE IN THIS READ TOO, and they are not on the
+  // board. `useTokenMeta` is mint-keyed and board-independent, so one request
+  // serves both - a second call would be a second round trip for the same
+  // registry. `overlayTokenMeta` deliberately does NOT get extended to cover
+  // them: it walks `board.lineup` only and returns the same object identity
+  // when nothing changed, which the board's 30-second poll depends on. The rail
+  // resolves its own rows instead, the way MIAW PRIX does.
+  //
+  // THE CAP IS SPELLED OUT HERE BECAUSE THE ROUTE'S IS SILENT.
+  // src/pages/api/token-meta.ts caps at 50 mints and slices the tail away
+  // without saying so, and thirty-six board positions plus a deep ladder will
+  // exceed that. Truncating here, with the LINEUP FIRST, makes it a decision:
+  // the board's own coins always get their identity, and a ranked coin past the
+  // cap still renders - short-mint name plate, TeamMark's built-in crest, and a
+  // real contract address.
+  const mints = useMemo(() => [...new Set([
+    ...(feed.board?.lineup ?? []).map((entry) => entry.mint),
+    ...(feed.board?.rankedLane?.state === 'ready' ? feed.board.rankedLane.projects.map((row) => row.mint) : []),
+  ].filter(Boolean))].slice(0, 50), [feed.board])
+  const tokenMeta = useTokenMeta(mints)
+  const board = useMemo(() => overlayTokenMeta(feed.board, tokenMeta), [feed.board, tokenMeta])
+  /** A ranked coin's crest, resolved by the same rule the board's rows use: the
+   *  wire's own logo when it is genuinely fetchable from this origin, the mint
+   *  registry's otherwise, and undefined when neither answered - in which case
+   *  `TeamMark` draws its own mark rather than a broken image. The ladder's rows
+   *  carry root-relative paths like `/solz_logo.svg`, which resolve against THIS
+   *  origin and 404, so passing the wire value through unresolved is the one
+   *  thing that would keep drawing broken pictures. */
+  const logoFor = useCallback(
+    (mint: string, boardLogo?: string | null) => resolvedTokenLogo(boardLogo, tokenMeta.get(mint)?.icon) || undefined,
+    [tokenMeta],
   )
+
+  /**
+   * THE BOARD BEING SHOWN - the live one, or a walk that has already happened.
+   *
+   * A RECORDED WALK IS BUILT THROUGH THE SAME `buildBoard`, so a past board gets
+   * the same bands, the same numbering and the same vacancy rows as the live
+   * one. Rendering history through a second, simpler path is how the two drift
+   * until a recorded board quietly stops meaning what a live board means.
+   *
+   * THE LADDER IS ALWAYS 'closed' ON A RECORDED WALK, and the seats are empty.
+   * That walk is over: there is no seat on it to take at any price, and pricing
+   * a locked board off today's ladder would advertise a purchase that cannot
+   * happen. The standings are passed as 'unknown' for the same reason - today's
+   * record is not the record that board walked with, and an em dash is the only
+   * honest thing to print.
+   */
+  const shape = useMemo(
+    () => {
+      if (history.cycle) {
+        return buildBoard({
+          board: {
+            gameKey: feed.board?.gameKey ?? 'solz',
+            activeSlots: history.cycle.activeSlots,
+            lineupSize: history.cycle.lineupSize,
+            season: feed.board?.season ?? null,
+            lineup: history.cycle.lineup,
+            seats: null,
+            rankedLane: null,
+            // A recorded walk carries no "latest change": the snapshot froze
+            // when it locked, and today's most recent payment happened to a
+            // board this one has not been for weeks.
+            lastSeatPaidAt: null,
+            // A recorded walk is already bound; there is no lead left to state.
+            lockLeadMs: null,
+            explorer: feed.board?.explorer ?? null,
+          },
+          spots: [],
+          standings: new Map(),
+          standingsState: 'unknown',
+          ladder: 'closed',
+        })
+      }
+      return buildBoard({
+        standingsState: feed.standingsState,
+        board,
+        spots: feed.spots,
+        outbidSpots: feed.outbidSpots,
+        standings: feed.standings,
+        ladder: feed.ladder,
+      })
+    },
+    [board, feed.board, feed.spots, feed.outbidSpots, feed.standings, feed.standingsState, feed.ladder, history.cycle],
+  )
+
+  /** A recorded walk is never priced and never claimable, so every surface that
+   *  reads the ladder must read 'closed' while one is being shown. */
+  const showingCycle = history.selected !== null
+  const ladderState = showingCycle ? 'closed' : feed.ladder
 
   // Tab and query live in the URL so a claim flow can return the viewer where
   // they were, rather than to the top of an unfiltered board.
@@ -557,6 +933,15 @@ export function CatwalkApp({
     } catch { /* a host without a parsable location is not a reason to fail */ }
   }, [])
 
+  // WIDENING THE WINDOW OUT OF 'info' PUTS THE KEYBOARD BACK. Without this, a
+  // viewport widened while INFO is selected leaves `tab` holding an id that is
+  // not in `panels`, and `Tabs`' own key handler bails in silence on a value it
+  // cannot find - a tablist that has stopped responding to arrow keys, with no
+  // sign of why.
+  useEffect(() => {
+    if (!narrow && tab === 'info') setTab('catwalk')
+  }, [narrow, tab])
+
   useEffect(() => {
     const timer = window.setTimeout(() => setApplied(typed), 120)
     return () => window.clearTimeout(timer)
@@ -565,7 +950,12 @@ export function CatwalkApp({
   useEffect(() => {
     try {
       const url = new URL(window.location.href)
-      if (tab === 'catwalk') url.searchParams.delete('lane'); else url.searchParams.set('lane', tab)
+      // 'info' IS NEVER WRITTEN INTO A LINK. It is a narrow-width destination
+      // and `isCatwalkTab` refuses it on the way back in, so a phone that put
+      // `?lane=info` in the address bar would hand a desktop reader a link to a
+      // tab that does not exist there.
+      if (tab === 'catwalk' || tab === 'info') url.searchParams.delete('lane')
+      else url.searchParams.set('lane', tab)
       if (applied) url.searchParams.set('q', applied); else url.searchParams.delete('q')
       window.history.replaceState(null, '', url)
     } catch { /* replaceState is a convenience, never a requirement */ }
@@ -588,10 +978,47 @@ export function CatwalkApp({
   }, [])
 
   const query = useMemo(() => parseCatwalkQuery(applied), [applied])
-  const visible = useMemo(() => tabRows(tab, shape.rows), [tab, shape.rows])
-  const hits = useMemo(() => matchedSpots(visible, query), [visible, query])
-  const hitSet = useMemo(() => new Set(hits), [hits])
-  // Judged against BOTH lists, once, in searchOutcome.
+  /** Which rows BELONG to this tab's lane. It feeds the RIGHT RAIL's verdict and
+   *  nothing else - see the comment on `hits` below for why it must not reach
+   *  the board.
+   *
+   *  'info' is not a lane, so it asks the same question the MIAW PRIX tab asks:
+   *  every row on the board. It shares that tab's rail, and a search verdict
+   *  narrower than the rail it is printed beside would be a different claim. */
+  /**
+   * THE SEARCH LAYER IS A FACT ABOUT THE BOARD, NEVER ABOUT THE TAB.
+   *
+   * These were matched against `visible`, so the dim/match layer - the one part
+   * of the left column a tab could still reach - moved when the tab moved. With
+   * $FOOFIX standing in the CHAMPION lane and `foofix` typed, MIAW PRIX dimmed
+   * thirty-five rows and outlined P01, while SOLZ RANKED found nothing in its
+   * own lane, emptied the hit set, and therefore dimmed ALL THIRTY-SIX and
+   * outlined none: at .22 opacity (catwalk.css `.cw-slot[data-dim='true']`) the
+   * whole board faded out and the match marker vanished because the reader
+   * clicked a tab. A bare slot query did the same through `matched` alone.
+   *
+   * The lens and the metric column were frozen for exactly this reason; this was
+   * the last thing making the left side tab-dependent. Matching the WHOLE board
+   * means a coin that matches is lit in its own position on every tab, which is
+   * also the honest answer: the reader asked where $FOOFIX is, not whether it is
+   * in the lane whose tab happens to be open.
+   *
+   * IT IS NOT DERIVED HERE ANY MORE, AND THAT IS THE POINT. This frame is only
+   * ever reached in a browser - the board is `pending` on the server, so no
+   * render test in this repo can see the searching app at all - which left the
+   * call site the one place the regression could return unnoticed. Both halves
+   * come from `catwalkBoardLayer` now: it builds the board layer from every row
+   * and the tab's rows separately, in one covered function, and this file no
+   * longer names `boardSearchLayer` or the row filter that used to be wrapped
+   * around it.
+   */
+  const { hits, dimmed, matched, visible } = useMemo(
+    () => catwalkBoardLayer(shape.rows, query, tab),
+    [shape.rows, query, tab],
+  )
+  // Judged against BOTH lists, once, in searchOutcome. THIS is where the tab is
+  // allowed to matter - an 'elsewhere' card in the rail is the tab-dependent
+  // half of a search, and the rail is the half a tab may change.
   const outcome = useMemo(() => searchOutcome(query, shape.rows, visible), [query, shape.rows, visible])
 
   // The first match is scrolled into view rather than pulled to the top: rows
@@ -604,9 +1031,18 @@ export function CatwalkApp({
 
   const searching = query.kind !== 'none'
   const rawQuery = query.kind === 'none' ? '' : query.raw
-  const dimmed = (row: CatwalkRow) => query.kind === 'text' && !hitSet.has(row.spot)
-  const matched = (row: CatwalkRow) => searching && hitSet.has(row.spot)
-  const claimReason = onClaim ? undefined : 'Claiming a seat needs the wallet flow, which is not wired up yet.'
+  /** THE CLAIM CONTROLS ARE LIVE NOW. Every one of them was `disabled={!onClaim}`
+   *  with "the wallet flow is not wired up yet" in its title, and nothing ever
+   *  passed `onClaim` - so the whole sale was inert. It falls back to this
+   *  page's own dialog, which needs no wallet connection at all.
+   *
+   *  `disabled={!onClaim}` stays exactly as it is inside the row components: a
+   *  row rendered without a handler is still honestly inert, and this app now
+   *  always passes one. */
+  const claim: ClaimHandler = onClaim ?? ((seat) => setClaimSeat(seat))
+  // Nothing left to state: there is no longer a reason for the control to be
+  // dead, so nothing is written on it.
+  const claimReason = undefined
   const pending = feed.loading && !feed.board
 
   // A vacancy points at the ladder only when the ladder actually has a seat
@@ -618,26 +1054,76 @@ export function CatwalkApp({
   // A tab count is a count of rows that have been read. While the board is
   // pending every one of them would be a default or a zero, so the tabs carry a
   // placeholder of the same width and say nothing.
-  const counts: Record<CatwalkTab, string> = {
+  const counts: Partial<Record<CatwalkPanelId, string>> = {
     catwalk: String(shape.lineupSize),
     // The LADDER's length, not a filter of the board - and an em dash rather
     // than a zero when the ladder did not answer, because nobody has read it.
-    outbid: feed.ladder === 'open' ? String(shape.seats.length) : '—',
+    outbid: feed.ladder === 'open' ? String(shape.seats.length) : feed.configuredSeats ? `${feed.configuredSeats} CLOSED` : '—',
     ranked: String(tabRows('ranked', shape.rows).length),
     champions: String(tabRows('champions', shape.rows).length),
     agents: 'SOON',
+    // 'info' is not a lane and holds no positions, so it carries no count
+    // badge. A zero there would state that nothing is in it.
   }
   // The board's own chain, when it published one; a host override next; and the
   // registry's own mainnet explorer last. Never a cluster this page guessed.
   const explorerVenue = feed.board?.explorer ?? explorer ?? DEFAULT_CATWALK_EXPLORER
-  const tabCount = (id: CatwalkTab) =>
-    pending && id !== 'agents'
+  const tabCount = (id: CatwalkPanelId) => {
+    if (counts[id] === undefined) return null
+    return pending && id !== 'agents'
       ? <b><i className="cw-pending cw-pending--tab" aria-hidden="true" /></b>
       : <b>{counts[id]}</b>
+  }
 
-  const remaining = daysLeft(feed.board?.season ?? null, now)
+  /**
+   * WHEN THIS BOARD NEXT LOCKS, derived once for the page.
+   *
+   * Three states before the schedule can answer at all, and they are three on
+   * purpose. While the first poll is in flight NOBODY has read the programme,
+   * so the clock says nothing; once it has settled with neither a read nor a
+   * remembered schedule, the read FAILED and the clock says that. Only past both
+   * may `nextCatwalkLock` speak about the schedule itself - which is the same
+   * unread / unreadable / answered discipline the ladder and the standings keep,
+   * and the reason a 502 cannot print NO ROTATION IS SCHEDULED YET.
+   *
+   * A schedule kept from an earlier poll still answers: a lock INSTANT does not
+   * move because the network blinked, and the only thing a fresh read could
+   * change is which rotation is next.
+   */
+  const lock = useMemo<CatwalkLock>(() => {
+    if (feed.loading) return { state: 'unread' }
+    if (!feed.scheduleRead && !feed.schedule) return { state: 'unreadable' }
+    return nextCatwalkLock(feed.schedule, now, feed.board?.lockLeadMs ?? undefined)
+  }, [feed.loading, feed.schedule, feed.scheduleRead, feed.board?.lockLeadMs, now])
 
-  const panelBody = (active: CatwalkTab) => {
+  /**
+   * WHAT WALK IS ON SCREEN, said above the rows.
+   *
+   * A recorded board is pixel-for-pixel a live one - same numbers, same lanes,
+   * same chips - so a viewer three screens down has no way to tell that the coin
+   * at slot 01 stood there three weeks ago and does not now. The banner is the
+   * only thing that says so, which is why it is loud and why it carries the way
+   * back.
+   *
+   * ITS THREE STATES ARE THE PAGE'S THREE STATES. A walk being read says so and
+   * claims nothing; a walk that failed to read says THAT, and never renders as a
+   * board with no coins on it.
+   */
+  const cycleBanner = () => {
+    if (history.selected === null) return null
+    if (history.error) {
+      return <LaneNote lane="open" title="THAT WALK COULD NOT BE READ." body={history.error} />
+    }
+    if (history.loading || !history.cycle) {
+      return <div className="cw-cycle-banner" role="status" aria-busy="true">
+        <strong><i className="cw-pending cw-pending--line" aria-hidden="true" /></strong>
+        <span className="sr-only">Reading that walk.</span>
+      </div>
+    }
+    return <CatwalkCycleBanner cycle={history.cycle} onLive={() => history.select(null)} />
+  }
+
+  const panelBody = (active: CatwalkPanelId) => {
     // NOTHING BELOW MAY BE STATED BEFORE THE FIRST READ LANDS. An empty lane, a
     // ladder verdict, a collapsed run of vacancies and a search miss are all
     // readings of a board nobody has read; the board's own shape is the only
@@ -645,52 +1131,115 @@ export function CatwalkApp({
     // size as skeleton rows and says nothing at all. The structure is identical
     // on every tab, so a deep-linked ?lane=champions can no longer be replaced
     // by a structurally different pane the moment the read lands.
-    if (pending) return <SkeletonList groups={catwalkGroups(shape)} shape={shape} />
+    //
+    // AND BOTH EARLY RETURNS KEEP THE SPLIT. They used to REPLACE the whole
+    // panel, so the left board vanished the moment the page was reading or a
+    // search missed - on the tab whose entire promise is that the left side
+    // never changes. The frame is the same frame in all three states now, which
+    // is what makes "the left side keeps as the MIAW PRIX tab" literally true
+    // rather than true once the read has landed and nobody is searching.
+    if (pending) {
+      return (
+        <CatwalkSplit
+          tab={active}
+          // THE PENDING FACE COMES FROM THE LOCK, NOT FROM A SECOND COMPONENT.
+          // `lock` is already 'unread' while the board read is in flight and
+          // CatwalkClock draws ClockPending for it, so first paint needs no
+          // branch of its own - and the schedule read still fails independently
+          // of the board's, because the memo above keeps 'unread' and
+          // 'unreadable' apart.
+          lock={lock}
+          leadMs={feed.board?.lockLeadMs}
+          narrow={narrow}
+          board={<SkeletonList groups={catwalkGroups(shape)} shape={shape} />}
+          // Structure only. The lanes and the bands are known without the
+          // network; not one count, guarantee or verdict is.
+          rail={<CatwalkComposition shape={shape} pending />}
+        />
+      )
+    }
     if (outcome.kind !== 'hits') {
-      return <CatwalkSearchPanel
-        outcome={outcome}
-        shape={shape}
-        ladder={feed.ladder}
-        onLane={(next) => setTab(next)}
-        onClaim={onClaim}
-        claimReason={claimReason}
-        rankedHref={rankedHref}
-      />
+      return (
+        <CatwalkSplit
+          tab={active}
+          // A SEARCH THAT MISSED IS NOT A REASON TO LOSE THE CLOCK. This is one
+          // of the two frames the page spends real time in, and the lock is a
+          // fact about the board rather than about the query.
+          lock={lock}
+          leadMs={feed.board?.lockLeadMs}
+          narrow={narrow}
+          // The real board, not a skeleton and not nothing: a search that found
+          // nothing in this lane is a fact about the QUERY, and the thirty-six
+          // numbered positions behind it are as true as they were a keystroke
+          // ago.
+          board={
+            <SlotList
+              groups={catwalkGroups(shape)}
+              metric="rotation"
+              shape={shape}
+              ladder={feed.ladder}
+              dimmed={dimmed}
+              matched={matched}
+              crowned={false}
+              onLadder={toLadder}
+              coinHref={coinHref}
+              explorer={explorerVenue}
+              onCoin={onCoin}
+            />
+          }
+          rail={
+            <CatwalkSearchPanel
+              outcome={outcome}
+              shape={shape}
+              ladder={feed.ladder}
+              onLane={(next) => setTab(next)}
+              onClaim={claim}
+              claimReason={claimReason}
+              rankedHref={rankedHref}
+            />
+          }
+        />
+      )
     }
     return (
       <CatwalkPanel
+        leadMs={feed.board?.lockLeadMs}
         tab={active}
+        narrow={narrow}
         shape={shape}
         ladder={feed.ladder}
         dimmed={dimmed}
         matched={matched}
         onLadder={toLadder}
-        onClaim={onClaim}
+        onClaim={claim}
         claimReason={claimReason}
         coinHref={coinHref}
         explorer={explorerVenue}
-        rankedHref={rankedHref}
-        standingsHref={standingsHref}
-        daysRemaining={remaining}
+        onCoin={onCoin}
+        logoFor={logoFor}
+        configuredSeats={feed.configuredSeats}
+        closedReason={feed.closedReason}
+        // Straight off the one board read. Null when the server has not shipped
+        // the field, and the rail then omits the guarantee rather than quoting
+        // a 4 and a 12 this repo would have had to remember.
+        seats={board?.seats ?? null}
+        rankedLane={board?.rankedLane ?? null}
+        // ONE AGGREGATE, NOT A PURCHASE LOG. The newest paid seat on this board,
+        // straight off the wire; null when the server does not publish it, and
+        // the rail then prints an em dash rather than dating the last sale to
+        // the epoch.
+        lastSeatPaidAt={board?.lastSeatPaidAt ?? null}
+        // THE PAGE'S SINGLE LOCK AND THE PAGE'S SINGLE CLOCK. Not recomputed in
+        // the rail: `nextCatwalkLock` never returns 'unreadable' by itself, so a
+        // rail deriving its own would print NO ROTATION IS SCHEDULED YET over a
+        // 502 while another surface correctly said the read had failed.
+        lock={lock}
+        now={now}
       />
     )
   }
 
   const openCount = shape.rows.length - shape.claimed
-  /**
-   * The board's figures, as figures.
-   *
-   * This line used to read "12 OF 36 SLOTS RACING · 0 CLAIMED · 36 OPEN" -
-   * three separate claims strung on two middle dots, in a page that was leaning
-   * on that character in nine different places. Each figure now has its own
-   * labelled cell, and none of them says "racing", because nothing here races.
-   */
-  const figures: Array<{ head: string; value: string }> = [
-    { head: 'WALK IN', value: String(shape.activeSlots) },
-    { head: 'ON THE BOARD', value: String(shape.lineupSize) },
-    { head: 'CLAIMED', value: String(shape.claimed) },
-    { head: 'OPEN', value: String(openCount) },
-  ]
 
   if (feed.error && !feed.board) {
     return (
@@ -704,10 +1253,24 @@ export function CatwalkApp({
 
   return (
     <AppShell className="solz-home cw-app" mainId="catwalk" mainClassName="cw-main" active="catwalk" skipTo="#catwalk" skipLabel="Skip to the board" backToTopHref="#catwalk">
-      <div className="cw-board">
-        <CatwalkHero shape={shape} season={feed.board?.season ?? null} pending={pending} onLadder={toLadder} />
-        <CatwalkCounter shape={shape} season={feed.board?.season ?? null} ladder={feed.ladder} pending={pending} now={now} />
-        <CatwalkExplain shape={shape} miawPrixHref={miawPrixHref} />
+      {/* The measured sticky-chrome height rides on the board, because that is
+          the element `--cw-sticky-top` is declared on and every consumer of it -
+          the rail's sticky top, every row's scroll margin - is inside. */}
+      <div className="cw-board" style={boardStyle}>
+        {/* THE COUNTER STRIP AND THE EXPLAINER USED TO FOLLOW. Between them
+            they restated every figure the board states below - claimed, open,
+            the season, the days left, the band ranges - across two full rows
+            above the fold, and taught the lane colours in a sentence that the
+            rows' own chips teach in place. Both are gone; what is left is the
+            hero, and under it the board. */}
+        <CatwalkHero
+          shape={shape}
+          season={feed.board?.season ?? null}
+          miawPrixHref={miawPrixHref}
+          pending={pending}
+          now={now}
+          onLadder={toLadder}
+        />
 
         {/* Disclosed once for the page rather than implied row by row. Without
             it every W-L column is an em dash and the CHAMPIONS band head reads
@@ -728,13 +1291,16 @@ export function CatwalkApp({
             </p>
           : null}
 
-        <div className="cw-toolbar">
+        {/* MEASURED, NOT ESTIMATED. This is the bar every sticky offset on the
+            page has to clear, and how tall it is depends on how the lane tabs
+            wrap in the width they were given - see `chromeHeight` above. */}
+        <div className="cw-toolbar" ref={toolbarRef}>
           <Tabs
             idPrefix="cw"
             label="CATWALK lanes"
             value={tab}
             onChange={(next) => setTab(next)}
-            tabs={CATWALK_TABS.map((id) => ({
+            tabs={panels.map((id) => ({
               id,
               disabled: id === 'agents',
               // The one genuinely disabled tab. It exists so the shape of the
@@ -746,6 +1312,17 @@ export function CatwalkApp({
                 {TAB_LABEL[id]}{tabCount(id)}
               </span>,
             }))}
+          />
+          {/* WHICH WALK, beside the lanes rather than above them: it selects the
+              BOARD, exactly as the tabs select the rail, so the two controls
+              that change what is on screen sit together. It renders nothing at
+              all until the index has been read - see CatwalkCyclePicker. */}
+          <CatwalkCyclePicker
+            cycles={history.cycles}
+            state={history.state}
+            selected={history.selected}
+            onSelect={history.select}
+            busy={history.loading}
           />
           <div className="cw-search">
             <Search size={14} aria-hidden="true" />
@@ -761,24 +1338,32 @@ export function CatwalkApp({
           </div>
         </div>
 
-        <p className="cw-tabs-sub">{TAB_SUB[tab]}</p>
-        <div className="cw-count" role="status">
-          {/* Not "0 CLAIMED" until something has been counted - but a reader is
-              told the read is running, because a silent shimmer says nothing. */}
-          {pending
-            ? <><i className="cw-pending cw-pending--line" aria-hidden="true" /><span className="sr-only">Reading the board.</span></>
-            : searching
-              ? <span className="cw-count-hits">{hits.length} RESULT{hits.length === 1 ? '' : 'S'} FOR &ldquo;{rawQuery}&rdquo;</span>
-              : <span className="cw-figures">
-                  {figures.map((figure) => (
-                    <span key={figure.head}><b>{figure.value}</b><small>{figure.head}</small></span>
-                  ))}
-                </span>}
-          {searching ? <button type="button" onClick={() => setTyped('')}>CLEAR ×</button> : null}
-        </div>
+        {/* WHAT THIS LINE SAYS NOW IS ONLY WHAT SEARCH DID.
+            A four-cell figure strip stood here - WALK IN 12, ON THE BOARD 36,
+            CLAIMED 2, OPEN 34 - directly under a hero that already counts the
+            runway and directly above band heads that already carry 01-12 and
+            13-36. Four figures, three surfaces, one board. The lane key that
+            followed it went the same way: every row wears its lane's colour AND
+            its lane's chip, so a separate legend taught what the next row over
+            already says in words. */}
+        {searching || pending
+          ? <div className="cw-count" role="status">
+              {pending
+                ? <><i className="cw-pending cw-pending--line" aria-hidden="true" /><span className="sr-only">Reading the board.</span></>
+                : <>
+                    <span className="cw-count-hits">{hits.length} RESULT{hits.length === 1 ? '' : 'S'} FOR &ldquo;{rawQuery}&rdquo;</span>
+                    <button type="button" onClick={() => setTyped('')}>CLEAR ×</button>
+                  </>}
+            </div>
+          : null}
+
+        {cycleBanner()}
 
         <div id="cw-list" ref={listRef}>
-          {CATWALK_TABS.map((id) => (
+          {/* THE SAME ARRAY THE TABLIST WAS BUILT FROM. Feeding one and not the
+              other would leave a tab's `aria-controls` pointing at a panel id
+              that is not in the document. */}
+          {panels.map((id) => (
             <TabPanel key={id} id={id} idPrefix="cw" active={id === tab}>
               {id === tab ? panelBody(id) : null}
             </TabPanel>
@@ -789,6 +1374,18 @@ export function CatwalkApp({
             read like every other one - and it only invites a purchase when there
             is something on the ladder to buy. */}
         <CatwalkFooter pending={pending} openCount={openCount} shape={shape} ladder={feed.ladder} />
+
+        {/* THE SALE, AND IT NEEDS NO WALLET CONNECTION.
+            Mounted here rather than by src/pages/catwalk.astro because Astro
+            serializes island props and a handler will not cross that boundary -
+            which is the whole reason `onClaim` was never passed and every claim
+            control on this page was inert. A host that owns its own flow passes
+            `onClaim` and this never opens. */}
+        <CatwalkClaimDialog
+          open={!!claimSeat}
+          seat={claimSeat}
+          onClose={() => setClaimSeat(null)}
+        />
       </div>
     </AppShell>
   )

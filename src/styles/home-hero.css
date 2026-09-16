@@ -157,6 +157,7 @@
 .ch-console { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .ch-hero-grid > .ch-console { contain: size; min-height: 0; overflow: clip; }
 .ch-trade { color: #d6deeb; display: flex; flex-direction: column; flex: 1; min-width: 0; background: #1b2026; border: 1px solid #414952; padding: 15px 16px 12px; }
+.ch-trade-question-image { display: block; width: calc(100% + 32px); height: 360px; margin: -15px -16px 20px; object-fit: cover; object-position: center; overflow: hidden; background: #12151a; border-bottom: 1px solid #3e424b; }
 .ch-trade-title { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-height: 43px; }
 .ch-trade-title .sh-portrait { width: 35px; height: 42px; flex-shrink: 0; border: 1px solid #545d6c; }
 .ch-trade-answer-image { width: 35px; height: 42px; flex-shrink: 0; object-fit: cover; border: 1px solid #545d6c; }

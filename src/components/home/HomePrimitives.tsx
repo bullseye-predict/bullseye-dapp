@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 
 export const compact = (value: number) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 export const amountLabel = (value: number) => value.toLocaleString('en', { maximumFractionDigits: 3 })
@@ -7,9 +7,31 @@ export const accentStyle = (color: string): CSSProperties => ({ '--team-color': 
 
 /** A team's crest. A registered coin brings its own logo; the built-in marks
  *  cover the seeded simulation teams, and anything unknown gets the generic
- *  mark rather than an empty box. */
+ *  mark rather than an empty box.
+ *
+ *  A LOGO URL THAT DOES NOT LOAD FALLS BACK TO THE MARK. The wire carries
+ *  whatever the upstream registry recorded, and a root-relative path like
+ *  `/solz_logo.svg` resolves against THIS origin rather than the one that
+ *  published it - so the board rendered the browser's broken-image glyph as a
+ *  coin's crest. A crest that cannot be fetched is a missing picture, not a
+ *  missing coin, and the generic mark says the second thing correctly. */
 export function TeamMark({ id, color, logoUrl, className = '' }: { id: string; color?: string; logoUrl?: string; className?: string }) {
-  if (logoUrl) return <img className={`sh-team-mark sh-team-mark--logo ${className}`} src={logoUrl} alt="" aria-hidden="true" loading="lazy" style={color ? { color } : undefined} />
+  // WHICH url failed, not WHETHER one did. A boolean latched on the first
+  // render and never cleared, so a row that started with an unreachable logo and
+  // was later handed a working one - which is exactly what the token overlay
+  // does a moment after the board lands - kept the fallback mark forever.
+  const [failed, setFailed] = useState('')
+  if (logoUrl && failed !== logoUrl) return (
+    <img
+      className={`sh-team-mark sh-team-mark--logo ${className}`}
+      src={logoUrl}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      style={color ? { color } : undefined}
+      onError={() => setFailed(logoUrl)}
+    />
+  )
   const shapes: Record<string, React.ReactNode> = {
     'team-bonk': <><path d="M6 18 18 6h10l8 8-14 14H6Z"/><path d="m22 28 14-14v22H22Z"/></>,
     'team-wif': <><path d="M5 12h8v17h6V19h7v10h6V12h7v25H5Z"/><path d="M16 5h13v8H16Z"/></>,

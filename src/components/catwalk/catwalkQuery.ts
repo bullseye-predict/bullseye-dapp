@@ -14,10 +14,36 @@ import type { CatwalkRow } from './catwalkBands'
  *  races. */
 export type CatwalkTab = 'catwalk' | 'outbid' | 'ranked' | 'champions' | 'agents'
 
-export const CATWALK_TABS: CatwalkTab[] = ['catwalk', 'outbid', 'ranked', 'champions', 'agents']
+export const CATWALK_TABS: CatwalkTab[] = ['catwalk', 'outbid', 'ranked', 'champions']
 
 export const isCatwalkTab = (value: string): value is CatwalkTab =>
   (CATWALK_TABS as string[]).includes(value)
+
+/**
+ * WHERE THE TWO-COLUMN SPLIT STOPS EXISTING.
+ *
+ * Its own constant, matching `@media (min-width: 1280px)` in
+ * src/styles/catwalk.css - the width at which the composition rail stops being
+ * a column on screen and becomes 2,000 pixels of legend under the board with
+ * nothing pointing at it. It is deliberately NOT `MIAW_PRIX_NARROW`, which is
+ * 900px for a different layout on a different page; sharing it would have tied
+ * this tab's existence to a breakpoint that has nothing to do with this grid.
+ */
+export const CATWALK_NARROW = '(max-width: 1279px)'
+
+/**
+ * A DESTINATION THE RAIL CAN SHOW, which is the tabs plus one.
+ *
+ * 'info' is the composition legend as a TAB, and it exists only below the split
+ * breakpoint - above it the legend is already on screen as a column and a tab
+ * pointing at it would be a lie about a place the reader is looking at.
+ *
+ * IT IS DELIBERATELY NOT IN `CatwalkTab` AND NOT IN `CATWALK_TABS`. Keeping it
+ * out of that array is the mechanical reason `isCatwalkTab` cannot honour a
+ * `?lane=info` deep link on a desktop that has no such tab, and the reason the
+ * per-tab promises the board makes are unaffected by its existence.
+ */
+export type CatwalkPanelId = CatwalkTab | 'info'
 
 /**
  * Which rows BELONG TO a tab's lane. This is a membership question, and it is
@@ -98,6 +124,81 @@ export function matchScore(row: CatwalkRow, query: CatwalkQuery): number | null 
   if (term.length >= 4 && mint.includes(term)) return 2
   if (symbol && symbol.includes(term)) return 3
   return null
+}
+
+/**
+ * THE DIM/MATCH LAYER THE LEFT BOARD WEARS.
+ *
+ * It takes ROWS AND A QUERY AND NOTHING ELSE - in particular it cannot be given
+ * a tab, which is the whole point of it existing as a function.
+ *
+ * CatwalkApp used to build these two predicates inline from `tabRows(tab, ...)`,
+ * so the one layer the left column still read was tab-dependent: a query that
+ * matched a coin OUTSIDE the open tab's lane produced an EMPTY hit set, which
+ * dimmed every row on the board and outlined none. Clicking SOLZ RANKED while
+ * searching therefore faded all thirty-six numbered positions to .22 and dropped
+ * the match outline - the left side re-rendering on a tab click, which is the
+ * exact thing this screen promises never to do.
+ *
+ * Whether a lane HAS a hit is a separate question with a separate answer, and it
+ * belongs to the rail: see `searchOutcome`, which is still judged against the
+ * tab's own rows.
+ */
+export function boardSearchLayer(rows: readonly CatwalkRow[], query: CatwalkQuery): {
+  hits: number[]
+  dimmed: (row: CatwalkRow) => boolean
+  matched: (row: CatwalkRow) => boolean
+} {
+  const hits = matchedSpots(rows, query)
+  const hitSet = new Set(hits)
+  return {
+    hits,
+    // Only a TEXT query dims: a slot lookup is a jump to a number, and greying
+    // the other thirty-five to answer "where is P07" hides the board to point
+    // at one row of it.
+    dimmed: (row) => query.kind === 'text' && !hitSet.has(row.spot),
+    matched: (row) => query.kind !== 'none' && hitSet.has(row.spot),
+  }
+}
+
+/**
+ * EVERYTHING A SEARCH DECIDES, DERIVED IN ONE PLACE, WITH THE TAB HELD APART.
+ *
+ * `boardSearchLayer` cannot be handed a tab; nothing stopped a CALLER from
+ * handing it `tabRows(tab, rows)` and putting the regression straight back -
+ * and nothing could catch that, because CatwalkApp only ever reaches its
+ * searching frame in a browser and this repo's tests are server renders. So the
+ * two derivations live here together instead, where a test can hold them to
+ * each other:
+ *
+ *   - the BOARD layer is built from EVERY row. The tab is not in scope for it.
+ *   - the VISIBLE rows are the tab's own, and they exist for the rail's verdict
+ *     (`searchOutcome`) and for nothing else.
+ *
+ * CatwalkApp no longer names `boardSearchLayer` at all, so the one way to make
+ * the left board tab-dependent again is to change THIS function, which is
+ * covered: see 'the board layer is built from the whole board, never the tab's
+ * rows' in tests/catwalkBoard.test.tsx.
+ *
+ * 'info' is not a lane. It asks the same question the MIAW PRIX tab asks -
+ * every row on the board - because it shares that tab's rail, and a search
+ * verdict narrower than the rail it is printed beside would be a different
+ * claim.
+ */
+export function catwalkBoardLayer(
+  rows: readonly CatwalkRow[],
+  query: CatwalkQuery,
+  tab: CatwalkPanelId,
+): {
+  hits: number[]
+  dimmed: (row: CatwalkRow) => boolean
+  matched: (row: CatwalkRow) => boolean
+  visible: CatwalkRow[]
+} {
+  return {
+    ...boardSearchLayer(rows, query),
+    visible: tabRows(tab === 'info' ? 'catwalk' : tab, rows),
+  }
 }
 
 /** The spots a query lights, best match first. */

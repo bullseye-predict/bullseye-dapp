@@ -32,6 +32,9 @@ export type VenueHolderRow = { owner: string; outcomeId: string; shares: number;
 export type VenueBindingBase = {
   family: VenueFamily
   marketId: string
+  /** True only after the venue market account actually exists. A deterministic
+   * address alone is eligibility, not an on-chain market. */
+  opened?: boolean
   tradingStartsAt: number
   tradingLocksAt: number
   creationTxHash?: string

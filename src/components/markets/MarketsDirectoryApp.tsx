@@ -16,6 +16,7 @@ import { normalisedChances } from './chance'
 import { catalogueQuestions, type CatalogueItem } from './marketList'
 import { useMarketCatalogue } from './useMarketCatalogue'
 import { eventTimingLabel } from '../events/eventTiming'
+import { teamIdentityColor } from './moneyline'
 
 type Props = { apiUrl?: string }
 
@@ -116,71 +117,6 @@ function teamOdds(match: SolzMatch, market: ArenaMarket | undefined) {
   })
 }
 
-/**
- * A registry colour is available before a remote crest has downloaded, so it is
- * the safe first paint. When the image is readable by canvas (same-origin or
- * CORS-enabled), refine it to the crest's most saturated mid-tone instead.
- * Monochrome/transparent logos deliberately retain the registry colour: using
- * their black or white pixels would make the trade control look disconnected
- * from the team rather than more accurate.
- */
-function useCrestColor(logoUrl: string | undefined, fallback: string) {
-  const [color, setColor] = useState(fallback)
-
-  useEffect(() => {
-    setColor(fallback)
-    if (!logoUrl) return
-    const image = new Image()
-    image.crossOrigin = 'anonymous'
-    image.decoding = 'async'
-    let active = true
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        const size = 32
-        canvas.width = size
-        canvas.height = size
-        const context = canvas.getContext('2d', { willReadFrequently: true })
-        if (!context) return
-        context.drawImage(image, 0, 0, size, size)
-        const pixels = context.getImageData(0, 0, size, size).data
-        let red = 0
-        let green = 0
-        let blue = 0
-        let weight = 0
-        for (let index = 0; index < pixels.length; index += 16) {
-          const r = pixels[index]!
-          const g = pixels[index + 1]!
-          const b = pixels[index + 2]!
-          const alpha = pixels[index + 3]!
-          const high = Math.max(r, g, b)
-          const low = Math.min(r, g, b)
-          const saturation = high ? (high - low) / high : 0
-          // Ignore transparent, near-neutral, clipped-white and near-black
-          // pixels. The remaining saturated pixels are the crest's identity.
-          if (alpha < 192 || saturation < .24 || high < 44 || high > 236) continue
-          const pixelWeight = saturation * alpha / 255
-          red += r * pixelWeight
-          green += g * pixelWeight
-          blue += b * pixelWeight
-          weight += pixelWeight
-        }
-        if (active && weight > 8) {
-          const channel = (value: number) => Math.round(value / weight).toString(16).padStart(2, '0')
-          setColor(`#${channel(red)}${channel(green)}${channel(blue)}`)
-        }
-      } catch {
-        // Cross-origin logos without CORS cannot be sampled. Their published
-        // team colour remains a deliberate, stable fallback.
-      }
-    }
-    image.src = logoUrl
-    return () => { active = false }
-  }, [fallback, logoUrl])
-
-  return color
-}
-
 /** The question leads. Everything that qualifies it - status, mode, schedule -
  *  sits under it, so scanning the grid reads the markets and not the chrome. */
 function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: number; kind: string; children: ReactNode }) {
@@ -215,7 +151,7 @@ function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: numbe
 }
 
 function VersusPick({ team, probability, indicative, href }: { team: SolzMatch['teams'][number]; probability: number; indicative: boolean; href: string }) {
-  const color = useCrestColor(team.logoUrl, team.color)
+  const color = teamIdentityColor(team.symbol)
   return <div className="mk-versus-pick" style={{ '--mk-identity': color } as CSSProperties}>
     <div className="mk-versus-identity">
       <TeamMark id={team.teamId} color={color} logoUrl={team.logoUrl}/>
@@ -237,8 +173,8 @@ function VersusCard({ row, now }: { row: DirectoryRow; now: number }) {
     <div className="mk-versus">
       {odds.map(({ team, probability, indicative }) => <VersusPick key={team.teamId} team={team} probability={probability} indicative={indicative} href={`/events/${encodeURIComponent(row.match.id)}`}/>) }
     </div>
-    {!odds.some(item => item.indicative) && <div className="mk-split" style={{ background: away?.team.color ?? 'var(--sh-line)' }}>
-      <i style={{ width: percent(home?.probability ?? .5), background: home?.team.color ?? 'var(--sh-lime)' }}/>
+    {!odds.some(item => item.indicative) && <div className="mk-split" style={{ background: away ? teamIdentityColor(away.team.symbol) : 'var(--sh-line)' }}>
+      <i style={{ width: percent(home?.probability ?? .5), background: home ? teamIdentityColor(home.team.symbol) : 'var(--sh-lime)' }}/>
     </div>}
   </CardFrame>
 }

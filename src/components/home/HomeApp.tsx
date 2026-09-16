@@ -37,7 +37,7 @@ import {
 } from "./MarketSourceControls";
 import { useSomniaMarketPrices } from "./useVenueMarketPrices";
 import { useSolanaMarketPrices } from "./useSolanaMarketPrices";
-import { useReservedSolanaQuestions } from "./solanaQuestionMarkets";
+import { resolveMatchMarkets, useReservedSolanaQuestions } from "./solanaQuestionMarkets";
 import { useSolanaVenue } from "./useSolanaVenue";
 
 type Props = {
@@ -229,17 +229,47 @@ function Home({
     match &&
     shouldShowSeason(match.phase, match.endsAt, snapshot.updatedAt, pinned)
   );
-  const markets = useMemo(
+  // The canonical catalogue is a market SOURCE, not a decoration. Every canonical
+  // match is eligible "as soon as its matchId exists" (MARKET_LIST_API.md:73), and
+  // the backend composes one linked binary question per participant on demand -
+  // which is what makes an FFA field tradable without anyone pre-registering a row
+  // for it. The only identity that matters is (matchId, questionId).
+  const catalogueMarkets = useMemo(
     () =>
-      reservedSolanaMatch
-        ? reservedSolana.filter(item => item.match.id === reservedSolanaMatch.match.id).map(item => item.market)
-        : externalFeedPending
-          ? []
+      marketSource === "SOLANA" && !season
+        ? loadedSolanaQuestions.map((item) => item.market)
+        : [],
+    [loadedSolanaQuestions, marketSource, season],
+  );
+  // Where this match's questions come from, and whether that source is canonical.
+  // Keying the ticket off /arena/events alone meant that endpoint being slow,
+  // stalled or down took a live match with twelve valid questions to zero
+  // tradable markets; resolveMatchMarkets() carries the rule and its reasoning.
+  const { markets, canonical } = useMemo(() => {
+    if (reservedSolanaMatch)
+      return {
+        markets: reservedSolana
+          .filter((item) => item.match.id === reservedSolanaMatch.match.id)
+          .map((item) => item.market),
+        canonical: true,
+      };
+    return resolveMatchMarkets(
+      externalFeedPending
+        ? []
         : (snapshot?.markets.filter((item) =>
             season ? !item.matchId : item.matchId === match?.id,
           ) ?? []),
-    [externalFeedPending, match?.id, reservedSolana, reservedSolanaMatch, season, snapshot?.markets],
-  );
+      catalogueMarkets,
+    );
+  }, [
+    catalogueMarkets,
+    externalFeedPending,
+    match?.id,
+    reservedSolana,
+    reservedSolanaMatch,
+    season,
+    snapshot?.markets,
+  ]);
   // The arena feed builds its markets in predictionArena.marketsFor(), which has
   // no onchain field at all, and the Solana-bound markets from reservedSolanaView
   // were only ever used when NO match was loaded. So whenever the arena feed was
@@ -252,6 +282,11 @@ function Home({
   // onto whatever markets are being rendered. Matching mirrors selectedSolanaQuestion
   // exactly (canonical questionId first, then the "will <agent> win?" label) so the
   // book, the ticket and the status can never disagree about which question a market is.
+  //
+  // Those questions are now a market source in their own right (catalogueMarkets
+  // above), so this pass only has real work to do for feed-sourced rows; a
+  // catalogue-sourced market finds itself here and keeps the binding it was born
+  // with.
   const solanaBoundMarkets = useMemo(() => {
     if (marketSource !== "SOLANA" || !loadedSolanaQuestions.length) return markets;
     return markets.map((item) => {
@@ -270,8 +305,11 @@ function Home({
     });
   }, [markets, loadedSolanaQuestions, marketSource]);
   const predictionMarkets = useMemo(
-    () => (predictionFeed || !apiUrl || reservedSolanaMatch ? solanaBoundMarkets : []),
-    [apiUrl, solanaBoundMarkets, predictionFeed, reservedSolanaMatch],
+    // `canonical` covers both catalogue paths. Those markets were built from the
+    // two canonical IDs and already carry their venue binding, so an arena-feed
+    // flag describing a different source must never blank them.
+    () => (predictionFeed || !apiUrl || canonical ? solanaBoundMarkets : []),
+    [apiUrl, solanaBoundMarkets, predictionFeed, canonical],
   );
   const somnia = useSomniaMarketPrices(
     dreamDexApiUrl || apiUrl,

@@ -201,7 +201,7 @@ export function InteractionConsole({
         title="Trade"
         icon={<ArrowUpRight size={16} />}
         meta={
-          tradingPanel ? "ON-CHAIN" : simulation ? "SIMULATION" : "ON-CHAIN"
+          tradingPanel ? "ON-CHAIN" : simulation ? "SIMULATION" : solana && market.onchain?.family === "SOLANA" && !market.onchain.opened ? "OFF-CHAIN" : "ON-CHAIN"
         }
       >
         {tradingPanel ??

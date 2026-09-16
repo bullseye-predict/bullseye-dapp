@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { PublicKey, Transaction } from '@solana/web3.js'
 import { createHash } from 'node:crypto'
-import { buildCreateQuestionMarket, buildFillOrders, concat, configAddress, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, encodeQuestionCreationEd25519Descriptor, millisecondsToSeconds, orderDigest, orderStateAddress, questionCreationDigest, questionMarketAddress, u64, vaultAddress, type SolanaOrder } from './wire'
+import { buildCreateQuestionMarket, buildFillOrders, concat, configAddress, encodeEd25519Descriptors, encodeOrderBody, encodeOrderMessage, encodeQuestionCreationEd25519Descriptor, millisecondsToSeconds, orderDigest, orderStateAddress, predictionManifestConfigAddress, questionCreationDigest, questionMarketAddress, rotateAuthority, rotateOracle, type SolanaOrder, u64, vaultAddress } from './wire'
 import { requestAuthMessage } from '../../sdk/auth'
 import { decodeVault } from './accounts'
 import { createSolanaOrderSigner, createSolanaRequestSigner, solanaWireOrder, verifySolanaOrder, verifySolanaRequest, type SolanaVenueConfig } from './SolanaPredictionVenue'
@@ -57,6 +57,34 @@ describe('Solana canonical wire format', () => {
     expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, winner))).toBe(true)
     expect(winnerIx.keys[2]!.pubkey.equals(questionMarketAddress(programId, matchId, kills))).toBe(false)
     expect(winnerIx.keys[0]!.isSigner).toBe(true)
+    // The account count is consensus-critical: the program hard-checks it and
+    // rejects the whole instruction on a mismatch. The trailing manifest config
+    // is what fixes the execution engine at creation, so a builder that drops
+    // it produces a transaction the chain refuses.
+    expect(winnerIx.keys.length).toBe(9)
+    expect(winnerIx.keys[8]!.pubkey.equals(predictionManifestConfigAddress(programId))).toBe(true)
+    expect(winnerIx.keys[8]!.isSigner).toBe(false)
+    expect(winnerIx.keys[8]!.isWritable).toBe(false)
+  })
+  test('encodes an admin-only global oracle rotation', () => {
+    const instruction = rotateOracle(programId, key(1), key(2))
+    expect(instruction.data).toEqual(Buffer.from([29, ...key(2).toBytes()]))
+    expect(instruction.keys).toHaveLength(2)
+    expect(instruction.keys[0]!.pubkey.equals(key(1))).toBe(true)
+    expect(instruction.keys[0]!.isSigner).toBe(true)
+    expect(instruction.keys[1]!.pubkey.equals(configAddress(programId))).toBe(true)
+    expect(instruction.keys[1]!.isWritable).toBe(true)
+  })
+  test('requires both sides to sign an admin handover', () => {
+    const instruction = rotateAuthority(programId, key(1), key(2))
+    expect(instruction.data).toEqual(Buffer.from([30]))
+    expect(instruction.keys).toHaveLength(3)
+    expect(instruction.keys[0]!.pubkey.equals(key(1))).toBe(true)
+    expect(instruction.keys[0]!.isSigner).toBe(true)
+    expect(instruction.keys[1]!.pubkey.equals(key(2))).toBe(true)
+    expect(instruction.keys[1]!.isSigner).toBe(true)
+    expect(instruction.keys[2]!.pubkey.equals(configAddress(programId))).toBe(true)
+    expect(instruction.keys[2]!.isWritable).toBe(true)
   })
 })
 

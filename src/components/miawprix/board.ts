@@ -145,23 +145,35 @@ export type MatchState = 'final' | 'live' | 'cancelled' | 'upcoming'
  *  (`settled`/`final`, `reserved`/`scheduled`/`planned`), so the page reads it
  *  once, here. A published result outranks any status string: a match with a
  *  winner is finished whatever the row still calls itself. */
-export function matchState(match: MiawPrixMatch): MatchState {
+export function matchState(match: MiawPrixMatch, now = Date.now()): MatchState {
   if (match.result) return 'final'
   const status = match.status.toLowerCase()
   if (status === 'cancelled' || status === 'canceled' || status === 'void') return 'cancelled'
+  // A room is live only for its encoded broadcast window. A crashed result
+  // callback used to leave the database flag on `live`, causing several
+  // sequential cards to be painted LIVE NOW together even though Colosseum
+  // can host only one programme match at a time.
+  if ((status === 'live' || status === 'running') && match.matchDurationMs
+    && match.scheduledStartAt + match.matchDurationMs <= now) return 'upcoming'
   if (status === 'live' || status === 'running') return 'live'
   if (status === 'settled' || status === 'final' || status === 'resolved') return 'final'
   return 'upcoming'
 }
 
 /** Kickoff first for what is coming, most recent first for what is done. */
-export function splitMatches(matches: readonly MiawPrixMatch[]) {
+export function splitMatches(matches: readonly MiawPrixMatch[], now = Date.now()) {
   const upcoming: MiawPrixMatch[] = []
   const finished: MiawPrixMatch[] = []
-  for (const match of matches) (matchState(match) === 'final' || matchState(match) === 'cancelled' ? finished : upcoming).push(match)
+  let missed = 0
+  for (const match of matches) {
+    const state = matchState(match, now)
+    if (state === 'final' || state === 'cancelled') finished.push(match)
+    else if (state === 'live' || match.scheduledStartAt > now) upcoming.push(match)
+    else missed += 1 // A past planned kickoff is not a match result.
+  }
   upcoming.sort((a, b) => a.scheduledStartAt - b.scheduledStartAt)
   finished.sort((a, b) => b.scheduledStartAt - a.scheduledStartAt)
-  return { upcoming, finished }
+  return { upcoming, finished, missed }
 }
 
 /** A coarse countdown. Minutes below an hour, never seconds: this page is read,
@@ -285,6 +297,17 @@ export function marketsNotice(markets: MiawPrixMarketsState): string {
 export function kickoffLabel(at: number): string {
   if (!at) return EM_DASH
   return new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+/** The schedule gives date and time separate typographic jobs. Keeping the
+ * split here prevents the table from parsing a locale-formatted sentence. */
+export function kickoffParts(at: number): { date: string; time: string } {
+  if (!at) return { date: EM_DASH, time: '' }
+  const value = new Date(at)
+  return {
+    date: value.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+    time: value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+  }
 }
 
 export function windowLabel(season: MiawPrixSeason | null): string {

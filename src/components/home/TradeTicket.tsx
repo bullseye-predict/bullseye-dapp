@@ -335,6 +335,7 @@ export function TradeTicket({
   // contract underneath has no colour of its own — reading it gave every answer
   // in a twelve-row prediction the same palette entry.
   const color =
+    pickColor(market, outcome, snapshot, Math.max(0, outcomeIndex)) ||
     (linkedAnswer?.participantId && snapshot.agents.find((agent) => agent.id === linkedAnswer.participantId)?.color) ||
     linkedAnswer?.color ||
     outcomeColor(outcome, snapshot, Math.max(0, outcomeIndex));
@@ -1065,6 +1066,9 @@ export function TradeTicket({
             {evmWallet.address.slice(0, 6)}…{evmWallet.address.slice(-4)}
           </strong>
         </p>
+      )}
+      {market.presentation?.imageUrl && (
+        <img className="ch-trade-question-image" src={market.presentation.imageUrl} alt="" />
       )}
       <div className="ch-trade-title">
         {linkedAnswer?.imageUrl ? (

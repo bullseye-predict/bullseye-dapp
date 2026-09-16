@@ -21,6 +21,7 @@ const payload = {
   matches: [{
     matchId: '0xMATCH1', displayMatchId: 'MP-014', scheduledStartAt: 5_000, status: 'settled',
     definitionId: 'colosseum_grab_bottle_3v3', title: 'Grab the bottle',
+    cycleIndex: 2, cycleMatchIndex: 8, cycleMatchCount: 30,
     sides: [
       { teamId: 'team-a', mint: 'MintA', symbol: '$ALPHA', name: 'Alpha', color: '#c7ff00' },
       { teamId: 'team-b', mint: 'MintB', symbol: '$BETA', name: 'Beta' },
@@ -38,6 +39,7 @@ test('the programme payload parses into one clock type and coin identity', () =>
   expect(board.matches[0]!.sides.map((side) => side.symbol)).toEqual(['$ALPHA', '$BETA'])
   expect(board.matches[0]!.result).toEqual({ winnerTeamId: 'team-b', winnerMint: 'MintB' })
   expect(board.matches[0]!.rewardPoolL).toBe(4200)
+  expect(board.matches[0]).toMatchObject({ cycleIndex: 2, cycleMatchIndex: 8, cycleMatchCount: 30 })
 })
 
 test('season 00 is a real season, and a season with no index is not silently numbered zero', () => {
@@ -134,7 +136,22 @@ test('the source names its proxy kind and carries the selected season', async ()
 
   await source.board()
   await source.board('solz-00')
-  expect(calls).toEqual(['/api/agent-arena?kind=miawPrix', '/api/agent-arena?kind=miawPrix&seasonId=solz-00'])
+  expect(calls).toEqual([
+    '/api/agent-arena?kind=miawPrix',
+    '/api/agent-arena?kind=miawPrix&seasonId=solz-00',
+  ])
+})
+
+test('an event deep link reads its exact recorded match outside the programme window', async () => {
+  const calls: string[] = []
+  const source = miawPrixSource('/api/agent-arena', '/api/prediction', (async (url: string | URL) => {
+    calls.push(String(url))
+    return new Response(JSON.stringify({ ok: true, match: payload.matches[0] }), { status: 200 })
+  }) as unknown as typeof fetch)
+  const match = await source.match('0xMATCH1')
+  expect(calls).toEqual(['/api/agent-arena?kind=miawPrix&matchId=0xMATCH1'])
+  expect(match?.result?.winnerMint).toBe('MintB')
+  expect(match?.sides.map((side) => side.symbol)).toEqual(['$ALPHA', '$BETA'])
 })
 
 test('the catalogue read asks for every status and follows its cursor', async () => {

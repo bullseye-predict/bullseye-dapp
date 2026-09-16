@@ -41,7 +41,9 @@ export class SolanaChainPortfolio {
         const marketInfo = snapshot.value[3 + index * 2]; const positionInfo = snapshot.value[4 + index * 2]
         invariant(market.venue === 'SOLANA' && market.chainId === this.config.chainId && marketInfo, 'WRONG_MARKET', 'Portfolio market is missing or belongs to another chain.')
         const value = decodeMarket({ ...marketInfo, address: market.id }, this.config.programId)
-        invariant(value.mint.equals(global.mint) && value.oracle.equals(global.oracle) && value.outcomeCount === market.outcomes.length && `0x${Buffer.from(value.matchId).toString('hex')}` === market.matchId, 'WRONG_MARKET', 'Market deployment or metadata differs from chain state.')
+        // `value.oracle` is the creation-time key. Resolution authority is
+        // global.oracle, so an oracle rotation must not invalidate a market.
+        invariant(value.mint.equals(global.mint) && value.outcomeCount === market.outcomes.length && `0x${Buffer.from(value.matchId).toString('hex')}` === market.matchId, 'WRONG_MARKET', 'Market deployment or metadata differs from chain state.')
         accountingMarkets.push({ id: market.id, outcomes: value.outcomeCount, slot: snapshot.context.slot, status: value.status, winner: value.winningOutcome })
         const position = positionInfo ? decodePosition({ ...positionInfo, address: keys[4 + index * 2]! }, this.config.programId) : undefined
         invariant(!position || vaultInfo && position.vault.equals(vault) && position.market.toBase58() === market.id, 'WRONG_POSITION', 'Position is bound to another vault or market.')

@@ -82,7 +82,9 @@ export class SolanaChainGateway {
     ])
     invariant(mint.owner.equals(TOKEN_PROGRAM_ID) && mint.data.length === 82 && mint.data[45] === 1 && mint.data[44] === this.config.collateralDecimals, 'INVALID_COLLATERAL', 'Expected the configured classic SPL mint and decimals.')
     const matchId = `0x${Array.from(value.matchId, value => value.toString(16).padStart(2, '0')).join('')}`
-    invariant(matchId === metadata.matchId && value.outcomeCount === metadata.outcomes.length && value.mint.equals(global.mint) && value.oracle.equals(global.oracle) && value.status >= 0 && value.status <= 4, 'WRONG_MARKET', 'Market state does not match registered metadata or collateral/oracle.')
+    // Markets retain their creation-time oracle for layout compatibility. The
+    // program authorizes settlement against global.oracle, which is rotatable.
+    invariant(matchId === metadata.matchId && value.outcomeCount === metadata.outcomes.length && value.mint.equals(global.mint) && value.status >= 0 && value.status <= 4, 'WRONG_MARKET', 'Market state does not match registered metadata or collateral.')
     const market: Market = {
       matchingEngine: value.manifestGuarded ? 'MANIFEST' : 'CUSTOM',
       id, matchId, venue: 'SOLANA', chainId: this.config.chainId, marketAddress: id,

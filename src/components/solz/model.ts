@@ -130,6 +130,7 @@ export type MatchTeamSide = {
   teamId: string
   symbol: string
   name: string
+  logoUrl?: string
   color: string
   glyph: string
   score: number

@@ -30,7 +30,28 @@
   --cw-head: 'Archivo', sans-serif; --cw-mono: 'Geist Mono', monospace;
   --cw-gold: #ffc53d; --cw-gold-glow: rgb(255 197 61 / 42%);
   --cw-silver: #c9d2dc; --cw-bronze: #d98a4a;
-  --cw-lane-outbid: #65cfff; --cw-lane-champion: #ffc53d; --cw-lane-ranked: #b9c6d4; --cw-lane-open: #7b818f;
+  /* THREE LANES, THREE HUES, AND THEY HAVE TO BE TELLABLE APART AT ROW SIZE.
+     RANKED was #b9c6d4 - a near-neutral grey a shade off the vacancy's own
+     #7b818f, so the one lane a coin reaches by climbing rather than paying was
+     drawn in the same ink as an empty slot. Violet is as far from the gold and
+     the sky as it is from the page's lime (which means "you can act on this")
+     and its money green, so no lane can be misread as a price or a button. */
+  --cw-lane-outbid: #65cfff; --cw-lane-champion: #ffc53d; --cw-lane-ranked: #b18cff; --cw-lane-open: #7b818f;
+  /* THE WALK-IN BAND'S OWN COLOUR. Not a fourth lane - it is the one place
+     position does carry a hue, because those twelve positions ARE the product
+     and a board that launches empty must not draw them in the same grey as the
+     twenty-four positions that are a rotation away. It is the page's live
+     colour, the same one the TAKE A SEAT control on those rows already wears. */
+  --cw-walkin: var(--cw-lime);
+  /* WHERE THE PAGE'S STICKY CHROME ENDS, measured from the top of the
+     viewport: the site header (80px, 68px on a phone - site-header.css) plus
+     the height of this page's own sticky toolbar. Everything that has to clear
+     both - the rail's own sticky top, and a row scrolled to by search - is
+     expressed against this token so the three can never drift apart. It is an
+     ESTIMATE of the toolbar, not a measurement: anything added to .cw-toolbar
+     has to move it too, and the <=720px block below redeclares it for the
+     width at which the toolbar wraps to two rows. */
+  --cw-sticky-top: calc(var(--site-header-height) + 62px);
   --cw-row-h: 76px; --cw-band-head-h: 26px; --cw-chip: 30px; --cw-crest: 52px;
   --cw-radius: 0; --cw-radius-control: 4px;
   color: var(--cw-text); background: var(--cw-bg);
@@ -55,38 +76,75 @@
    of the board is this) while the question the product turns on (did this coin
    pay, win, or climb) was left to an outline chip. Position is now the number
    chip and the band it sits in, which is what a number and a heading are for. */
-.cw-board { --cw-band: #17181c; --cw-edge: #4e515a; --cw-edge-ink: #0c0d10; --cw-label: #c3c5cd; }
-.cw-board [data-lane='outbid']   { --cw-band: #0e1b23; --cw-edge: var(--cw-lane-outbid); --cw-edge-ink: #06161e; --cw-label: var(--cw-lane-outbid); }
-.cw-board [data-lane='champion'] { --cw-band: #201a08; --cw-edge: var(--cw-lane-champion); --cw-edge-ink: #1a1305; --cw-label: var(--cw-lane-champion); }
-.cw-board [data-lane='ranked']   { --cw-band: #191b1f; --cw-edge: var(--cw-lane-ranked); --cw-edge-ink: #0e1013; --cw-label: var(--cw-lane-ranked); }
-/* A vacancy stands in no lane, so it takes no lane colour: it is the quiet
-   ground the three lanes read against. */
-.cw-board [data-lane='open']     { --cw-band: #141519; --cw-edge: var(--cw-lane-open); --cw-edge-ink: #0b0c0e; --cw-label: #9ba1ad; }
+.cw-board { --cw-hue: #4e515a; --cw-edge-ink: #0c0d10; --cw-label: #c3c5cd; --cw-wash: 20%; }
+.cw-board [data-lane='outbid']   { --cw-hue: var(--cw-lane-outbid); --cw-edge-ink: #04151e; }
+.cw-board [data-lane='champion'] { --cw-hue: var(--cw-lane-champion); --cw-edge-ink: #1a1305; }
+.cw-board [data-lane='ranked']   { --cw-hue: var(--cw-lane-ranked); --cw-edge-ink: #0e1013; }
+/* A vacancy stands in no lane, so it takes almost no lane colour: it is the
+   quiet ground the three lanes read against, and its wash is a fifth of theirs. */
+.cw-board [data-lane='open']     { --cw-hue: var(--cw-lane-open); --cw-edge-ink: #0b0c0e; --cw-wash: 4%; }
+
+/* ONE HUE PER LANE, MIXED INTO EVERY SURFACE THAT LANE TOUCHES.
+   The fill, the rail, the chip and the label are all derived from `--cw-hue`
+   rather than hand-picked per lane, so the palette has exactly three numbers in
+   it and moving one moves the row, its band, its chip and its key swatch
+   together. This rule comes last on purpose: it has the same specificity as the
+   four above, and it reads the hue they set.
+
+   The fills used to be hand-mixed near-blacks (#0e1b23, #201a08, #191b1f) which
+   at row size were three shades of the same dark grey - the colour was in the
+   markup and not on the screen, so a reader scrolling the board could not tell
+   a bought slot from a won one without reading the chip. */
+.cw-board [data-lane] {
+  --cw-band: color-mix(in srgb, var(--cw-hue) var(--cw-wash), #131418);
+  --cw-edge: var(--cw-hue);
+  --cw-label: var(--cw-hue);
+}
+/* An OPEN SLOT's title is read as words, not as a lane, so it keeps the ink it
+   always had rather than dropping to the vacancy hue. */
+.cw-board [data-lane='open'] { --cw-label: #9ba1ad; }
 
 /* ── HERO ───────────────────────────────────────────────────────────────── */
+/* HEIGHT IS SET BY THE LEFT COLUMN, NOT BY min-height. The column used to run
+   to roughly 464px - a 190px intro floor, a 48px headline, a sub-line under it,
+   then a clock and a claim rail stacked - so lowering min-height alone moved
+   nothing. What actually came down: the sub-line is gone (the band heads say
+   it), the intro's floor is gone, the headline is 40px, and the clock and the
+   rail now share one row. */
 .cw-hero {
-  position: relative; display: grid; grid-template-columns: minmax(276px, 348px) minmax(0, 1fr);
-  gap: 34px; align-items: end; min-height: 420px; padding: 30px 28px 0;
-  border: 1px solid var(--cw-line);
-  background: radial-gradient(120% 90% at 82% 108%, #1b2410 0%, #121317 58%, #0f1013 100%);
-  overflow: clip;
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 28px; align-items: center; min-height: 288px; padding: 20px 44px;
+  background: #0d0e10; overflow: clip;
 }
-.cw-hero::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, #ffffff00 0 22px, #ffffff08 22px 23px); mask-image: linear-gradient(180deg, transparent, #000 68%); pointer-events: none; }
-.cw-hero::after { content: ''; position: absolute; inset: auto 0 0; height: 12px; background: repeating-linear-gradient(90deg, #e9edf3 0 10px, #0c0d10 10px 20px); opacity: .22; }
-
-.cw-hero-season { position: relative; z-index: 1; display: grid; gap: 14px; padding-bottom: 40px; }
-/* Two labelled items on a rule, rather than "MIAW PRIX · SEASON 00". */
-.cw-kicker { display: flex; align-items: center; gap: 12px; font: 500 9px var(--cw-mono); letter-spacing: .18em; color: var(--cw-muted); }
-.cw-kicker i { width: 5px; height: 5px; background: var(--cw-lime); }
-.cw-kicker em { padding-left: 12px; border-left: 1px solid var(--cw-line); font-style: normal; color: var(--cw-dim); }
-.cw-board h1 { display: flex; align-items: baseline; gap: 6px; font: 900 clamp(44px, 5.4vw, 78px)/.86 var(--cw-head); font-stretch: 118%; letter-spacing: -.03em; }
-.cw-board h1 i { width: 8px; height: .62em; background: var(--cw-lime); }
-.cw-hero-season p { font: 600 12px var(--cw-head); text-transform: uppercase; letter-spacing: .06em; color: var(--cw-muted); }
-
-.cw-clock { display: grid; gap: 3px; padding: 11px 13px; border: 1px solid #3a4227; background: #151a0e; justify-items: start; }
+.cw-hero-season { position: relative; z-index: 1; display: grid; gap: 12px; }
+.cw-kicker { display: flex; align-items: center; gap: 12px; font: 500 10px var(--cw-mono); letter-spacing: .12em; color: var(--cw-muted); }
+.cw-kicker i { width: 6px; height: 6px; border-radius: 50%; background: var(--cw-lime); }
+.cw-kicker em { font-style: normal; color: var(--cw-muted); }
+.cw-kicker a { color: inherit; }
+.cw-kicker a:hover { color: var(--cw-lime); text-decoration: underline; text-underline-offset: 4px; }
+.cw-kicker a:focus-visible { outline: 2px solid var(--cw-lime); outline-offset: 3px; }
+.cw-board h1 { font: 600 15px/1.2 var(--cw-head); letter-spacing: .04em; text-transform: uppercase; color: var(--cw-muted); }
+.cw-hero-intro { display: grid; gap: 6px; align-content: start; }
+.cw-hero-intro--pending .cw-pending--line { height: 42px; }
+.cw-hero-intro h2 { font: 800 40px/1.05 var(--cw-head); letter-spacing: -.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.cw-hero-season p { font: 400 14px/1.6 var(--cw-head); color: #b7b9c0; }
+.cw-hero-link { display: inline-flex; align-items: center; gap: 10px; justify-self: start; color: var(--cw-lime); font: 600 13px var(--cw-head); padding: 4px 0; }
+.cw-hero-link:hover { text-decoration: underline; text-underline-offset: 5px; }
+.cw-hero-link:focus-visible { outline: 2px solid var(--cw-lime); outline-offset: 5px; }
+/* THE CLOCK AND THE RAIL SHARE A ROW. Stacked, they were the two tallest things
+   in this column and the hero could not come down. */
+.cw-hero-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+.cw-clock { display: grid; gap: 2px; padding: 9px 12px; border: 1px solid #3a4227; background: #151a0e; justify-items: start; }
 .cw-clock small { font: 500 8px var(--cw-mono); letter-spacing: .2em; color: var(--cw-lime); }
-.cw-clock b { font: 700 30px var(--cw-head); font-variant-numeric: tabular-nums; }
+.cw-clock b { font: 700 26px var(--cw-head); font-variant-numeric: tabular-nums; }
 .cw-clock span { font: 400 8px var(--cw-mono); color: var(--cw-dim); }
+/* A lock nobody could read wears the page's unknown ink, not the acid the live
+   countdown wears: an em dash in lime reads as a figure. */
+.cw-clock[data-lock='unreadable'], .cw-clock[data-lock='none'] { border-color: var(--cw-line); background: var(--cw-panel-2); }
+.cw-clock[data-lock='unreadable'] small, .cw-clock[data-lock='none'] small { color: var(--cw-dim); }
+.cw-clock[data-lock='unreadable'] b, .cw-clock[data-lock='none'] b { color: var(--cw-muted); }
+/* The read has not landed. Same box, same height, no claim. */
+.cw-clock--pending { border-color: var(--cw-line); background: var(--cw-panel-2); gap: 6px; }
 
 .cw-claim-rail { display: grid; gap: 7px; }
 .cw-claim-rail span { font: 500 9px var(--cw-mono); letter-spacing: .1em; color: var(--cw-muted); }
@@ -94,27 +152,19 @@
 .cw-board .mx-seg__cell { flex: 1 1 auto; height: 9px; background: #2b2d33; border: 1px solid #3a3c44; }
 .cw-board .mx-seg__cell--on { background: var(--cw-lime); border-color: var(--cw-lime-edge); }
 
-.cw-hero-front { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: clamp(10px, 2.2vw, 34px); padding-bottom: 46px; }
-.cw-hero-ghost { position: absolute; left: 2%; bottom: -14px; z-index: 0; font: 900 clamp(150px, 20vw, 268px)/.72 var(--cw-head); font-stretch: 125%; color: #1a2110; user-select: none; pointer-events: none; }
-
-.cw-hero-card { position: relative; z-index: var(--z); transition: translate .18s ease-out; }
-.cw-hero-face { position: relative; overflow: clip; border: 2px solid var(--cw-metal); background: #16171b; box-shadow: 0 0 0 1px #0b0c0e, 0 20px 48px -14px var(--cw-glow); }
-.cw-hero-card[data-pos='1'] { --z: 3; --cw-metal: var(--cw-gold); --cw-glow: var(--cw-gold-glow); }
-.cw-hero-card[data-pos='2'] { --z: 2; --cw-metal: var(--cw-silver); --cw-glow: rgb(201 210 220 / 28%); }
-.cw-hero-card[data-pos='3'] { --z: 1; --cw-metal: var(--cw-bronze); --cw-glow: rgb(217 138 74 / 30%); }
-.cw-hero-card[data-pos='1'] .cw-hero-face { width: 172px; aspect-ratio: 172/200; }
-.cw-hero-card[data-pos='2'] .cw-hero-face, .cw-hero-card[data-pos='3'] .cw-hero-face { width: 136px; aspect-ratio: 136/158; }
-.cw-hero-card[data-pos='1'] { transform: rotate(-4deg); }
-.cw-hero-card[data-pos='2'] { transform: translateY(26px) rotate(-7deg); }
-.cw-hero-card[data-pos='3'] { transform: translateY(44px) rotate(5deg); }
-.cw-hero-card:hover { translate: 0 -6px; }
-/* The painted grid box each plinth stands in. */
-.cw-hero-card::before {
-  content: attr(data-pos); position: absolute; left: -26px; bottom: -30px; z-index: -1; width: 108%; height: 58px;
-  display: grid; align-items: center; padding-left: 10px; transform: skewX(-16deg);
-  border: 1px dashed color-mix(in srgb, var(--cw-metal) 38%, transparent);
-  font: 800 30px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 52%, transparent);
-}
+.cw-hero-front { position: relative; height: 244px; width: 100%; max-width: 520px; justify-self: center; }
+.cw-front-label { position: absolute; right: 0; top: 0; color: #b7b9c0; font: 500 10px var(--cw-mono); letter-spacing: .12em; }
+.cw-hero-card { position: absolute; transition: translate .18s ease-out; }
+.cw-hero-face { position: relative; width: 100%; height: 100%; overflow: clip; border: 5px solid var(--cw-metal); border-radius: 14px; background: #191a1e; box-shadow: inset 0 0 0 2px #ffffff30, 0 0 32px -12px var(--cw-glow); }
+/* data-pos IS THE CARD'S PLACE IN THIS ROW OF THREE, never a board slot. It
+   sizes, tilts and metals the card; the digit printed on the card is the coin's
+   own board position and comes from the component. The two were the same
+   integer only while the hero took slots 01-03 by number. */
+.cw-hero-card[data-pos='1'] { --cw-metal: #f6bd43; --cw-glow: #b87819; z-index: 1; width: 56%; height: 196px; right: 9%; top: 12px; transform: rotate(-7deg); }
+.cw-hero-card[data-pos='2'] { --cw-metal: #bfc3cb; --cw-glow: #79818d; z-index: 2; width: 39%; height: 136px; left: 1%; bottom: 0; transform: rotate(6deg); }
+.cw-hero-card[data-pos='3'] { --cw-metal: #e18b48; --cw-glow: #c46926; z-index: 3; width: 37%; height: 122px; right: 0; bottom: -4px; transform: rotate(7deg); }
+.cw-hero-card:hover { translate: 0 -4px; }
+.cw-hero-position { position: absolute; top: 6px; left: 11px; z-index: 2; font: 900 38px/1 var(--cw-head); color: var(--cw-metal); text-shadow: 0 2px 2px #000; }
 .cw-hero-mark { width: 100%; height: 100%; object-fit: cover; display: block; color: var(--cw-metal); }
 .cw-hero-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 52%, rgb(8 9 11 / 88%)); pointer-events: none; }
 
@@ -122,53 +172,54 @@
 .cw-crown { position: absolute; top: -19px; left: 50%; translate: -50% 0; color: var(--cw-gold); z-index: 2; }
 .cw-bought { position: absolute; top: -19px; left: 50%; translate: -50% 0; color: var(--cw-lane-outbid); z-index: 2; }
 
-.cw-hero-name { display: grid; gap: 3px; margin-top: 16px; justify-items: start; }
-.cw-hero-name > b { font: 800 clamp(18px, 1.6vw, 26px) var(--cw-head); }
-.cw-hero-card[data-pos='1'] .cw-hero-name > b { font-size: 30px; }
-.cw-hero-name > small { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 8px var(--cw-mono); color: var(--cw-dim); }
-.cw-hero-record { display: flex; align-items: baseline; gap: 10px; }
-.cw-hero-record b { font: 700 15px var(--cw-head); color: var(--cw-lime); }
-.cw-hero-record b + b { color: var(--cw-dim); font-size: 13px; }
-.cw-hero-record small { font: 400 8px var(--cw-mono); color: var(--cw-dim); }
-.cw-hero-norecord { font: 400 9px var(--cw-mono); color: var(--cw-dim); }
-
-.cw-hero-card--open .cw-hero-face {
-  display: grid; place-items: center; align-content: center; gap: 6px; padding: 10px;
-  border-style: dashed; border-color: color-mix(in srgb, var(--cw-metal) 50%, transparent);
-  background: #131418; box-shadow: none;
-}
-.cw-hero-card--open .cw-hero-face i { font-style: normal; font: 800 40px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 40%, transparent); }
-.cw-hero-card--open .cw-hero-face strong { font: 700 13px var(--cw-head); letter-spacing: .16em; color: var(--cw-text); }
-/* The plinth's note, where a price used to sit. A board position is not sold by
-   its number, so the card states how it fills instead of quoting a seat. */
-.cw-hero-card--open .cw-hero-face > span:not(.cw-act) { font: 500 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-dim); text-align: center; }
-.cw-hero-card--open .cw-act { min-height: 30px; }
-
-/* ── COUNTER STRIP ──────────────────────────────────────────────────────── */
-.cw-counter { display: flex; flex-wrap: wrap; border: 1px solid var(--cw-line); border-top: 0; background: var(--cw-panel-2); }
-.cw-counter > div { flex: 1 1 120px; display: grid; gap: 4px; padding: 11px 14px; border-right: 1px solid var(--cw-line); }
-.cw-counter > div:last-child { border-right: 0; }
-.cw-counter small { font: 500 7px var(--cw-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cw-dim); }
-.cw-counter b { font: 600 16px var(--cw-mono); font-variant-numeric: tabular-nums; }
-
-/* ── EXPLAINER ──────────────────────────────────────────────────────────── */
-.cw-explain { border: 1px solid var(--cw-line); border-top: 0; background: var(--cw-panel-2); }
-.cw-explain-cells { display: grid; grid-template-columns: repeat(4, 1fr); }
-.cw-explain-cells > * { padding: 14px 16px; border-right: 1px solid var(--cw-line); }
-.cw-explain-cells > *:last-child { border-right: 0; }
-.cw-explain-cells small { display: block; margin-bottom: 6px; font: 500 7px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-lime); }
-.cw-explain-cells p { font: 400 9px/1.6 var(--cw-mono); color: var(--cw-muted); }
-.cw-explain-cells b[data-lane='outbid'] { color: var(--cw-lane-outbid); }
-.cw-explain-cells b[data-lane='champion'] { color: var(--cw-lane-champion); }
-.cw-explain-cells b[data-lane='ranked'] { color: var(--cw-lane-ranked); }
-.cw-explain-link { position: relative; color: var(--cw-lime); }
-.cw-explain-link p { color: var(--cw-lime); }
-.cw-explain-link svg { position: absolute; top: 12px; right: 12px; }
-.cw-explain summary { display: flex; align-items: center; min-height: 40px; padding: 0 16px; font: 700 10px var(--cw-head); letter-spacing: .12em; cursor: pointer; }
+.cw-hero-name { position: absolute; bottom: 12px; left: 14px; right: 12px; display: grid; gap: 4px; }
+.cw-hero-name > b { font: 800 21px var(--cw-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-hero-name > small { display: none; }
+.cw-hero-record { display: flex; gap: 10px; font: 600 12px var(--cw-head); color: var(--cw-lime); }
+.cw-hero-record b + b { color: #d2d4d9; }
+.cw-hero-norecord { font: 500 8px var(--cw-mono); color: #d2d4d9; }
+.cw-hero-name .cw-lane { justify-self: start; }
+.cw-hero-card--open .cw-hero-face { display: grid; place-items: center; align-content: center; gap: 8px; background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--cw-metal) 18%, #151619), #151619 80%); }
+.cw-hero-card--open .cw-hero-face i { font: 900 66px/1 var(--cw-head); font-style: normal; color: var(--cw-metal); text-shadow: 0 3px 0 color-mix(in srgb, var(--cw-metal) 40%, #000); }
+.cw-hero-card--open .cw-hero-face strong { font: 600 11px var(--cw-head); letter-spacing: .12em; color: #e6e7ea; }
+.cw-hero-fills { font: 500 7px var(--cw-mono); color: #b7b9c0; }
 
 /* ── TOOLBAR ────────────────────────────────────────────────────────────── */
-.cw-toolbar { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
-.cw-toolbar .mx-tabs { flex: 1 1 auto; flex-wrap: wrap; padding: 0; gap: 4px; }
+/* ONE LINE: every lane and the search box. The tab strip used to carry
+   flex-wrap, so it broke internally at any width and the toolbar was one line
+   only by luck; it scrolls now instead, which keeps the lanes in one row and
+   keeps the search where the eye left it. */
+/* THE LANES STAY ON SCREEN. Thirty-six rows is a long scroll, and a tab row
+   that leaves after eight of them makes the reader scroll back up to ask a
+   question about what they are looking at. It sticks UNDER the site header
+   (which is itself sticky at z-index 20 - site-header.css), at z-index 10, the
+   same layer /events uses for its own sticky action bar; nothing else in this
+   file reaches past 3.
+
+   IT NEEDS NO NEGATIVE MARGIN. `.cw-board` declares no inline padding, so this
+   bar and the rows below it are the same box width and nothing scrolls past its
+   edges. Give the board side padding and this rule needs a matching bleed. */
+.cw-toolbar {
+  position: sticky; top: var(--site-header-height); z-index: 10;
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 18px; padding-block: 8px;
+  background: var(--cw-bg); border-bottom: 1px solid var(--cw-hair);
+}
+/* THE LANES WRAP. THEY DO NOT SCROLL AWAY.
+   This strip used to be `flex-wrap: nowrap` with `overflow-x: auto` and the
+   scrollbar suppressed in BOTH `scrollbar-width` and `::-webkit-scrollbar`, and
+   wrapping only came back under 720px. Below 1280px there are FIVE tabs, not
+   four - INFO is appended last - so between roughly 721px and 1279px the fifth
+   one sat outside the scrollport with no scrollbar, no fade and nothing to say
+   the strip scrolled at all. On an iPad in portrait the reader was given the
+   INFO destination by `useNarrow` and could never see it, which is the exact
+   condition that tab exists to fix.
+   Wrapping costs a second row at those widths and nothing at all at desktop,
+   where four tabs and the search box fit on one line with room over - and the
+   sticky offset every other rule is measured against is now READ from this
+   element (CatwalkApp's `chromeHeight`), so a bar that wraps no longer drags
+   search's landing position out of step with it. */
+.cw-toolbar .mx-tabs { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; padding: 0; gap: 4px; }
 .cw-board .mx-tabs__tab[aria-selected='true'] { box-shadow: inset 0 -3px 0 #96c000; }
 .cw-board .mx-tabs__tab b { font: 500 9px var(--cw-mono); padding: 2px 6px; border-radius: 999px; background: #ffffff14; }
 .cw-board .mx-tabs__tab[aria-selected='true'] b { background: #0000001f; }
@@ -176,23 +227,19 @@
 .cw-board .mx-tabs__tab:disabled b { border: 1px solid #4a4d55; background: transparent; }
 .cw-board .mx-tabs__tab > span { display: inline-flex; align-items: center; gap: 7px; }
 
-.cw-search { flex: 0 0 280px; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--cw-line); border-radius: 10px; color: #b7bac3; }
+.cw-search { flex: 0 1 280px; min-width: 150px; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--cw-line); border-radius: 10px; color: #b7bac3; }
 .cw-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--cw-text); font: 13px var(--cw-head); outline: none; }
 .cw-search:focus-within { outline: 2px solid var(--cw-lime); outline-offset: 2px; }
 
-.cw-tabs-sub { font: 500 9px var(--cw-mono); color: var(--cw-dim); letter-spacing: .1em; margin: 9px 2px 0; }
-/* THE FIGURE STRIP. It replaced a sentence reading
-   "12 OF 36 SLOTS RACING · 0 CLAIMED · 36 OPEN" - three claims hung on two
-   middle dots. Each figure now sits in its own cell against a rule, which is
-   what the dots were standing in for. */
+/* `.cw-tabs-sub` stood here for a line under the tab row that restated what the
+   rail beside it and the band heads below it already said. Both the line and
+   its one sentence per tab are gone. */
+/* WHAT SEARCH DID, AND NOTHING ELSE. A four-cell figure strip stood here -
+   WALK IN / ON THE BOARD / CLAIMED / OPEN - under a hero that already counts the
+   runway and above band heads that already carry 01-12 and 13-36. It renders
+   only while a query is applied or the board is being read. */
 .cw-count { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; margin: 6px 2px 14px; font: 500 9px var(--cw-mono); letter-spacing: .06em; color: var(--cw-dim); }
 .cw-count button { border: 0; background: transparent; color: var(--cw-lime); font: inherit; padding: 0; }
-.cw-figures { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; }
-.cw-figures > span { display: flex; align-items: baseline; gap: 7px; padding: 0 16px; border-right: 1px solid var(--cw-line); }
-.cw-figures > span:first-child { padding-left: 0; }
-.cw-figures > span:last-child { border-right: 0; padding-right: 0; }
-.cw-figures b { font: 700 13px var(--cw-head); color: var(--cw-text); font-variant-numeric: tabular-nums; }
-.cw-figures small { font: 500 8px var(--cw-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cw-dim); }
 .cw-note { margin: 18px 2px; font: 400 10px var(--cw-mono); color: var(--cw-muted); }
 
 /* ── BANDS AND ROWS ─────────────────────────────────────────────────────── */
@@ -210,13 +257,39 @@
   position: relative;
   display: grid; grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 96px 96px 116px 128px;
   align-items: center; gap: 14px; min-height: var(--cw-row-h); padding: 0 14px 0 11px;
-  background: var(--cw-band); border-left: 3px solid var(--cw-edge); border-bottom: 1px solid var(--cw-hair);
-  color: var(--cw-text); scroll-margin-block-start: 60px;
+  /* THE WASH OFF THE RAIL. A flat fill made a run of one lane read as N separate
+     dark rows; the lane's hue is strongest at the rail and falls away across the
+     crest, so consecutive rows of a lane merge into one block the eye reads as a
+     section - which is what a lane IS. */
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cw-hue) 26%, transparent) 0, transparent 260px),
+    var(--cw-band);
+  border-left: 3px solid var(--cw-edge); border-bottom: 1px solid var(--cw-hair);
+  /* CLEARS BOTH STICKY BARS. It was 60px against an 80px header alone, so
+     search's scrollIntoView already landed its first hit partly behind the
+     header; with the toolbar sticky as well it would have been hidden twice
+     over. */
+  color: var(--cw-text); scroll-margin-block-start: var(--cw-sticky-top);
 }
-.cw-slot:hover { background: color-mix(in srgb, var(--cw-edge) 9%, var(--cw-band)); border-left-width: 5px; padding-left: 9px; }
-/* A position that does not walk every rotation is quieter, never greyed out:
-   being one rotation away is a place in the rotation, not a benching. */
-.cw-slot[data-walks='false'] { opacity: .92; }
+/* A run of ONE lane is one block: the hairline between two rows of the same lane
+   is the lane's own hue at low strength rather than white, so the block does not
+   read as a stack of cards. */
+.cw-slot + .cw-slot { border-top: 0; }
+.cw-slot:hover { background: color-mix(in srgb, var(--cw-edge) 14%, var(--cw-band)); border-left-width: 5px; padding-left: 9px; }
+/* THE LINE-UP READS AS THE LINE-UP, held or not.
+   A filled line-up row used to take its lane's full colour, which is the same
+   colour a filled RUNWAY row takes - so on a board where the outbid lane holds
+   both, position 11 and position 24 were the same blue and the only thing
+   telling them apart was a band head eleven rows up. The twelve that walk every
+   rotation are the thing being competed for; a row that is one rotation away is
+   drawn at a lower strength of its own lane's colour, never greyed out, because
+   being in the line-up is a place in the rotation and not a benching. */
+.cw-board .cw-slot[data-walks='false'] { --cw-wash: 7%; opacity: .96; }
+.cw-board .cw-slot[data-walks='false'] .cw-num { background: transparent; border: 1px solid var(--cw-edge); color: var(--cw-edge); }
+.cw-board .cw-slot[data-walks='false'] .cw-crest { filter: saturate(.82); }
+/* The rail on a line-up row is a hairline rather than the runway's solid bar. */
+.cw-board .cw-slot[data-walks='false'] { border-left-width: 2px; border-left-style: dotted; }
+.cw-board .cw-slot[data-walks='false']:hover { border-left-width: 4px; border-left-style: solid; }
 /* A position held through some OTHER lane than the one this tab looks through.
    It keeps its number, its crest and its market cap - it is the same position -
    and simply reads as taken. It must never look like a vacancy. */
@@ -242,7 +315,11 @@
 .cw-id > b, .cw-symbol { font: 700 17px var(--cw-head); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cw-text); text-decoration: none; }
 a.cw-symbol { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--cw-edge) 55%, transparent); text-underline-offset: 3px; }
 a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; }
-.cw-coin-name { font: 400 9px var(--cw-mono); color: var(--cw-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* THE COIN'S OWN NAME, at the size of a name rather than of a caption. It is
+   only drawn when it differs from the ticker - printing "SOLZ SOLZ" states
+   nothing twice - and it is no longer clamped to one ellipsised line, because
+   the column it sits in is the widest on the row. */
+.cw-coin-name { font: 400 11px var(--cw-mono); color: var(--cw-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
 .cw-id > small { font: 400 9px var(--cw-mono); color: var(--cw-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cw-open-title { color: var(--cw-label); font: 700 15px var(--cw-head); }
 
@@ -250,9 +327,27 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
    the link opens it in the explorer the board named. Both are always on screen,
    because a coin on this board IS its contract address. */
 .cw-ca { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.cw-mint { display: inline-flex; align-items: center; gap: 5px; max-width: 16ch; padding: 2px 4px; border: 1px solid transparent; background: transparent; color: var(--cw-dim); font: 500 9px var(--cw-mono); cursor: copy; }
+.cw-mint { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 4px; border: 1px solid transparent; background: transparent; color: var(--cw-dim); font: 500 9px var(--cw-mono); cursor: copy; }
 .cw-mint:hover { color: var(--cw-lime); border-color: color-mix(in srgb, var(--cw-lime) 40%, transparent); }
 .cw-mint code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+/* THE WHOLE ADDRESS WHERE THERE IS ROOM FOR IT. The identity column is the
+   widest on the row and was spending 16ch of it on `soLZ…BYfV` - a form that
+   cannot be checked against an address a holder already has. The head-and-tail
+   form survives only where the column genuinely cannot hold 44 characters. */
+.cw-mint-short { display: none; }
+@media (max-width: 1100px) {
+  .cw-mint-full { display: none; }
+  .cw-mint-short { display: inline; }
+}
+/* Side by side, each OUTBID column is about half a page wide, so the address
+   folds on ITS width rather than the window's. Sized off the row's own fixed
+   columns: below this the identity cell cannot hold 44 characters of base58 and
+   the full form would simply be ellipsised mid-address, which is the one form
+   that is neither checkable nor honest about being abbreviated. */
+@container (max-width: 860px) {
+  .cw-mint-full { display: none; }
+  .cw-mint-short { display: inline; }
+}
 .cw-ca-link { display: inline-grid; place-items: center; width: 20px; height: 20px; color: var(--cw-dim); border: 1px solid transparent; }
 .cw-ca-link:hover { color: var(--cw-lime); border-color: color-mix(in srgb, var(--cw-lime) 40%, transparent); }
 
@@ -301,11 +396,32 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
 
 /* ── THE OPEN SLOT ──────────────────────────────────────────────────────── */
 .cw-slot--open {
-  background: transparent;
+  background-color: transparent;
   background-image: repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--cw-edge) 13%, transparent) 9px 10px);
   border-left-style: dashed;
   outline: 1px dashed color-mix(in srgb, var(--cw-edge) 42%, transparent); outline-offset: -1px;
 }
+
+/* ── THE WALK-IN BAND, COLOURED EVEN WHEN IT IS EMPTY ───────────────────── */
+/* The twelve that walk every rotation are the subject of this page. Drawn as
+   plain vacancies they were the same grey as the twenty-four challenge
+   positions, so the board's own headline band was invisible on the state it
+   launches in - which is the state it is in right now.
+   A coin standing here still wins the colour: a filled row takes its LANE's hue,
+   because how a coin got here outranks where it is standing. This paints only
+   the empty ones, and the dashed rail and the hatch stay, so it never stops
+   reading as vacant. */
+.cw-board .cw-slot--open[data-walks='true'] {
+  --cw-hue: var(--cw-walkin); --cw-wash: 9%;
+  background-color: var(--cw-band);
+  background-image:
+    repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--cw-hue) 16%, transparent) 9px 10px),
+    linear-gradient(90deg, color-mix(in srgb, var(--cw-hue) 15%, transparent) 0, transparent 280px);
+}
+/* The band head over them takes the same colour, so the block starts at its
+   own title rather than one row down. */
+.cw-board .cw-band-head[data-walks='true'] { --cw-hue: var(--cw-walkin); --cw-edge: var(--cw-hue); --cw-label: var(--cw-hue); background: color-mix(in srgb, var(--cw-hue) 12%, #0e0f12); }
+.cw-board .cw-band-head[data-walks='true'] small { color: color-mix(in srgb, var(--cw-hue) 62%, var(--cw-dim)); }
 /* A run of vacancies reads as one block of resting depth, not N failures. */
 .cw-slot--open + .cw-slot--open { border-bottom-color: #ffffff08; }
 .cw-slot--open .cw-num { background: transparent; border: 1px dashed var(--cw-edge); color: var(--cw-edge); }
@@ -351,19 +467,23 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
    bands and no walk line. Seat numbers are the sale's own numbering, so the
    chip takes the money hue - a seat is a thing for sale, not a position on the
    board. Its rows carry no market-cap column, so they set their own columns. */
-.cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 116px 128px 128px; }
+/* SEAT ROWS ONLY. A coin row in this list is BOARD-shaped - it carries a market
+   cap and a lane chip that a seat row does not - so it must keep its own seven
+   columns at every width. Without the :not(), these templates claimed it, laid
+   seven cells into six columns, and threw the OUTBID button onto an implicit
+   row at the far left of the page, outside the list entirely. */
+.cw-ladder .cw-slot:not(.cw-outbid-row) { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 116px 128px 128px; }
 .cw-ladder .cw-num { background: var(--cw-money); color: #06170f; }
 .cw-ladder .cw-slot--open .cw-num { background: transparent; border: 1px dashed var(--cw-money); color: var(--cw-money); }
 .cw-ladder .cw-band-head small { text-transform: none; letter-spacing: .08em; }
 
-/* ── OUTBID SPLIT ───────────────────────────────────────────────────────── */
-/* The ladder above the table on a narrow screen, beside it on a wide one. The
-   table is the same table every other tab renders - there is no second board
-   and no inert mirror of one any more, so both halves are live. */
-.cw-outbid { display: grid; gap: 18px; }
-@media (min-width: 1400px) {
-  .cw-outbid { grid-template-columns: 420px minmax(0, 1fr); align-items: start; }
-}
+/* AN `.cw-outbid` GRID USED TO STAND HERE, and a `.cw-outbid-list` /
+   `.cw-outbid-board` pair with it - the OUTBID tab's own two-column layout, with
+   the list leading and the board second. Both are gone with the wrapper that
+   carried them: there is ONE split on this page now, `.cw-split` below, and the
+   board is the left column of it on every tab. Two layouts meant the board
+   changed width and changed DOM position as a reader moved between tabs, which
+   is the screen the owner called annoyingly bad. */
 
 /* ── LOADING ────────────────────────────────────────────────────────────── */
 /* Structure never waits: bands, chips, the walk line and band copy render from
@@ -400,40 +520,398 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
    them on the first frame told the viewer the front was empty before a single
    read had landed - the same claim as the word OPEN, made in paint. The face
    stays lit and solid, exactly as a filled plinth's does, and only the
-   shimmering bars say anything at all. */
+   shimmering bars say anything at all.
+
+   IT CARRIES NO NUMBER EITHER. It used to print 01, 02, 03 - the board slots the
+   hero took before `catwalkFront` began choosing across the lanes - and those
+   three digits are now a guess about WHICH positions will stand here. */
 .cw-hero-card--pending .cw-hero-face {
   display: grid; place-items: center; align-content: center; gap: 10px; padding: 10px;
   border-style: solid; border-color: var(--cw-metal); background: #16171b;
-}
-.cw-hero-card--pending .cw-hero-face > i:not(.cw-pending) {
-  font-style: normal; font: 800 40px var(--cw-head); color: color-mix(in srgb, var(--cw-metal) 72%, transparent);
 }
 .cw-hero-card--pending .cw-pending--act { width: 78%; }
 .cw-footer .cw-pending--line { height: 13px; }
 .cw-footer small .cw-pending--line { height: 10px; width: min(100%, 60ch); }
 @keyframes cw-pending-sweep { to { background-position: 0 0; } }
 
+
+/* ── THE OUTBID LIST: THE COINS ─────────────────────────────────────────── */
+/* A list of COINS, so its rows are board rows and not seat rows: seven columns,
+   a market cap, and the board's own number chip in the lane's colour. The seat
+   rows underneath keep the ladder's vocabulary and the ladder's money-coloured
+   chip, because a seat is a thing for sale and a coin is not. */
+.cw-outbid-tokens .cw-outbid-row { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 92px auto 116px 132px; }
+.cw-outbid-tokens .cw-outbid-row .cw-num { background: var(--cw-edge); color: var(--cw-edge-ink); }
+/* A champion is the one row here that no price reaches, so it is the one row
+   that does not light: the action is dashed and locked, and the row carries the
+   lane's own gold rather than the sale's green. */
+.cw-outbid-row[data-status='locked'] .cw-act { cursor: default; }
+.cw-outbid-row[data-status='closed'], .cw-outbid-row[data-status='unknown'] { opacity: .78; }
+.cw-outbid-tokens .cw-band-head + .cw-band-head, .cw-outbid-tokens ol + .cw-band-head { margin-top: 14px; }
+.cw-outbid-empty { padding: 20px 14px; border-bottom: 1px solid var(--cw-line); font: 400 10px/1.6 var(--cw-mono); color: var(--cw-muted); }
+
+/* ── THE SPLIT: THE BOARD, AND WHATEVER IS EXPLAINING IT ────────────────── */
+/* ONE GRID, EVERY TAB. The board is the left column always; the right column is
+   the only thing a tab changes. The rail sticks, because the board beside it is
+   thirty-six rows and a legend - or a price - that scrolls away after eight of
+   them is one nobody reads. */
+.cw-split { display: grid; gap: 18px; }
+@media (min-width: 1280px) {
+  .cw-split { grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr); align-items: start; }
+  /* THE RAIL CLEARS THE CHROME ABOVE IT. `top: 14px` put it 66px UNDER the
+     site header, which hid exactly the top of the column - and the top of the
+     column is now the lock countdown, the one thing on this rail a holder acts
+     on. */
+  .cw-split-rail {
+    position: sticky; top: calc(var(--cw-sticky-top) + 12px);
+    max-height: calc(100vh - var(--cw-sticky-top) - 24px);
+    overflow: auto; overscroll-behavior: contain;
+  }
+}
+.cw-split-board, .cw-split-rail { container-type: inline-size; }
+/* THE RAIL IS NEVER A SECOND BOARD. On OUTBID it is the price list, and beside a
+   table that already carries the address, the market cap and the lane, repeating
+   all three turned the split into the same list printed twice - so it keeps the
+   number, the coin and the two things the board does not put in front of you:
+   what it costs, and the control that acts on it. On every other tab it is prose
+   about how the list is composed, which is not a list at all. */
+.cw-split-rail { --cw-row-h: 58px; --cw-crest: 34px; }
+.cw-split-rail .cw-outbid-row { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto 124px; gap: 11px; }
+/* SCOPED TO THE PRICE LIST'S OWN ROWS. It was written for `.cw-split-rail` flat,
+   which was harmless while the rail held nothing but that list - and would now
+   hide the composition legend's `LaneChip` swatches, which are `.cw-lane`, with
+   a rule about a column in a different component.
+
+   `.cw-ca` IS NO LONGER IN THIS LIST, AND THAT IS THE POINT. The market cap and
+   the lane chip are genuinely duplicated by the board beside this rail, so they
+   stay hidden. The CONTRACT ADDRESS is not duplication: icons collide and names
+   collide - two coins on this list can wear the same crest and near enough the
+   same ticker - and the mint is the only thing that tells them apart. Hiding it
+   also left the rail self-contradictory, because `CatwalkSeatRow` wears
+   `cw-slot` WITHOUT `cw-outbid-row`, so seat rows showed an address all along
+   while the coin rows directly above them did not.
+
+   NO GRID CHANGE IS NEEDED: `.cw-ca` is a child of `.cw-id`, which is track 3
+   of `.cw-split-rail .cw-outbid-row` above - the address is a second line
+   inside a cell that already exists. The `@container (max-width: 860px)` rule
+   swaps the full mint for the head-and-tail form inside this rail, and the copy
+   still carries the whole address either way. */
+.cw-split-rail .cw-outbid-row .cw-mcap,
+.cw-split-rail .cw-outbid-row .cw-lane { display: none; }
+.cw-split-rail .cw-id > b, .cw-split-rail .cw-symbol, .cw-split-rail .cw-open-title { font-size: 14px; }
+.cw-split-rail .cw-coin-name { font-size: 9px; max-width: 22ch; }
+.cw-split-rail .cw-id > small { font-size: 8px; }
+.cw-split-rail .cw-band-head { position: sticky; top: 0; z-index: 1; }
+/* BELOW 1280px THERE IS ONE COLUMN, AND ONLY THE SALE LEADS.
+   On OUTBID the rail comes first: it is the tab a reader opened in order to buy,
+   and that was this rail's behaviour before it governed every tab. Everywhere
+   else the rail FOLLOWS the board, because a legend printed above the thing it
+   explains is the wrong way round - and the MIAW PRIX tab is the one a reader
+   lands on, so a rail on top would push the board itself below the fold.
+
+   Either way the rail is second in the DOM, so keyboard order always gives the
+   numbered table first: `order` moves the box without moving the tab order. */
+@media (max-width: 1279px) { .cw-split[data-rail='outbid'] .cw-split-rail { order: -1; } }
+/* THE CLOCK LEAVES THE RAIL HERE, AND ONLY THE CLOCK.
+   The rail's `order: -1` rescue covers OUTBID and INFO and nothing else, so on
+   MIAW PRIX - the tab a reader LANDS on - and on SOLZ RANKED and CHAMPIONS the
+   one countdown on this page sat at the top of a column that follows thirty-six
+   rows: ~2,100px of board plus the hero before "BOARD LOCKS IN". The owner's
+   question was literally "where's the COUNTDOWN?", and on three of four tabs at
+   phone and tablet width it was still unanswered above the fold.
+   Hoisting the whole rail is not the fix - that pushes the BOARD below the fold
+   on the landing tab, which is the argument above for leaving the legend where
+   it is. So CatwalkApp renders the clock as a child of the split in its own
+   right below this breakpoint (`CatwalkSplit`, one instance either way), and it
+   is ordered ahead of both columns - ahead of the rail's own -1, so the OUTBID
+   and INFO tabs get the clock first and their rail second. */
+@media (max-width: 1279px) { .cw-split-clock { order: -2; } }
+/* AND THE SAME FOR THE INFO TAB, WHICH EXISTS ONLY AT THESE WIDTHS. Choosing it
+   is asking for the legend, so the legend comes first rather than sitting two
+   thousand pixels under a board the reader did not ask to re-read. The board is
+   NOT hidden - thirty-six numbered positions are the page's promise on every
+   tab - and the rail is still second in the DOM, so keyboard order still gives
+   the numbered table first. */
+@media (max-width: 1279px) { .cw-split[data-rail='info'] .cw-split-rail { order: -1; } }
+
+/* THE BOARD FOLDS ON ITS OWN WIDTH, NOT THE WINDOW'S. Beside the rail it is a
+   little over half the page wide, so a viewport media query would leave its
+   seven columns laid out for a screen nearly twice its size. `.cw-split-board`
+   is already a container (above), which is what these rules key off.
+
+   IT FOLDS INTO TWO ROWS RATHER THAN DROPPING COLUMNS, which is the opposite of
+   what the rule that used to stand here did. That rule hung off
+   `.cw-outbid-board` and hid the market cap and the action outright - defensible
+   when the board was the SECONDARY column of the OUTBID tab, with the priced
+   list beside it carrying the commerce. The board is the subject of every tab
+   now, so hiding its action column would leave the primary surface of this page
+   unable to state a price at desktop width, and the market cap is the figure
+   that says whether these coins are interchangeable - the 820px fold below
+   argues at length that it must fold rather than disappear. Same argument, same
+   fold, applied to the board's own width. */
+@container (max-width: 860px) {
+  .cw-split-board .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) auto auto minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 3px; gap: 10px; padding-block: 9px; }
+  .cw-split-board .cw-num, .cw-split-board .cw-crest, .cw-split-board .cw-open-well { grid-row: 1 / span 2; }
+  .cw-split-board .cw-id { grid-column: 3 / 6; grid-row: 1; }
+  .cw-split-board .cw-lane { grid-column: 3; grid-row: 2; }
+  .cw-split-board .cw-mcap { grid-column: 4; grid-row: 2; justify-items: start; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+  .cw-split-board .cw-mcap b { font: 500 9px var(--cw-mono); }
+  .cw-split-board .cw-metric { grid-column: 5; grid-row: 2; justify-items: start; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+  .cw-split-board .cw-metric b { font: 500 9px var(--cw-mono); }
+  .cw-split-board .cw-act { grid-column: 6; grid-row: 1 / span 2; padding: 0 9px; font-size: 8px; }
+  /* The loading row folds exactly as the loaded one does, so the board does not
+     change height when the read lands - the whole point of drawing it at all. */
+  .cw-split-board .cw-slot--skeleton .cw-pending--crest { grid-row: 1 / span 2; }
+  .cw-split-board .cw-slot--skeleton .cw-pending--lane { grid-column: 3; grid-row: 2; }
+  .cw-split-board .cw-slot--skeleton .cw-pending--mcap { grid-column: 4; grid-row: 2; justify-self: start; }
+  .cw-split-board .cw-slot--skeleton .cw-pending--metric { grid-column: 5; grid-row: 2; justify-self: start; }
+  .cw-split-board .cw-slot--skeleton .cw-pending--act { grid-column: 6; grid-row: 1 / span 2; height: 100%; }
+  /* FIVE CELLS, BECAUSE FIVE ARE LAID OUT. This list only ever renders inside
+     `.cw-split-rail` (CatwalkApp renders `CatwalkOutbidList` as the OUTBID
+     tab's rail), and the rail hides BOTH `.cw-mcap` and `.cw-lane` - see the
+     rule above - so the row lays out the number chip, the crest, the identity,
+     the metric and the action. It is exactly the same five tracks as the rail's
+     own rule above, tightened for the narrower container.
+
+     IT SAID SIX. `display: none` removes a cell from layout entirely, so the
+     sixth track and its gap sat empty at the right edge of every row - about
+     130px of nothing - while the identity cell, the one the address was just
+     un-hidden into, was squeezed to roughly 170px and the action was pinned to
+     the fifth track instead of the row's edge. At 1440px the rail is ~612px
+     wide, so this container query is what every desktop reader of the OUTBID
+     tab actually gets. Scoped to the rail for the same reason the rule above
+     is: a count that is right for one arrangement is wrong for the other. */
+  .cw-split-rail .cw-outbid-row { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto 116px; gap: 10px; }
+  .cw-outbid-tokens .cw-outbid-row .cw-mcap { display: none; }
+}
+/* Narrower still: the action keeps its words, because "OUTBID $1.05" is the
+   whole row and has no icon form. */
+@container (max-width: 560px) {
+  .cw-outbid-tokens .cw-outbid-row { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto; row-gap: 4px; padding-block: 9px; }
+  .cw-outbid-tokens .cw-outbid-row .cw-num, .cw-outbid-tokens .cw-outbid-row .cw-crest, .cw-outbid-tokens .cw-outbid-row .cw-open-well { grid-row: 1 / span 2; }
+  .cw-outbid-tokens .cw-outbid-row .cw-id { grid-column: 3 / span 2; grid-row: 1; }
+  .cw-outbid-tokens .cw-outbid-row .cw-lane { grid-column: 3; grid-row: 2; }
+  .cw-outbid-tokens .cw-outbid-row .cw-metric { grid-column: 4; grid-row: 2; }
+  .cw-outbid-tokens .cw-outbid-row .cw-act { grid-column: 3 / span 2; grid-row: 3; justify-self: stretch; }
+}
+
+/* ── THE COMPOSITION RAIL: HOW THE LIST IS PUT TOGETHER ─────────────────── */
+/* PROSE, NOT A TABLE. It is the right column on every tab but OUTBID, and it is
+   the only place on this page the lanes and the bands are explained as a SYSTEM
+   rather than row by row - which is also the only place a screen-reader user is
+   told what a runway is, because every band head on the board is aria-hidden by
+   design.
+
+   IT RESTATES NO HEX VALUE. Every lane swatch is the page's own `.cw-lane` chip
+   resolving `--cw-hue` through `data-lane`, so the palette still has three
+   numbers in it and moving one moves the rows, the heads, the tabs and this
+   legend together. The one swatch that is NOT a lane is the runway's, which
+   takes `--cw-walkin` off `data-walks` exactly as the band head does - the one
+   place on this page position carries a colour. */
+.cw-legend { display: grid; gap: 14px; align-content: start; padding: 16px 16px 20px; background: var(--cw-panel); border-left: 3px solid var(--cw-line); }
+.cw-legend h3 { display: flex; align-items: center; gap: 9px; font: 700 13px var(--cw-head); letter-spacing: .1em; text-transform: uppercase; color: var(--cw-text); }
+.cw-legend h4 { font: 700 9px var(--cw-mono); letter-spacing: .16em; color: var(--cw-dim); padding-bottom: 6px; border-bottom: 1px solid var(--cw-hair); }
+.cw-legend p { font: 400 10px/1.6 var(--cw-mono); color: var(--cw-muted); max-width: 60ch; }
+.cw-legend-lede { color: var(--cw-label); }
+.cw-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.cw-legend-lane { display: grid; grid-template-columns: auto 1fr; gap: 4px 9px; align-items: center; }
+.cw-legend-lane strong { font: 700 11px var(--cw-head); letter-spacing: .08em; color: var(--cw-label); }
+.cw-legend-lane p { grid-column: 1 / -1; }
+
+/* A BAND IS A POSITION RANGE, so its swatch is not a lane chip and never takes a
+   lane hue. The runway lights because those positions are the product; the
+   line-up deliberately does not, exactly as on the board itself. */
+.cw-legend-bands > li { display: grid; grid-template-columns: auto auto 1fr; gap: 5px 9px; align-items: center; padding-left: 11px; border-left: 3px solid var(--cw-line); }
+.cw-legend-bands > li[data-walks='true'] { border-left-color: var(--cw-walkin); }
+/* ONE SWATCH ELEMENT, TWO COLOUR SOURCES, AND NEITHER IS A HEX VALUE WRITTEN
+   HERE. With `data-lane` it resolves `--cw-hue` through the lane palette above,
+   exactly as a row, a band head, a tab and a `.cw-lane` chip do. With
+   `data-walks` it takes `--cw-walkin`, because the runway is a POSITION range
+   and not a lane - the one place on this page position carries a colour. */
+.cw-legend-swatch { flex: none; width: 9px; height: 9px; background: var(--cw-line); }
+.cw-legend-swatch[data-lane] { background: var(--cw-hue); }
+.cw-legend-swatch[data-walks='true'] { background: var(--cw-walkin); }
+.cw-legend-bands strong { font: 700 11px var(--cw-head); letter-spacing: .08em; color: var(--cw-label); }
+.cw-legend-bands em { font: 400 9px var(--cw-mono); font-style: normal; letter-spacing: .1em; color: var(--cw-dim); }
+.cw-legend-bands small { grid-column: 1 / -1; font: 400 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-faint); }
+.cw-legend-bands p { grid-column: 1 / -1; }
+
+/* GUARANTEED n, beside how many are standing there now. The guarantee is the
+   FLOOR and not the count - a lane may take further positions when another lane
+   cannot fill its own, and hands every one of them back - so the two figures are
+   set apart rather than run into one sentence that reads as a single claim. */
+.cw-legend-seats { grid-column: 1 / -1; gap: 5px; margin-top: 2px; }
+.cw-legend-seats > li { display: grid; grid-template-columns: 74px auto 1fr; gap: 9px; align-items: center; }
+.cw-legend-seats b { font: 700 9px var(--cw-mono); letter-spacing: .08em; color: var(--cw-label); }
+.cw-legend-seats i { font: 400 9px var(--cw-mono); font-style: normal; letter-spacing: .08em; color: var(--cw-faint); justify-self: end; }
+
+.cw-legend-stats { display: grid; gap: 8px; margin: 0; }
+.cw-legend-stats > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cw-legend-stats dt { font: 400 9px var(--cw-mono); letter-spacing: .12em; color: var(--cw-dim); }
+.cw-legend-stats dd { margin: 0; font: 700 12px var(--cw-mono); color: var(--cw-text); }
+
+/* `.cw-legend-lock` stood here: a SECOND face of the lock instant, at the very
+   bottom of one rail. The countdown is now the head of EVERY rail and there is
+   exactly one of it - see the lock block below. */
+
+.cw-legend .cw-lane-note { margin-bottom: 0; background: var(--cw-panel-2); }
+.cw-legend > .cw-act { justify-self: start; color: var(--cw-edge); }
+
+/* ── THE LOCK, AT THE HEAD OF EVERY RAIL ────────────────────────────────── */
+/* It is the FIRST child of the rail on every tab and in every read state, so it
+   is the first thing in the column rather than the last thing on one tab. Full
+   width here (in the hero it sat in a two-up row), and it keeps the clock's own
+   box so the lit and unlit states are the same ones the page already had.
+
+   TWO SELECTORS, ONE CLOCK. Below 1280px the split is a single column and the
+   rail follows the board, so the clock is rendered as a child of the split
+   instead (`.cw-split-clock`, ordered ahead of both columns) rather than being
+   carried ~2,100px down the page inside a rail nobody has scrolled to. It is
+   the same single element in both arrangements - CatwalkSplit renders it once -
+   and it is drawn the same way in both, which is what these two selectors say. */
+.cw-split-rail > .cw-clock, .cw-split-clock > .cw-clock { justify-items: stretch; }
+.cw-split-rail > .cw-clock b, .cw-split-clock > .cw-clock b { font-size: 30px; }
+/* The rail's own children are not gapped by the split's grid, so the head keeps
+   its own separation from the rail beneath it; the hoisted clock IS a grid item
+   and takes the split's 18px gap instead. */
+.cw-split-rail > .cw-clock { margin-bottom: 14px; }
+
+/* ── THE SOLZ RANKED LADDER ─────────────────────────────────────────────── */
+/* The colour is the lane's, resolved through `data-lane='ranked'` on the list -
+   no hex is written here, exactly as in the rows, the band heads and the tabs.
+   It is deliberately NOT `.cw-outbid-row`: that class's cells are hidden inside
+   the rail, which would have hidden three of these six.
+
+   THE LADDER IS A TABLE, NOT A LIST OF STACKS. Three figures pinned to one
+   track is three rows of auto-placement, which is exactly what the owner was
+   looking at: FINALIZED MATCHES, PLAYER ENTRIES and POOL COMPETED stacked down
+   the right-hand edge of every row instead of sitting in columns. One track per
+   figure, and the labels move to a header row. */
+.cw-ranked-depth { font: 400 9px/1.6 var(--cw-mono); letter-spacing: .06em; color: var(--cw-dim); }
+/* SIX TRACKS, DECLARED ONCE so the header and every row cannot drift apart:
+   rank, crest, identity, and one track per figure. */
+.cw-ranked-head, .cw-ranked-list {
+  --cw-ranked-cols: 22px var(--cw-crest, 28px) minmax(0, 1fr) 7.5em 7.5em minmax(8em, 11em);
+}
+.cw-ranked-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--cw-hair); }
+.cw-ranked-head {
+  display: grid; grid-template-columns: var(--cw-ranked-cols); gap: 4px 10px; align-items: end;
+  padding: 7px 12px 6px 12px; margin-bottom: 1px;
+  background: var(--cw-panel-2); border-bottom: 1px solid var(--cw-hair);
+}
+.cw-ranked-head > span { font: 400 7px var(--cw-mono); letter-spacing: .12em; color: var(--cw-faint); }
+.cw-ranked-head > span:nth-child(n + 4) { justify-self: end; text-align: right; }
+.cw-ranked-row {
+  display: grid; grid-template-columns: var(--cw-ranked-cols); gap: 4px 10px; align-items: center;
+  padding: 10px 12px 10px 9px;
+  border-left: 3px solid var(--cw-edge);
+  background: color-mix(in srgb, var(--cw-band) 84%, #0b0c0e);
+}
+.cw-ranked-rank { font: 700 13px var(--cw-head); color: var(--cw-label); font-variant-numeric: tabular-nums; }
+/* The identity cell borrows `.cw-id` wholesale, so `.cw-id-head`, `.cw-symbol`,
+   `.cw-coin-name` and the whole `.cw-ca` block resolve from the rules the board
+   already has. Nothing about a contract address is authored twice. */
+.cw-ranked-id { min-width: 0; }
+/* THE TABLE'S FIRST THREE CELLS ARE PLACED BY NAME, NOT BY AUTO-FLOW.
+   Auto-placement is only as stable as the rules nobody has written yet: a bare
+   `.cw-id` or `.cw-crest` rule anywhere in this file, in any media query, used
+   to be enough to pull a cell of this row somewhere else and send the three
+   figures onto rows of their own - the exact stack this table was built to
+   replace. These three selectors are `.cw-ranked-row > x`, so they outrank any
+   single-class rule whatever its position in the file, and the three figures
+   then flow into tracks 4, 5 and 6 behind them because row 1's first three are
+   taken. Changing them is a deliberate act rather than a side effect.
+   tests/catwalkBoard.test.tsx holds this. */
+.cw-ranked-row > .cw-ranked-rank { grid-column: 1; grid-row: 1; }
+.cw-ranked-row > .cw-crest { grid-column: 2; grid-row: 1; }
+.cw-ranked-row > .cw-ranked-id { grid-column: 3; grid-row: 1; }
+/* THE THREE FIGURES ARE FLAT GRID ITEMS AT EVERY WIDTH THAT HAS ROOM FOR THEM.
+   The wrapper exists only so the phone fold below can move all three at once. */
+.cw-ranked-figures { display: contents; }
+.cw-ranked-figure { display: grid; gap: 1px; justify-items: end; }
+/* THE LABEL SURVIVES, IT JUST STOPS BEING DRAWN. A header row a screen-reader
+   user cannot reach from row nineteen is why these were here; clipping them
+   rather than deleting them keeps that answer and gives the sighted reader the
+   table. */
+.cw-ranked-figure i {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.cw-ranked-figure b { font: 700 11px var(--cw-mono); color: var(--cw-text); font-variant-numeric: tabular-nums; }
+/* POOL COMPETED IS NOT MONEY. It never takes `--cw-money`, which is this page's
+   green for a price in dollars: the figure is each coin's OWN stake token, it
+   is not comparable to the row above it, and it does not add up down the
+   column. It is deliberately quieter than the two counts beside it. */
+.cw-ranked-pool b { font-weight: 500; color: var(--cw-muted); }
+.cw-ranked-foot { font: 400 8px/1.6 var(--cw-mono); letter-spacing: .08em; color: var(--cw-faint); }
+
+/* A PHONE, AND ONLY A PHONE. Six tracks need ~520px; below that the identity
+   cell cannot hold a symbol, a name and 44 characters of base58 beside three
+   figures. The figures fold onto a SECOND ROW OF THE SAME ROW, three across -
+   they are never re-stacked into a column, which is the layout that was
+   rejected. Labels come back because there is no header to fold with them.
+
+   `.cw-split-rail` is a container (see the split above), so this keys off the
+   RAIL's own width. At >=1280px the rail is about 45% of the content width -
+   roughly 560-620px on a 1440px window - and below 1280px it is a full-width
+   single column, wider still. Every width the owner can be looking at when they
+   say "it's supposed to be horizontal" is above 520px and gets the six-track
+   table. */
+@container (max-width: 520px) {
+  .cw-ranked-head { display: none; }
+  .cw-ranked-row { grid-template-columns: 22px var(--cw-crest, 28px) minmax(0, 1fr); row-gap: 7px; }
+  .cw-ranked-rank, .cw-ranked-row > .cw-crest { grid-row: 1; }
+  .cw-ranked-id { grid-column: 3; grid-row: 1; }
+  .cw-ranked-figures {
+    display: grid; grid-column: 1 / -1; grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  }
+  .cw-ranked-figure { justify-items: start; }
+  .cw-ranked-figure:last-child { justify-items: end; }
+  .cw-ranked-figure i {
+    position: static; width: auto; height: auto; margin: 0; overflow: visible;
+    clip-path: none; font: 400 7px var(--cw-mono); font-style: normal;
+    letter-spacing: .12em; color: var(--cw-faint);
+  }
+}
+
+/* One column under a rail this narrow: the two-column band head wraps into
+   something unreadable well before the page itself gets narrow. */
+@container (max-width: 380px) {
+  .cw-legend-seats > li { grid-template-columns: 74px 1fr; }
+  .cw-legend-seats i { grid-column: 2; justify-self: end; }
+}
+
 /* ── RESPONSIVE ─────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
-  .cw-hero { grid-template-columns: minmax(0, 1fr); }
-  .cw-hero-front { scale: .84; transform-origin: bottom center; }
+  .cw-hero { padding: 20px 24px; gap: 20px; }
+  .cw-hero-intro h2 { font-size: 34px; }
   /* The lane column narrows to the chip rather than disappearing: how a slot was
      won is the distinction the page exists to make, and a viewer on a laptop
      must not lose it. */
   .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) 84px auto 104px 120px; gap: 10px; }
-  .cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto 104px 120px; }
+  .cw-ladder .cw-slot:not(.cw-outbid-row) { grid-template-columns: var(--cw-chip) var(--cw-crest) minmax(0, 1fr) auto 104px 120px; }
   .cw-lane { font-size: 7px; padding: 0 5px; }
-  .cw-explain-cells { grid-template-columns: repeat(2, 1fr); }
-  .cw-explain-cells > *:nth-child(2n) { border-right: 0; }
 }
-@media (max-width: 1080px) { .cw-explain-cells { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 820px) {
   /* The metric folds under the identity as one line, with the lane chip beside
      it. The action keeps its words: "OUTBID $5,040" has no icon form, and an
      icon-only control here would hide the price the row exists to state. */
-  .cw-slot, .cw-ladder .cw-slot { grid-template-columns: var(--cw-chip) var(--cw-crest) auto auto minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 3px; padding-block: 9px; }
-  .cw-num, .cw-crest, .cw-open-well { grid-row: 1 / span 2; }
-  .cw-id { grid-column: 3 / 6; grid-row: 1; }
+  .cw-slot, .cw-ladder .cw-slot:not(.cw-outbid-row) { grid-template-columns: var(--cw-chip) var(--cw-crest) auto auto minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 3px; padding-block: 9px; }
+  /* SCOPED TO `.cw-slot`, WHICH IS THE ROW THIS FOLD IS ABOUT.
+     Written bare, these two rules reached every `.cw-crest` and every `.cw-id`
+     on the page - including the SOLZ RANKED table's, which deliberately borrows
+     `.cw-id` so an address is not authored twice, and whose crest is the same
+     `TeamMark`. From 557px to 820px the ranked row is NOT in its phone fold
+     (that is a 520px CONTAINER query on a rail that is far wider than 520px
+     here) yet these fired anyway: the identity was pinned across columns 3-5,
+     the crest was pulled to column 1 spanning two rows, and two of the three
+     figures dropped onto a second line while the header above them still drew
+     six aligned tracks. That is the stacked layout the owner rejected,
+     reproduced by a rule about a different row. Every row that folds this way
+     carries `cw-slot`; the ranked row never does. */
+  .cw-slot .cw-num, .cw-slot .cw-crest, .cw-slot .cw-open-well { grid-row: 1 / span 2; }
+  .cw-slot .cw-id { grid-column: 3 / 6; grid-row: 1; }
   .cw-lane { grid-column: 3; grid-row: 2; }
   /* Market cap folds onto the second line beside the lane chip rather than
      dropping out: it is the figure that says whether these coins are
@@ -450,25 +928,49 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
   .cw-slot--skeleton .cw-pending--mcap { grid-column: 4; grid-row: 2; justify-self: start; }
   .cw-slot--skeleton .cw-pending--metric { grid-column: 5; grid-row: 2; justify-self: start; }
   .cw-slot--skeleton .cw-pending--act { grid-column: 6; grid-row: 1 / span 2; height: 100%; }
-  .cw-toolbar { flex-wrap: wrap; }
+  /* The search gives up width before the line gives up. Wrapping the toolbar
+     here dropped it onto a second row while the lanes still had room. */
+  .cw-search { flex: 0 1 200px; }
 }
 @media (max-width: 780px) {
-  .cw-hero-card[data-pos='1'] .cw-hero-face { width: 132px; aspect-ratio: 132/154; }
-  .cw-hero-card[data-pos='2'] .cw-hero-face, .cw-hero-card[data-pos='3'] .cw-hero-face { width: 108px; aspect-ratio: 108/126; }
-  .cw-hero-card[data-pos='1'] { transform: rotate(-2deg); }
-  .cw-hero-card[data-pos='2'] { transform: translateY(16px) rotate(-3deg); }
-  .cw-hero-card[data-pos='3'] { transform: translateY(26px) rotate(3deg); }
+  .cw-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 20px 20px 24px; }
+  .cw-hero-season { gap: 12px; }
+  .cw-hero-intro h2 { font-size: 34px; }
+  .cw-hero-front { max-width: 380px; height: 224px; margin-top: 4px; }
+  .cw-hero-card[data-pos='1'] { height: 180px; }
+  .cw-hero-card[data-pos='2'] { height: 126px; }
+  .cw-hero-card[data-pos='3'] { height: 114px; }
+  .cw-hero-card--open .cw-hero-face i { font-size: 56px; }
 }
-@media (max-width: 720px) { .cw-search { flex: 1 1 100%; order: -1; } }
+/* The search drops to its own row before the tabs wrap, and sits ABOVE them
+   visually while staying after them in DOM and keyboard order. Once it has a
+   row of its own the lanes take theirs and WRAP rather than scroll: one line
+   with the search is a desktop shape, and a phone that clips CHAMPIONS
+   mid-word to honour it has traded a readable lane for a literal one. */
+@media (max-width: 720px) {
+  /* THE PRE-HYDRATION FALLBACK, AND NOTHING ELSE NOW.
+     The toolbar is at least two rows here - the search takes one of its own,
+     and five lane tabs generally take two more - so this stood in for the
+     toolbar's height in `--cw-sticky-top`. It was 98px for a bar that measures
+     106px with the tabs on one line and 141px with them on two, which put the
+     row search had just scrolled to 43px underneath an opaque sticky bar: a
+     13px sliver of the answer. A constant cannot get this right, because how
+     five labels wrap depends on the reader's font and width, so CatwalkApp
+     measures the bar and writes the token itself. This value is what the first
+     paint uses until that measurement lands, so it is the TALLER of the two
+     shapes rather than the shorter: too much clearance scrolls a row a little
+     low, too little hides it. */
+  .cw-board { --cw-sticky-top: calc(var(--site-header-height) + 141px); }
+  .cw-toolbar { flex-wrap: wrap; }
+  .cw-search { flex: 1 1 100%; order: -1; }
+}
 @media (max-width: 600px) {
   /* Band heads stay full size - they are the navigation. */
   .cw-board { --cw-row-h: 56px; --cw-chip: 26px; --cw-crest: 30px; }
-  .cw-hero { padding: 22px 16px 0; }
+  .cw-hero { padding: 20px 16px 26px; }
   .cw-hero-ghost { font-size: clamp(110px, 26vw, 150px); }
-  .cw-clock { width: 100%; }
-  .cw-counter > div { flex-basis: 50%; }
+  .cw-hero-meta { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 470px) { .cw-explain-cells { grid-template-columns: 1fr; } .cw-explain-cells > * { border-right: 0; border-bottom: 1px solid var(--cw-line); } }
 
 /* ── MOTION ─────────────────────────────────────────────────────────────── */
 /* The only motion on this page is the hero card hover-lift and the countdown's
@@ -488,3 +990,147 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
   font: 400 11px/1.6 var(--cw-mono);
 }
 .cw-notice b { color: var(--cw-text); letter-spacing: .04em; }
+
+/* Keep the leading identity above the overlapping front cards. */
+.cw-hero-card[data-pos='1'] .cw-hero-name { top: 62px; bottom: auto; }
+.cw-hero-card[data-pos='1'] .cw-hero-scrim { background: linear-gradient(180deg, #08090bc9, transparent 85%); }
+.cw-hero-card[data-pos='1'].cw-hero-card--open .cw-hero-face { padding-bottom: 64px; }
+
+.cw-closed-seat { display: flex; align-items: center; gap: 16px; padding: 18px 14px; border-bottom: 1px solid var(--cw-line); color: var(--cw-muted); }
+.cw-closed-seat b { color: var(--cw-lane-outbid); }
+.cw-closed-seat strong { margin-left: auto; font-size: 10px; }
+
+/* ── THE CLAIM DIALOG: A BILL SOMEBODY PAYS BY HAND ──────────────────────── */
+/* A native `<dialog>`, so the backdrop, the focus trap and the top layer come
+   from the platform. The classes are this page's own - TradeReviewDialog's live
+   in home-hero.css and this page does not load it.
+
+   EVERY VALUE ON THIS SURFACE WRAPS AND NONE OF THEM ELLIPSISE. A memo or a
+   destination that can be copied in a truncated form is a payment that can
+   never be matched, so there is no `text-overflow`, no `max-width` that clips
+   and no `line-clamp` anywhere in this block. */
+.cw-claim-dialog {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  padding: 0 18px 18px 18px; border: 1px solid var(--cw-line); background: var(--cw-panel);
+  color: var(--cw-text); overflow: auto; overscroll-behavior: contain;
+}
+.cw-claim-dialog::backdrop { background: #0008; backdrop-filter: blur(2px); }
+.cw-claim-dialog header {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0 10px 0; background: var(--cw-panel); border-bottom: 1px solid var(--cw-hair);
+}
+.cw-claim-tag { font: 400 8px var(--cw-mono); letter-spacing: .14em; color: var(--cw-faint); }
+.cw-claim-dialog header button {
+  display: inline-grid; place-items: center; width: 28px; height: 28px;
+  border: 1px solid transparent; background: transparent; color: var(--cw-dim); cursor: pointer;
+}
+.cw-claim-dialog header button:hover:not(:disabled) { color: var(--cw-lime); border-color: color-mix(in srgb, var(--cw-lime) 40%, transparent); }
+.cw-claim-dialog header button:disabled { opacity: .4; cursor: not-allowed; }
+.cw-claim-dialog h2 { margin: 14px 0 10px 0; font: 700 19px var(--cw-head); letter-spacing: .02em; }
+.cw-claim-dialog h3 { margin: 0 0 6px 0; font: 700 9px var(--cw-mono); letter-spacing: .14em; color: var(--cw-label); }
+.cw-claim-dialog label { display: block; margin-bottom: 4px; font: 400 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-faint); }
+.cw-claim-quiet { opacity: .7; }
+.cw-claim-help { margin: 5px 0 0 0; font: 400 9px/1.6 var(--cw-mono); color: var(--cw-muted); }
+.cw-claim-status { margin: 12px 0; font: 400 10px var(--cw-mono); letter-spacing: .06em; color: var(--cw-dim); }
+.cw-claim-error { margin: 8px 0 0 0; padding: 8px 10px; font: 400 10px/1.6 var(--cw-mono); color: var(--cw-text); border-left: 3px solid #ff6b6b; background: #ff6b6b14; }
+
+.cw-claim-seat { display: flex; flex-wrap: wrap; gap: 18px; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--cw-hair); }
+.cw-claim-seat dt { font: 400 7px var(--cw-mono); letter-spacing: .14em; color: var(--cw-faint); }
+.cw-claim-seat dd { margin: 2px 0 0 0; font: 700 14px var(--cw-mono); font-variant-numeric: tabular-nums; }
+
+.cw-claim-block, .cw-claim-leg { margin-top: 16px; }
+.cw-claim-leg { padding: 12px; border: 1px solid var(--cw-hair); background: var(--cw-panel-2); }
+.cw-claim-dialog input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--cw-line); background: var(--cw-bg);
+  color: var(--cw-text); font: 400 11px var(--cw-mono);
+}
+.cw-claim-dialog input:focus-visible { outline: 2px solid var(--cw-lime); outline-offset: 1px; }
+.cw-claim-dialog input[aria-invalid='true'] { border-color: #ff6b6b; }
+
+/* THE RULES, FIRST AND AS A BLOCK RATHER THAN A FOOTNOTE. A hand-built payment
+   that is two transactions, or a plain `transfer`, is permanently unconfirmable
+   and the tokens are gone with no row claiming them. */
+.cw-claim-rules { margin-top: 14px; padding: 12px; border: 1px solid var(--cw-lime-edge); background: color-mix(in srgb, var(--cw-lime) 7%, transparent); }
+.cw-claim-rules strong { display: block; margin-bottom: 8px; font: 700 9px var(--cw-mono); letter-spacing: .14em; color: var(--cw-lime); }
+.cw-claim-rules ul { margin: 0; padding-left: 16px; }
+.cw-claim-rules li { margin-bottom: 6px; font: 400 10px/1.6 var(--cw-mono); color: var(--cw-text); }
+.cw-claim-rules code { font: inherit; color: var(--cw-lime); }
+
+/* THE COPY CONTROLS. The value WRAPS - `overflow-wrap: anywhere` on a
+   `pre-wrap` code box - so 44 characters of base58 or a whole memo is on screen
+   in full. Nothing here is ever abbreviated, because the abbreviation would be
+   what somebody copied. */
+.cw-claim-copy {
+  display: flex; align-items: flex-start; gap: 6px; width: 100%; margin-top: 4px;
+  padding: 7px 8px; border: 1px solid var(--cw-line); background: var(--cw-bg);
+  color: var(--cw-text); text-align: left; cursor: copy;
+}
+.cw-claim-copy:hover { border-color: var(--cw-lime-edge); color: var(--cw-lime); }
+.cw-claim-copy code { flex: 1; min-width: 0; font: 500 10px/1.5 var(--cw-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cw-claim-copy svg { flex: none; margin-top: 2px; }
+.cw-claim-copy--quiet { opacity: .62; }
+.cw-claim-memo .cw-claim-copy { border-color: var(--cw-lime-edge); }
+
+.cw-claim-bid { margin: 12px 0 0 0; font: 400 8px var(--cw-mono); letter-spacing: .12em; color: var(--cw-faint); }
+.cw-claim-timer { margin: 12px 0 0 0; font: 700 12px var(--cw-mono); letter-spacing: .08em; color: var(--cw-lime); font-variant-numeric: tabular-nums; }
+
+/* THE CLUSTER, AND THE WALLET THE BID IS BOUND TO. Both are drawn as framed
+   blocks rather than as another pair of copy boxes in the run, because both
+   answer a question that has to be settled BEFORE the transfer: which chain
+   these addresses are on, and whose signature the bid will accept. Getting
+   either wrong costs the tokens with no recovery, and neither is recoverable
+   from anything else on the tray. */
+.cw-claim-network, .cw-claim-declared {
+  padding: 10px 12px; border: 1px solid var(--cw-hair); background: var(--cw-panel-2);
+}
+.cw-claim-net { margin: 0 0 6px 0; font: 700 13px var(--cw-mono); letter-spacing: .1em; color: var(--cw-lime); }
+/* An unstated cluster is the loud case: the sale did not say which chain this
+   bill is for, and the addresses cannot say it for themselves. */
+.cw-claim-network p[role='alert'] { color: var(--cw-text); border-left: 3px solid #ff6b6b; padding-left: 8px; }
+
+/* AN EXPIRED BILL STAYS ON SCREEN AND IS VISIBLY DEAD - but the memo, the bid
+   id and the signature field stay live and stay copyable, because a signature
+   made in time still settles inside the grace window. */
+.cw-claim-bill[data-expired='true'] .cw-claim-rules,
+.cw-claim-bill[data-expired='true'] .cw-claim-leg,
+.cw-claim-bill[data-expired='true'] > .cw-claim-block:not(.cw-claim-memo) { opacity: .45; }
+
+.cw-claim-outcome { margin-top: 16px; padding: 12px; border: 1px solid var(--cw-hair); background: var(--cw-panel-2); }
+.cw-claim-outcome p[role] { margin: 0; font: 400 11px/1.6 var(--cw-mono); }
+/* GRANTED AND VERIFIED-BUT-NOT-GRANTED ARE BOTH GOOD NEWS ABOUT THE MONEY. The
+   tokens really moved in both, so neither is drawn in the colour of a failure. */
+.cw-claim-outcome[data-kind='granted'] { border-color: var(--cw-lime-edge); }
+.cw-claim-outcome[data-kind='verified-not-granted'] { border-color: color-mix(in srgb, var(--cw-lime) 45%, var(--cw-line)); }
+.cw-claim-replayed { margin-top: 16px; padding: 12px; border: 1px dashed var(--cw-line); }
+.cw-claim-dialog .cw-act { margin-top: 12px; }
+
+/* WHICH WALK IS ON SCREEN.
+   The picker sits in the toolbar beside the lane tabs because the two controls
+   do the same KIND of thing - one chooses the board, the other the rail - and
+   splitting them across two rows made the page look like it had two toolbars. */
+.cw-cycles {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 8px; height: 30px;
+  border: 1px solid var(--cw-hair); border-radius: 2px;
+  background: var(--cw-band); color: var(--cw-dim);
+}
+.cw-cycles[data-busy='true'] { opacity: .6; }
+.cw-cycles select {
+  appearance: none; border: 0; background: transparent; color: var(--cw-text);
+  font: 700 10px var(--cw-mono); letter-spacing: .08em;
+  padding: 0 4px 0 0; cursor: pointer; max-width: 22ch;
+}
+.cw-cycles select:focus-visible { outline: 2px solid var(--cw-focus, #c7ff00); outline-offset: 2px; }
+
+/* A RECORDED BOARD LOOKS EXACTLY LIKE A LIVE ONE, which is the whole reason
+   this banner is loud. Same numbers, same lanes, same chips - so without a
+   standing statement above the rows, a viewer three screens down has no way to
+   know the coin at slot 01 stood there weeks ago and does not now. */
+.cw-cycle-banner {
+  display: grid; gap: 6px; justify-items: start;
+  margin: 10px 0 0; padding: 10px 12px;
+  border: 1px solid var(--cw-hair); border-left: 3px solid var(--cw-label);
+  background: color-mix(in srgb, var(--cw-band) 84%, #0b0c0e);
+}
+.cw-cycle-banner strong { font: 700 12px var(--cw-head); letter-spacing: .06em; color: var(--cw-text); }
+.cw-cycle-banner p { margin: 0; font: 400 10px/1.6 var(--cw-mono); color: var(--cw-dim); }

@@ -28,7 +28,7 @@ export function EventStage({ view, match, market, snapshot, outcome, onOutcome, 
   }
   return <section className="ev-stage" aria-label="Event broadcast and market">
     {broadcast && !prediction && <div className={`ev-scoreboard ${match.teams.length > 2 ? 'is-ffa' : ''}`}>
-      {match.teams.map((team, index) => <div key={team.teamId} className="ev-score-team"><TeamMark id={team.teamId} color={team.color}/><span>{team.symbol}<small>{team.agentIds.length} AGENTS</small></span><b style={{ color: team.color }}>{String(team.score).padStart(2, '0')}</b>{index < match.teams.length - 1 && <span className="ev-versus">:</span>}</div>)}
+      {match.teams.map((team, index) => <div key={team.teamId} className="ev-score-team"><TeamMark id={team.teamId} color={team.color} logoUrl={team.logoUrl}/><span>{team.symbol}<small>{team.agentIds.length} AGENTS</small></span><b style={{ color: team.color }}>{String(team.score).padStart(2, '0')}</b>{index < match.teams.length - 1 && <span className="ev-versus">:</span>}</div>)}
       <div className="ev-score-clock"><strong>{formatClock(match.phase === 'queued' || match.phase === 'countdown' ? match.startedAt - snapshot.updatedAt : Math.min(snapshot.updatedAt, match.endsAt) - match.startedAt)}</strong><span>{match.phase === 'settled' ? 'FINAL' : match.round}</span></div>
     </div>}
     <div className={`ev-screen ${broadcast ? '' : 'ev-screen--single'}`}>

@@ -182,7 +182,7 @@ export async function signInWithTelegram(client: DynamicClient) {
     if (!state || !code) throw new Error('Telegram returned an incomplete callback.')
     const core = getCore(client)
     const redirectState = await core.storage.getItem(telegramRedirectStateStorageKey)
-    if (!redirectState || redirectState.state !== state) throw new Error('Telegram returned an expired security state.')
+    if (!redirectState || typeof redirectState !== 'object' || !('state' in redirectState) || redirectState.state !== state) throw new Error('Telegram returned an expired security state.')
     const response = await createApiClient({}, client).telegramSignIn({
       environmentId: core.environmentId,
       oauthResultRequest: {

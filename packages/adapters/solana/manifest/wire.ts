@@ -1,14 +1,14 @@
 import { Buffer } from 'buffer'
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js'
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token'
-import { concat, configAddress, positionAddress, TOKEN_PROGRAM_ID, u64, vaultAddress } from '../wire'
+import { concat, configAddress, positionAddress, predictionManifestConfigAddress, TOKEN_PROGRAM_ID, u64, vaultAddress } from '../wire'
 export type Outcome = 0 | 1
 const pda = (program: PublicKey, seed: string, question: PublicKey, outcome: Outcome) => {
   if (outcome !== 0 && outcome !== 1) throw new RangeError('Expected YES=0 or NO=1')
   return PublicKey.findProgramAddressSync([Buffer.from(seed), question.toBuffer(), Buffer.from([outcome])], program)[0]
 }
 export const bindingAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_binding', question, outcome)
-export const manifestConfigAddress = (program: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('manifest_config')], program)[0]
+export const manifestConfigAddress = (program: PublicKey) => predictionManifestConfigAddress(program)
 export const bookAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_book', question, outcome)
 export const claimMintAddress = (program: PublicKey, question: PublicKey, outcome: Outcome) => pda(program, 'manifest_outcome', question, outcome)
 export const freezeAuthority = (program: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('claims_authority')], program)[0]

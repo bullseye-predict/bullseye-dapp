@@ -1,5 +1,5 @@
-import { Copy, Crown, ExternalLink, Lock, Plus } from 'lucide-react'
-import { useState, type CSSProperties } from 'react'
+import { ArrowUpRight, Copy, Crown, ExternalLink, Lock, Plus } from 'lucide-react'
+import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { TeamMark } from '../home/HomePrimitives'
 import { explorerAddressUrl, marketCapLabel, usdLabel } from '../solz/catwalkSource'
 import type { ExplorerVenue } from '../../../packages/adapters/explorer'
@@ -34,7 +34,7 @@ import { bandInvitation, bandSpoken, pad, type CatwalkRow, type LadderState } fr
  * holder's own mint. See CatwalkLadder.tsx for the list of things on sale.
  */
 
-export type CatwalkMetric = 'record' | 'take' | 'lane' | 'wins'
+export type CatwalkMetric = 'rotation' | 'record' | 'take' | 'lane' | 'wins'
 
 /** Every state a numbered position can be rendered in.
  *
@@ -61,13 +61,49 @@ export type RowProps = {
    *  for a walk-in vacancy and only when the ladder has something on sale. */
   onLadder?: () => void
   coinHref?: (mint: string) => string
+  /** FILTER THE BOARD IN PLACE, rather than reloading the page it is on.
+   *  Optional with no default: a row rendered without it keeps the anchor's own
+   *  navigation, which is what every render test in this repo exercises. */
+  onCoin?: (mint: string) => void
   /** The chain to build a contract-address link against. Absent means no link
    *  is drawn at all - the address is still copyable, because copying the
    *  verbatim mint cannot send anybody to the wrong chain. */
   explorer?: ExplorerVenue | null
 }
 
-const shortMint = (mint: string) => (mint.length > 9 ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : mint)
+/** HEAD AND TAIL, FOR DISPLAY ONLY, AND AUTHORED ONCE. Every copy control on
+ *  this page writes the mint it was handed as a PROP, never the text on screen,
+ *  so the abbreviated form is structurally uncopyable. Exported because the
+ *  ranked rail needs the same fallback name plate - two copies of a truncation
+ *  rule is how head-and-tail quietly becomes something else. */
+export const shortMint = (mint: string) => (mint.length > 9 ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : mint)
+
+/**
+ * A PLAIN LEFT CLICK ON A SAME-PAGE COIN LINK IS A FILTER, not a navigation.
+ *
+ * Every `cw-symbol` anchor on this page points at `/catwalk?q=<mint>` - the
+ * page the reader is already on - so following it hard-reloaded the document
+ * just to run a search. `onCoin` runs that search in place instead.
+ *
+ * ANYTHING THAT IS NOT A PLAIN LEFT CLICK IS THE READER ASKING THE BROWSER FOR
+ * SOMETHING, and the browser must be left to give it to them: cmd/ctrl-click
+ * opens a tab, shift-click a window, alt-click downloads. React does not fire
+ * `onClick` for a middle click at all - that is `auxclick` - so middle-click
+ * keeps the native anchor behaviour without a line of code here.
+ *
+ * With `onCoin` absent the helper does nothing at all and the anchor navigates
+ * exactly as it always did, which is how every render test in this repo calls
+ * these components.
+ */
+export const pickCoin = (onCoin: ((mint: string) => void) | undefined, mint: string) =>
+  (event: MouseEvent<HTMLAnchorElement>) => {
+    event.stopPropagation()
+    if (!onCoin) return
+    if (event.defaultPrevented) return
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    onCoin(mint)
+  }
 
 const NO_RECORD_TITLE = 'No MIAW PRIX matches recorded this season.'
 /** Said when the season record could not be READ. Stating the sentence above in
@@ -141,6 +177,34 @@ export function LaneChip({ lane }: { lane: CatwalkRow['lane'] }) {
 }
 
 /**
+ * A LANE'S OWN STATE, SAID BESIDE THE TABLE RATHER THAN INSTEAD OF IT.
+ *
+ * This used to be a centred card with a headline over a large dashed box, and
+ * it REPLACED the board: the SOLZ RANKED tab with nothing in it rendered
+ * "NOBODY HAS CLIMBED IN YET" and no numbered positions at all, which is the
+ * screen the owner rejected. An empty lane is a fact about the lane, not the
+ * disappearance of the board, so it is a slim banner and the numbered positions
+ * render alongside it exactly as on every other tab.
+ *
+ * IT LIVES HERE, WITH THE BAND HEAD AND THE WALK LINE, rather than inside
+ * CatwalkApp where it was authored. Three rails and the app's own board-level
+ * failure state all render one, and a component this file's siblings import
+ * cannot live in the file that imports them - that is an import cycle, and the
+ * first symptom of one here would be an undefined component at render time.
+ */
+export function LaneNote({ title, body, cta, lane }: {
+  title: string; body: string; cta?: { label: string; href: string }; lane: string
+}) {
+  return (
+    <div className="cw-lane-note" data-lane={lane}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {cta ? <a className="cw-act" href={cta.href}>{cta.label}<ArrowUpRight size={12} aria-hidden="true" /></a> : null}
+    </div>
+  )
+}
+
+/**
  * THE CONTRACT ADDRESS, copyable and linkable.
  *
  * Two controls rather than one, because they answer two different questions: a
@@ -172,7 +236,16 @@ export function MintButton({ mint, explorer }: { mint: string; explorer?: Explor
           } catch { /* a clipboard the browser refuses is not worth an error state */ }
         }}
       >
-        <code>{shortMint(mint)}</code>
+        {/* BOTH FORMS, ONE CHOSEN BY WIDTH. The row is full-page wide and had
+            room for the whole address all along, so a desktop reader now gets
+            the verbatim mint rather than head-and-tail - they came here to
+            check an address against one they already hold, and four characters
+            of base58 at each end is not a check. The short form is kept for
+            phones, where the full one would break the column.
+            Both are hidden from assistive technology: the button's own
+            aria-label already carries the whole mint, once. */}
+        <code className="cw-mint-full" aria-hidden="true">{mint}</code>
+        <code className="cw-mint-short" aria-hidden="true">{shortMint(mint)}</code>
         <Copy size={10} aria-hidden="true" />
       </button>
       {href
@@ -196,8 +269,8 @@ export function MintButton({ mint, explorer }: { mint: string; explorer?: Explor
  * MARKET CAP.
  *
  * On the board because it is how a reader tells whether the coins below the
- * walk-in band are interchangeable: a challenge band whose caps are all of one
- * size can rotate freely, and one with an outlier cannot. Unknown renders as an
+ * runway are interchangeable: a line-up whose caps are all of one size can
+ * rotate freely, and one with an outlier cannot. Unknown renders as an
  * em dash carrying its reason - never as $0, which says the coin is worthless
  * when in fact nobody published a figure.
  */
@@ -218,21 +291,19 @@ function rowLabel(row: CatwalkRow, ladder: LadderState) {
   const band = bandSpoken(row.band)
   if (row.lane === 'open') {
     // No price and no ladder verdict: neither is a fact about this position.
-    return `Slot ${row.spot}, ${band}, open, ${row.walks ? 'walks every rotation' : `walks the walk-in band in round ${row.band.round}`}`
+    return `Slot ${row.spot}, ${band}, open, ${row.walks ? 'walks every rotation' : 'walks the runway in turn'}`
   }
   const block = saleBlock(row, ladder)
   const ask = row.offer?.askUsdMicros ?? 0
-  const symbol = row.entry?.team?.symbol ?? row.entry?.mint ?? ''
+  // No cached identity yet is still a coin: it is spoken by its short address,
+  // the same string the row prints, and never as a blank or an invented ticker.
+  const symbol = row.entry?.team?.symbol ?? (row.entry ? shortMint(row.entry.mint) : '')
   const record = row.standing
     ? `, ${row.standing.wins} wins ${row.standing.losses} losses`
     : row.recordKnown ? ', no record this season' : ', season record unavailable'
   const cap = row.entry?.marketCapUsd ? `, market cap ${marketCapLabel(row.entry.marketCapUsd)}` : ', market cap unknown'
   // What the holder paid is the coin's own fact, so it is spoken even when the
   // ladder cannot be read and there is no ask to speak alongside it.
-  // Seeded and bought holders are spoken identically: at launch the board IS
-  // the initial teams, and the owner's call is that it presents them as held
-  // seats. `row.seeded` is deliberately not read here - see `seeded` on
-  // CatwalkRow in catwalkBands.ts.
   const paid = row.paidUsdMicros ? `, paid ${usdLabel(row.paidUsdMicros)}` : ''
   const action = row.lane === 'outbid'
     ? block ? `, ${block.label.toLowerCase()}` : `, outbid for ${usdLabel(ask)}`
@@ -240,18 +311,45 @@ function rowLabel(row: CatwalkRow, ladder: LadderState) {
   return `Slot ${row.spot}, ${band}, ${symbol}, ${row.lane} lane${record}${cap}${paid}${action}`
 }
 
+/**
+ * WHERE THIS POSITION STANDS IN THE ROTATION, which is the board's own subject.
+ *
+ * Not a round number. The line-up is one band and the wire carries no rotation
+ * order, so a numbered round here would publish an order nobody had read. Walks
+ * in, or waits its turn - that is the whole of what is known.
+ */
+const RotationCell = ({ walks }: { walks: boolean }) => (
+  <span className="cw-metric">
+    <small>ROTATION</small>
+    <b>{walks ? 'WALKS IN' : 'IN TURN'}</b>
+  </span>
+)
+
 function Metric({ row, metric, ladder }: { row: CatwalkRow; metric: CatwalkMetric; ladder: LadderState }) {
   if (row.lane === 'open') {
     // The column holds what IS known about a vacancy: where it stands in the
     // rotation. It used to hold a floor price copied off the ladder seat with
     // the same number, which was some other coin's seat.
-    return (
-      <span className="cw-metric">
-        <small>ROTATION</small>
-        <b>{row.walks ? 'WALKS IN' : `ROUND ${row.band.round}`}</b>
-      </span>
-    )
+    return <RotationCell walks={row.walks} />
   }
+
+  /**
+   * THE BOARD DOES NOT REPORT A SEASON RECORD ANY MORE.
+   *
+   * A W-L column stood here on every row, and it was the wrong page's fact: the
+   * record is MIAW PRIX's, it is reported in full on the MIAW PRIX standings
+   * table, and a second copy on CATWALK could only ever be the same number in a
+   * narrower column or - whenever the standings read failed - an em dash beside
+   * thirty-six others. CATWALK is about the CHANGE-UP: who stands where, how
+   * they got there, and what it costs to take it from them. So the column that
+   * used to carry a record now carries the position's place in the rotation,
+   * which is the thing this board is actually for.
+   *
+   * `recordLabel` is deliberately still here: `slotLabel` speaks the record in
+   * the row's aria-label, where it costs no width and tells a screen-reader user
+   * something the visible row no longer says.
+   */
+  if (metric === 'rotation') return <RotationCell walks={row.walks} />
 
   const block = saleBlock(row, ladder)
   const ask = row.offer?.askUsdMicros ?? 0
@@ -262,14 +360,8 @@ function Metric({ row, metric, ladder }: { row: CatwalkRow; metric: CatwalkMetri
         <b className="cw-money">{block ? '—' : usdLabel(ask)}</b>
         {/* The holder's own price, off the holder's own entry. Reading it from a
             ladder seat with the same number printed whatever the coin standing
-            at that ladder position had paid.
-
-            A seeded holder renders exactly like a bought one, by the owner's
-            decision: the launch board is the initial teams, and an outbid takes
-            a seat over when a real payment arrives. The `seeded` flag survives
-            in the data and in the admin panel at :3101, which still shows
-            "seeded — not a payment" so an operator can tell which rows still
-            want a signature. It is not a public label. */}
+            at that ladder position had paid. A holder is a price and whoever
+            stands here; the board draws no distinction beyond that. */}
         {row.paidUsdMicros ? <small>PAID {usdLabel(row.paidUsdMicros)}</small> : null}
       </span>
     )
@@ -328,18 +420,25 @@ function VacancyAction({ row, onLadder, className }: { row: CatwalkRow; onLadder
  *  full name beneath it, and the contract address with its copy and explorer
  *  controls. Every one of these is identity, so none of them is optional when
  *  the wire carried it. */
-function CoinIdentity({ row, coinHref, explorer }: {
-  row: CatwalkRow; coinHref?: (mint: string) => string; explorer?: ExplorerVenue | null
+function CoinIdentity({ row, coinHref, explorer, onCoin }: {
+  row: CatwalkRow
+  coinHref?: (mint: string) => string
+  explorer?: ExplorerVenue | null
+  onCoin?: (mint: string) => void
 }) {
   const team = row.entry?.team ?? null
   const mint = row.entry?.mint ?? ''
-  const symbol = team?.symbol ?? '—'
+  // A coin whose identity has not been cached yet is NOT an unknown quantity:
+  // its contract address is the one thing always known about it. An em dash
+  // here drew a held seat as a blank cell, and inventing a ticker would be
+  // worse. The short address is the honest name plate.
+  const symbol = team?.symbol ?? (mint ? shortMint(mint) : '—')
   const href = mint && coinHref ? coinHref(mint) : undefined
   return (
     <span className="cw-id">
       <span className="cw-id-head">
         {href
-          ? <a className="cw-symbol" href={href} onClick={(event) => event.stopPropagation()}>{symbol}</a>
+          ? <a className="cw-symbol" href={href} onClick={pickCoin(onCoin, mint)}>{symbol}</a>
           : <b className="cw-symbol">{symbol}</b>}
         {team?.name && team.name !== symbol ? <small className="cw-coin-name">{team.name}</small> : null}
       </span>
@@ -349,11 +448,10 @@ function CoinIdentity({ row, coinHref, explorer }: {
 }
 
 export function CatwalkSlotRow({
-  row, metric, state, dim, matched, ladder = 'unknown', crown, onLadder, coinHref, explorer,
+  row, metric, state, dim, matched, ladder = 'unknown', crown, onLadder, coinHref, explorer, onCoin,
 }: RowProps) {
   const ask = row.offer?.askUsdMicros ?? 0
   const team = row.entry?.team ?? null
-  const href = row.entry && coinHref ? coinHref(row.entry.mint) : undefined
   const open = row.lane === 'open'
   const block = open ? null : saleBlock(row, ladder)
 
@@ -373,7 +471,7 @@ export function CatwalkSlotRow({
       >
         <span className="cw-num">{pad(row.spot)}</span>
         <TeamMark id={team?.id ?? row.entry?.mint ?? ''} color={team?.color} logoUrl={team?.logoUrl} className="cw-crest" />
-        <CoinIdentity row={row} coinHref={coinHref} explorer={explorer} />
+        <CoinIdentity row={row} coinHref={coinHref} explorer={explorer} onCoin={onCoin} />
         <MarketCap usd={row.entry?.marketCapUsd ?? null} />
         <LaneChip lane={row.lane} />
         <span className="cw-metric"><small>HELD IN</small><b>{row.lane === 'champion' ? 'CHAMPION' : row.lane.toUpperCase()}</b></span>
@@ -382,6 +480,12 @@ export function CatwalkSlotRow({
     )
   }
 
+  /* A ROW CLICK IS A SEARCH, NOT A DOCUMENT LOAD. This row called
+     `window.location.assign(coinHref(mint))`, and `coinHref` resolves to
+     `/catwalk?q=<mint>` - the page the reader is already on - so pressing any
+     row reloaded the whole document in order to run a filter. `<li>` is not a
+     link and never was, so no middle-click or cmd-click behaviour is lost by
+     dropping the href; the symbol anchor inside the row keeps both. */
   return (
     <li
       className={`cw-slot${open ? ' cw-slot--open' : ''}`}
@@ -391,7 +495,7 @@ export function CatwalkSlotRow({
       data-matched={matched ? 'true' : undefined}
       style={team?.color ? ({ '--team-color': team.color } as CSSProperties) : undefined}
       aria-label={rowLabel(row, ladder)}
-      onClick={href ? () => window.location.assign(href) : undefined}
+      onClick={onCoin && row.entry ? () => onCoin(row.entry!.mint) : undefined}
     >
       {crown ? <Crown className="cw-row-crown" size={14} aria-hidden="true" /> : null}
       <span className="cw-num">{pad(row.spot)}</span>
@@ -405,7 +509,7 @@ export function CatwalkSlotRow({
             <b className="cw-open-title">OPEN SLOT</b>
             <small>{openNote(row)}</small>
           </span>
-        : <CoinIdentity row={row} coinHref={coinHref} explorer={explorer} />}
+        : <CoinIdentity row={row} coinHref={coinHref} explorer={explorer} onCoin={onCoin} />}
 
       {/* A vacancy has no market cap because it has no coin - and the column
           still holds its box, so the table does not reflow row to row. */}
@@ -461,15 +565,20 @@ export function CatwalkSlotSkeleton({ spot }: { spot: number }) {
 
 /** Hidden from assistive technology on purpose: every row already names its own
  *  band, and a head repeated above twelve rows would be read twelve times. */
-export function CatwalkBandHead({ label, range, note, lane }: {
+export function CatwalkBandHead({ label, range, note, lane, walks }: {
   label: string; range?: string; note: string
   /** Set only on a head that names a LANE, so it takes that lane's colour - the
-   *  same colour the lane's chips and its tab carry. A head that names a band
-   *  of the rotation takes no colour at all, because position is not a hue. */
+   *  same colour the lane's chips and its tab carry. */
   lane?: string
+  /** True on the head of the band that walks every rotation. THE WALK-IN BAND
+   *  IS COLOURED WHETHER OR NOT ANYBODY IS STANDING IN IT: those twelve
+   *  positions are the product, and a board that launches empty drew them in
+   *  exactly the grey it drew the twenty-four challenge vacancies in, so the
+   *  thing the page is about was the least visible thing on it. */
+  walks?: boolean
 }) {
   return (
-    <h3 className="cw-band-head" data-lane={lane} aria-hidden="true">
+    <h3 className="cw-band-head" data-lane={lane} data-walks={walks ? 'true' : undefined} aria-hidden="true">
       <span>{label}</span>
       <em>{range}</em>
       <small>{note}</small>

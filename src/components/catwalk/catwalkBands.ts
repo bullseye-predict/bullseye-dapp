@@ -15,29 +15,32 @@ import type { CatwalkLane, CatwalkSpot } from '../solz/model'
 /**
  * A BAND OF THE ROTATION.
  *
- * The board is not a race and has no podium, no grid and no back row. Coins
- * WALK IN: the top `activeSlots` walk every rotation, and the coins below them
- * walk against that band in turn - the twelve against 13-24, the twelve against
- * 25-36, then the twelve against each other. So the bands ARE the rotation, and
- * they are all the same size: one band of `activeSlots`, then as many further
- * bands of `activeSlots` as `lineupSize` holds.
+ * CATWALK IS A ROTATION SYSTEM, NOT A LIST. The board has two bands and only
+ * ever two: THE RUNWAY, the top `activeSlots`, which walk every MIAW PRIX
+ * rotation; and THE LINE-UP, everybody else, who walk the runway in turn. The
+ * runway's advantage is time on the board, not a different kind of slot - a
+ * line-up coin is one rotation from walking in, and a runway coin is one
+ * rotation from being walked down. Neither band is a bench.
  *
- * 'walk' is the band that walks every rotation. 'challenge' is a band that
- * walks it in one numbered round; `round` says which. Nothing here is
- * hardcoded to 12 or 36 - an admin moves either number and the bands follow.
+ * It used to cut the line-up into numbered CHALLENGE bands of `activeSlots`
+ * each - 13-24 in round one, 25-36 in round two - which published a rotation
+ * order the wire does not carry and split twenty-four positions across two
+ * heads that said the same thing twice. One band says it once.
+ *
+ * Nothing here is hardcoded to 12 or 36: an admin moves either number and the
+ * two bands follow.
  */
-export type CatwalkBandKind = 'walk' | 'challenge'
+export type CatwalkBandKind = 'runway' | 'lineup'
 
 export type CatwalkBand = {
-  /** Stable key for lists and expand state: 'walk', 'challenge-1', ... */
+  /** Stable key for lists: 'runway' or 'lineup'. */
   key: string
+  /** Which band this is. NOTE the near-collision with `lineupSize`, which is the
+   *  WHOLE board (36) - this kind is the band BELOW the runway (13-36). */
   kind: CatwalkBandKind
-  /** Which rotation round this band walks the walk-in band in. 0 for the
-   *  walk-in band itself, which walks in every round. */
-  round: number
   label: string
   /** The right-hand note on the band head. Load-bearing: a viewer who cannot
-   *  separate the shades still reads WALKS EVERY ROTATION from ONE ROTATION AWAY. */
+   *  separate the shades still reads WALKS EVERY ROTATION from WALKS IN TURN. */
   note: string
   start: number
   end: number
@@ -52,46 +55,39 @@ export type CatwalkBand = {
 export const DEFAULT_ACTIVE_SLOTS = 12
 export const DEFAULT_LINEUP_SIZE = 36
 
-const ORDINAL = ['', 'FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH']
-
-const ordinal = (round: number) => ORDINAL[round] ?? `ROUND ${round}`
-
 /**
  * Band ranges are derived from activeSlots and lineupSize, never hardcoded.
  *
- * The first band is 1..activeSlots. Every band after it is another activeSlots
- * positions, until lineupSize runs out - so 12 and 36 give 1-12, 13-24, 25-36,
- * and moving the cut to 8 gives 1-8, 9-16, 17-24, 25-32, 33-36 without a line
- * of this file changing. A final short band is kept rather than padded: the
- * positions it holds exist, and a band that claimed 33-40 would number eight
- * positions where the board has four.
+ * Two bands when the board is deeper than the runway - 1..activeSlots and
+ * activeSlots+1..lineupSize - and ONE when it is not, because a line-up of
+ * nobody is not a band. Moving the cut to 8 on a 36-slot board gives 1-8 and
+ * 9-36 without a line of this file changing.
  */
 export function catwalkBands(activeSlots: number, lineupSize: number): CatwalkBand[] {
   const active = Math.max(0, Math.floor(activeSlots) || 0)
   const size = Math.max(active, Math.floor(lineupSize) || 0)
   if (size < 1) return []
   const step = active > 0 ? active : size
+  const runway = Math.min(step, size)
   const bands: CatwalkBand[] = [{
-    key: 'walk',
-    kind: 'walk',
-    round: 0,
-    label: `THE ${step === size ? 'BOARD' : 'WALK-IN'}`,
-    note: `TOP ${step} — WALKS EVERY ROTATION`,
+    key: 'runway',
+    kind: 'runway',
+    // A board with no line-up under it is the whole board, and calling it THE
+    // RUNWAY there would imply a second band that does not exist.
+    label: runway === size ? 'THE BOARD' : 'THE RUNWAY',
+    note: `TOP ${runway} — WALKS EVERY ROTATION`,
     start: 1,
-    end: Math.min(step, size),
+    end: runway,
     walks: true,
   }]
-  let round = 0
-  for (let start = step + 1; start <= size; start += step) {
-    round += 1
+  if (runway < size) {
     bands.push({
-      key: `challenge-${round}`,
-      kind: 'challenge',
-      round,
-      label: `${ordinal(round)} CHALLENGE`,
-      note: `WALKS THE TOP ${step} IN ROUND ${round}`,
-      start,
-      end: Math.min(start + step - 1, size),
+      key: 'lineup',
+      kind: 'lineup',
+      label: 'THE LINE-UP',
+      note: `WALKS THE TOP ${runway} IN TURN`,
+      start: runway + 1,
+      end: size,
       walks: false,
     })
   }
@@ -102,19 +98,19 @@ export function catwalkBands(activeSlots: number, lineupSize: number): CatwalkBa
  * The line on an open row. It describes the POSITION and its place in the
  * rotation, never the sale: a vacancy has no price.
  *
- * The challenge copy says plainly what the owner asked it to say - a coin down
+ * The line-up copy says plainly what the owner asked it to say - a coin down
  * here is one rotation from walking in, and a coin up there is one rotation
  * from being replaced. Neither is a bench.
  */
 export function bandInvitation(band: CatwalkBand): string {
-  if (band.kind === 'walk') return `Walks every rotation. Held only until a challenger walks it down.`
-  return `One rotation away. Whoever stands here walks the top ${band.start - 1} in round ${band.round}.`
+  if (band.kind === 'runway') return `Walks every rotation. Held only until a challenger walks it down.`
+  return `One rotation away. Whoever stands here walks the top ${band.start - 1} in turn.`
 }
 
 /** Spoken band name, for the per-row aria-label. Band heads are hidden from
  *  assistive technology, so each row has to name its own band. */
 export const bandSpoken = (band: CatwalkBand) =>
-  band.kind === 'walk' ? 'walk-in' : `${ordinal(band.round).toLowerCase()} challenge`
+  band.kind === 'runway' ? 'runway' : 'line-up'
 
 export const bandRange = (band: CatwalkBand) => `${pad(band.start)}–${pad(band.end)}`
 
@@ -176,17 +172,6 @@ export type CatwalkRow = {
   /** What the coin standing here paid, from its own entry - never from a seat
    *  looked up by position, which is somebody else's price. */
   paidUsdMicros: number | null
-  /** True when an operator placed this holder rather than anybody paying for it.
-   *
-   *  Carried alongside the amount rather than folded into it, and deliberately
-   *  NOT rendered on the public board: by the owner's launch call a seeded
-   *  holder draws exactly like a bought one (PAID plus the amount, in the label
-   *  and in the accessible name), and a real outbid takes the seat over. The
-   *  flag is threaded this far anyway because it is the same backend field the
-   *  admin panel at :3101 reads to show "seeded — not a payment", and because
-   *  dropping it from the model would mean re-threading it the day the board
-   *  wants the distinction back. No public renderer may branch on it. */
-  seeded: boolean
   /** The only permitted source of a win/loss record. Null means the read landed
    *  and this coin has none; `recordKnown` false means nobody answered, and the
    *  two must not render alike — one is a fact about the coin, the other is a
@@ -337,7 +322,6 @@ export function buildBoard({ board, spots, outbidSpots, standings, standingsStat
         // either, because a vacancy is a position, not a thing for sale.
         offer: entry && entry.lane === 'outbid' ? seatByMint.get(entry.mint) ?? null : null,
         paidUsdMicros: entry?.paidUsdMicros ?? null,
-        seeded: entry?.seeded === true,
         standing: entry ? standings.get(entry.mint) ?? null : null,
         // A coin the Map holds has a record — possibly from the previous poll,
         // but a real one. A coin the Map does NOT hold is only known to have no
@@ -366,4 +350,39 @@ export function buildBoard({ board, spots, outbidSpots, standings, standingsStat
     openSeatUsdMicros: asks.reduce((total, ask) => total + ask, 0),
     recordsKnown: standingsState === 'read',
   }
+}
+
+/**
+ * THE FRONT OF THE WALK: the three cards the hero stands up.
+ *
+ * It is a choice ACROSS THE LANES, not a slice of the board. It used to be
+ * board positions 01, 02 and 03 by number, which on a board whose champions had
+ * not been settled yet put three vacancies at the top of the page while real
+ * coins stood at 04 and 05 - the page's loudest surface advertising emptiness
+ * over its own holders.
+ *
+ * The order is CHAMPIONS FIRST, then every other holder in board order.
+ * Champion is the only lane that is WON and the only one no price can take, so
+ * it leads; between an outbid holder and a ranked one this function invents no
+ * ranking of its own - it defers to the board position the server assigned,
+ * which already carries whatever priority the product intends.
+ *
+ * IT RANKS ON NOTHING THAT MIGHT NOT HAVE BEEN READ. Not wins (`standing` is
+ * null both for a coin with no record and, whenever the standings read failed,
+ * for every coin on the board), not the ask (`offer` is null in every ladder
+ * state but 'open'), and not market cap (null means unpublished). A front row
+ * that reshuffled itself when a side-read failed would restate the board on
+ * every blip. `lane` and `spot` are the two fields every row always carries.
+ *
+ * EXACTLY THREE, ALWAYS. Short of three holders it fills from the lowest-
+ * numbered VACANCIES, so an empty board is the same code path as a full one and
+ * the hero never grows or loses a card. A filled slot is never fabricated: the
+ * fill rows are genuinely open positions and render as vacancies.
+ */
+export function catwalkFront(shape: CatwalkBoardShape, cards = 3): CatwalkRow[] {
+  const bySpot = (a: CatwalkRow, b: CatwalkRow) => a.spot - b.spot
+  const champions = shape.rows.filter((row) => row.lane === 'champion').sort(bySpot)
+  const others = shape.rows.filter((row) => row.lane !== 'champion' && row.lane !== 'open').sort(bySpot)
+  const vacant = shape.rows.filter((row) => row.lane === 'open').sort(bySpot)
+  return [...champions, ...others, ...vacant].slice(0, Math.max(0, cards))
 }

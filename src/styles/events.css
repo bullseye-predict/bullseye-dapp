@@ -7,6 +7,8 @@
 .ev-event-status { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 10px; color: #a1a2ac; }
 .ev-event-status img, .ev-event-status svg { width: 22px; height: 22px; flex: 0 0 auto; border-radius: 4px; }
 .ev-event-status > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-event-status .ev-phase-clock { flex: 0 0 auto; overflow: visible; font-variant-numeric: tabular-nums; }
+.ev-event-status .ev-phase-clock .sh-status { color: #f0f1f4; font-size: 10px; letter-spacing: .035em; }
 @media (max-width: 720px) { .ev-event-status > span:last-child { display: none; } }
 .ev-layout-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 65px; margin-bottom: 13px; border-bottom: 1px solid #2a2b31; }
 .ev-layout-bar > a { display: inline-flex; align-items: center; gap: 8px; font-size: 9px; color: #b2b4be; }
@@ -148,7 +150,9 @@
 .ev-market-nav > .ev-rail-foot { justify-content: flex-start; }
 .ev-right-rail .ch-trade { background: #1b1e24; border-color: #3e424b; flex: none; }
 .ev-right-rail .ch-ticket-bar { margin-bottom: 12px; }
+.ev-right-rail .ch-trade-question-image { margin-top: -16px; }
 .ev-right-rail .ch-trade-title { margin-bottom: 13px; }
+.ev-right-rail .ch-trade-answer-image { width: 70px; height: 84px; }
 .ev-right-rail .ch-trade-title strong { font-size: 18px; }
 .ev-right-rail .ch-trade-quote { margin-top: 2px; }
 .ev-right-rail .ch-trade-amount small { font-size: 8px; }
@@ -588,4 +592,3 @@
 .ev-network-terminal .pt-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
 @media (max-width: 1100px) { .ev-network-terminal { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .ev-network-terminal .pt-grid { grid-template-columns: minmax(0, 1fr); } }
-

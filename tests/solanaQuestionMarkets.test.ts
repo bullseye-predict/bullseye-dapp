@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { parseReservedSolanaQuestions, reservedSolanaView, resolveMatchMarkets, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import type { PublicPredictionVenue } from '../packages/prediction-core/market-data'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
@@ -24,6 +25,13 @@ describe('reserved Solana question view', () => {
     expect(match.timingType).toBe('countdown')
     expect(match.endsAt).toBe(solanaQuestionLocksAt(parsed))
     expect(market.closesAt).toBe(match.endsAt)
+  })
+
+  test('a stale reserved status becomes result pending after the encoded match window', () => {
+    const parsed = parseReservedSolanaQuestions({ questions: [question] })[0]!
+    const { match, market } = reservedSolanaView(parsed, solanaQuestionLocksAt(parsed) + 1)
+    expect(match).toMatchObject({ phase: 'settled', round: 'RESULT PENDING' })
+    expect(market.status).toBe('closed')
   })
 })
 
@@ -171,5 +179,59 @@ describe('the selected market names its own question', () => {
     // Activation uses this marketId; the event's first question would be wrong.
     expect(question?.marketId).toBe('market-3')
     expect(resolved.question.marketId).toBe('market-1')
+  })
+})
+
+describe('a canonical match is tradable from its own identity', () => {
+  // The live arena match the prediction backend actually serves: twelve linked
+  // binary questions, all sharing one eventId, all keyed to one canonical matchId.
+  const matchId = '0x534f4c5a01010014000000006aaa7840e8a343a5681f0c087f10dcd4d8255908'
+  const eventId = `arena-${matchId.slice(2)}`
+  const program = 'PredJavXFRGRsEwsxMZfyGYCkFMd5BbXpBWAAAAAAAA'
+  const venue = { programId: program, manifestProgramId: program, publicRpcUrl: 'https://rpc.example', chainId: 'genesis', collateralToken: program, collateralDecimals: 6 } as unknown as PublicPredictionVenue
+  const entrants = ['COKE', 'PEPSI', 'SPRITE', 'FANTA', 'MIRINDA', 'CRUSH', 'SCHWEPPES', 'TANGO', 'DEW', 'SEVEN-UP', 'BRU', 'RC']
+  const catalogue: ReservedSolanaQuestion[] = entrants.map((label, index) => ({
+    presentation: { kind: 'linked', eventTitle: 'Who will win this match?',
+      answer: { label, participantId: `genesis-${String(index + 1).padStart(2, '0')}` },
+      outcomes: [{ id: 0, label: 'Yes' }, { id: 1, label: 'No' }] },
+    eventId, matchId,
+    questionId: `0x515545530101${(index + 1).toString(16).padStart(2, '0').repeat(26)}`,
+    marketId: `market-pda-${index}`, label: `Will ${label} win?`, outcomes: ['YES', 'NO'],
+    scheduledStartAt: '2026-09-16T11:06:40Z', status: 'live',
+  }))
+  const markets = catalogue.map((question) => reservedSolanaView(question, Date.parse('2026-09-16T11:10:00Z'), venue).market)
+
+  test('an FFA field trades as one linked binary question per entrant, with no arena feed', () => {
+    // The regression: /arena/events was the only thing that could produce a
+    // tradable market, so whenever that importer-backed endpoint was slow,
+    // stalled or down, twelve valid catalogue questions rendered zero markets
+    // and the ticket showed "Prediction feed unavailable" for a live match.
+    const resolved = resolveMatchMarkets([], markets)
+    expect(resolved.markets).toHaveLength(12)
+    expect(resolved.canonical).toBe(true)
+    // The two canonical IDs are what trades: the market's id IS the questionId,
+    // and every one carries the venue binding derived from (matchId, questionId).
+    expect(resolved.markets.map((market) => market.id)).toEqual(catalogue.map((question) => question.questionId))
+    expect(resolved.markets.every((market) => market.matchId === eventId)).toBe(true)
+    expect(resolved.markets.every((market) => market.onchain?.marketId)).toBe(true)
+  })
+
+  test('the arena feed still wins when it has the questions, so recorded answers survive', () => {
+    const settled = [{ ...markets[0]!, id: 'winner-genesis-01', outcomes: markets[0]!.outcomes.map((outcome) => ({ ...outcome, probability: 1 })) }]
+    const resolved = resolveMatchMarkets(settled, markets)
+    expect(resolved.markets).toEqual(settled)
+    // Not canonical: these rows came from the feed, so the venue pipeline keeps
+    // treating them exactly as it did before.
+    expect(resolved.canonical).toBe(false)
+  })
+
+  test('no source means no market, rather than an invented one', () => {
+    expect(resolveMatchMarkets([], [])).toEqual({ markets: [], canonical: false })
+  })
+
+  test('a linked answer carries its participant so the options list draws the agent', () => {
+    expect(markets[2]!.outcomes.map((outcome) => outcome.participantId)).toEqual(['genesis-03', 'genesis-03'])
+    expect(markets[2]!.presentation?.eventTitle).toBe('Who will win this match?')
+    expect(markets[2]!.outcomes.map((outcome) => outcome.label)).toEqual(['Yes', 'No'])
   })
 })

@@ -5,7 +5,7 @@ import { ProgrammeLayout } from '../src/components/miawprix/ProgrammeLayout'
 import { SeasonPanel } from '../src/components/miawprix/SeasonPanel'
 import { StandingsTable } from '../src/components/miawprix/StandingsTable'
 import { explorerAddressUrl } from '../src/components/miawprix/explorerLink'
-import { MARKET_CAP_UNKNOWN_NOTE, champion, rankStandings } from '../src/components/miawprix/board'
+import { champion, rankStandings } from '../src/components/miawprix/board'
 import type { MiawPrixSeason } from '../src/components/miawprix/miawPrixSource'
 
 const NOW = Date.parse('2026-09-16T12:00:00.000Z')
@@ -152,21 +152,23 @@ test('an address link names the account, on the venue’s own cluster', () => {
   expect(explorerAddressUrl(DEVNET, '')).toBeUndefined()
 })
 
-/* ── Market capitalisation ────────────────────────────────────────────────── */
+/* ── Prediction aggregates ────────────────────────────────────────────────── */
 
-test('market cap is a standings column, and an unpriced coin is an em dash rather than $0', () => {
+test('standings reserve prediction pool and volume while market cap stays out', () => {
   const html = renderToStaticMarkup(<StandingsTable rows={standings} loading={false} unavailable="" venue={null} />)
-  expect(html).toContain('Market cap')
-  expect(html).toContain('$12.4M')
-  expect(html).toContain(MARKET_CAP_UNKNOWN_NOTE)
-  // The one thing the column may never say about a coin nobody priced.
+  expect(html).toContain('Prediction pool')
+  expect(html).toContain('Volume')
+  expect(html).toContain('Prediction pool is not published yet')
+  expect(html).toContain('Aggregate prediction volume is not published yet')
+  expect(html).not.toContain('Market cap')
+  expect(html).not.toContain('$12.4M')
   expect(html).not.toContain('$0')
 })
 
-test('a capitalisation never borrows the colour that traded money uses', () => {
+test('empty prediction aggregates are unknown rather than invented liquidity', () => {
   const html = renderToStaticMarkup(<StandingsTable rows={standings} loading={false} unavailable="" venue={null} />)
-  expect(html).toContain('mp-cap')
-  // mp-volume is prediction-market money; a valuation is not that.
+  expect(html).toContain('mp-unknown')
+  expect(html).not.toContain('mp-cap')
   expect(html).not.toContain('mp-volume')
 })
 

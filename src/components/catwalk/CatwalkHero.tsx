@@ -1,19 +1,34 @@
 import { ArrowUpRight, Crown, Receipt } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
 import { TeamMark } from '../home/HomePrimitives'
-import { catwalkSeasonLabel, usdLabel, type CatwalkSeason } from '../solz/catwalkSource'
+import { catwalkSeasonLabel, type CatwalkSeason } from '../solz/catwalkSource'
 import { SegBar } from '../solz/ui'
-import { pad, type CatwalkBoardShape, type CatwalkRow, type LadderState } from './catwalkBands'
+import { catwalkFront, pad, type CatwalkBoardShape, type CatwalkRow } from './catwalkBands'
 import { LaneChip } from './CatwalkSlotRow'
 
+/* THE CLOCK HAS LEFT THIS FILE. `CatwalkClock`, `ClockPending`, `lockFace`,
+   `clockParts` and `useReducedMotion` now live in CatwalkLockFace.tsx and are
+   mounted at the HEAD OF THE RAIL, on every tab - see that file for why one
+   clock became the rule rather than two. Both are re-exported here so no caller
+   has to learn where they went. */
+export { clockParts, useReducedMotion } from './CatwalkLockFace'
+
 /**
- * The head of the board: the season, the three plinths at the front of the
- * walk, the counter strip and the explainer.
+ * The head of the board: the season, the runway rail, and the three cards at
+ * the front of the walk.
+ *
+ * It used to carry a six-cell counter strip and a four-cell explainer under it,
+ * which between them restated every figure the board states again below and cost
+ * the page two full rows above the fold. Both are gone; the board explains
+ * itself in its band heads and its lane chips, where the thing being explained
+ * is the next thing the eye lands on.
  *
  * The hero always renders exactly three cards, whatever the fill - never two,
  * never four - so an empty board is the same code path as a full one and there
- * is no separate launch screen to maintain. They are the first three POSITIONS,
- * not a podium: nothing here has been won by finishing.
+ * is no separate launch screen to maintain. WHICH three is decided by
+ * `catwalkFront` (see catwalkBands.ts): champions first, then every other
+ * holder in board order, then vacancies. They are a choice across the lanes and
+ * not a slice of the board, so a card's big number is THAT COIN'S BOARD SLOT and
+ * never its place in this row of three.
  *
  * THE ONE THING IT WILL NOT DO IS COUNT BEFORE IT HAS READ. Until the board read
  * lands, the fill of the board is unknown, and an unknown number is not zero:
@@ -23,90 +38,25 @@ import { LaneChip } from './CatwalkSlotRow'
  * while it may have been full.
  */
 
-export function useReducedMotion() {
-  const [reduced, setReduced] = useState(false)
-  useEffect(() => {
-    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    if (!query) return
-    setReduced(query.matches)
-    const listen = () => setReduced(query.matches)
-    query.addEventListener('change', listen)
-    return () => query.removeEventListener('change', listen)
-  }, [])
-  return reduced
-}
-
-function useMediaQuery(media: string) {
-  const [matches, setMatches] = useState(false)
-  useEffect(() => {
-    const query = window.matchMedia?.(media)
-    if (!query) return
-    setMatches(query.matches)
-    const listen = () => setMatches(query.matches)
-    query.addEventListener('change', listen)
-    return () => query.removeEventListener('change', listen)
-  }, [media])
-  return matches
-}
-
 const DAY = 86_400_000
 
+/** Days remaining in the season, rounded up. Rendered beside the season number
+ *  in the kicker - two labelled items, never "SEASON 07 · 4d". */
 export function daysLeft(season: CatwalkSeason | null, now: number) {
   if (!season?.endsAt) return null
   return Math.max(0, Math.ceil((season.endsAt - now) / DAY))
 }
 
-/** DD:HH:MM:SS.
- *
- *  ui.tsx's Countdown is the app's shared clock but its formatClock tops out at
- *  hours, so a 30-day season reads `713:04:11` there. The board needs a day
- *  field and, under reduced motion, a minute tick - neither of which that
- *  component can express today. Lifting both into ui.tsx is the right home for
- *  this once it is safe to change a component every other surface renders.
- */
-function clockParts(remaining: number, withSeconds: boolean) {
-  const total = Math.max(0, remaining)
-  const days = Math.floor(total / DAY)
-  const hours = Math.floor((total % DAY) / 3_600_000)
-  const minutes = Math.floor((total % 3_600_000) / 60_000)
-  const seconds = Math.floor((total % 60_000) / 1_000)
-  const fields = [days, hours, minutes, ...(withSeconds ? [seconds] : [])]
-  return fields.map((field) => String(field).padStart(2, '0')).join(':')
-}
-
-function CatwalkClock({ season, activeSlots }: { season: CatwalkSeason; activeSlots: number }) {
-  const reduced = useReducedMotion()
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    setNow(Date.now())
-    if (season.endsAt - Date.now() <= 0) return
-    const period = reduced ? 60_000 : 1_000
-    const timer = window.setInterval(() => {
-      const tick = Date.now()
-      setNow(tick)
-      if (season.endsAt - tick <= 0) window.clearInterval(timer)
-    }, period)
-    return () => window.clearInterval(timer)
-  }, [season.endsAt, reduced])
-
-  const remaining = Math.max(0, season.endsAt - now)
-  return (
-    <div className="cw-clock">
-      {/* Not "BOARD LOCKS IN": the season carries only startsAt/endsAt, so a
-          lock label would be a lie for 29 days of a 30-day season. */}
-      <small>SEASON ENDS IN</small>
-      <b role="timer" aria-live="off">{remaining > 0 ? clockParts(remaining, !reduced) : 'CLOSED'}</b>
-      <span>TOP {activeSlots} WALK IN EVERY ROTATION</span>
-    </div>
-  )
-}
-
 /**
  * THE CROWN GATE. A crown renders if and only if the coin holds the slot through
  * the champion lane. A coin holding the front of the walk because it outbid
- * wears a receipt instead, and a ranked holder wears neither. Simplifying this
- * to `position === 1` would tell the viewer a coin won MIAW PRIX when it merely
- * paid, which is the one distinction the whole product turns on.
+ * wears a receipt instead, and a ranked holder wears neither.
+ *
+ * `catwalkFront` now puts champions in card one, so card one and the champion
+ * lane coincide on nearly every board - and that correlation must never become
+ * the gate. Simplifying this to `rank === 1` would tell the viewer a coin won
+ * MIAW PRIX when it merely paid, which is the one distinction the whole product
+ * turns on, and it would do so silently the first time a board has no champion.
  */
 function HeroBadge({ lane }: { lane: CatwalkRow['lane'] }) {
   if (lane === 'champion') return <Crown className="cw-crown" size={38} aria-hidden="true" />
@@ -114,8 +64,18 @@ function HeroBadge({ lane }: { lane: CatwalkRow['lane'] }) {
   return null
 }
 
-function HeroCard({ position, row, pending, onLadder }: {
-  position: number; row: CatwalkRow | null; pending: boolean; onLadder?: () => void
+/**
+ * One card at the front of the walk.
+ *
+ * `rank` is WHERE IN THIS ROW OF THREE the card sits - 1, 2, 3 - and it is
+ * `data-pos`, which is the only thing catwalk.css keys the sizes, tilts and
+ * metals off. `row.spot` is the coin's BOARD POSITION, and it is what the card
+ * prints and what it says out loud. The two used to be one integer because the
+ * hero took board slots 01-03 by number; they are different questions and the
+ * card must never print one as the other.
+ */
+function HeroCard({ rank, row, pending }: {
+  rank: number; row: CatwalkRow | null; pending: boolean
 }) {
   const team = row?.entry?.team ?? null
   const open = !row || row.lane === 'open'
@@ -127,11 +87,13 @@ function HeroCard({ position, row, pending, onLadder }: {
   // dashed edge, unlit fill, ghosted number - so the first frame painted three
   // vacancies before any read landed, which is the same claim in paint rather
   // than in words. `--pending` owns its own neutral treatment in catwalk.css.
+  //
+  // It carries no number either: before the read there is no telling WHICH
+  // three positions stand here.
   if (pending) {
     return (
-      <div className="cw-hero-card cw-hero-card--pending" data-pos={position}>
+      <div className="cw-hero-card cw-hero-card--pending" data-pos={rank}>
         <div className="cw-hero-face">
-          <i aria-hidden="true">{pad(position)}</i>
           <i className="cw-pending cw-pending--plinth" aria-hidden="true" />
           <i className="cw-pending cw-pending--act" aria-hidden="true" />
         </div>
@@ -139,30 +101,26 @@ function HeroCard({ position, row, pending, onLadder }: {
     )
   }
 
-  // A PLINTH CARRIES NO PRICE. Slot 01 is a board position, and board positions
-  // are not sold: the seat with the matching number belongs to the ladder, may
-  // be held by someone else entirely, and pricing the front of the walk from it
-  // sold a stranger's seat off the hero. The plinth states the vacancy only.
+  // A PLINTH CARRIES NO PRICE. The number on it is a board position, and board
+  // positions are not sold: the ladder seat with the matching number may be held
+  // by someone else entirely, and pricing the front of the walk from it sold a
+  // stranger's seat off the hero. The plinth states the vacancy only.
   if (open) {
     return (
-      <div className="cw-hero-card cw-hero-card--open" data-pos={position}>
+      <div className="cw-hero-card cw-hero-card--open" data-pos={rank}>
         <div className="cw-hero-face">
-          <i aria-hidden="true">{pad(position)}</i>
+          <i aria-hidden="true">{row ? pad(row.spot) : '—'}</i>
           <strong>OPEN</strong>
           <span className="cw-hero-fills">FILLS FROM THE LANES</span>
-          {onLadder
-            ? <button type="button" className="cw-act cw-act--claim" onClick={onLadder}>TAKE A SEAT</button>
-            : <span className="cw-act cw-act--ghostly" title="Positions fill from the outbid, champion and ranked lanes. Seats are bought on the spot ladder.">
-                NOT SOLD BY NUMBER
-              </span>}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="cw-hero-card" data-pos={position}>
+    <div className="cw-hero-card" data-pos={rank}>
       <HeroBadge lane={row!.lane} />
+      <span className="cw-hero-position" aria-label={`Slot ${row!.spot}`}>{pad(row!.spot)}</span>
       <div className="cw-hero-face">
         <TeamMark id={team?.id ?? row!.entry!.mint} color={team?.color} logoUrl={team?.logoUrl} className="cw-hero-mark" />
         <i className="cw-hero-scrim" aria-hidden="true" />
@@ -184,154 +142,113 @@ function HeroCard({ position, row, pending, onLadder }: {
   )
 }
 
+/**
+ * THE REACT KEY FOR ONE FRONT CARD.
+ *
+ * Keyed on the COIN, because this row of three reorders between polls - a
+ * champion settles, a seat is bought - and an index key would have React reuse a
+ * champion card's crown, mark and metal for whichever coin landed there next.
+ *
+ * A card with NO ROW keys on its position in the row, not on a spot it does not
+ * have. `slot-${row?.spot ?? index}` mixed a 1-based board spot with a 0-based
+ * card index, so on a two-slot board card three claimed 'slot-2' - the key the
+ * vacancy at spot 02 already held, and React collapses a duplicate key onto one
+ * element. Exported so that collision is testable: a duplicate key is invisible
+ * in rendered markup, so nothing in the DOM can prove its absence.
+ */
+export function frontCardKey(row: CatwalkRow | null, index: number): string {
+  if (!row) return `card-${index}`
+  return row.entry?.mint ?? `slot-${row.spot}`
+}
+
 export type HeroProps = {
   shape: CatwalkBoardShape
   season: CatwalkSeason | null
-  /** True until the board read lands. Nothing countable may be stated. */
+  /* NO `lock` PROP. The hero does not state the lock any more - the one clock
+     on this page is in the head of the rail, where it survives the tab bar
+     sticking to the top of the viewport. Keeping an ignored prop here would
+     have let a caller believe it was still handing the hero a countdown. */
+  /** Where the MIAW PRIX programme lives. The kicker names the season this
+   *  board walks in, so the name is the link to it. */
+  miawPrixHref?: string
+  /** True until the BOARD read lands. Nothing countable may be stated. It is
+   *  deliberately not reused for the schedule: that read fails independently. */
   pending?: boolean
+  /** The clock in `now`, from the page's own 60-second tick, so the season's
+   *  remaining days and every other figure on the page agree.
+   *
+   *  ZERO MEANS NO CLOCK WAS SUPPLIED, and the kicker then states no days left
+   *  rather than measuring the season from the epoch - which printed 20716D LEFT
+   *  for any caller that omitted it. */
+  now?: number
   /** Sends the viewer to the spot ladder. Passed only when the ladder is open
    *  and has an unheld seat, because that is the only time there is one to take. */
   onLadder?: () => void
 }
 
-export function CatwalkHero({ shape, season, pending = false, onLadder }: HeroProps) {
-  const front = [1, 2, 3].map((spot) => shape.rows.find((row) => row.spot === spot) ?? null)
-  const headline = shape.walkingClaimed === 0
-    ? 'NOBODY HAS WALKED IN YET'
-    : `THE TOP ${shape.activeSlots} WALK EVERY MIAW PRIX ROTATION`
+export function CatwalkHero({
+  shape, season, miawPrixHref = '/miaw-prix',
+  pending = false, now = 0, onLadder,
+}: HeroProps) {
+  const front = catwalkFront(shape)
+  // `claimed`, not `walkingClaimed`: the front row draws from every lane and
+  // every band, so a champion standing at slot 20 puts a coin on this page that
+  // the walk-in count does not know about. Gating the headline on the narrower
+  // figure rendered "NOBODY HAS WALKED IN YET" over three occupied cards.
+  const empty = shape.claimed === 0
+  const headline = empty ? 'NOBODY HAS WALKED IN YET' : `THE TOP ${shape.activeSlots} WALK EVERY MIAW PRIX ROTATION`
   const label = catwalkSeasonLabel(season)
+  const remaining = now ? daysLeft(season, now) : null
   return (
     <section className="cw-hero">
       <div className="cw-hero-season">
-        {/* Two labelled items rather than "MIAW PRIX · SEASON 00". */}
-        <span className="cw-kicker"><i aria-hidden="true" />MIAW PRIX{label ? <em>{label}</em> : null}</span>
-        <h1>CATWALK<i aria-hidden="true" /></h1>
+        {/* Labelled items rather than "MIAW PRIX · SEASON 00 · 4d". The season's
+            own end lives here now that the counter strip that held it is gone:
+            it is context for the programme's name, not a figure to act on. */}
+        <span className="cw-kicker">
+          <i aria-hidden="true" />
+          <a href={miawPrixHref}>MIAW PRIX</a>
+          {label ? <em>{label}</em> : null}
+          {remaining === null ? null : <em>{remaining}D LEFT</em>}
+        </span>
         {pending
-          ? <p><i className="cw-pending cw-pending--line" aria-hidden="true" /></p>
-          : <p>{headline}</p>}
-        {season ? <CatwalkClock season={season} activeSlots={shape.activeSlots} /> : null}
-        <div className="cw-claim-rail">
-          {pending
-            ? <>
-                <span><i className="cw-pending cw-pending--word" aria-hidden="true" /></span>
-                <i className="cw-pending cw-pending--seg" aria-hidden="true" />
-              </>
-            : <>
-                <span>{shape.walkingClaimed} OF {shape.activeSlots} WALK-IN SLOTS CLAIMED</span>
-                {/* Segments, not a percentage: two lit ticks out of twelve reads
-                    as a countable start, where a 17% bar reads as failure. */}
-                <SegBar value={shape.walkingClaimed} total={shape.activeSlots} cells={shape.activeSlots} tone="acid" label="Walk-in slots claimed" />
-              </>}
+          ? <div className="cw-hero-intro cw-hero-intro--pending" aria-busy="true"><h1>Catwalk</h1><i className="cw-pending cw-pending--line" aria-hidden="true" /><span className="sr-only">Reading the board.</span></div>
+          : <div className="cw-hero-intro">
+              <h1>Catwalk</h1>
+              <h2>{empty ? <>The spotlight<br />is yours to take.</> : <>{front[0]?.entry?.team?.symbol ?? 'Meet the front row.'}</>}</h2>
+              <span className="sr-only">{headline}</span>
+              <a className="cw-hero-link" href="#cw-list" onClick={onLadder}>{onLadder ? 'Explore the spot ladder' : 'Explore the board'}<ArrowUpRight size={17} aria-hidden="true" /></a>
+            </div>}
+        {/* THE CLOCK USED TO SHARE THIS ROW. It is in the head of the rail now,
+            on every tab: the hero is the first thing off screen once the tab bar
+            sticks, which is precisely why the one countdown a holder acts on
+            must not live here. The claim rail keeps the row to itself. */}
+        <div className="cw-hero-meta">
+          <div className="cw-claim-rail">
+            {pending
+              ? <>
+                  <span><i className="cw-pending cw-pending--word" aria-hidden="true" /></span>
+                  <i className="cw-pending cw-pending--seg" aria-hidden="true" />
+                </>
+              : <>
+                  <span>{shape.walkingClaimed} OF {shape.activeSlots} ON THE RUNWAY</span>
+                  {/* Segments, not a percentage: two lit ticks out of twelve reads
+                      as a countable start, where a 17% bar reads as failure. */}
+                  <SegBar value={shape.walkingClaimed} total={shape.activeSlots} cells={shape.activeSlots} tone="acid" label="Runway slots claimed" />
+                </>}
+          </div>
         </div>
       </div>
       <div className="cw-hero-front">
-        <span className="cw-hero-ghost" aria-hidden="true">1</span>
-        {front.map((row, index) => (
-          <HeroCard key={index + 1} position={index + 1} row={row} pending={pending} onLadder={onLadder} />
-        ))}
+        {/* Keyed on the COIN, not on the card index. This row of three reorders
+            between polls - a champion settles, a seat is bought - and an index
+            key would have React reuse a champion card's crown, mark and metal
+            for whichever coin landed in that position next. */}
+        {[0, 1, 2].map((index) => {
+          const row = front[index] ?? null
+          return <HeroCard key={frontCardKey(row, index)} rank={index + 1} row={row} pending={pending} />
+        })}
       </div>
     </section>
-  )
-}
-
-/**
- * Emptiness stated as a countable position, before the viewer reaches a single
- * empty row. Every value here comes from a field that exists on the wire today,
- * and every one of them is a LABELLED FIGURE in its own cell rather than a
- * clause strung onto the next one with a middle dot.
- */
-export function CatwalkCounter({ shape, season, ladder, pending = false, now }: {
-  shape: CatwalkBoardShape; season: CatwalkSeason | null; ladder: LadderState; pending?: boolean; now: number
-}) {
-  const remaining = daysLeft(season, now)
-  const priced = ladder === 'open' && shape.floorUsdMicros
-  // Three different reasons for no floor, and the strip says which. "SALE
-  // CLOSED" under an unreadable ladder was the page inventing the reason.
-  const floorNote = priced ? 'CHEAPEST LADDER SEAT' : ladder === 'closed' ? 'SALE CLOSED' : ladder === 'unknown' ? 'PRICE UNAVAILABLE' : 'NOTHING FOR SALE'
-  const label = catwalkSeasonLabel(season)
-  // One skeleton cell, so every count is either read or visibly not yet read.
-  const cell = (head: string, body: ReactNode, note?: ReactNode) => (
-    <div>
-      <small>{head}</small>
-      {pending ? <b><i className="cw-pending cw-pending--num" aria-hidden="true" /></b> : body}
-      {pending ? <small>&nbsp;</small> : note}
-    </div>
-  )
-  return (
-    <div className="cw-counter">
-      {cell('CLAIMED', <b>{shape.claimed} / {shape.lineupSize}</b>)}
-      {cell('WALKING IN', <b>{shape.walkingClaimed} / {shape.activeSlots}</b>)}
-      {cell('OPEN WALK-IN SLOTS', <b className="cw-sport">{Math.max(0, shape.activeSlots - shape.walkingClaimed)}</b>)}
-      {cell('FLOOR', <b className="cw-money">{priced ? usdLabel(shape.floorUsdMicros!) : '—'}</b>, <small>{floorNote}</small>)}
-      {/* The season and the days left are two figures, so they are two cells.
-          One cell reading "SEASON 07 · ENDS IN 4d" strung them on a dot. */}
-      {cell('SEASON', <b>{label ?? '—'}</b>)}
-      {cell('DAYS LEFT', <b>{remaining === null ? '—' : remaining}</b>)}
-    </div>
-  )
-}
-
-function ExplainCells({ shape, miawPrixHref }: { shape: CatwalkBoardShape; miawPrixHref: string }) {
-  return (
-    <div className="cw-explain-cells">
-      <div>
-        <small>A TEAM IS A COIN</small>
-        <p>Its mint is its identity. One coin holds one slot, however many ways it qualifies.</p>
-      </div>
-      <div>
-        <small>THREE WAYS IN</small>
-        {/* The row chips' legend is taught once, here, in the lane colours
-            themselves - and never repeated beside the chips. These three
-            colours are the only colours a row ever wears. */}
-        <p>
-          Buy it (<b data-lane="outbid">OUTBID</b>). Win it (<b data-lane="champion">CHAMPION</b> — top 3 by season wins).
-          Climb it (<b data-lane="ranked">RANKED</b>).
-        </p>
-      </div>
-      <div>
-        <small>{shape.activeSlots} WALK IN, {shape.lineupSize} ON THE BOARD</small>
-        {/* The challenge sentence is dropped, not emptied, when the board has
-            no challenge band: at activeSlots === lineupSize it read "13–12 are
-            qualified and waiting", an inverted range describing nobody. */}
-        <p>
-          Slots {pad(1)}–{pad(shape.activeSlots)} walk every MIAW PRIX rotation.
-          {shape.lineupSize > shape.activeSlots
-            ? ` ${pad(shape.activeSlots + 1)}–${shape.lineupSize} walk them in turn, and take a slot by walking one down — below ${shape.activeSlots} is one rotation away, not a bench.`
-            : ' Every coin on the board walks in.'}
-        </p>
-      </div>
-      <a className="cw-explain-link" href={miawPrixHref}>
-        <small>WHAT IS MIAW PRIX</small>
-        <p>The season this board walks in.</p>
-        <ArrowUpRight size={14} aria-hidden="true" />
-      </a>
-    </div>
-  )
-}
-
-const EXPLAIN_KEY = 'catwalk.explain'
-
-/** Band meaning is never duplicated here: it lives in the band heads, adjacent
- *  to the rows they cover. */
-export function CatwalkExplain({ shape, miawPrixHref }: { shape: CatwalkBoardShape; miawPrixHref: string }) {
-  const narrow = useMediaQuery('(max-width: 470px)')
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    try { setOpen(window.localStorage.getItem(EXPLAIN_KEY) === 'open') } catch { /* private mode */ }
-  }, [])
-  if (!narrow) return <div className="cw-explain">{<ExplainCells shape={shape} miawPrixHref={miawPrixHref} />}</div>
-  return (
-    <details
-      className="cw-explain cw-explain--fold"
-      open={open}
-      onToggle={(event) => {
-        const next = (event.currentTarget as HTMLDetailsElement).open
-        setOpen(next)
-        try { window.localStorage.setItem(EXPLAIN_KEY, next ? 'open' : 'shut') } catch { /* private mode */ }
-      }}
-    >
-      <summary>HOW THE BOARD WORKS</summary>
-      <ExplainCells shape={shape} miawPrixHref={miawPrixHref} />
-    </details>
   )
 }

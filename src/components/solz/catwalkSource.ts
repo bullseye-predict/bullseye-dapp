@@ -1,4 +1,5 @@
 import { explorerClusterParam } from '../../../packages/adapters/solana/cluster'
+import { parseMiawPrixBoard } from '../miawprix/miawPrixSource'
 import type { ExplorerVenue } from '../../../packages/adapters/explorer'
 import type { CatwalkLane, CatwalkLineupEntry, CatwalkSpot, SolzTeam } from './model'
 
@@ -25,30 +26,10 @@ export type CatwalkLineupRow = CatwalkLineupEntry & {
   /** What the holder paid for its seat, from its own bid. Null when unpaid. */
   paidUsdMicros: number | null
   /**
-   * True when an operator placed this holder by hand rather than anybody paying.
-   *
-   * CARRIED, BUT DELIBERATELY NOT RENDERED ON THE PUBLIC BOARD. A seeded row
-   * still has no signature, no wallet and no transfer behind it - that is why
-   * the backend `seeded` column, the migration CHECKs that stop a seeded row
-   * carrying a signature or a paid_at, and the seed script's production
-   * refusals all stay exactly as they are, and why the admin panel at :3101
-   * still labels these rows "seeded — not a payment" so an operator can see
-   * which seats still want a real signature.
-   *
-   * The owner's launch call is that the public board is the initial teams and
-   * shows them as ordinary held seats - same PAID label, same amount, same
-   * accessible name - with a real outbid taking a seat over when one arrives.
-   * So the flag is parsed and threaded through to `CatwalkRow` for the operator
-   * surface and for the day the distinction is wanted back on the board; no
-   * public renderer branches on it. See `Metric` in
-   * src/components/catwalk/CatwalkSlotRow.tsx.
-   */
-  seeded: boolean
-  /**
    * Market cap in whole US dollars, or NULL when nobody published one.
    *
    * Null is the whole point. DexScreener answers for a mint only when it has a
-   * pair with liquidity, so a coin that has just been seeded, or one whose pair
+   * pair with liquidity, so a coin that has only just launched, or one whose pair
    * the read could not reach, has NO market cap - and a zero there would say
    * the coin is worthless, which is a far larger claim than "unknown". Every
    * renderer must print an em dash for null and never a 0.
@@ -60,16 +41,120 @@ export type CatwalkLineupRow = CatwalkLineupEntry & {
   marketCapUsd: number | null
 }
 
+/**
+ * HOW MANY SEATS EACH LANE IS GUARANTEED, PER BAND.
+ *
+ * The server publishes the EFFECTIVE, already-clamped plan its lineup builder
+ * honours - not the raw settings - so a panel quoting these figures can never
+ * state a guarantee the board does not keep. Beyond its guarantee a lane may
+ * still take spots another lane cannot fill, and it hands them straight back on
+ * the next read; that spill is not a guarantee and is deliberately not carried.
+ */
+export type CatwalkSeatPlan = {
+  runway: Record<CatwalkLane, number>
+  lineup: Record<CatwalkLane, number>
+}
+
 export type CatwalkBoard = {
   gameKey: string
   activeSlots: number
   lineupSize: number
+  /**
+   * How long before a walk its board stops moving, or NULL when the wire did
+   * not carry it.
+   *
+   * Null is the honest degradation and the reason this is nullable at all: the
+   * page used to HARDCODE twelve hours, so an operator who moved `lockLeadMs`
+   * got a countdown to the wrong instant under copy stating the wrong rule. A
+   * server that has not shipped the field yet is not a server with no lock -
+   * the caller falls back to the shared constant and, crucially, stops claiming
+   * a specific number of hours in words.
+   */
+  lockLeadMs: number | null
   season: CatwalkSeason | null
   lineup: CatwalkLineupRow[]
+  /**
+   * The guaranteed seat plan, or NULL when the wire did not carry a whole,
+   * readable one.
+   *
+   * Null is the only honest degradation. A server that has not shipped the field
+   * yet is not a board that guarantees nothing, and a partial plan is not a plan
+   * - so anything short of every lane of both bands arriving as a finite
+   * non-negative integer collapses the WHOLE field to null, and the renderer
+   * omits the guarantee rather than printing a figure it remembered.
+   */
+  seats: CatwalkSeatPlan | null
+  /**
+   * What the SOLZ ranked registry read did, or null when the wire said nothing.
+   *
+   * It has always been on the payload and was always dropped here, which left
+   * the ranked lane unable to tell "the registry has not been read" from "the
+   * registry lists nobody" - two facts one sentence away from each other and a
+   * whole lie apart, exactly as `LadderState` and `StandingsState` keep theirs.
+   */
+  rankedLane: CatwalkRankedLaneRead | null
+  /**
+   * WHEN A SEAT WAS LAST PAID FOR, in epoch milliseconds, or null.
+   *
+   * An AGGREGATE - `MAX(paid_at)` over the active bids of this season - and
+   * deliberately nothing finer. A per-row `paidAt` would put a purchase time
+   * beside a coin on an unauthenticated endpoint, which is the boundary
+   * /api/v1/catwalk states it keeps; one board-wide instant carries no wallet
+   * and identifies nobody.
+   *
+   * Null is the only honest absence. It covers a server that does not publish
+   * the field, a board where nothing has been paid for, and a timestamp that
+   * did not parse - and the renderer prints an em dash for all three rather
+   * than an epoch zero, which would date the last sale to 1970.
+   */
+  lastSeatPaidAt: number | null
   /** The chain the board's mints live on, when the wire names one. It is what
    *  an explorer link is built from, so a board that names no chain gets no
    *  link rather than a link pointing at the wrong one. */
   explorer: ExplorerVenue | null
+}
+
+/**
+ * ONE COIN ON THE SOLZ RANKED LADDER, as the chain answered for it.
+ *
+ * THE THREE FIGURES ARE DECIMAL STRINGS AND THEY STAY STRINGS. `matches` and
+ * `playerEntries` are u64 on chain and `poolBaseUnits` is a u128 that
+ * accumulates a stake total per finalized match - past Number.MAX_SAFE_INTEGER
+ * a coercion does not throw, it ROUNDS, and the column then shows a wrong
+ * figure that looks entirely plausible. Nothing in this repo may call Number()
+ * on them; the one renderer that scales the pool does it with BigInt.
+ *
+ * Each is null when the wire did not carry a readable one, and null renders as
+ * an em dash. NEVER a zero: a coin with no finalized matches and a coin whose
+ * figure did not parse are two different statements about that coin's record.
+ *
+ * `poolDecimals` is THIS PROJECT'S OWN stake-token scale, which is why it
+ * travels on the row rather than in a constant. The pool figure is denominated
+ * in each coin's own stake token: it is not dollars, it is not comparable down
+ * the column, and it does not add up.
+ */
+export type CatwalkRankedProjectRow = {
+  mint: string
+  symbol: string
+  name: string
+  logoUrl: string | null
+  matches: string | null
+  playerEntries: string | null
+  poolBaseUnits: string | null
+  poolDecimals: number | null
+}
+
+export type CatwalkRankedLaneRead = {
+  state: string
+  candidates: number
+  /** The ladder itself, in the order the chain decided. The page NEVER re-sorts
+   *  it: the order is finalized matches DESC with a stable tie-break, settled
+   *  once upstream, and a second sort here would be a second opinion. */
+  projects: CatwalkRankedProjectRow[]
+  /** How many tokens the identity registry names, or null when unreadable. It
+   *  is NOT `candidates`, which counts the chain's non-native project records. */
+  registryTokens: number | null
+  registryUpdatedAt: string | null
 }
 
 export type GrandPrixStanding = {
@@ -251,6 +336,138 @@ export function parseCatwalkTeam(value: unknown): SolzTeam | null {
   }
 }
 
+/**
+ * An epoch-millisecond instant, or null.
+ *
+ * ZERO IS NOT AN INSTANT. `count` would turn a missing field into 0 and a
+ * renderer would date the last sale to 1 January 1970 - a stated fact about the
+ * board built out of nobody having answered. A float, a string, a negative and
+ * a NaN are all refused for the same reason: none of them is a timestamp this
+ * page can put an age against.
+ */
+const timestamp = (value: unknown): number | null =>
+  Number.isSafeInteger(value) && (value as number) > 0 ? (value as number) : null
+
+/** A whole number of seats, or null. NOT `count`: `count` turns a missing field,
+ *  a string and a float alike into 0, and a 0 here is a stated guarantee of
+ *  nothing rather than the absence of one. */
+const seatCount = (value: unknown): number | null =>
+  Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : null
+
+/** One band's three lanes, or null the moment any one of them is unreadable. */
+function parseLaneSeats(value: unknown): Record<CatwalkLane, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, any>
+  const plan = {} as Record<CatwalkLane, number>
+  for (const lane of LANES) {
+    const seats = seatCount(raw[lane])
+    if (seats === null) return null
+    plan[lane] = seats
+  }
+  return plan
+}
+
+/**
+ * The seat plan, read all-or-nothing.
+ *
+ * A HALF-READ PLAN IS NOT A PLAN. If the runway parsed and the line-up did not,
+ * a renderer holding the half would print "GUARANTEED 4" beside a band it knows
+ * nothing about - which reads as a guarantee of none. Absent, malformed, or
+ * carrying one unreadable lane all give the same answer: nobody has told us,
+ * so nothing is said.
+ */
+export function parseCatwalkSeatPlan(value: unknown): CatwalkSeatPlan | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, any>
+  const runway = parseLaneSeats(raw.runway)
+  const lineup = parseLaneSeats(raw.lineup)
+  if (!runway || !lineup) return null
+  return { runway, lineup }
+}
+
+/**
+ * A u64/u128 figure as it crosses JSON: a string of digits, or null.
+ *
+ * DELIBERATELY NOT A NUMBER AND DELIBERATELY NOT `count`. These figures are
+ * chain counters - one of them a u128 - and `Number(...)` on a value past
+ * MAX_SAFE_INTEGER rounds silently rather than failing, so the column would
+ * print a plausible wrong total. The digits are carried verbatim and scaled
+ * with BigInt at the one place a scale is needed.
+ *
+ * A number on the wire is refused rather than stringified: a server that sent
+ * one has already lost the precision this type exists to keep, and accepting it
+ * would hide that.
+ */
+const wireDigits = (value: unknown): string | null =>
+  typeof value === 'string' && /^\d+$/.test(value) ? value : null
+
+/** A token's own decimal scale, 0..255. Null when unreadable - and a null here
+ *  nulls the whole pool cell, because base units nobody can scale are not a
+ *  figure, they are a number of the wrong size. */
+const tokenDecimals = (value: unknown): number | null =>
+  Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= 255 ? (value as number) : null
+
+/** A mint the identity file does not name is SHOWN by its address, head and
+ *  tail. The lane has to be legible rather than curated: a coin that has
+ *  finalized ranked matches is on the ladder whether or not a registry file has
+ *  caught up with its ticker. */
+const shortMint = (mint: string) => (mint.length > 9 ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : mint)
+
+/**
+ * ONE LADDER ROW, or nothing at all.
+ *
+ * A row with NO MINT is dropped entirely - the mint is the join key and the
+ * identity of the thing, exactly as a lineup entry with no mint is dropped
+ * above. Every FIGURE, by contrast, is independent: an unreadable `matches`
+ * nulls that cell and keeps the row, because the coin is still on the ladder
+ * and the rest of what the chain said about it is still true.
+ */
+function parseRankedProject(value: unknown): CatwalkRankedProjectRow[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  const raw = value as Record<string, any>
+  const mint = text(raw.mint)
+  if (!mint) return []
+  return [{
+    mint,
+    symbol: text(raw.symbol) || shortMint(mint),
+    name: text(raw.name) || mint,
+    logoUrl: text(raw.logoUrl) || null,
+    matches: wireDigits(raw.matches),
+    playerEntries: wireDigits(raw.playerEntries),
+    poolBaseUnits: wireDigits(raw.poolBaseUnits),
+    poolDecimals: tokenDecimals(raw.poolDecimals),
+  }]
+}
+
+/**
+ * The ranked registry read, or null when the wire carried no usable one.
+ *
+ * THE HEAD IS STILL ALL-OR-NOTHING. A state with no candidate count is not a
+ * read this page can reason about, so those two are required together or the
+ * WHOLE read is null - unchanged, and the thing tests/catwalkSource.test.ts
+ * exists to hold.
+ *
+ * EVERYTHING ADDED BELOW IT DEGRADES ON ITS OWN. A server that has not shipped
+ * `projects` yet is not a ladder with nobody on it: the list comes back empty
+ * and the renderer draws no list, because the list is gated on `state` and
+ * never on `projects.length`. Same for the registry depth - each half of that
+ * sentence is omitted when its own field is unreadable rather than guessed.
+ */
+export function parseCatwalkRankedLane(value: unknown): CatwalkRankedLaneRead | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, any>
+  const state = text(raw.state)
+  const candidates = seatCount(raw.candidates)
+  if (!state || candidates === null) return null
+  return {
+    state,
+    candidates,
+    projects: Array.isArray(raw.projects) ? raw.projects.flatMap(parseRankedProject) : [],
+    registryTokens: seatCount(raw.registryTokens),
+    registryUpdatedAt: text(raw.registryUpdatedAt) || null,
+  }
+}
+
 export function parseCatwalkBoard(value: unknown): CatwalkBoard {
   const data = object(value)
   if (data.ok !== true || !Array.isArray(data.lineup)) throw Error('The CATWALK board is unavailable.')
@@ -259,19 +476,26 @@ export function parseCatwalkBoard(value: unknown): CatwalkBoard {
     gameKey: text(data.gameKey, 'solz'),
     activeSlots: count(data.activeSlots),
     lineupSize: count(data.lineupSize),
+    // A lead of zero is not a lead, and a lead that is not a positive finite
+    // number is not one either. Both collapse to null so a renderer falls back
+    // rather than counting to now.
+    lockLeadMs: Number.isFinite(data.lockLeadMs) && Number(data.lockLeadMs) > 0 ? Number(data.lockLeadMs) : null,
     season: season ? parseCatwalkSeason(season) : null,
     lineup: data.lineup.flatMap((raw: unknown): CatwalkLineupRow[] => {
       const entry = object(raw)
       const mint = text(entry.mint)
       const lane = LANES.includes(entry.lane) ? (entry.lane as CatwalkLane) : 'ranked'
       if (!mint) return []
-      const bid = entry.bid ? object(entry.bid) : null
+      // A holder is a price and nothing else. `/api/v1/catwalk` no longer
+      // publishes `seeded`, `wallet` or `paidAt`, and none of them is read
+      // here: a buyer's wallet does not belong on an unauthenticated endpoint,
+      // and the board draws no placeholder-versus-payment distinction. A bid
+      // that is missing, or that is not a record at all, is simply no price -
+      // it must not take the board down while the two repos land.
+      const bid = entry.bid && typeof entry.bid === 'object' && !Array.isArray(entry.bid)
+        ? (entry.bid as Record<string, any>)
+        : null
       const paid = bid ? count(bid.usdMicros) : 0
-      // Parsed and carried for the operator surface, not for the public board -
-      // see the field's doc comment on CatwalkLineupRow. Dropping it here would
-      // erase the one signal that tells an operator which seats are still the
-      // launch placeholders rather than real, signed purchases.
-      const seeded = bid?.seeded === true
       const team = entry.team && typeof entry.team === 'object' ? (entry.team as Record<string, any>) : null
       return [{
         spot: count(entry.spot),
@@ -280,13 +504,15 @@ export function parseCatwalkBoard(value: unknown): CatwalkBoard {
         active: entry.active === true,
         team: entry.team ? parseCatwalkTeam(entry.team) : null,
         paidUsdMicros: paid > 0 ? paid : null,
-        seeded,
         // Read from the team record first and the entry second, so whichever
         // side upstream lands the field on is picked up without a second pass
         // here - and absent from both is unknown, never zero.
         marketCapUsd: parseMarketCapUsd(team, entry),
       }]
     }),
+    seats: parseCatwalkSeatPlan(data.seats),
+    rankedLane: parseCatwalkRankedLane(data.rankedLane),
+    lastSeatPaidAt: timestamp(data.lastSeatPaidAt),
     explorer: parseExplorerVenue(data.explorer),
   }
 }
@@ -302,6 +528,8 @@ export function parseCatwalkBoard(value: unknown): CatwalkBoard {
  * that happens to share its number.
  */
 export type CatwalkLadderRead = {
+  configuredSeats?: number
+  closedReason?: string
   available: boolean
   seasonId: string
   outbidSpots: number
@@ -311,7 +539,7 @@ export type CatwalkLadderRead = {
 export function parseCatwalkSpots(value: unknown): CatwalkLadderRead {
   const data = object(value)
   if (data.ok !== true) throw Error('Spot pricing is unavailable.')
-  if (data.available !== true) return { available: false, seasonId: '', outbidSpots: 0, spots: [] }
+  if (data.available !== true) return { available: false, seasonId: '', outbidSpots: 0, spots: [], configuredSeats: count(data.configuredSeats), closedReason: text(data.closedReason) }
   const spots = (Array.isArray(data.spots) ? data.spots : []).map((raw: unknown): CatwalkSpot => {
     const spot = object(raw)
     // The ladder has always carried who is holding a spot and what they paid;
@@ -382,9 +610,85 @@ export function usdLabel(usdMicros: number) {
   return `$${(usdMicros / 1_000_000).toLocaleString('en', { maximumFractionDigits: 2 })}`
 }
 
+/**
+ * ONE RECORDED WALK'S HEADER - enough to name it in a picker, and no board.
+ *
+ * `lineupSize` is the SNAPSHOT'S own length, not today's board size: an admin
+ * who has since widened the board must not make a past twelve-coin walk read as
+ * a short thirty-six.
+ */
+export type CatwalkCycleHeader = {
+  cycleIndex: number
+  seasonId: string
+  matchCount: number
+  lineupSize: number
+  startsAt: number
+  endsAt: number
+  lockedAt: number
+}
+
+/** One recorded walk, as the board actually stood when it locked. */
+export type CatwalkCycle = CatwalkCycleHeader & {
+  activeSlots: number
+  lineup: CatwalkLineupRow[]
+}
+
+const cycleHeader = (raw: Record<string, any>): CatwalkCycleHeader => ({
+  cycleIndex: count(raw.cycleIndex),
+  seasonId: text(raw.seasonId),
+  matchCount: count(raw.matchCount),
+  lineupSize: count(raw.lineupSize),
+  startsAt: Number(raw.startsAt) || 0,
+  endsAt: Number(raw.endsAt) || 0,
+  lockedAt: Number(raw.lockedAt) || 0,
+})
+
+export function parseCatwalkCycles(value: unknown): CatwalkCycleHeader[] {
+  const data = object(value)
+  if (data.ok !== true || !Array.isArray(data.cycles)) throw Error('Recorded walks are unavailable.')
+  // Newest first is the server's order and it is kept, because a picker's first
+  // option should be the most recent walk rather than the season's opener.
+  return data.cycles.map((raw: unknown) => cycleHeader(object(raw)))
+}
+
+/**
+ * ONE RECORDED BOARD.
+ *
+ * `paidUsdMicros` is NULL on every row and that is deliberate, not an omission:
+ * the snapshot recorded who stood where, never what anybody paid, and a price
+ * read off today's ladder would attach a live figure to a board that locked
+ * weeks ago. Market cap is null for the same reason - it is today's figure, and
+ * this is not today's board.
+ */
+export function parseCatwalkCycle(value: unknown): CatwalkCycle {
+  const data = object(value)
+  if (data.ok !== true || !data.cycle) throw Error('That walk is unavailable.')
+  const cycle = object(data.cycle)
+  const lineup = Array.isArray(cycle.lineup) ? cycle.lineup : []
+  return {
+    ...cycleHeader(cycle),
+    activeSlots: count(cycle.activeSlots),
+    lineup: lineup.flatMap((raw: unknown): CatwalkLineupRow[] => {
+      const entry = object(raw)
+      const mint = text(entry.mint)
+      if (!mint) return []
+      return [{
+        spot: count(entry.spot),
+        mint,
+        lane: LANES.includes(entry.lane) ? (entry.lane as CatwalkLane) : 'ranked',
+        active: entry.active === true,
+        team: entry.team ? parseCatwalkTeam(entry.team) : null,
+        paidUsdMicros: null,
+        marketCapUsd: null,
+      }]
+    }),
+  }
+}
+
 export function catwalkSource(endpoint: string, fetcher: typeof fetch = fetch) {
-  const read = async (kind: string, signal?: AbortSignal) => {
-    const response = await fetcher(`${endpoint}?kind=${encodeURIComponent(kind)}`, {
+  const read = async (kind: string, signal?: AbortSignal, params?: Record<string, string>) => {
+    const query = new URLSearchParams({ kind, ...(params ?? {}) })
+    const response = await fetcher(`${endpoint}?${query}`, {
       signal,
       headers: { accept: 'application/json' },
     })
@@ -399,5 +703,26 @@ export function catwalkSource(endpoint: string, fetcher: typeof fetch = fetch) {
     board: async (signal?: AbortSignal) => parseCatwalkBoard(await read('catwalk', signal)),
     standings: async (signal?: AbortSignal) => parseGrandPrixStandings(await read('standings', signal)),
     spots: async (signal?: AbortSignal) => parseCatwalkSpots(await read('catwalkSpots', signal)),
+    /**
+     * THE MIAW PRIX PROGRAMME, read for one fact: when this board next locks.
+     *
+     * The board carries no lock and no rotation cadence (see
+     * src/components/catwalk/catwalkLock.ts), so the only way to state one is
+     * to read the schedule the lock is derived from. This is transport only -
+     * `parseMiawPrixBoard` still owns that wire shape, exactly as it does for
+     * /miaw-prix, so the two pages can never disagree about what arrived.
+     */
+    schedule: async (signal?: AbortSignal) => parseMiawPrixBoard(await read('miawPrix', signal)),
+    /**
+     * THE WALKS ALREADY RECORDED - the index, then one board.
+     *
+     * Two calls rather than one payload carrying every snapshot: the index is
+     * what a picker needs to draw itself, and shipping thirty-six coins per
+     * recorded walk to fill a dropdown would make the page slower the longer
+     * the season ran.
+     */
+    cycles: async (signal?: AbortSignal) => parseCatwalkCycles(await read('catwalkCycles', signal)),
+    cycle: async (cycleIndex: number, signal?: AbortSignal) =>
+      parseCatwalkCycle(await read('catwalkCycles', signal, { cycle: String(cycleIndex) })),
   }
 }
