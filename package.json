@@ -49,6 +49,7 @@
     "bn.js": "5.2.5",
     "buffer": "6.0.3",
     "colyseus.js": "^0.16.22",
+    "fast-average-color": "^9.6.0",
     "lucide-react": "1.39.0",
     "process": "0.11.10",
     "react": "^19.2.8",

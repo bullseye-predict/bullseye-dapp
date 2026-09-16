@@ -66,6 +66,7 @@ import { PRICE_PLACEHOLDER } from "./venue/quoteLabels";
 import { clearBookPick, getBookPick, useBookPick } from "./venue/bookPick";
 import { setTradeSide, useTradeSide } from "./venue/tradeSide";
 import { pickColor, pickInk } from "../markets/moneyline";
+import { useLogoPalette } from "../markets/logoIdentity";
 
 /** The countdown badge appears only inside the last five minutes. */
 const COUNTDOWN_VISIBLE_MS = 5 * 60_000;
@@ -330,6 +331,8 @@ export function TradeTicket({
     ? Math.max(...solanaHoldings.outcomes.map(entry => entry.bps!))
     : takerBps((solanaReview ?? solanaPreview.quote)?.route === "complete-set"
       ? solanaHoldings.outcomes?.[outcomeIndex === 1 ? 0 : 1] : selectedHoldings);
+  // A head-to-head side is coloured from its crest, which is read asynchronously.
+  useLogoPalette();
   const linkedAnswer = market.presentation?.kind === "linked" ? market.presentation.answer : undefined;
   // The header names the ANSWER, so it takes the answer's identity. The Yes/No
   // contract underneath has no colour of its own — reading it gave every answer

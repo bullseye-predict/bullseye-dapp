@@ -14,6 +14,7 @@ import { MatchAvatar } from '../portfolio/matchIdentity'
 import { OutcomeRow, type RowPick } from '../markets/OutcomeRow'
 import { outcomeMovement } from '../markets/marketMovement'
 import { marketLineTitle, pickColor } from '../markets/moneyline'
+import { useLogoPalette } from '../markets/logoIdentity'
 
 type Props = {
   markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot
@@ -38,6 +39,8 @@ export function PredictionOptions(props: Props) {
 }
 function PredictionTopic({ item, market, outcome, snapshot, answer = 'yes', onSelect, simulation, referenceMarkets, collateral: symbol, open, onOpen }: Props & { item: ArenaMarket; open: boolean; onOpen: () => void }) {
   const collateral = simulation ? 'COOLA' : symbol ?? 'collateral'
+  // A head-to-head pick is coloured from its crest, which is read asynchronously.
+  useLogoPalette()
   const active = item.id === market.id
   const side = useTradeSide()
   // One answer open at a time, for the same reason as the topics above.

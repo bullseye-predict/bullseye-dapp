@@ -17,6 +17,7 @@ import { catalogueQuestions, type CatalogueItem } from './marketList'
 import { useMarketCatalogue } from './useMarketCatalogue'
 import { eventTimingLabel } from '../events/eventTiming'
 import { teamIdentityColor } from './moneyline'
+import { useLogoPalette } from './logoIdentity'
 
 type Props = { apiUrl?: string }
 
@@ -151,7 +152,10 @@ function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: numbe
 }
 
 function VersusPick({ team, probability, indicative, href }: { team: SolzMatch['teams'][number]; probability: number; indicative: boolean; href: string }) {
-  const color = teamIdentityColor(team.symbol)
+  // The crest beside the fill is what the fill is coloured from; it is read
+  // asynchronously, so this card re-renders when its hue lands.
+  useLogoPalette()
+  const color = teamIdentityColor(team.symbol, team.logoUrl)
   return <div className="mk-versus-pick" style={{ '--mk-identity': color } as CSSProperties}>
     <div className="mk-versus-identity">
       <TeamMark id={team.teamId} color={color} logoUrl={team.logoUrl}/>

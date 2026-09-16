@@ -13,6 +13,7 @@ import { baseOutcomeId } from '../solz/predictionContracts'
 import { OutcomeColumns, OutcomeRow, type RowPick } from '../markets/OutcomeRow'
 import { outcomeMovement } from '../markets/marketMovement'
 import { marketLineTitle, pickColor } from '../markets/moneyline'
+import { useLogoPalette } from '../markets/logoIdentity'
 
 type Props = { actions?: ReactNode; markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, openTrade?: boolean) => void; prediction?: ArenaMarket; predictionHref: (market: ArenaMarket) => string; simulation?: boolean; collateral?: string }
 
@@ -27,6 +28,8 @@ function MarketDetail({ market, selected, snapshot, onSelect, simulation, collat
 }
 
 export function EventMarkets({ actions, markets, market, outcome, snapshot, onSelect, prediction, predictionHref, simulation = true, collateral = 'COOLA' }: Props) {
+  // A head-to-head pick is coloured from its crest, which is read asynchronously.
+  useLogoPalette()
   const linked = !prediction && markets.length > 1 && markets.every((item) => item.presentation?.kind === 'linked')
   const headToHead = !prediction && markets.some((item) => item.presentation?.kind === 'head-to-head')
   // One row open at a time. Opening a second used to leave both books polling

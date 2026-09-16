@@ -1,5 +1,6 @@
 import type { ArenaMarket, ArenaMarketOutcome, SolzSnapshot } from '../solz/model'
 import { outcomeColor } from '../home/heroMarket'
+import { logoHue } from './logoIdentity'
 
 /** A moneyline is a two-sided TEAM market: its outcomes are the teams
  *  themselves, so "Yes" and "No" are not what the trader is choosing between.
@@ -17,17 +18,26 @@ export const isMoneyline = (market: ArenaMarket) =>
  * canonical displayed team name gives the same vivid, readable hex everywhere
  * without waiting for an image download or depending on its CORS policy.
  *
+ * WHEN THE CREST HAS BEEN READ, ITS HUE WINS. The hash's hue is arbitrary - an
+ * orange cat drew a blue-violet button - so a sampled crest replaces it while
+ * the hash keeps deciding saturation and lightness. That band (58-68% / 44-51%)
+ * is what makes every control on the board one weight and keeps `pickInk` able
+ * to find a readable ink, which a raw sampled colour cannot promise. Sampling is
+ * asynchronous, so the hash hue is also the answer on first paint and for any
+ * crest that is missing, greyscale, or on a host this site will not proxy: see
+ * src/components/markets/logoIdentity.ts.
+ *
  * This is intentionally for team-versus-team markets only. Yes/No contracts
  * remain semantic green/red rather than acquiring a decorative identity.
  */
-export function teamIdentityColor(name: string) {
+export function teamIdentityColor(name: string, logoUrl?: string) {
   const input = name.trim().toLocaleUpperCase() || 'TEAM'
   let hash = 2_166_136_261
   for (const character of input) {
     hash ^= character.codePointAt(0) ?? 0
     hash = Math.imul(hash, 16_777_619)
   }
-  const hue = (hash >>> 0) % 360
+  const hue = logoHue(logoUrl) ?? (hash >>> 0) % 360
   const saturation = 58 + ((hash >>> 9) % 11)
   const lightness = 44 + ((hash >>> 17) % 7)
   const chroma = (1 - Math.abs(2 * lightness / 100 - 1)) * saturation / 100
@@ -66,8 +76,23 @@ export function chartShape(market: ArenaMarket, { nested = false }: { nested?: b
  *  green/red trading semantics apply. One rule, called from every list and from
  *  the trade ticket, so the three surfaces cannot disagree about a market. */
 export function pickColor(market: ArenaMarket, outcome: ArenaMarketOutcome, snapshot: SolzSnapshot, index: number) {
+  // Kept in the signature so every existing surface can call this one policy
+  // function. Head-to-head identity is intentionally independent of the current
+  // snapshot; `index` is only a positional fallback for finding this side's
+  // crest, never an input to the colour itself.
+  void snapshot
   if (!isMoneyline(market)) return undefined
-  return teamIdentityColor(outcome.label)
+  return teamIdentityColor(outcome.label, outcomeLogo(market, outcome, index))
+}
+
+/** This side's crest, as the presentation published it. Matched by label first
+ *  because that is what the colour is keyed on everywhere else, and by position
+ *  only when a label has been renamed under us - `useQuestionIdentity` rewrites
+ *  a bare ticker to the registry's symbol, so the two can briefly disagree. */
+function outcomeLogo(market: ArenaMarket, outcome: ArenaMarketOutcome, index: number) {
+  const sides = market.presentation?.kind === 'head-to-head' ? market.presentation.outcomes : undefined
+  if (!sides) return undefined
+  return (sides.find((side) => side.label === outcome.label) ?? sides[index])?.imageUrl
 }
 
 /** The display name for a market line. Head-to-head questions are written as a
