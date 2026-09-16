@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { MarketCard, type DirectoryRow } from '../src/components/markets/MarketsDirectoryApp'
+import { MarketCard, sortMarketRows, type DirectoryRow } from '../src/components/markets/MarketsDirectoryApp'
 import { reservedSolanaView, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 import type { ArenaMarket, SolzMatch } from '../src/components/solz/model'
+import { eventTimingLabel } from '../src/components/events/eventTiming'
 
 const team = (symbol: string, color: string) => ({ teamId: `team-${symbol}`, symbol, name: symbol, glyph: symbol, color, score: 0, agentIds: ['a1'] })
 const baseMatch = (teams: SolzMatch['teams']): SolzMatch => ({
@@ -91,4 +92,42 @@ test('unpriced head-to-head cards do not draw fabricated split odds', () => {
   const html = renderToStaticMarkup(<MarketCard row={row} now={0}/>)
   expect(html).not.toContain('50%')
   expect(html).not.toContain('mk-split')
+})
+
+test('event timing always carries the number or an explicit terminal state', () => {
+  const match = baseMatch([team('A', '#111'), team('B', '#222')])
+  expect(eventTimingLabel({ ...match, phase: 'countdown', startedAt: 125_000 }, 0)).toBe('STARTS IN 02:05')
+  expect(eventTimingLabel({ ...match, phase: 'live', endsAt: 65_000, timingType: 'countdown' }, 5_000)).toBe('LIVE · 01:00 LEFT')
+  expect(eventTimingLabel({ ...match, phase: 'live', endsAt: 2 * 86_400_000 + 3 * 3_600_000, timingType: 'countdown' }, 0)).toBe('LIVE · 2D 3H LEFT')
+  expect(eventTimingLabel({ ...match, phase: 'settled', round: 'RESULT PENDING', endsAt: 65_000 }, 70_000)).toBe('FINISHED · RESULT PENDING')
+  expect(eventTimingLabel({ ...match, phase: 'settled', round: 'CANCELLED' }, 70_000)).toBe('CANCELLED')
+  expect(eventTimingLabel({ ...match, phase: 'countdown', startedAt: 1_000, endsAt: 2_000, timingType: 'countdown' }, 3_000)).toBe('FINISHED · RESULT PENDING')
+})
+
+test('a finished off-chain card cannot still claim it opens on first trade', () => {
+  const match = { ...baseMatch([team('A', '#111'), team('B', '#222')]), phase: 'countdown' as const, startedAt: 1_000, endsAt: 2_000, timingType: 'countdown' as const }
+  const html = renderToStaticMarkup(<MarketCard row={{ match, opened: false, collateral: 'fUSDC' }} now={3_000}/>)
+  expect(html).toContain('FINISHED · RESULT PENDING')
+  expect(html).toContain('OFF-CHAIN · NEVER OPENED')
+  expect(html).not.toContain('OPENS ON FIRST TRADE')
+})
+
+test('Genesis FFA cards show the numbered event, event type and agent portraits', () => {
+  const match = { ...baseMatch([]), id: 'genesis-event', phase: 'countdown' as const, startedAt: 60_000, endsAt: 1_260_000 }
+  const linked = (number: number): ArenaMarket => ({
+    ...market([.5, .5], [team('YES', '#0f0'), team('NO', '#f00')]), id: `market-${number}`,
+    presentation: { kind: 'linked', eventTitle: 'Who will win Genesis Match #351?', answer: { label: `AGENT-${number}`, participantId: `genesis-${String(number).padStart(2, '0')}` }, outcomes: [{ id: 0, label: 'Yes' }, { id: 1, label: 'No' }] },
+  })
+  const html = renderToStaticMarkup(<MarketCard row={{ match, title: 'Who will win Genesis Match #351?', eventType: 'genesis-ffa', matchNumber: 351, markets: [linked(1), linked(2)] }} now={0}/>)
+  expect(html).toContain('GENESIS AGENT FFA')
+  expect(html).toContain('MATCH #351')
+  expect(html).toContain('Who will win Genesis Match #351?')
+  expect(html).toContain('mk-agent-portrait')
+})
+
+test('live human matches sort ahead of live automated matches and general markets', () => {
+  const row = (id: string, eventType: DirectoryRow['eventType'], hasHumans = false): DirectoryRow => ({
+    match: { ...baseMatch([team('A', '#111'), team('B', '#222')]), id }, eventType, hasHumans,
+  })
+  expect(sortMarketRows([row('general', 'general'), row('bot', 'miaw-prix'), row('human', 'match', true)]).map(item => item.match.id)).toEqual(['human', 'bot', 'general'])
 })

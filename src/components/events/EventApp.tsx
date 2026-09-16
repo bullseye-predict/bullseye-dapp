@@ -8,7 +8,7 @@ import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { OverlayLayer } from '../home/alerts/OverlayLayer'
 import { useHomeData } from '../home/useHomeData'
-import { resolveQuestionEvent, useReservedSolanaQuestions, type ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
+import { reservedSolanaView, resolveQuestionEvent, useQuestionIdentity, useReservedSolanaQuestions, type ReservedSolanaQuestion, type ReservedSolanaView } from '../home/solanaQuestionMarkets'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { useSolanaMarketPrices } from '../home/useSolanaMarketPrices'
@@ -23,33 +23,97 @@ import { EventAgentRail, EventMarketRail } from './EventRails'
 import { eventAnswerMarket, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
 import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predictionContracts'
 import { matchLabel } from '../home/heroMarket'
+import { isMiawPrixMatchId } from '../miawprix/MiawPrixEventApp'
+import { miawPrixSource, type MiawPrixMatch } from '../miawprix/miawPrixSource'
+import { miawPrixEventView } from '../miawprix/miawPrixEventView'
+import { useTokenMeta } from '../solz/tokenMeta'
+import { resolvedTokenLogo } from '../solz/tokenIcon'
+import { catalogueQuestions } from '../markets/marketList'
+import { useMarketCatalogue } from '../markets/useMarketCatalogue'
+import { eventTimingLabel } from './eventTiming'
 
 type Props = { apiUrl?: string; eventId: string; predictionId?: string; initialOutcomeId?: string; variant: EventVariant; paths: EventPaths }
 
 export function EventApp(props: Props) {
+  return <ArenaEventApp {...props} />
+}
+
+function ArenaEventApp(props: Props) {
   // The page ships a server-rendered skeleton because this island is
   // client:only. Drop it synchronously as this tree takes over, so the two
   // never paint in the same frame.
   useLayoutEffect(() => { document.getElementById('boot-skeleton')?.remove() }, [])
   const source = useMemo(() => createSolzDataSource(), [])
-  const { snapshot, error, retry } = useHomeData(source)
+  const { snapshot, referenceSnapshot, error, retry } = useHomeData(source)
   // A canonical Solana question is not an arena match, so it is absent from the
   // arena snapshot. Load the question catalogue alongside it so /events/<id>
   // can open a standalone question exactly like a match-backed market.
-  const solanaVenue = useSolanaVenue(props.apiUrl ?? '')
-  const reserved = useReservedSolanaQuestions(props.apiUrl ?? '', solanaVenue)
+  const predictionApiUrl = props.apiUrl?.trim() || '/api/prediction'
+  const solanaVenue = useSolanaVenue(predictionApiUrl)
+  const reserved = useReservedSolanaQuestions(predictionApiUrl, solanaVenue)
+  const catalogue = useMarketCatalogue(predictionApiUrl, 'all')
+  const cataloguedQuestions = useMemo(() => catalogueQuestions(catalogue.items, solanaVenue), [catalogue.items, solanaVenue])
+  const identifiedCatalogue = useQuestionIdentity(cataloguedQuestions)
+  const catalogued = useMemo<ReservedSolanaView[]>(() => identifiedCatalogue
+    .map(question => ({ ...reservedSolanaView(question, Date.now(), solanaVenue), question })), [identifiedCatalogue, solanaVenue])
+  const questions = useMemo(() => {
+    const key = (view: ReservedSolanaView) => `${view.question.matchId}:${view.question.questionId}`
+    const merged = new Map(catalogued.map(view => [key(view), view]))
+    // The dedicated question endpoint enriches currently tradable rows with
+    // token metadata. It wins for those rows; the all-status catalogue keeps
+    // historical and not-yet-opened match IDs behind it.
+    for (const view of reserved.questions) merged.set(key(view), view)
+    return [...merged.values()]
+  }, [catalogued, reserved.questions])
+  const questionCatalogue = useMemo<QuestionCatalogue>(() => ({ questions, loaded: catalogue.loaded || reserved.loaded }), [questions, catalogue.loaded, reserved.loaded])
+  const miaw = useMiawPrixEvent(props.eventId)
   return <>
     {/* Per-transaction toasts and the alert log. TradeTicket and
         MarketErrorBoundary raise both, and without this host they were being
         raised into nothing on this page while the home page showed them. */}
     <OverlayLayer />
-    <EventShell {...props} reserved={reserved} solanaVenue={solanaVenue} source={source} snapshot={snapshot} error={error} retry={retry}/>
+    <EventShell {...props} apiUrl={predictionApiUrl} reserved={questionCatalogue} solanaVenue={solanaVenue} source={source} snapshot={snapshot ?? referenceSnapshot} error={error} retry={retry} miaw={miaw}/>
   </>
 }
 
-type ReservedCatalogue = ReturnType<typeof useReservedSolanaQuestions>
+function useMiawPrixEvent(matchId: string) {
+  const enabled = isMiawPrixMatchId(matchId)
+  const source = useMemo(() => miawPrixSource('/api/agent-arena', '/api/prediction'), [])
+  const [match, setMatch] = useState<MiawPrixMatch | null>(null)
+  const [loaded, setLoaded] = useState(!enabled)
+  useEffect(() => {
+    setMatch(null)
+    setLoaded(!enabled)
+    if (!enabled) return
+    const controller = new AbortController()
+    source.match(matchId, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setMatch(value) })
+      .catch(() => { /* The canonical question may still resolve this event. */ })
+      .finally(() => { if (!controller.signal.aborted) setLoaded(true) })
+    return () => controller.abort()
+  }, [enabled, matchId, source])
+  const tokenMeta = useTokenMeta(match?.sides.map((side) => side.mint) ?? [])
+  const identified = useMemo(() => match ? {
+    ...match,
+    sides: match.sides.map((side) => {
+      const meta = tokenMeta.get(side.mint)
+      return {
+        ...side,
+        symbol: meta?.symbol || side.symbol,
+        name: meta?.name || side.name,
+        logoUrl: resolvedTokenLogo(side.logoUrl, meta?.icon) || undefined,
+      }
+    }),
+  } : null, [match, tokenMeta])
+  return useMemo(() => ({
+    loaded,
+    view: identified ? miawPrixEventView(identified) : null,
+  }), [identified, loaded])
+}
 
-function EventShell({ apiUrl, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, reserved, solanaVenue }: Props & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; reserved: ReservedCatalogue; solanaVenue: PublicPredictionVenue | null }) {
+type QuestionCatalogue = { questions: ReservedSolanaView[]; loaded: boolean }
+
+function EventShell({ apiUrl, eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, error, retry, reserved, solanaVenue, miaw }: Props & { source: SolzDataSource; snapshot: SolzSnapshot | null; error: string; retry: () => void; reserved: QuestionCatalogue; solanaVenue: PublicPredictionVenue | null; miaw: { loaded: boolean; view: ReturnType<typeof miawPrixEventView> } }) {
   const arenaMatch = snapshot ? resolveEvent(snapshot, eventId) : undefined
   // Only consult the question catalogue when the arena has no such event, so a
   // real match is never shadowed by a reservation that shares its id.
@@ -57,15 +121,24 @@ function EventShell({ apiUrl, eventId, predictionId, initialOutcomeId, variant, 
     () => (arenaMatch ? undefined : resolveQuestionEvent(reserved.questions, eventId)),
     [arenaMatch, reserved.questions, eventId],
   )
-  const match = arenaMatch ?? question?.match
-  const questionMarkets = question?.markets
+  const fallback = !arenaMatch && !question ? miaw.view : null
+  const match = arenaMatch ?? question?.match ?? fallback?.match
+  const questionMarkets = question?.markets ?? (fallback ? [fallback.market] : undefined)
   const prediction = snapshot && arenaMatch ? resolveEventPrediction(snapshot, arenaMatch.id, predictionId ?? eventId) : undefined
-  const valid = match && (!predictionId || prediction || !!question)
+  const valid = match && (!predictionId || prediction || !!question || !!fallback)
   // The catalogue is fetched separately from the arena snapshot; announcing
   // EVENT NOT FOUND before it settles would flash on every standalone question.
-  const pending = !match && !reserved.loaded
-  return <AppShell className={`solz-home ev-app ev-app--${variant}`} mainId="event-content" mainClassName="ev-main" homeHref={paths.home} marketsHref="/markets" active="highlight" skipTo="#event-content" skipLabel="Skip to event" backToTopHref="#event-content">
-    {error ? <div className="ev-load-state"><h1 className="sz-page-title">The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : !snapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={snapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue}/> : <div className="ev-load-state"><span className="ch-simulation">EVENT NOT FOUND</span><h1 className="sz-page-title">This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], snapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></div>}
+  const pending = !match && (!reserved.loaded || (isMiawPrixMatchId(eventId) && !miaw.loaded))
+  const miawPrix = isMiawPrixMatchId(eventId)
+  const eventSnapshot = snapshot && fallback
+    ? {
+        ...snapshot,
+        matches: [fallback.match, ...snapshot.matches.filter((item) => item.id !== fallback.match.id)],
+        markets: [fallback.market, ...snapshot.markets.filter((item) => item.id !== fallback.market.id)],
+      }
+    : snapshot
+  return <AppShell className={`solz-home ev-app ev-app--${variant}`} mainId="event-content" mainClassName="ev-main" homeHref={paths.home} marketsHref="/markets" active={miawPrix ? 'miawprix' : 'highlight'} skipTo="#event-content" skipLabel="Skip to event" backToTopHref="#event-content">
+    {!eventSnapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={eventSnapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue} forceReadOnly={!!fallback}/> : error ? <div className="ev-load-state"><h1 className="sz-page-title">The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="ev-load-state"><span className="ch-simulation">EVENT NOT FOUND</span><h1 className="sz-page-title">This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p><a className="sh-button" href={eventHref(paths.variants[variant], eventSnapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a></div>}
   </AppShell>
 }
 
@@ -99,7 +172,7 @@ function EventSkeleton() {
   </div>
 }
 
-function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets, solanaQuestions, solanaVenue }: Props & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; questionMarkets?: ArenaMarket[]; solanaQuestions?: ReservedSolanaQuestion[]; solanaVenue?: PublicPredictionVenue | null }) {
+function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, variant, paths, source, snapshot, match, questionMarkets, solanaQuestions, solanaVenue, forceReadOnly = false }: Props & { source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; questionMarkets?: ArenaMarket[]; solanaQuestions?: ReservedSolanaQuestion[]; solanaVenue?: PublicPredictionVenue | null; forceReadOnly?: boolean }) {
   // A standalone question has no row in the arena snapshot; its markets are
   // supplied directly and are the only markets this event has.
   const catalogue = questionMarkets ?? snapshot.markets.filter((item) => item.matchId === match.id)
@@ -111,7 +184,7 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   // venue, so any team-less event renders as a question.
   // A question backed by a real venue opens live, not in simulation, so its
   // book is the on-chain one rather than sample depth.
-  const simulation = !solanaQuestions?.length
+  const simulation = !forceReadOnly && !solanaQuestions?.length
   const referenceSnapshot = useRef(snapshot).current
   const hasBroadcast = match.roster.length > 0
   const view: EventView = cataloguePrediction || !hasBroadcast ? 'market' : 'live'
@@ -129,7 +202,14 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   const [mobileRail, setMobileRail] = useState(false)
   const [mobileTrade, setMobileTrade] = useState(false)
   const [tradeRequest, setTradeRequest] = useState(0)
+  const [clock, setClock] = useState(() => Date.now())
   const tradeRail = useRef<HTMLElement>(null)
+  useEffect(() => {
+    setClock(Date.now())
+    if (match.phase === 'settled') return
+    const timer = window.setInterval(() => setClock(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [match.id, match.phase, match.startedAt, match.endsAt])
   useEffect(() => {
     if (mobileTrade && window.matchMedia('(max-width: 760px)').matches) tradeRail.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }, [mobileTrade, tradeRequest])
@@ -164,13 +244,13 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
     <div className="ev-mobile-actions"><button onClick={() => setMobileRail(!mobileRail)} aria-expanded={mobileRail} aria-controls="event-left-rail">{variant === 'community' ? 'Comments' : variant === 'agents' ? 'Agents & prompts' : 'Explore events'}<ChevronRight size={14}/></button><button onClick={() => setMobileTrade(!mobileTrade)} aria-expanded={mobileTrade} aria-controls="event-trade-rail">Trade {market.outcomes.length > 2 ? `${answer.label} · ${outcome.label}` : outcome.label} <span>{percent(outcome.probability)}</span></button></div>
     <div className="ev-layout" id="event-detail" aria-label="Event details">
       <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail">{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</div></aside>
-      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>Genesis Series</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div></div>
+      <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>{isMiawPrixMatchId(match.id) ? 'MIAW PRIX' : 'Genesis Series'}</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div></div>
       {/* Was a "Chart simulation OFF" switch beside a count of unrelated live
           matches — a developer toggle and a number about other events. What a
           reader needs here is whether THIS event is live, and which one it is. */}
       <div className="ev-event-status">
         <MatchAvatar id={match.id}/>
-        <StatusDot pink={match.phase !== 'live'}>{match.phase === 'live' ? 'LIVE' : match.phase.toUpperCase()}</StatusDot>
+        <span className="ev-phase-clock" role="timer" aria-label={eventTimingLabel(match, clock)}><StatusDot pink={match.phase !== 'live'}>{eventTimingLabel(match, clock)}</StatusDot></span>
         <span>{match.map}</span>
         {match.roster.length > 0 && <span>{match.roster.length} agents</span>}
       </div>
@@ -180,7 +260,7 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
         <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} priced={markets} collateral={solanaQuestions?.length ? 'fUSDC' : 'COOLA'} apiUrl={apiUrl} hideComments={variant === 'community'}/>
         <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
       </div>
-      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={solanaQuestion ? 'fUSDC' : undefined} simulation={!solanaQuestion} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
+      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={solanaQuestion ? 'fUSDC' : undefined} simulation={simulation} section={section} onSection={setSection} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
     </div>
     {notice && <div className="ev-toast" role="status"><Check size={15}/>{notice}</div>}
   </div>
@@ -198,7 +278,7 @@ function RelatedEvents({ snapshot, match, prefix }: { snapshot: SolzSnapshot; ma
     return <a href={eventHref(prefix, item.id)} className="sh-match-card" key={item.id}><div className="sh-match-card-top"><StatusDot pink={item.phase !== 'live'}>{item.phase === 'live' ? 'LIVE' : 'UP NEXT'}</StatusDot><ArrowUpRight size={15}/></div>
       {home && away
         ? <>
-          <div className="ev-related-teams"><div><TeamMark id={home.teamId} color={home.color}/><strong>{home.symbol}</strong></div><span>VS</span><div><TeamMark id={away.teamId} color={away.color}/><strong>{away.symbol}</strong></div></div>
+          <div className="ev-related-teams"><div><TeamMark id={home.teamId} color={home.color} logoUrl={home.logoUrl}/><strong>{home.symbol}</strong></div><span>VS</span><div><TeamMark id={away.teamId} color={away.color} logoUrl={away.logoUrl}/><strong>{away.symbol}</strong></div></div>
           <div className="sh-match-odds"><span style={{ color: home.color }}>{percent(chance)}</span><span style={{ color: away.color }}>{percent(1 - chance)}</span></div>
           <div className="sh-odds-bar" style={{ background: away.color }}><i style={{ width: percent(chance), background: home.color }}/></div>
         </>

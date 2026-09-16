@@ -1,30 +1,55 @@
 /* The directory uses one compact stage at every width, so filters never
    reserve empty sections for statuses with no published markets. */
 .mk-app .mk-main { padding-top: 28px; }
-.mk-app .mk-heading { max-width: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.mk-app .mk-heading h1 { margin: 0; }
+.mk-app .mk-heading { max-width: none; display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 18px; }
+.mk-app .mk-heading > div { max-width: 680px; }
+.mk-app .mk-heading > div > span { color: var(--sh-lime); font: 700 10px var(--sh-mono); letter-spacing: .12em; }
+.mk-app .mk-heading h1 { margin: 7px 0 8px; }
+.mk-app .mk-heading p { max-width: 620px; margin: 0; color: #b7bac3; font-size: 13px; line-height: 1.55; }
 .mk-search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: 10px; color: #b7bac3; }
 .mk-search input { width: 220px; min-width: 0; border: 0; background: transparent; color: var(--sh-text); font: 14px var(--sh-heading); outline: none; }
 .mk-search:focus-within { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
 .mk-search input::placeholder { color: #b7bac3; }
-.mk-filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; }
+.mk-directory-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-block: 1px solid var(--sh-line); padding: 10px 0; }
+.mk-filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
 .mk-filters button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: transparent; color: #b7bac3; font: 500 14px var(--sh-heading); cursor: pointer; }
 .mk-filters button:hover { background: #25272b; color: #fff; }
 .mk-filters button[aria-pressed='true'] { background: #c7ff0020; color: var(--sh-lime); }
 .mk-filters button:focus-visible, .mk-app .mk-card:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-result-count { display: block; margin: 8px 0 12px; color: #b7bac3; font: 12px var(--sh-heading); }
+.mk-type-filter { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: #8e929d; font: 700 10px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; }
+.mk-type-filter select { min-height: 42px; max-width: 250px; border: 1px solid var(--sh-line); border-radius: 9px; padding: 0 36px 0 12px; background: #17191d; color: var(--sh-text); font: 600 12px var(--sh-heading); }
+.mk-type-filter select:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
+.mk-filter-note { margin: 10px 0 0; color: #8e929d; font: 11px/1.5 var(--sh-mono); }
+.mk-filter-note b { color: #c8cbd2; }
+.mk-results-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 54px; }
+.mk-result-count { display: block; color: #b7bac3; font: 12px var(--sh-heading); }
+.mk-pagination { display: flex; align-items: center; gap: 8px; }
+.mk-pagination button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; border: 1px solid var(--sh-line); border-radius: 8px; padding: 0 11px; background: #17191d; color: #d3d5db; font: 600 11px var(--sh-heading); cursor: pointer; }
+.mk-pagination button:hover:not(:disabled) { border-color: var(--sh-lime); color: #fff; }
+.mk-pagination button:disabled { opacity: .38; cursor: not-allowed; }
+.mk-pagination span { padding: 0 5px; color: #8e929d; font: 11px var(--sh-mono); }
+.mk-pagination span b { color: var(--sh-text); }
+.mk-pagination-bottom { display: flex; justify-content: center; padding-top: 24px; }
 /* A fixed twelve so a card's width is a decision, not a leftover: auto-fill
    sized tracks to the narrowest card that would fit and then reserved the
    remainder as empty columns, which both squeezed the titles and left a gap. */
 .mk-app .mk-card-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
-.mk-app .mk-card { grid-column: span 4; min-width: 0; min-height: 230px; border-radius: 14px; padding: 18px; }
+.mk-app .mk-card { grid-column: span 4; min-width: 0; min-height: 290px; border-radius: 14px; padding: 18px; }
+.mk-card-kicker { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 16px; color: #9da1aa; font: 700 9px var(--sh-mono); letter-spacing: .1em; }
+.mk-card-kicker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-card-kicker b { flex-shrink: 0; color: var(--sh-lime); font: inherit; }
 /* Reserve both lines whether or not the second is used: the status row, the
    outcomes and the footer then line up across every card in a row. */
 .mk-app .mk-card-title { font-size: 18px; line-height: 1.35; min-height: 2.7em; }
 .mk-app .mk-card-open { margin-top: 5px; }
 .mk-app .mk-card-status > span, .mk-app .mk-card-note { color: #b7bac3; letter-spacing: 0; }
+.mk-card-time { display: block; margin-top: -6px; color: #8e929d; font: 10px/1.4 var(--sh-mono); }
 .mk-app .mk-card-bottom { color: #b7bac3; border: 0; }
 .mk-app .mk-ffa-row { font-size: 12px; }
+.mk-app .mk-agent-portrait { width: 24px; height: 24px; border-radius: 6px; }
+.mk-app .mk-versus { gap: 8px; }
+.mk-app .mk-versus-side { flex: 1; min-height: 58px; border: 1px solid color-mix(in srgb, var(--mk-identity) 44%, var(--sh-line)); border-radius: 10px; padding: 8px; background: color-mix(in srgb, var(--mk-identity) 9%, transparent); }
+.mk-app .mk-versus-side:last-child { justify-content: flex-start; }
 .mk-app .mk-binary-side { border-radius: 8px; font-size: 12px; }
 .mk-app .mk-card--pending { gap: 14px; justify-content: start; cursor: default; }
 .mk-app .mk-card--pending:hover { border-color: var(--sh-line); background: var(--sh-panel); }
@@ -41,7 +66,13 @@
   .mk-app .mk-heading { flex-wrap: wrap; gap: 12px; }
   .mk-search { flex: 1; min-width: 170px; }
   .mk-search input { width: 100%; }
+  .mk-directory-controls { align-items: stretch; flex-direction: column; }
+  .mk-type-filter { justify-content: space-between; }
+  .mk-type-filter select { flex: 1; max-width: none; }
   .mk-filters button { padding-inline: 14px; }
+  .mk-results-bar { align-items: flex-start; flex-direction: column; padding-block: 10px; }
+  .mk-results-bar .mk-pagination { width: 100%; justify-content: space-between; }
+  .mk-pagination span { text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mk-app .mk-card, .mk-app .mk-split i, .mk-app .mk-ffa-bar i { transition: none; }

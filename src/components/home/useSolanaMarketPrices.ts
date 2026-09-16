@@ -57,6 +57,7 @@ export function appendQuote(series: readonly ArenaPricePoint[], at: number, prob
 
 const solanaBindingOf = (market: ArenaMarket) =>
   market.onchain?.family === 'SOLANA' ? market.onchain as SolanaBinding : null
+const marketInstanceKey = (market: Pick<ArenaMarket, 'matchId' | 'id'>) => `${market.matchId}:${market.id}`
 
 /**
  * Live prices for every Solana question on the page, from the chain.
@@ -168,8 +169,9 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
         // every question on a twelve-question event would be a signature page
         // plus serial getTransaction calls per question, per tick.
         const focus = bound.findIndex(({ market }) => market.id === focusMarketId)
-        let focusCandles = historyCache.current.get(`${scope}:${focusMarketId ?? ''}`) ?? []
-        const cachedFor = (id: string) => historyCache.current.get(`${scope}:${id}`)
+        const focusCacheKey = focus >= 0 ? marketInstanceKey(bound[focus]!.market) : focusMarketId ?? ''
+        let focusCandles = historyCache.current.get(`${scope}:${focusCacheKey}`) ?? []
+        const cachedFor = (market: ArenaMarket) => historyCache.current.get(`${scope}:${marketInstanceKey(market)}`)
         const publish = () => {
         opened = 0
         const markets = bound.map(({ market, binding }, index) => {
@@ -185,7 +187,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
           // lost focus emptied priceHistory, which flipped the chart's series mode
           // and its headline number under the user — the same divergence two
           // browsers showed, reproducible by clicking between answers in one.
-          const history = index === focus ? focusCandles : cachedFor(market.id) ?? []
+          const history = index === focus ? focusCandles : cachedFor(market) ?? []
           // ONE series for the market, not one per book. A prediction market has
           // a single price; the YES and NO books are two venues for trading it,
           // so a NO fill at 30c is the market saying YES is 70c. Reading the two
@@ -251,6 +253,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
             status: (at >= binding.tradingLocksAt ? 'closed' : 'open') as ArenaMarket['status'],
             onchain: {
               ...market.onchain!,
+              opened: Boolean(books[index * 2] || books[index * 2 + 1]),
               volume: { amount: lifetimeVolume.toString(), decimals: binding.collateralDecimals },
               // Marked partial while the receipt backfill is still running: the
               // reader decodes a bounded number of new transactions per pass, so
@@ -264,8 +267,8 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
         })
         // Markets with no Solana binding pass through unpriced rather than being
         // dropped from the page.
-        const byId = new Map(markets.map(market => [market.id, market]))
-        if (active) setResult({ scope, markets: base.map(market => byId.get(market.id) ?? market), status: `${cluster} · ${opened} / ${bound.length * 2} BOOKS` })
+        const byId = new Map(markets.map(market => [marketInstanceKey(market), market]))
+        if (active) setResult({ scope, markets: base.map(market => byId.get(marketInstanceKey(market)) ?? market), status: `${cluster} · ${opened} / ${bound.length * 2} BOOKS` })
         }
         // Quotes must render before slow receipt backfills complete.
         publish()
@@ -277,7 +280,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
             catch { return { candles: focusCandles[outcome]?.candles ?? [], partial: true, failed: true } }
           }))
           if (!active) return
-          historyCache.current.set(`${scope}:${focusMarketId ?? ''}`, focusCandles)
+          historyCache.current.set(`${scope}:${focusCacheKey}`, focusCandles)
           publish()
         }
       } catch (reason) {

@@ -11,7 +11,8 @@ const program = '4RKCgJtgyxenZLaKe2zL4XaHUHLjGRqKZAokZFTbmRnJ'
 const venue = { programId: program, manifestProgramId: program, publicRpcUrl: 'https://rpc.example', chainId: 'genesis', collateralToken: program, collateralDecimals: 6 } as unknown as PublicPredictionVenue
 const item = (over: Partial<Record<string, unknown>> = {}) => ({
   kind: 'general', eventId: 'lazy-1', matchId, questionId, status: 'live', title: 'Who wins?',
-  startsAt: at, tradeLocksAt: '2026-09-10T00:20:00Z', outcomes: [{ id: 'YES', label: 'Yes' }, { id: 'NO', label: 'No' }], ...over,
+  eventType: 'general', hasHumans: false, startsAt: at, tradeLocksAt: '2026-09-10T00:20:00Z',
+  outcomes: [{ id: 'YES', label: 'Yes' }, { id: 'NO', label: 'No' }], ...over,
 })
 
 test('the envelope is read, and a row that cannot seed a PDA is dropped rather than trusted', () => {
@@ -50,20 +51,44 @@ test('the market address is derived from the two canonical ids, never read off t
   expect(Object.keys(hostile.items[0]!)).not.toContain('marketId')
 })
 
-test('status maps into the pipeline vocabulary, and an untradable item is not converted', () => {
+test('every catalogue status maps into a viewable event lifecycle', () => {
   const items = parseMarketList({ items: [
     item({ status: 'scheduled', eventId: 'a' }), item({ status: 'live', eventId: 'b' }), item({ status: 'open', eventId: 'c' }),
     item({ status: 'resolved', eventId: 'd' }), item({ status: 'cancelled', eventId: 'e' }),
   ] }).items
   expect(items).toHaveLength(5)
   const converted = catalogueQuestions(items, venue)
-  expect(converted.map(q => [q.eventId, q.status])).toEqual([['a', 'reserved'], ['b', 'live'], ['c', 'live']])
+  expect(converted.map(q => [q.eventId, q.status])).toEqual([
+    ['a', 'reserved'], ['b', 'live'], ['c', 'live'], ['d', 'settled'], ['e', 'cancelled'],
+  ])
 })
 
-test('without a venue programId nothing can be derived, so nothing is offered', () => {
+test('without a venue programId the off-chain event remains listed without a trading binding', () => {
   const items = parseMarketList({ items: [item()] }).items
-  expect(catalogueQuestions(items, null)).toEqual([])
-  expect(catalogueQuestions(items, { ...venue, programId: '' } as PublicPredictionVenue)).toEqual([])
+  for (const unavailable of [null, { ...venue, programId: '' } as PublicPredictionVenue]) {
+    const [question] = catalogueQuestions(items, unavailable)
+    expect(question?.eventId).toBe('lazy-1')
+    expect(question?.marketId).toBe(questionId)
+  }
+})
+
+test('catalogue presentation survives parsing so match cards keep team identity', () => {
+  const presentation = { kind: 'head-to-head', eventTitle: 'CLAW vs STONK', outcomes: [
+    { id: 0, label: 'CLAW', teamId: 'MintClaw', imageUrl: 'https://images.example/claw.png' },
+    { id: 1, label: 'STONK', teamId: 'MintStonk' },
+  ] }
+  const [question] = catalogueQuestions(parseMarketList({ items: [item({ presentation, outcomes: [
+    { id: 'YES', label: 'CLAW' }, { id: 'NO', label: 'STONK' },
+  ] })] }).items, venue)
+  expect(question?.presentation).toEqual(presentation)
+  expect(question?.outcomes).toEqual(['CLAW', 'STONK'])
+})
+
+test('catalogue event metadata survives parsing for filters, numbering and live priority', () => {
+  const [parsed] = parseMarketList({ items: [item({
+    eventType: 'genesis-ffa', matchNumber: 42, gameMode: 'deathmatch', teamFormat: 'ffa', hasHumans: true,
+  })] }).items
+  expect(parsed).toMatchObject({ eventType: 'genesis-ffa', matchNumber: 42, gameMode: 'deathmatch', teamFormat: 'ffa', hasHumans: true })
 })
 
 test('a scheduled start absent from the row falls back to the kickoff encoded in matchId', () => {

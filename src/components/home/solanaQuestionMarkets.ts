@@ -5,6 +5,8 @@ import { predictionUrl } from '../../../packages/sdk/prediction-url'
 import type { ArenaMarket, SolzMatch } from '../solz/model'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { SolanaBinding } from './venue/types'
+import { useTokenMeta } from '../solz/tokenMeta'
+import { resolvedTokenLogo } from '../solz/tokenIcon'
 
 export type ReservedSolanaQuestion = {
   presentation?: Presentation
@@ -15,7 +17,7 @@ export type ReservedSolanaQuestion = {
   label: string
   outcomes: [string, string]
   scheduledStartAt: string
-  status: 'reserved' | 'live'
+  status: 'reserved' | 'live' | 'settled' | 'cancelled'
 }
 
 export function solanaQuestionLocksAt(question: Pick<ReservedSolanaQuestion, 'matchId'>) {
@@ -38,7 +40,7 @@ export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQues
       /^0x[0-9a-f]{64}$/i.test(String(item.questionId)) && typeof item.marketId === 'string' &&
       typeof item.label === 'string' && Array.isArray(item.outcomes) && item.outcomes.length === 2 &&
       item.outcomes.every(outcome => typeof outcome === 'string') && typeof item.scheduledStartAt === 'string' &&
-      Number.isFinite(Date.parse(item.scheduledStartAt)) && (item.status === 'reserved' || item.status === 'live')
+      Number.isFinite(Date.parse(item.scheduledStartAt)) && ['reserved', 'live', 'settled', 'cancelled'].includes(String(item.status))
   })
 }
 
@@ -65,12 +67,20 @@ export function solanaBinding(question: ReservedSolanaQuestion, venue: PublicPre
 export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.now(), venue?: PublicPredictionVenue | null): { match: SolzMatch; market: ArenaMarket } {
   const kickoff = Date.parse(question.scheduledStartAt)
   const closesAt = solanaQuestionLocksAt(question)
+  const cancelled = question.status === 'cancelled'
+  const settled = question.status === 'settled'
+  // A stale upstream status must not leave a past match looking tradeable. This
+  // applies to both live and never-flipped reserved records once their encoded
+  // match window has ended; the authoritative result can arrive afterward.
+  const finishedPending = !cancelled && !settled && now >= closesAt
+  const finished = cancelled || settled || finishedPending
   const presentation = parsePresentation(question.presentation)
   const headToHead = presentation?.kind === 'head-to-head'
   const teams: SolzMatch['teams'] = headToHead ? presentation.outcomes.map((outcome, index) => ({
     teamId: outcome.teamId ?? `side-${index}`,
     symbol: outcome.label,
     name: outcome.label,
+    ...((outcome.imageUrl) ? { logoUrl: outcome.imageUrl } : {}),
     color: outcome.color ?? (index === 0 ? '#3fdcff' : '#ff7a1a'),
     glyph: outcome.label.replace(/^\$/, '').slice(0, 3).toUpperCase(),
     score: 0,
@@ -86,24 +96,56 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
   // are the badge and the chart's source label, so hardcoding 'DEVNET' made a
   // mainnet deployment announce itself as devnet on every question on the page.
   const cluster = solanaClusterLabel(venue?.chainId)
+  // A linked answer's agent rides on the outcome, the way the arena feed's own
+  // questions carry it. Both sides of a linked binary question are about the same
+  // participant, so the options list and the ticket draw its portrait rather than
+  // falling back to a generic mark.
+  const linkedParticipant = presentation?.kind === 'linked' ? presentation.answer?.participantId : undefined
   return {
     match: {
       id: question.eventId, displayMatchId: `SOLANA ${cluster}`, kind: 'highlight', mode: headToHead ? 'HEAD-TO-HEAD' : 'PREDICTION', map: `MANIFEST ${cluster}`,
       // A reserved market has a real settlement cutoff, but it is not a
       // running match or a five-minute break. Treat its clock as open-ended
       // so a future scheduled start is never rendered as a multi-day timer.
-      round: headToHead ? 'MONEYLINE' : question.status === 'live' ? 'LIVE LAZY MARKET' : 'MARKET RESERVED', phase: question.status === 'live' ? 'live' : 'countdown', startedAt: headToHead ? kickoff : question.status === 'live' ? kickoff : now, endsAt: closesAt, timingType: question.status === 'live' || headToHead ? 'countdown' : 'open-ended', timingEstimated: false,
+      round: cancelled ? 'CANCELLED' : settled ? 'SETTLED' : finishedPending ? 'RESULT PENDING' : headToHead ? 'MONEYLINE' : question.status === 'live' ? 'LIVE LAZY MARKET' : 'MARKET RESERVED',
+      phase: finished ? 'settled' : question.status === 'live' ? 'live' : 'countdown',
+      startedAt: headToHead ? kickoff : question.status === 'live' ? kickoff : now,
+      endsAt: closesAt, timingType: question.status === 'live' || headToHead ? 'countdown' : 'open-ended', timingEstimated: false,
       viewers: 0, marketId: question.marketId, volume: { SOL: 0, COOLA: 0 }, teams, roster: [],
     },
     market: {
       id: question.questionId, matchId: question.eventId, kind: 'match-winner', title: question.label,
-      description: 'Canonical Solana question reserved for first-trader activation on Manifest.', status: 'indicative', closesAt,
-      volume: { SOL: 0, COOLA: 0 }, outcomes: displayedOutcomes.map((item, index) => ({ id: index === 0 ? 'yes' : 'no', label: item.label, detail: `Pays if ${item.label} is the recorded outcome.`, probability: .5, indicative: true, priceHistory: [], ...('teamId' in item && typeof item.teamId === 'string' ? { teamId: item.teamId } : {}), ...(identityColor(item, index) ? { color: identityColor(item, index) } : {}) })),
-      rules: 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
+      description: cancelled
+        ? 'This eligible match was cancelled. Its event record remains visible and trading is closed.'
+        : settled
+          ? 'This eligible match has settled. Its event record and market history remain visible.'
+          : finishedPending
+            ? 'Match time has finished and the recorded result is pending. Trading is closed.'
+            : 'Eligible off-chain prediction question. The first trader can open its Manifest market.',
+      status: finished ? 'closed' : 'indicative', closesAt,
+      volume: { SOL: 0, COOLA: 0 }, outcomes: displayedOutcomes.map((item, index) => ({ id: index === 0 ? 'yes' : 'no', label: item.label, detail: `Pays if ${item.label} is the recorded outcome.`, probability: .5, indicative: true, priceHistory: [], ...('teamId' in item && typeof item.teamId === 'string' ? { teamId: item.teamId } : {}), ...('imageUrl' in item && typeof item.imageUrl === 'string' ? { imageUrl: item.imageUrl } : {}), ...(identityColor(item, index) ? { color: identityColor(item, index) } : {}), ...(linkedParticipant ? { participantId: linkedParticipant } : {}) })),
+      rules: finished
+        ? 'Trading is closed. Resolution follows the authoritative match result.'
+        : 'Indicative 50/50 display until the first trader creates the market and Manifest books. This is not an executable quote.',
       presentation,
       onchain: solanaBinding(question, venue) as ArenaMarket['onchain'],
     },
   }
+}
+
+/** Which markets a match trades, and whether they came from a canonical
+ *  (matchId, questionId) source rather than the arena feed.
+ *
+ *  The arena feed wins when it has questions: its rows carry the recorded answers
+ *  a settled question displays. The canonical catalogue supplies the same
+ *  questions - same two IDs, same derived PDA - whenever it does not, which is
+ *  what makes every eligible match tradable "as soon as its matchId exists"
+ *  (MARKET_LIST_API.md:73) instead of only once an importer-backed feed has
+ *  caught up with it. `canonical` then tells the venue pipeline not to blank
+ *  those markets on an arena-feed flag describing a different source. */
+export function resolveMatchMarkets(feed: readonly ArenaMarket[], catalogue: readonly ArenaMarket[]): { markets: ArenaMarket[]; canonical: boolean } {
+  if (feed.length) return { markets: [...feed], canonical: false }
+  return { markets: [...catalogue], canonical: catalogue.length > 0 }
 }
 
 /** One entry of the question catalogue: the synthetic match, its market, and
@@ -113,7 +155,10 @@ export type ReservedSolanaView = { match: SolzMatch; market: ArenaMarket; questi
 /** Resolves /events/<id> against the question catalogue. Callers try the arena
  *  snapshot first, so a question never shadows a real match that shares its id. */
 export function resolveQuestionEvent(views: readonly ReservedSolanaView[], eventId: string) {
-  const view = views.find((item) => item.question.eventId === eventId)
+  const normalized = eventId.toLowerCase()
+  const view = views.find((item) => item.question.eventId.toLowerCase() === normalized
+    || item.question.matchId.toLowerCase() === normalized
+    || item.question.questionId.toLowerCase() === normalized)
   if (!view) return undefined
   // The question travels with the match: the trade ticket needs it to open the
   // market on-chain, not just to render a title.
@@ -225,12 +270,48 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
     void load()
     return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
   }, [apiUrl])
+  const identified = useQuestionIdentity(questions)
   // The venue supplies the binding the shared venue hook needs to read this
   // question's Manifest books. Without it every Solana market renders as if no
   // market had been opened, however many trades have settled against it.
   const views = useMemo(
-    () => questions.map(question => ({ ...reservedSolanaView(question, Date.now(), venue), question })),
-    [questions, venue?.publicRpcUrl, venue?.programId, venue?.manifestProgramId, venue?.collateralToken],
+    () => identified.map(question => ({ ...reservedSolanaView(question, Date.now(), venue), question })),
+    [identified, venue?.publicRpcUrl, venue?.programId, venue?.manifestProgramId, venue?.collateralToken],
   )
   return useMemo(() => ({ questions: views, loaded }), [views, loaded])
+}
+
+/** Adds canonical token artwork to any question collection, including the
+ * all-status catalogue. History and unopened events must keep the same crests
+ * as currently tradeable questions. */
+export function useQuestionIdentity(questions: readonly ReservedSolanaQuestion[]) {
+  const identityMints = useMemo(() => questions.flatMap((question) => {
+    const presentation = parsePresentation(question.presentation)
+    return presentation?.kind === 'head-to-head'
+      ? presentation.outcomes.flatMap((outcome) => outcome.teamId ? [outcome.teamId] : [])
+      : []
+  }), [questions])
+  const tokenMeta = useTokenMeta(identityMints)
+  return useMemo<ReservedSolanaQuestion[]>(() => questions.map((question) => {
+    const presentation = parsePresentation(question.presentation)
+    if (presentation?.kind !== 'head-to-head') return question
+    let changed = false
+    const outcomes = presentation.outcomes.map((outcome) => {
+      const meta = outcome.teamId ? tokenMeta.get(outcome.teamId) : undefined
+      if (!meta) return outcome
+      const label = meta.symbol || outcome.label
+      const imageUrl = resolvedTokenLogo(outcome.imageUrl, meta.icon) || undefined
+      if (label === outcome.label && imageUrl === outcome.imageUrl) return outcome
+      changed = true
+      return { ...outcome, label, ...(imageUrl ? { imageUrl } : {}) }
+    }) as typeof presentation.outcomes
+    if (!changed) return question
+    const labels = outcomes.map((outcome) => outcome.label) as [string, string]
+    const enrichedPresentation: Presentation = {
+      kind: 'head-to-head', eventTitle: labels.join(' vs '), outcomes,
+      ...(presentation.imageUrl ? { imageUrl: presentation.imageUrl } : {}),
+    }
+    return { ...question, label: labels.join(' vs '), outcomes: labels,
+      presentation: enrichedPresentation }
+  }), [questions, tokenMeta])
 }
