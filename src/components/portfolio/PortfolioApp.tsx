@@ -13,7 +13,8 @@ import { usePortfolio, type PortfolioMarket } from './usePortfolio'
 import { PositionAction } from './PositionAction'
 import { profileHref, sameProfileAddress, solanaNetwork, type ProfileRoute } from './profileRoute'
 import { useSolanaVenue } from '../home/useSolanaVenue'
-import { useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
+import { mergeQuestionCatalogue, questionTradeable, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
+import { solanaDeployment, useProfileAccounting } from './useProfileAccounting'
 import { useSolanaPortfolio } from './useSolanaPortfolio'
 import { activeSolanaRows, claimableSolanaRows, closedSolanaRows, markedValue, mergeSolanaActive, solanaCollateral, solanaEvents, solanaOrderRows, solanaPositionRows, solanaRowKickoff, solanaRowMatches, type SolanaIdentity } from './solanaRows'
 import { SolanaActiveTable, SolanaPositionsTable } from './SolanaPositions'
@@ -98,8 +99,18 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
   // Both hook sets stay mounted; each idles on an empty owner or an empty API
   // base rather than being called conditionally.
   const { questions: questionViews, loaded: questionsLoaded } = useReservedSolanaQuestions(solana && owner ? apiUrl : '', solanaVenue)
-  const questions = useMemo(() => questionViews.map(view => view.question), [questionViews])
-  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, questions, retry, true)
+  const live = useMemo(() => questionViews.map(view => view.question), [questionViews])
+  // The live catalogue lists only what a permit can still reach. The prediction
+  // API persists every question it ever published, per deployment, and returns
+  // it here; that is what names a position whose match has already finished.
+  // This read also registers the owner with the indexer that keeps the store up
+  // to date, so the page has to make it even though it reads holdings itself.
+  const accounting = useProfileAccounting(solana && owner ? apiUrl : '', owner, '', '', retry, '', solanaDeployment(solanaVenue))
+  const questions = useMemo(() => mergeQuestionCatalogue(live, accounting.data?.questions), [live, accounting.data?.questions])
+  // Naming a finished question must not widen the chain read: the books worth
+  // polling are the tradeable ones plus whatever discovery finds for this owner.
+  const tradeable = useMemo(() => questions.filter(questionTradeable), [questions])
+  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, tradeable, retry, true)
   const solDecimals = solanaVenue?.collateralDecimals ?? 6
   const solRows = useMemo(() => sol.portfolio ? solanaPositionRows(sol.portfolio, questions, solDecimals) : [], [sol.portfolio, questions, solDecimals])
   const solOrders = useMemo(() => sol.portfolio ? solanaOrderRows(sol.portfolio, questions) : [], [sol.portfolio, questions])
@@ -203,7 +214,7 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
     setChain(next); setSelection(null); setMatchFilter('')
     if (profile?.chain === 'somnia') window.location.assign(profileHref('somnia', next === '5031' ? 'mainnet' : 'testnet', profile.address))
   }
-  if (solana) return <SolanaProfile venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} onRefresh={() => setRetry(n => n + 1)}/>
+  if (solana) return <SolanaProfile apiUrl={apiUrl} venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} onRefresh={() => setRetry(n => n + 1)}/>
   return <AppShell className="solz-home pf-page" mainId="portfolio" mainClassName="pf-main" active="profile" skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
       <div className="pf-heading"><h1 className="sz-page-title">{isSelf ? 'My portfolio' : 'Portfolio'}</h1>{!solana && <label className="pf-network">Network<select value={chain} onChange={e => selectNetwork(e.target.value as typeof chain)}><option value="50312">Somnia testnet · tUSDC</option><option value="5031">Somnia mainnet · USDso</option></select></label>}</div>
       <div className="pf-hero">

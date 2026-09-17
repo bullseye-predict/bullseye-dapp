@@ -25,9 +25,12 @@ import {
 } from './instantSell'
 import { isClosedPosition } from './model'
 import { solanaNetwork } from './profileRoute'
+import { useSettlementNudge } from './useSettlementNudge'
 import './solanaProfile.css'
 type Props = {
   initialSection?: 'positions' | 'orders' | 'activity'
+  /** Where the prediction API lives, for the viewer-triggered settlement nudge. */
+  apiUrl?: string
   venue: PublicPredictionVenue | null
   owner?: string
   isSelf: boolean
@@ -126,6 +129,7 @@ function Gain({
 }
 export function SolanaProfile({
   initialSection,
+  apiUrl,
   venue,
   owner,
   isSelf,
@@ -152,7 +156,10 @@ export function SolanaProfile({
     symbol = venue?.collateralSymbol ?? 'collateral'
   // The profile never asks the prediction API to replay a cached portfolio.
   // Holdings, books and open orders below all originate from the browser's
-  // direct finalized-RPC reader. The catalogue only supplies display labels.
+  // direct finalized-RPC reader. The catalogue only supplies display labels:
+  // the live list for an open question, and the deployment's persisted store
+  // for one whose match has ended. PortfolioApp merges the two by market
+  // address before handing them over.
   const catalogue = questions
   const rows = useMemo(
     () =>
@@ -161,6 +168,11 @@ export function SolanaProfile({
         : [],
     [sol.portfolio, catalogue, decimals],
   )
+  // A viewer looking at their own stuck position is the cheapest signal that a
+  // market needs settling, and far cheaper than polling for it. Only on your
+  // own profile: nudging from someone else's page spends the oracle's fees on
+  // a market this viewer has no stake in.
+  useSettlementNudge(isSelf ? rows : [], apiUrl, onRefresh)
   const orders = useMemo(
     () => (sol.portfolio ? solanaOrderRows(sol.portfolio, catalogue) : []),
     [sol.portfolio, catalogue],
@@ -600,6 +612,28 @@ export function SolanaProfile({
                                     Claim
                                   </button>
                                 ))}
+                              {/* Collateral a cancellation left on the seat.
+                                  The order it belonged to is off the book, so
+                                  the Release button in Open orders is gone with
+                                  it and this is the only way back to the
+                                  wallet. It is withdrawable on a locked
+                                  question, which is why it is not tied to the
+                                  Trading or Claim states above. */}
+                              {manage &&
+                                p.row &&
+                                p.row.seatCollateral > 0n && (
+                                  <button
+                                    title={`Withdraw ${formatUnitsExact(p.row.seatCollateral, decimals, 6)} ${symbol} from your venue seat`}
+                                    onClick={() =>
+                                      setAction({
+                                        kind: 'withdraw',
+                                        row: p.row!,
+                                      })
+                                    }
+                                  >
+                                    Withdraw
+                                  </button>
+                                )}
                               {eventHref(p.identity) && (
                                 <a
                                   aria-label={`Open ${p.identity.label}`}
