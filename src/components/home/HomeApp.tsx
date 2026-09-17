@@ -165,7 +165,7 @@ function Home({
   const { snapshot, referenceSnapshot, error, predictionFeed, arenaSchedule, retry } =
     useHomeData(source, apiUrl);
   const solanaVenue = useSolanaVenue(apiUrl, marketSources.includes("SOLANA"));
-  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue).questions;
+  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue, true, snapshot?.matches ?? []).questions;
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");

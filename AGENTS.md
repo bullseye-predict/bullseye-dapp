@@ -13,6 +13,9 @@ Reuse one test tab. Open a second only for a direct comparison, never exceed two
 - A request to deploy a Solana program, contract, backend, or another named target authorizes only that named target. Do not infer a frontend or Vercel deployment from it.
 - Local builds, local previews, and local browser testing are allowed. If a requested deployment target is ambiguous, keep the work local and ask before performing any external deployment.
 
+## Environment variables
+- Before adding, removing, renaming, or changing the meaning of any environment variable, present the exact variable, repository, public or secret classification, and runtime effect to the user and get explicit permission. Do not make that change automatically.
+
 ## Architecture
 Read ARCHITECTURE.md before changing application boundaries.
 Keep all product UI and interactive behavior in React and ordinary TypeScript. Astro files may contain route entry points, redirects, document metadata, and server endpoint bindings only. Do not move product logic into Astro components.

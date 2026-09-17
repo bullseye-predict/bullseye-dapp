@@ -1,4 +1,6 @@
 import { solanaClusterLabel } from '../../../packages/adapters/solana/cluster'
+import { PublicKey } from '@solana/web3.js'
+import { questionMarketAddress } from '../../../packages/adapters/solana/wire'
 import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import { useEffect, useMemo, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
@@ -7,6 +9,36 @@ import type { PublicPredictionVenue } from '../../../packages/prediction-core/ma
 import type { SolanaBinding } from './venue/types'
 import { useTokenMeta } from '../solz/tokenMeta'
 import { resolvedTokenLogo } from '../solz/tokenIcon'
+
+const MATCH_ID = /^0x[0-9a-f]{64}$/i
+const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+const EMPTY_MATCHES: readonly SolzMatch[] = []
+const bytes = (value: string) => Uint8Array.from((value.slice(2).match(/../g) ?? []).map(byte => Number.parseInt(byte, 16)))
+
+/** Derives match-linked questions from the independently available game feed.
+ * General questions deliberately do not appear here: their text and resolution
+ * policy live in Postgres and cannot be reconstructed from a market PDA. */
+export async function onchainFallbackQuestions(matches: readonly SolzMatch[]): Promise<ReservedSolanaQuestion[]> {
+  const questions: ReservedSolanaQuestion[] = []
+  for (const match of matches) {
+    const matchId = match.id.startsWith('arena-') ? `0x${match.id.slice(6)}` : match.id
+    if (!MATCH_ID.test(matchId)) continue
+    const bytes = Uint8Array.from((matchId.slice(2).match(/../g) ?? []).map(byte => Number.parseInt(byte, 16)))
+    if (new TextDecoder().decode(bytes.slice(0, 4)) !== 'SOLZ' || bytes[4] !== 1) continue
+    const kickoff = Number(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getBigUint64(8, false))
+    if (!Number.isSafeInteger(kickoff)) continue
+    const status = match.phase === 'settled' ? 'settled' as const : match.phase === 'live' ? 'live' as const : 'reserved' as const
+    for (const member of match.roster) {
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`agent:${member.agentId}`)))
+      questions.push({ eventId: match.id, matchId: matchId.toLowerCase(), questionId: `0x515545530101${hex(digest.slice(0, 26))}`,
+        marketId: '', label: `Will ${member.codename || member.agentId.toUpperCase()} win?`, outcomes: ['YES', 'NO'],
+        scheduledStartAt: new Date(kickoff * 1000).toISOString(), status,
+        presentation: { kind: 'linked', eventTitle: 'Who will win this match?', answer: { label: member.codename || member.agentId.toUpperCase(), participantId: member.agentId }, outcomes: [{ id: 0, label: 'Yes' }, { id: 1, label: 'No' }] },
+      })
+    }
+  }
+  return questions
+}
 
 export type ReservedSolanaQuestion = {
   presentation?: Presentation
@@ -240,11 +272,17 @@ export function linkedAnswerLabel(label: string, eventTitle: string) {
   return answer || label
 }
 
-export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null, enabled = true) {
+export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredictionVenue | null, enabled = true, fallbackMatches: readonly SolzMatch[] = EMPTY_MATCHES) {
   const [questions, setQuestions] = useState<ReservedSolanaQuestion[]>([])
+  const [fallbackQuestions, setFallbackQuestions] = useState<ReservedSolanaQuestion[]>([])
   // Distinguishes "no questions" from "not fetched yet": the event page must
   // not render EVENT NOT FOUND for a standalone question while it is in flight.
   const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    let active = true
+    void onchainFallbackQuestions(fallbackMatches).then(value => { if (active) setFallbackQuestions(value) }).catch(() => { if (active) setFallbackQuestions([]) })
+    return () => { active = false }
+  }, [fallbackMatches])
   useEffect(() => {
     setQuestions([])
     setLoaded(false)
@@ -270,7 +308,14 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
     void load()
     return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
   }, [apiUrl, enabled])
-  const identified = useQuestionIdentity(questions)
+  const allQuestions = useMemo(() => {
+    const program = venue?.programId ? new PublicKey(venue.programId) : undefined
+    return [...new Map([...questions, ...fallbackQuestions].map(question => {
+      const marketId = question.marketId || (program ? questionMarketAddress(program, bytes(question.matchId), bytes(question.questionId)).toBase58() : question.questionId)
+      return [`${question.matchId}:${question.questionId}`, { ...question, marketId }]
+    })).values()]
+  }, [questions, fallbackQuestions, venue?.programId])
+  const identified = useQuestionIdentity(allQuestions)
   // The venue supplies the binding the shared venue hook needs to read this
   // question's Manifest books. Without it every Solana market renders as if no
   // market had been opened, however many trades have settled against it.

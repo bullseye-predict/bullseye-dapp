@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseReservedSolanaQuestions, reservedSolanaView, resolveMatchMarkets, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { onchainFallbackQuestions, parseReservedSolanaQuestions, reservedSolanaView, resolveMatchMarkets, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 import type { PublicPredictionVenue } from '../packages/prediction-core/market-data'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
@@ -36,9 +36,8 @@ describe('reserved Solana question view', () => {
 })
 
 describe('standalone long-lived questions reach the market and event pages', () => {
-  // The real 45.5-day question configured in
-  // /Users/Shared/march-2026/solz-prediction-backend/.env (SOLANA_LAZY_QUESTIONS_JSON),
-  // as /solana/questions serves it once the backend has been restarted.
+  // The real 45.5-day question is stored in prediction_general_questions and
+  // returned by /solana/questions.
   const lazy: ReservedSolanaQuestion = {
     eventId: 'lazy-534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
     matchId: '0x534f4c5a0101ffff000000006aa72600daad32dfabd66ab7d4e7cfbe6ef0fc81',
@@ -91,6 +90,16 @@ describe('standalone long-lived questions reach the market and event pages', () 
     expect(market.title).toBe(lazy.label)
     expect(market.outcomes.map((outcome) => outcome.id)).toEqual(['yes', 'no'])
   })
+})
+
+test('rebuilds linked onchain question identities from the game feed during an API outage', async () => {
+  const matchId = '0x534f4c5a01010014000000006aa729217129606d71a40f50cde20f3291c57a1d'
+  const questions = await onchainFallbackQuestions([{
+    id: `arena-${matchId.slice(2)}`, kind: 'highlight', mode: 'ARENA', map: 'GENESIS', round: 'LIVE', phase: 'live',
+    startedAt: 0, endsAt: 0, viewers: 0, marketId: '', volume: { SOL: 0, COOLA: 0 }, teams: [],
+    roster: [{ agentId: 'genesis-01', teamId: 'genesis', codename: 'COKE', color: '#fff', kills: 0, deaths: 0, assists: 0, objectives: 0, hp: 1, hpMax: 1, status: 'active', x: 0, y: 0, momentum: 0 }],
+  }])
+  expect(questions).toMatchObject([{ eventId: `arena-${matchId.slice(2)}`, matchId, questionId: '0x51554553010102f9dcc2247b7e613c796cc77d8b9f9ea35780c6ed6181582207', label: 'Will COKE win?', status: 'live' }])
 })
 
 describe('linked questions group into one event', () => {

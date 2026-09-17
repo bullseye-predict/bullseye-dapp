@@ -50,7 +50,7 @@ function ArenaEventApp(props: Props) {
   // can open a standalone question exactly like a match-backed market.
   const predictionApiUrl = props.apiUrl?.trim() || '/api/prediction'
   const solanaVenue = useSolanaVenue(predictionApiUrl)
-  const reserved = useReservedSolanaQuestions(predictionApiUrl, solanaVenue)
+  const reserved = useReservedSolanaQuestions(predictionApiUrl, solanaVenue, true, snapshot?.matches ?? [])
   const catalogue = useMarketCatalogue(predictionApiUrl, 'all')
   const cataloguedQuestions = useMemo(() => catalogueQuestions(catalogue.items, solanaVenue), [catalogue.items, solanaVenue])
   const identifiedCatalogue = useQuestionIdentity(cataloguedQuestions)
