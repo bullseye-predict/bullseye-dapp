@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js'
-import { questionMarketAddress } from '../../../packages/adapters/solana/wire'
+import { cachedQuestionMarketAddress } from '../solz/questionMarketPda'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
@@ -34,8 +34,6 @@ export type CatalogueItem = {
 const ID = /^0x[0-9a-f]{64}$/i
 const STATUS = ['scheduled', 'live', 'open', 'resolved', 'cancelled']
 const EVENT_TYPE = ['genesis-ffa', 'miaw-prix', 'match', 'general']
-// No Buffer: this runs in the browser, and the PDA seeds must not depend on a shim.
-const hexBytes = (value: string) => Uint8Array.from((value.slice(2).match(/../g) ?? []).map(byte => Number.parseInt(byte, 16)))
 
 function catalogueItem(row: unknown): CatalogueItem | null {
   if (!row || typeof row !== 'object') return null
@@ -90,7 +88,7 @@ export function catalogueQuestions(items: readonly CatalogueItem[], venue: Publi
       // is a safe local key until venue configuration is available; no trading
       // code sees it because solanaBinding() stays absent without the program.
       marketId: program
-        ? questionMarketAddress(program, hexBytes(item.matchId), hexBytes(item.questionId)).toBase58()
+        ? cachedQuestionMarketAddress(program, item.matchId, item.questionId)
         : item.questionId,
       // IDs remain the binary contract keys; labels are what the event and trade
       // surfaces show. A head-to-head moneyline carries CLAW/STONK here, while a
@@ -103,4 +101,31 @@ export function catalogueQuestions(items: readonly CatalogueItem[], venue: Publi
     })
   }
   return questions
+}
+
+/**
+ * The rows belonging to ONE event, found by any of the three ids a URL may
+ * carry - the event, the match, or a single question inside it.
+ *
+ * The event page is about one event, and everything downstream of the
+ * catalogue - PDA derivation, token identity, a synthetic SolzMatch and
+ * ArenaMarket per question - costs per row. Running that over the whole
+ * all-status inventory (~4,600 rows) is over a second of blocked main thread,
+ * repeated for every page the cursor walk publishes and again on every poll,
+ * to render a dozen markets. Two string passes here replace it.
+ *
+ * An id the catalogue does not carry yields nothing rather than everything:
+ * the arena snapshot, /solana/questions and the MIAW PRIX source each resolve
+ * the page on their own, and none of them consult these rows.
+ */
+export function eventCatalogueItems(items: readonly CatalogueItem[], eventId: string): CatalogueItem[] {
+  const id = eventId.trim().toLowerCase()
+  if (!id) return []
+  // matchId and questionId are lowercased by the parser; eventId is whatever
+  // the backend published, so only it needs folding.
+  const anchor = items.find((item) => item.eventId.toLowerCase() === id || item.matchId === id || item.questionId === id)
+  if (!anchor) return []
+  // Twelve linked questions share one eventId and are one event with twelve
+  // markets, so the anchor row alone is not the answer.
+  return items.filter((item) => item.eventId === anchor.eventId)
 }

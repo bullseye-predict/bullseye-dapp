@@ -2,7 +2,7 @@ import '../../styles/home.css'
 import '../../styles/home-markets.css'
 import '../../styles/markets-directory.css'
 import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, Users, Search } from 'lucide-react'
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { AgentPortrait, StatusDot, TeamMark, compact } from '../home/HomePrimitives'
 import { useHomeData } from '../home/useHomeData'
 import { linkedAnswerLabel, linkedQuestionTitle, questionEvents, reservedSolanaView, useQuestionIdentity, useReservedSolanaQuestions } from '../home/solanaQuestionMarkets'
@@ -302,12 +302,31 @@ export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
   return <FreeForAllCard row={row} now={now}/>
 }
 
-export function MarketDirectory({ snapshot, questions, loaded = true, error, retry }: {
+/**
+ * Does what the reader has selected need rows beyond the newest cursor page?
+ *
+ * Featured, Live and Upcoming are all about matches that have not finished, and
+ * the catalogue is ordered newest-created first, so the head page answers them.
+ * History is by definition the tail. All spans both. A search or an event-type
+ * narrowing is defined across the inventory (MARKET_LIST_API.md), so it must be
+ * able to reach rows the head page does not hold — answering it from one page
+ * would quietly report "no matching markets" for markets that exist.
+ */
+export function needsInventory(filter: MarketFilter, eventType: EventTypeFilter, search: string) {
+  return filter === 'History' || filter === 'All' || eventType !== 'all' || search.trim().length > 0
+}
+
+export function MarketDirectory({ snapshot, questions, loaded = true, error, retry, onScope, extending = false }: {
   snapshot: SolzSnapshot | null
   questions: DirectoryRow[]
   loaded?: boolean
   error: string
   retry: () => void
+  /** Told when the selection needs more than the newest catalogue page, so the
+   *  owner can widen the read. Never called for the default view. */
+  onScope?: (depth: 'head' | 'inventory') => void
+  /** The wider read is still running behind the rows already on screen. */
+  extending?: boolean
 }) {
   const [filter, setFilter] = useState<MarketFilter>('Featured')
   const [eventType, setEventType] = useState<EventTypeFilter>('all')
@@ -344,6 +363,12 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
     }))
   }, [snapshot, questions, filter, eventType, search])
   useEffect(() => setPage(1), [filter, eventType, search])
+  // Widen the catalogue read as soon as the selection needs the tail, and never
+  // narrow it back: the rows are already held, and dropping them would make
+  // stepping back to Featured throw away a walk the reader just paid for.
+  useEffect(() => {
+    if (needsInventory(filter, eventType, search)) onScope?.('inventory')
+  }, [filter, eventType, search, onScope])
   const pageCount = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE))
   useEffect(() => setPage(current => Math.min(current, pageCount)), [pageCount])
   const rows = allRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -383,8 +408,13 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
           <span className="mk-pending mk-pending--row"/>
         </div>)}
       </div> : <>
-        <div className="mk-results-bar"><span className="mk-result-count" role="status">{allRows.length ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, allRows.length)} of ${allRows.length}` : '0 markets'}</span>{pagination}</div>
-        {rows.length ? <div className="mk-card-grid">{rows.map(row => <MarketCard key={row.match.id} row={row} now={now}/>)}</div> : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{search || filter !== 'All' ? 'Try another filter or search.' : 'Every ranked or stake match appears here as soon as it has a match ID.'}</span></div>}
+        {/* A count taken while the wider read is still running is a count of
+            what has arrived, not of what matches — so it says so rather than
+            letting a partial number read as the answer. */}
+        <div className="mk-results-bar"><span className="mk-result-count" role="status">{allRows.length ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, allRows.length)} of ${allRows.length}${extending ? ' so far' : ''}` : extending ? 'Reading the full catalogue…' : '0 markets'}</span>{pagination}</div>
+        {rows.length ? <div className="mk-card-grid">{rows.map(row => <MarketCard key={row.match.id} row={row} now={now}/>)}</div>
+          : extending ? <div className="mk-empty" role="status"><strong>Reading the full catalogue…</strong><span>History and search span every match ever listed, so this view is still loading the rest of them.</span></div>
+          : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{search || filter !== 'All' ? 'Try another filter or search.' : 'Every ranked or stake match appears here as soon as it has a match ID.'}</span></div>}
         {pagination && <div className="mk-pagination-bottom">{pagination}</div>}
       </>}
   </AppShell>
@@ -394,7 +424,34 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
   const source = useMemo(() => createSolzDataSource({ simulationEnabled: () => false }), [])
   const { snapshot, error, retry } = useHomeData(source, apiUrl)
   const venue = useSolanaVenue(apiUrl)
-  const catalogue = useMarketCatalogue(apiUrl, 'all')
+  /**
+   * HOW MUCH CATALOGUE THIS PAGE IS ALLOWED TO ASK FOR.
+   *
+   * 'open' is the default and is one request: status=eligible, selected at the
+   * source, no cursor. It answers Featured, Live and Upcoming completely.
+   *
+   * It widens to 'inventory' - status=all, the whole cursor chain, walked once -
+   * the first time the reader selects something that is defined across the
+   * inventory: History, All, an event type, or a search. It never narrows back,
+   * because the rows are already held and dropping them would throw away a walk
+   * the reader just waited for.
+   *
+   * The page used to open directly on status=all and crawl the entire chain -
+   * 15 requests, ~10,600 items, 77s a lap - and restart that crawl every ten
+   * seconds. Every lap rebuilt a market PDA, a token identity pass and an
+   * on-chain price read for every row, which is what kept the grid on its
+   * skeletons: the commit that would have replaced them never got a free frame.
+   */
+  const [scope, setScope] = useState<'open' | 'inventory'>('open')
+  const widen = useCallback((depth: 'head' | 'inventory') => {
+    if (depth === 'inventory') setScope('inventory')
+  }, [])
+  const catalogue = useMarketCatalogue(
+    apiUrl,
+    scope === 'open' ? 'eligible' : 'all',
+    30_000,
+    scope === 'open' ? 'head' : 'inventory',
+  )
   const reserved = useReservedSolanaQuestions(apiUrl, venue)
   // GET /market/list is the catalogue (docs/MARKET_LIST_API.md). Its market
   // addresses are derived here from (programId, matchId, questionId) rather than
@@ -405,8 +462,30 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
   const identifiedCatalogueQuestions = useQuestionIdentity(rawCatalogueQuestions)
   const catalogued = useMemo(() => identifiedCatalogueQuestions.map(question => ({ ...reservedSolanaView(question, Date.now(), venue), question })), [identifiedCatalogueQuestions, venue])
   const questionCatalogue = catalogue.available ? catalogued : reserved.questions
-  const catalogueMarkets = useMemo(() => questionCatalogue.map((view) => view.market), [questionCatalogue])
-  const priced = useSolanaMarketPrices(catalogueMarkets, venue, true).markets
+  /**
+   * ONLY TRADABLE MARKETS ARE PRICED FROM THE CHAIN.
+   *
+   * useSolanaMarketPrices derives a PDA and reads two book accounts per market,
+   * every pass. Handed the whole catalogue that was ~21,000 account reads per
+   * cycle for a grid of twelve cards, chunked into hundreds of RPC round trips —
+   * the single largest thing blocking this page's main thread.
+   *
+   * A settled or cancelled market has no book worth reading and no price that
+   * can still move: its card shows a result, not a quote. Narrowing to markets
+   * whose trading has not locked is therefore not a sampling compromise, it is
+   * the set that has a live price at all. Measured against the deployed
+   * catalogue that is ~137 of ~10,610 rows.
+   *
+   * `phase === 'settled'` is the right test and not merely the convenient one:
+   * reservedSolanaView (src/components/home/solanaQuestionMarkets.ts:179) sets
+   * it from `cancelled || settled || past its trading window`, which is exactly
+   * "no longer tradable" rather than "reported as resolved".
+   */
+  const tradableMarkets = useMemo(
+    () => questionCatalogue.filter((view) => view.match.phase !== 'settled').map((view) => view.market),
+    [questionCatalogue],
+  )
+  const priced = useSolanaMarketPrices(tradableMarkets, venue, true).markets
   const pricedById = useMemo(() => new Map(priced.map((market) => [`${market.matchId}:${market.id}`, market])), [priced])
   const metadataByEvent = useMemo(() => new Map(catalogue.items.map(item => [item.eventId, item])), [catalogue.items])
   // Every catalogue event gets one directory row. Market existence is not
@@ -434,5 +513,13 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
     }),
     [questionCatalogue, pricedById, metadataByEvent],
   )
-  return <MarketDirectory snapshot={snapshot} questions={questions} loaded={catalogue.loaded || reserved.loaded} error={error} retry={retry}/>
+  return <MarketDirectory
+    snapshot={snapshot}
+    questions={questions}
+    loaded={catalogue.loaded || reserved.loaded}
+    error={error}
+    retry={retry}
+    onScope={widen}
+    extending={catalogue.extending}
+  />
 }

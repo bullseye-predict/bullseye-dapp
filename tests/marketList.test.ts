@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { PublicKey } from '@solana/web3.js'
-import { catalogueQuestions, parseMarketList, type CatalogueItem } from '../src/components/markets/marketList'
+import { catalogueQuestions, eventCatalogueItems, parseMarketList, type CatalogueItem } from '../src/components/markets/marketList'
 import { questionMarketAddress } from '../packages/adapters/solana/wire'
 import type { PublicPredictionVenue } from '../packages/prediction-core/market-data'
 
@@ -99,3 +99,44 @@ test('a scheduled start absent from the row falls back to the kickoff encoded in
   const [derived] = catalogueQuestions(parseMarketList({ items: [bare] }).items as CatalogueItem[], venue)
   expect(Date.parse(derived!.scheduledStartAt)).toBe(Date.parse(at))
 })
+
+const otherMatch = `0x534f4c5a01010014${Math.floor(Date.parse(at) / 1000).toString(16).padStart(16, '0')}00000000000000000000000000000002`
+const question = (suffix: string) => `0x515545530101${suffix.repeat(52).slice(0, 52)}`
+
+test('one event is narrowed out of the whole inventory by any of its three ids', () => {
+  // The event page reads the all-status catalogue - thousands of rows - to
+  // render one event. Everything downstream costs per row, so the narrowing has
+  // to happen before it, and it has to accept whatever id the URL carries.
+  const { items } = parseMarketList({ items: [
+    item({ eventId: 'event-a', questionId: question('a') }),
+    item({ eventId: 'event-a', questionId: question('b') }),
+    item({ eventId: 'event-b', matchId: otherMatch, questionId: question('c') }),
+  ] })
+  for (const id of ['event-a', 'EVENT-A', matchId, matchId.toUpperCase(), question('b')]) {
+    // Twelve linked questions share one eventId and are one event with twelve
+    // markets, so matching a single question must still return its siblings.
+    expect(eventCatalogueItems(items, id).map((row) => row.questionId)).toEqual([question('a'), question('b')])
+  }
+  expect(eventCatalogueItems(items, question('c')).map((row) => row.eventId)).toEqual(['event-b'])
+})
+
+test('an id the catalogue does not carry yields nothing, never the whole inventory', () => {
+  // Falling back to every row is what the narrowing exists to prevent, and the
+  // arena snapshot and /solana/questions resolve the page without these rows.
+  const { items } = parseMarketList({ items: [item()] })
+  for (const id of ['', '   ', 'no-such-event', question('f')]) expect(eventCatalogueItems(items, id)).toEqual([])
+})
+
+test('a repeated derivation of the same market address returns the same answer', () => {
+  // findProgramAddress is a sha256 loop; the catalogue re-derives the same
+  // (program, match, question) triple on every poll and the cache is what stops
+  // that being seconds of blocked main thread. Correctness of the cached value
+  // is the thing worth pinning.
+  const { items } = parseMarketList({ items: [item()] })
+  const expected = questionMarketAddress(new PublicKey(program), hexBytes(matchId), hexBytes(questionId)).toBase58()
+  for (let pass = 0; pass < 3; pass += 1) expect(catalogueQuestions(items, venue)[0]!.marketId).toBe(expected)
+})
+
+function hexBytes(value: string) {
+  return Uint8Array.from((value.slice(2).match(/../g) ?? []).map((byte) => Number.parseInt(byte, 16)))
+}
