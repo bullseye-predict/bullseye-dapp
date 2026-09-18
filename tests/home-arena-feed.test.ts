@@ -109,3 +109,37 @@ test('Neon event drafts replace the homepage match predictions with one YES/NO m
   expect(snapshot.markets[0]).toMatchObject({ id: canonicalQuestionId, matchId: `arena-${canonicalMatchId.slice(2)}`, title: 'Will COKE win?', status: 'indicative' })
   expect(snapshot.markets[0]?.outcomes.map(value => value.label)).toEqual(['YES', 'NO'])
 })
+
+test('a failing schedule costs only the UP NEXT rail; the live room still reaches the page', async () => {
+  // Regression: /api/v1/agent-arena/schedule in _solz-elysia ran 4-9s against
+  // Neon while agents and current answered in 0.3s, so it regularly crossed the
+  // proxy's 10s abort. Joined with Promise.all, that one 503 discarded a healthy
+  // feed and every page that falls back to the local fixture then showed seeded
+  // matches as live ones.
+  const calls: string[] = []
+  const read = createArenaFeed('/api/agent-arena', async input => {
+    const kind = new URL(String(input), 'http://localhost').searchParams.get('kind')
+    calls.push(kind ?? '')
+    if (kind === 'agents') return Response.json({ ok: true, agents })
+    if (kind === 'current') return Response.json({ ok: true, policy: { participants: 1 }, match })
+    if (kind === 'schedule') return Response.json({ error: 'ARENA_SOURCE_UNAVAILABLE' }, { status: 503 })
+    return new Response('', { status: 502 })
+  }, '', true)
+  const feed = await read(new AbortController().signal)
+  expect(calls).toEqual(['agents', 'current', 'schedule'])
+  expect(feed.current?.roomId).toBe('real-match')
+  expect(feed.matches).toHaveLength(1)
+  expect(feed.upcoming).toEqual([])
+})
+
+test('an aborted schedule read still aborts the whole feed', async () => {
+  const controller = new AbortController()
+  const read = createArenaFeed('/api/agent-arena', async input => {
+    const kind = new URL(String(input), 'http://localhost').searchParams.get('kind')
+    if (kind === 'agents') return Response.json({ ok: true, agents })
+    if (kind === 'current') return Response.json({ ok: true, policy: { participants: 1 }, match })
+    controller.abort()
+    throw Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' })
+  }, '', true)
+  expect(read(controller.signal)).rejects.toThrow()
+})

@@ -3,9 +3,21 @@ import {ArrowUpRight,ChevronDown,RefreshCw} from 'lucide-react';
 import {AppShell} from '../solz/AppShell';
 import {arenaAdapter} from './adapter';
 import {emptyFilters,filterMatches,liquid,summarizeAgent,type ArenaAgent,type ArenaMatch,type ArenaPage} from './model';
+import {accentStyle,AgentPortrait,agentSkinSlug} from '../home/HomePrimitives';
+import {GENESIS_TIER_COLOR,genesisMint} from '../home/genesisMint';
 import '../../styles/global.css';
 import './arena-history.css';
 
+/** The wrap this agent wears. `slot` is ZERO-based on the wire - c0ke is slot
+ *  0 - while agentSkinSlug takes the numeral the agent carries, so the two are
+ *  one apart. Reading the slot directly returned the previous agent's wrap for
+ *  every row but the first. Only an API old enough to omit skinSlug reaches
+ *  the fallback, which is why the mistake did not show against the live one. */
+export function arenaWrapSlug(agent:Pick<ArenaAgent,'skinSlug'|'slot'>){return agent.skinSlug||agentSkinSlug(agent.slot+1);}
+/** The can, its own brand wash behind it, and the tier bar beside it - the same
+ *  three things the Genesis card carries, so a row and a card are one agent. */
+function agentStyle(agent:ArenaAgent){const mint=genesisMint(arenaWrapSlug(agent));
+  return {...(mint?{'--tier-color':GENESIS_TIER_COLOR[mint.rarity]}:null),...(agent.accentColor?accentStyle(agent.accentColor):null)} as React.CSSProperties;}
 function date(value?:string){return value?new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'Not started';}
 function MatchLogs({roomId,endpoint}:{roomId:string;endpoint:string}){
   const [events,setEvents]=useState<Record<string,any>[]|null>(null),[error,setError]=useState('');
@@ -42,16 +54,16 @@ export function AgentArenaApp({endpoint,watchUrl,initialAgent=''}:{endpoint:stri
   const stats=(a:ArenaAgent)=>a.matchesPlayed===undefined?summarizeAgent(a.agentId,matches):{matchesPlayed:a.matchesPlayed,wins:a.wins??0,kills:a.kills??0,deaths:a.deaths??0};
   const selectAgent=(id:string)=>{setFilters(f=>({...f,agentId:id}));};
   return <AppShell className="ah-root" mainClassName="ah-main" active="agents" backToTopHref="#ah-roster">
-    <header className="ah-heading"><div><h1 className="sz-page-title">Agent arena</h1><p>Twelve Genesis agents. One arena. Every result on record.</p></div><a className="ah-primary" href={watchUrl} target="_blank" rel="noreferrer">Watch arena <ArrowUpRight size={18}/></a></header>
+    <header className="ah-heading"><div><h1 className="sz-page-title">Agent arena</h1><p>Twelve Genesis agents. One arena. Every result on record.</p></div><a className="ah-primary" href={watchUrl} target="_blank" rel="noreferrer">WATCH ARENA <ArrowUpRight size={18}/></a></header>
     <div className="ah-schedule"><span>20-minute deathmatch</span><span>5-minute break</span><span>All 12 agents enter together · no rotation</span></div>
     <section className="ah-live" aria-label="Current match"><div><strong>{current?.status==='live'?'Current match':current?.status==='settled'?'Latest match settled':'Arena status'}</strong><span>{current?`${String(current.roomId).slice(0,8)} · ${current.entryFeeL} Soda entry · ${current.status}`:loading?'Connecting to game records…':'No current match record'}</span></div><button disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={15}/> {loading?'Refreshing…':'Refresh records'}</button></section>
     {error&&<p className="ah-error" role="alert">{error}</p>}
     <section aria-labelledby="ah-roster"><div className="ah-section-heading"><h2 id="ah-roster">Agent records</h2><span>{page?.legacy?'Recent public history · lifetime totals unavailable':updated?`Updated ${updated} · lifetime settled stats`:'Public profiles & results'}</span></div>
       <div className="ah-table-scroll" tabIndex={0} aria-label="Agent statistics"><table><caption className="sr-only">Select an agent to filter their matches. Balances are Soda Liquid, not prediction collateral.</caption><thead><tr><th>Agent</th><th>Role</th><th>Played</th><th>Wins</th><th>Kills</th><th>Deaths</th><th>Soda Liquid</th></tr></thead><tbody>
-        {agents.map(a=>{const s=stats(a);return <tr key={a.agentId} className={filters.agentId===a.agentId?'is-selected':''}><th><button aria-pressed={filters.agentId===a.agentId} onClick={()=>selectAgent(filters.agentId===a.agentId?'':a.agentId)}>{a.codename}<small>{a.agentId}</small></button></th><td>{a.archetype.toLowerCase()}</td><td>{s.matchesPlayed}</td><td>{s.wins}</td><td>{s.kills}</td><td>{s.deaths}</td><td>{liquid(a.balanceCentilitres)}</td></tr>;})}
+        {agents.map(a=>{const s=stats(a);return <tr key={a.agentId} className={filters.agentId===a.agentId?'is-selected':''}><th><button style={agentStyle(a)} aria-pressed={filters.agentId===a.agentId} onClick={()=>selectAgent(filters.agentId===a.agentId?'':a.agentId)}><i className="ah-tier" aria-hidden="true"/><AgentPortrait number={a.slot+1} slug={a.skinSlug} className="ah-can"/><span>{a.codename}<small>{a.agentId}</small></span></button></th><td className="ah-role">{a.archetype.toUpperCase()}</td><td>{s.matchesPlayed}</td><td>{s.wins}</td><td>{s.kills}</td><td>{s.deaths}</td><td>{liquid(a.balanceCentilitres)}</td></tr>;})}
         {!agents.length&&<tr><td colSpan={7}>{loading?'Loading agent records…':error?'Agent records unavailable.':'No agents registered yet.'}</td></tr>}
       </tbody></table></div>
-      {selected&&<div className="ah-selected"><div><h3>{selected.codename}</h3><p>{selected.archetype.toLowerCase()} · {selected.agentId} · {liquid(selected.balanceCentilitres)} Soda Liquid</p></div><a href={`?agent=${encodeURIComponent(selected.agentId)}`}>Profile link <ArrowUpRight size={14}/></a></div>}
+      {selected&&<div className="ah-selected" style={agentStyle(selected)}><div><AgentPortrait number={selected.slot+1} slug={selected.skinSlug} className="ah-can"/><div><h3>{selected.codename}</h3><p>{selected.archetype.toUpperCase()} · {selected.agentId} · {liquid(selected.balanceCentilitres)} SODA LIQUID</p></div></div><a href={`?agent=${encodeURIComponent(selected.agentId)}`}>Profile link <ArrowUpRight size={14}/></a></div>}
     </section>
     <section aria-labelledby="ah-history"><div className="ah-section-heading"><h2 id="ah-history">{selected?`${selected.codename} · match history`:'Match history'}</h2><span>{visible.length} of {matches.length} loaded records</span></div>
       <div className="ah-filters"><label>Agent<select value={filters.agentId} onChange={e=>selectAgent(e.target.value)}><option value="">All agents</option>{agents.map(a=><option key={a.agentId} value={a.agentId}>{a.codename}</option>)}</select></label><label>Mode<select value={filters.gameMode} onChange={e=>setFilters(f=>({...f,gameMode:e.target.value}))}><option value="">All modes</option><option value="deathmatch">Deathmatch</option><option value="battle_royale">Battle royale</option><option value="gem_grab">Gem grab</option><option value="hotzone">Hotzone</option></select></label><label>Format<select value={filters.teamFormat} onChange={e=>setFilters(f=>({...f,teamFormat:e.target.value}))}><option value="">All formats</option><option value="ffa">Free-for-all</option><option value="team">Team match</option></select></label><label>Status<select value={filters.status} onChange={e=>setFilters(f=>({...f,status:e.target.value}))}><option value="">All statuses</option><option value="settled">Settled</option><option value="live">Live</option><option value="reserved">Reserved</option><option value="cancelled">Cancelled</option></select></label><button onClick={()=>setFilters(emptyFilters)}>Clear filters</button></div>

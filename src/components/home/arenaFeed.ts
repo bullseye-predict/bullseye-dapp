@@ -102,10 +102,19 @@ export function createArenaFeed(
         readAt: Date.now(),
       };
     }
+    // The day-ahead programme is the slowest read behind this endpoint and the
+    // least load-bearing: it fills the UP NEXT rail. `agents` and `current`
+    // carry the live room. Joining all three with Promise.all meant one slow
+    // schedule query discarded a healthy feed, and every caller that falls back
+    // to the local reference fixture then painted seeded matches as if they
+    // were live. Settle the schedule on its own and give up only that rail.
     const [agents, current, upcoming] = await Promise.all([
       api.agents(signal),
       api.current(signal),
-      api.schedule(signal),
+      api.schedule(signal).catch((error: unknown) => {
+        if (signal.aborted) throw error;
+        return [] as ArenaScheduleEntry[];
+      }),
     ]);
     const match = current.match
       ? withMatchPolicy(

@@ -2,7 +2,7 @@ import type { ArenaFeed } from './arenaFeed'
 import type { ArenaMarket, GenesisAgent, MatchRosterEntry, SolzMatch, SolzSnapshot } from '../solz/model'
 
 type ArenaQuestion = { questionId: string; agentId: string; actorId: string; answer: 'YES' | 'NO' | 'VOID' | null }
-type ArenaEvent = { eventId: string; matchId: string; roomId: string; status: 'reserved' | 'live' | 'settled' | 'cancelled'; questions: ArenaQuestion[] }
+type ArenaEvent = { eventId: string; matchId: string; roomId: string; status: 'planned' | 'reserved' | 'live' | 'settled' | 'cancelled'; questions: ArenaQuestion[] }
 
 function timestamp(value: unknown, fallback: number) {
   const parsed = typeof value === 'string' ? Date.parse(value) : NaN
@@ -21,12 +21,25 @@ function agentColor(index: number) {
 
 const teamColors = ['#c7ff00', '#65cfff'] as const
 
+/** The database owns an agent's identity once it carries one. A seeded row still
+ *  wins on the fields the API has no column for (bio, traits, team history). */
+function withLiveIdentity(agent: ArenaFeed['agents'][number], base: GenesisAgent): GenesisAgent {
+  return {
+    ...base,
+    codename: agent.codename || base.codename,
+    subname: agent.subname ?? base.subname,
+    skinSlug: agent.skinSlug ?? base.skinSlug,
+    color: agent.accentColor ?? base.color,
+  }
+}
+
 function realAgents(feed: ArenaFeed, base: GenesisAgent[]) {
   return feed.agents.map((agent, index) => {
     const existing = base.find(value => value.id === agent.agentId)
-    return existing ?? {
+    return existing ? withLiveIdentity(agent, existing) : {
       id: agent.agentId, number: agent.slot + 1, codename: agent.codename, archetype: agent.archetype,
-      color: agentColor(index), status: 'active' as const, matches: agent.matchesPlayed ?? 0, wins: agent.wins ?? 0,
+      subname: agent.subname ?? '', skinSlug: agent.skinSlug ?? '',
+      color: agent.accentColor ?? agentColor(index), status: 'active' as const, matches: agent.matchesPlayed ?? 0, wins: agent.wins ?? 0,
       losses: Math.max(0, (agent.matchesPlayed ?? 0) - (agent.wins ?? 0)), kills: agent.kills ?? 0,
       deaths: agent.deaths ?? 0, objectives: 0, winRate: agent.matchesPlayed ? (agent.wins ?? 0) / agent.matchesPlayed : 0,
       rating: 0, preferredMode: 'ARENA', teamHistory: [], bio: 'Genesis arena agent.',
@@ -81,7 +94,7 @@ function realMatch(raw: ArenaFeed['matches'][number], agents: GenesisAgent[], no
       })
     : [{ teamId: 'genesis-arena', symbol: 'GENESIS', name: 'GENESIS AGENTS', color: '#c7ff00', glyph: 'GA', score: 0, agentIds: roster.map(value => value.agentId) }]
   return {
-    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, roomId: raw.roomId, displayMatchId: raw.displayMatchId, matchNumber: raw.matchNumber, kind: 'highlight', mode: raw.definition?.title ?? raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
+    id: raw.matchId ? `arena-${raw.matchId.slice(2)}` : `arena-${raw.roomId}`, roomId: raw.roomId, sourceMatchId: raw.matchId ?? raw.roomId, displayMatchId: raw.displayMatchId, matchNumber: raw.matchNumber, kind: 'highlight', mode: raw.definition?.title ?? raw.gameMode.toUpperCase(), map: 'GENESIS AGENT ARENA',
     round: isIntermission ? 'INTERMISSION' : raw.status === 'live' ? 'MATCH LIVE' : raw.status.toUpperCase(), phase: isIntermission ? 'countdown' : phase(raw.status), startedAt: isIntermission ? nextMatchAt - durationMs : startedAt,
     endsAt, durationMs, timingType, timingEstimated: raw.status === 'reserved' ? !raw.scheduledStartAt : raw.status === 'live' ? !raw.startedAt : !raw.completedAt,
     viewers: 0, marketId: `arena-${raw.roomId}`,

@@ -1,5 +1,8 @@
 export interface ArenaAgent {
   agentId: string; slot: number; codename: string; archetype: string; balanceCentilitres: string;
+  /** The second line on the agent's can label, and the wrap artwork it names.
+   *  Optional because an API older than the identity migration omits them. */
+  subname?: string; skinSlug?: string; accentColor?: string;
   matchesPlayed?: number; wins?: number; kills?: number; deaths?: number;
 }
 export interface Participation { agentId: string; actorId: string; teamId: string | null; kills: number | null; deaths: number | null; won: boolean | null }
@@ -15,7 +18,10 @@ export interface ArenaScheduleEntry {
   roomId?: string; matchId?: string; scheduledStartAt?: string;
 }
 export interface ArenaMatch {
-  roomId: string; status: 'reserved'|'live'|'settled'|'cancelled'; entryFeeL: number;
+  /** `planned` is a day-ahead programme slot: a real, publicly committed room
+   *  that has not drawn any agent's stake yet. Dropping it from this union made
+   *  the whole history page fail once the scheduler filled a day of them. */
+  roomId: string; status: 'planned'|'reserved'|'live'|'settled'|'cancelled'; entryFeeL: number;
   matchId?: string; displayMatchId?: string; matchNumber?: number; scheduledStartAt?: string;
   createdAt?: string; startedAt?: string; completedAt?: string; nextMatchAt?: string; gameMode: string; teamFormat: string;
   definition?: ArenaDefinition; matchDurationMs?: number; timingType?: 'countdown'|'open-ended';

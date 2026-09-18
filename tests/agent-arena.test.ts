@@ -39,3 +39,46 @@ test('arena page has accessible filters, loading states and no invented balances
  const html=renderToStaticMarkup(createElement(AgentArenaApp,{endpoint:'/api/agent-arena',watchUrl:'https://game.test/watch'}));
  expect(html).toContain('Loading agent records');expect(html).toContain('All formats');expect(html).toContain('Team match');expect(html).not.toContain('1,000');
 });
+
+/**
+ * `planned` is a real, publicly committed programme slot that has not drawn any
+ * agent's stake yet — migration 0046 added it to the room status. The client
+ * parser did not, so once the day-ahead scheduler filled a full day of them,
+ * twenty of every twenty-five history rows threw and took the whole Agents page
+ * down with them: arena records, agent records and match history all "unavailable".
+ * A room status the database can produce must always survive this parser.
+ */
+test('a planned programme slot parses like any other room', () => {
+  const planned = parseMatch(
+    {
+      roomId: 'planned-1',
+      status: 'planned',
+      entryFeeL: 20,
+      scheduledStartAt: '2026-09-17T08:47:02Z',
+      participants: [{ actorId: 'server-bot-0-0', agentId: 'genesis-01' }],
+    },
+    agents,
+  );
+  expect(planned.status).toBe('planned');
+  expect(planned.participants[0]!.agentId).toBe('genesis-01');
+  // Every status the schema admits, so a new one cannot be added to the
+  // database without this failing first.
+  for (const status of ['planned', 'reserved', 'live', 'settled', 'cancelled']) {
+    expect(parseMatch({ ...raw, status, result: undefined, participants: [] }, agents).status).toBe(status);
+  }
+});
+
+/** The identity columns are optional on the wire so an API older than the
+ *  migration still parses, but a null must not reach the UI as a name. */
+test('agent identity columns survive the wire and nulls are dropped', () => {
+  const parsed = parseAgents({
+    ok: true,
+    agents: [
+      { agentId: 'genesis-01', slot: 0, codename: 'c0ke', subname: 'C-ZEROKE', skinSlug: 'c0ke', accentColor: '#d51115', archetype: 'BREACHER', balanceCentilitres: '94000' },
+      { agentId: 'genesis-02', slot: 1, codename: 'peps1', subname: null, skinSlug: null, accentColor: null, archetype: 'RECON', balanceCentilitres: '94000' },
+    ],
+  });
+  expect(parsed[0]).toMatchObject({ codename: 'c0ke', subname: 'C-ZEROKE', skinSlug: 'c0ke', accentColor: '#d51115' });
+  expect(parsed[1]!.subname).toBeUndefined();
+  expect(parsed[1]!.skinSlug).toBeUndefined();
+});

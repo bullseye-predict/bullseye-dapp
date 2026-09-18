@@ -9,6 +9,9 @@ export function parseAgents(value: unknown): ArenaAgent[] {
   return data.agents.map((raw: unknown)=>{const a=object(raw);
     if(typeof a.agentId!=='string'||typeof a.codename!=='string'||typeof a.archetype!=='string'||!Number.isInteger(a.slot)||!/^\d+$/.test(a.balanceCentilitres)) throw Error('Invalid agent profile.');
     for(const key of ['matchesPlayed','wins','kills','deaths']) if(a[key]!==undefined && (!Number.isSafeInteger(a[key])||a[key]<0)) throw Error('Invalid agent statistics.');
+    // An API predating the identity migration returns null for these columns
+    // rather than omitting them; drop those so the UI falls back to its seed.
+    for(const key of ['subname','skinSlug','accentColor']) if(a[key]!==undefined && typeof a[key]!=='string') delete a[key];
     return a as ArenaAgent;
   });
 }
@@ -65,7 +68,7 @@ export function parseArenaDefinition(value: unknown, catalog?: Map<string, Recor
 }
 export function parseMatch(value: unknown, agents: ArenaAgent[], catalog?: Map<string, Record<string, any>>): ArenaMatch {
   const m=object(value),r=m.result?object(m.result):{};
-  if(typeof m.roomId!=='string'||!['reserved','live','settled','cancelled'].includes(m.status)||!Number.isFinite(m.entryFeeL)) throw Error('Invalid match record.');
+  if(typeof m.roomId!=='string'||!['planned','reserved','live','settled','cancelled'].includes(m.status)||!Number.isFinite(m.entryFeeL)) throw Error('Invalid match record.');
   const participants=m.participants??r.participants??[];
   if(!Array.isArray(participants)) throw Error('Invalid participation record.');
   const definition=(()=>{
