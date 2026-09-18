@@ -17,6 +17,11 @@ export type SessionState = {
   evmWallet: DynamicEvmWalletPort | null
   walletAddress?: string
   walletReady: boolean
+  /** Reads the signed-in viewer's bearer token for the SOLZ control plane. It
+   *  is an accessor, not a value: the token rotates while the page is open, and
+   *  a copy taken at publish time would be stale by the time a directive is
+   *  paid for. `undefined` means nobody is signed in. */
+  authToken?: () => string | undefined
 }
 
 const useSessionStore = create<SessionState>(() => ({ solanaWallet: null, evmWallet: null, walletReady: false }))
@@ -30,7 +35,8 @@ export function setSession(next: SessionState) {
     current.solanaWallet === next.solanaWallet &&
     current.evmWallet === next.evmWallet &&
     current.walletAddress === next.walletAddress &&
-    current.walletReady === next.walletReady
+    current.walletReady === next.walletReady &&
+    current.authToken === next.authToken
   ) return
   useSessionStore.setState(next, true)
 }
@@ -39,4 +45,5 @@ export const useSolanaWallet = () => useSessionStore(state => state.solanaWallet
 export const useEvmWallet = () => useSessionStore(state => state.evmWallet)
 export const useWalletReady = () => useSessionStore(state => state.walletReady)
 export const useWalletAddress = () => useSessionStore(state => state.walletAddress)
+export const useAuthToken = () => useSessionStore(state => state.authToken)
 export const getSession = () => useSessionStore.getState()

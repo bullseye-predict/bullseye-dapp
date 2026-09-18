@@ -22,6 +22,7 @@ import { Connection, PublicKey, Transaction, VersionedTransaction } from '@solan
 import type { ISolana } from '@dynamic-labs/solana-core'
 import type { LiveArenaWalletPort } from './liveArenaAdapter'
 import { SolanaWalletBalances } from '../home/SolanaWalletBalances'
+import { LoginDialog } from '../auth/LoginDialog'
 import { profileHref } from '../portfolio/profileRoute'
 import {
   ensureSolanaWaasAccount,
@@ -29,7 +30,6 @@ import {
   initializePredictionDynamicClient,
   predictionDynamicClient,
   signDynamicMessage,
-  signInWithTelegram,
   withDynamicAuthRecovery,
 } from './dynamicModularClient'
 
@@ -48,6 +48,21 @@ type Props = {
 }
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } })
+
+/** The login screen names the cluster it is about to sign against. The endpoint
+ *  is the only thing in the browser that knows which one that is, and it throws
+ *  when unconfigured — which is a readout, not a reason to fail the screen. */
+function clusterLabel() {
+  try {
+    const host = new URL(solanaRpcEndpoint()).hostname
+    if (/devnet/i.test(host)) return 'devnet'
+    if (/testnet/i.test(host)) return 'testnet'
+    if (/localhost|127\.0\.0\.1/.test(host)) return 'localnet'
+    return 'mainnet'
+  } catch {
+    return 'unset'
+  }
+}
 
 /** The app's one truncation. The chip shows a resolved handle where there is
  *  one — see WalletName below — and this for every wallet that has none. */
@@ -83,6 +98,7 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
   const { mutateAsync: logout, isPending: logoutPending } = useLogout()
   const [copied, setCopied] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
+  const [pending, setPending] = useState('')
   const [error, setError] = useState('')
   const [setupPending, setSetupPending] = useState(false)
   const walletPreferenceKey = `solz-prediction:selected-solana-wallet:${environmentId}`
@@ -106,7 +122,9 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
     ? 'Dynamic WaaS'
     : selectedProvider?.metadata.displayName || 'Main Wallet'
   const walletChoices = [...externalWallets, ...(embeddedWallet ? [embeddedWallet] : [])]
-  const installedSolana = providers.filter(provider => provider.chain === 'SOL').slice(0, 4)
+  const installedSolana = useMemo(() => providers
+    .filter(provider => provider.chain === 'SOL')
+    .map(provider => ({ key: provider.key, name: provider.metadata.displayName, iconUrl: provider.metadata.icon })), [providers])
   const busy = socialPending || walletPending || setupPending || logoutPending
 
   function selectWallet(account: SolanaWalletAccount) {
@@ -151,14 +169,18 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
     }
   }, [client, selectedWallet])
 
-  async function finishLogin(action: () => Promise<unknown>) {
+  async function finishLogin(label: string, action: () => Promise<unknown>) {
+    if (busy) return
     setError('')
+    setPending(label)
     try {
       await action()
       await ensureSolanaWaasAccount(client)
       setLoginOpen(false)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Dynamic login did not finish.')
+    } finally {
+      setPending('')
     }
   }
 
@@ -193,13 +215,24 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
     <button className="arena-wallet-button" type="button" disabled><LoaderCircle className="spin" size={15} aria-hidden="true" /> Loading login…</button>
   ) : (
     <div className="arena-wallet-recovery">
-      <button className="arena-wallet-button" type="button" disabled={busy} onClick={() => setLoginOpen(value => !value)}><WalletCards size={15} aria-hidden="true" />{setupPending ? 'Preparing Dynamic wallet…' : authenticated ? 'Restore Dynamic wallet' : 'Log in / Connect'}</button>
-      {loginOpen && <div className="arena-wallet-login-options" role="group" aria-label="Dynamic login options">
-        <button type="button" disabled={busy} onClick={() => void finishLogin(() => socialLogin({ provider: 'google' }))}>Continue with Google</button>
-        <button type="button" disabled={busy} onClick={() => void finishLogin(() => signInWithTelegram(client))}>Continue with Telegram</button>
-        {installedSolana.map(provider => <button type="button" key={provider.key} disabled={busy} onClick={() => void finishLogin(() => connectWallet({ walletProviderKey: provider.key }))}>Connect {provider.metadata.displayName}</button>)}
-      </div>}
-      {(error || initStatus === 'failed') && <span role="alert">{error || initError?.message || 'Dynamic account restoration failed.'}</span>}
+      <button className="arena-wallet-button" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => setLoginOpen(true)}><WalletCards size={15} aria-hidden="true" />{setupPending ? 'Preparing Dynamic wallet…' : authenticated ? 'Restore Dynamic wallet' : 'Log in / Connect'}</button>
+      <LoginDialog
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        initStatus={initStatus}
+        initError={initError?.message}
+        installed={installedSolana}
+        busy={busy}
+        pending={pending}
+        error={error}
+        setupPending={setupPending}
+        network={clusterLabel()}
+        onGoogle={() => void finishLogin('Google', () => socialLogin({ provider: 'google' }))}
+        onX={() => void finishLogin('X', () => socialLogin({ provider: 'twitter' }))}
+        onWallet={(walletProviderKey, name) => void finishLogin(name, () => connectWallet({ walletProviderKey }))}
+      />
+      {/* The screen carries its own failure signal while it is open. */}
+      {!loginOpen && (error || initStatus === 'failed') && <span role="alert">{error || initError?.message || 'Dynamic account restoration failed.'}</span>}
     </div>
   )
 

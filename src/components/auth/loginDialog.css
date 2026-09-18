@@ -1,0 +1,1117 @@
+/**
+ * Login dialog — the sol-zero-engine-mainnet "Access terminal" screen, carried
+ * over to the prediction market.
+ *
+ * The body of this file is the Marathon tactical-brief layout from
+ * sol-zero-engine-mainnet/src/app/components/auth/dynamicLogin.css, class names
+ * included, so both products render the same screen. Two things differ:
+ *
+ *   - The shell. zero-engine morphs its header LOGIN segment into the screen
+ *     with Cult UI's ExpandableScreen (motion). This app has no motion
+ *     dependency, so `.solz-login__*` below is a plain modal with the same
+ *     header contract (label / title / status / close).
+ *   - The tokens. zero-engine reads --ui-* from its theme file. This app has no
+ *     token layer, so the --ui-* names are defined once on the layer below and
+ *     mapped onto the arena palette (chartreuse on near-black).
+ */
+
+.solz-login-layer {
+  --ui-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+
+  --ui-text: #f3f2e9;
+  --ui-text-soft-rgb: 226 232 210;
+
+  --ui-accent: #c7ff4a;
+  --ui-accent-rgb: 199 255 74;
+  --ui-on-accent: #192100;
+
+  --ui-bg-deep: #10110e;
+  --ui-bg-panel-rgb: 24 26 22;
+
+  --ui-danger: #ff8b73;
+  --ui-danger-rgb: 255 139 115;
+
+  --ui-wire: #82a9ff;
+  --ui-wire-2: #6e4df5;
+
+  --solz-login-inset: 22px;
+
+  position: fixed;
+  z-index: 260;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--solz-login-inset);
+}
+
+.solz-login-layer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(0 0 0 / 76%);
+  cursor: default;
+}
+
+.solz-login__screen {
+  position: relative;
+  z-index: 1;
+  width: min(1020px, 100%);
+  height: min(680px, 100%);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 55%);
+  background: var(--ui-bg-deep);
+  box-shadow: 0 18px 70px rgb(0 0 0 / 64%);
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text);
+  letter-spacing: 0.08em;
+}
+
+.solz-login__inner {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.solz-login__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 14px 10px 18px;
+  border-bottom: 1px solid rgb(var(--ui-text-soft-rgb) / 26%);
+  background: rgb(var(--ui-bg-panel-rgb) / 98%);
+}
+
+.solz-login__identity {
+  display: grid;
+  gap: 4px;
+}
+
+.solz-login__identity span {
+  color: rgb(var(--ui-text-soft-rgb) / 56%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.solz-login__identity strong {
+  font-size: 16px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.solz-login__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.solz-login__status {
+  color: var(--ui-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.solz-login__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 36%);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.solz-login__close:hover {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.solz-login__close kbd {
+  color: rgb(var(--ui-text-soft-rgb) / 55%);
+  font: inherit;
+  font-size: 10px;
+}
+
+.solz-login__body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.solz-login__screen button:focus-visible,
+.solz-login__screen a:focus-visible,
+.solz-login__screen input:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
+
+/* ---- shell ------------------------------------------------------------- */
+
+.dyl {
+  display: grid;
+  grid-template-columns: minmax(0, 336px) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text);
+  letter-spacing: 0.04em;
+  background:
+    radial-gradient(120% 90% at 22% 0%, rgb(var(--ui-accent-rgb) / 7%), transparent 62%),
+    var(--ui-bg-deep);
+}
+
+/* ---- brief rail --------------------------------------------------------- */
+
+.dyl-brief {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 20px 18px;
+  border-right: 1px solid rgb(var(--ui-text-soft-rgb) / 18%);
+  background:
+    linear-gradient(180deg, rgb(var(--ui-bg-panel-rgb) / 96%), rgb(var(--ui-bg-panel-rgb) / 72%)),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 7px,
+      rgb(var(--ui-text-soft-rgb) / 3%) 7px 8px
+    );
+}
+
+/* Corner ticks — the Marathon map frame. */
+.dyl-brief::before,
+.dyl-brief::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--ui-accent);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.dyl-brief::before {
+  top: 8px;
+  left: 8px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.dyl-brief::after {
+  right: 8px;
+  bottom: 8px;
+  border-top: 0;
+  border-left: 0;
+}
+
+.dyl-brief__head {
+  display: grid;
+  gap: 8px;
+}
+
+.dyl-brief__eyebrow {
+  color: rgb(var(--ui-text-soft-rgb) / 55%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.dyl-brief__head strong {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 0 22px rgb(var(--ui-accent-rgb) / 22%);
+}
+
+.dyl-brief__head strong span {
+  display: block;
+}
+
+.dyl-brief__art {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 16%);
+  background: rgb(0 0 0 / 42%);
+  overflow: hidden;
+}
+
+.dyl-sigil {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 220px;
+}
+
+.dyl-sigil__scan {
+  transform-origin: 120px 100px;
+  animation: dyl-sweep-rotate 11s linear infinite;
+}
+
+@keyframes dyl-sweep-rotate {
+  to { transform: rotate(360deg); }
+}
+
+.dyl-brief__art-tag {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  color: rgb(var(--ui-text-soft-rgb) / 45%);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.dyl-brief__lede {
+  margin: 0;
+  max-width: 40ch;
+  color: rgb(var(--ui-text-soft-rgb) / 72%);
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+}
+
+.dyl-brief__stats {
+  margin: auto 0 0;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 16%);
+  background: rgb(0 0 0 / 34%);
+}
+
+.dyl-brief__stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 9px;
+  border-bottom: 1px solid rgb(var(--ui-text-soft-rgb) / 10%);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.dyl-brief__stat:last-child {
+  border-bottom: 0;
+}
+
+.dyl-brief__stat dt {
+  color: rgb(var(--ui-text-soft-rgb) / 52%);
+}
+
+.dyl-brief__stat dd {
+  margin: 0;
+  color: var(--ui-accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- main column -------------------------------------------------------- */
+
+.dyl-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- panels -------------------------------------------------------------- */
+
+/* Panels never shrink below their content — the main column scrolls instead.
+   Only the directory (--scroll) trades that for an internal scroll area, so its
+   command band and search stay put while the list moves. */
+.dyl-panel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 18%);
+  background: rgb(var(--ui-bg-panel-rgb) / 82%);
+}
+
+.dyl-panel--grow {
+  flex: 1 0 auto;
+}
+
+.dyl-panel--scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dyl-panel__band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 5px 10px;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+
+.dyl-panel__band h2 {
+  margin: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dyl-panel__band-index {
+  padding-right: 9px;
+  border-right: 1px solid rgb(0 0 0 / 35%);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  opacity: 0.72;
+}
+
+.dyl-panel__band-note {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+
+.dyl-panel__lede {
+  margin: 0;
+  padding: 9px 11px 0;
+  color: rgb(var(--ui-text-soft-rgb) / 62%);
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+.dyl-panel__list {
+  display: grid;
+  gap: 5px;
+  padding: 9px 11px 11px;
+}
+
+.dyl-panel__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.dyl-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(226px, 1fr));
+  gap: 5px;
+  align-content: start;
+  min-height: 0;
+  padding: 0 11px 11px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- option row ---------------------------------------------------------- */
+
+.dyl-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 7px 10px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 18%);
+  background: rgb(var(--ui-text-soft-rgb) / 4%);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dyl-option__index {
+  color: rgb(var(--ui-text-soft-rgb) / 38%);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+}
+
+.dyl-option__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 20%);
+  background: rgb(0 0 0 / 45%);
+  color: var(--ui-accent);
+  overflow: hidden;
+}
+
+.dyl-option__glyph img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Google and Telegram carry their own colours. Apple and X are single-colour
+   by design, so they take this white — their correct treatment on a dark field. */
+.dyl-brand-mono {
+  color: #f2f6f7;
+}
+
+/* Google's mark belongs on a light field. */
+.dyl-option__glyph--light {
+  border-color: rgb(255 255 255 / 55%);
+  background: #ffffff;
+}
+
+.dyl-option__copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dyl-option__copy strong {
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dyl-option__copy small {
+  overflow: hidden;
+  color: rgb(var(--ui-text-soft-rgb) / 58%);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dyl-option__cue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  color: rgb(var(--ui-text-soft-rgb) / 40%);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), color 150ms ease;
+}
+
+.dyl-option:hover:not(:disabled),
+.dyl-option:focus-visible:not(:disabled) {
+  border-color: var(--ui-accent);
+  background: rgb(var(--ui-accent-rgb) / 9%);
+}
+
+.dyl-option:hover:not(:disabled) .dyl-option__cue,
+.dyl-option:focus-visible:not(:disabled) .dyl-option__cue {
+  color: var(--ui-accent);
+  transform: translateX(2px);
+}
+
+.dyl-option:hover:not(:disabled) .dyl-option__index {
+  color: var(--ui-accent);
+}
+
+.dyl-option:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Primary — the fastest route in gets the accent bar and a heavier field. */
+.dyl-option--primary {
+  min-height: 54px;
+  border-color: rgb(var(--ui-accent-rgb) / 55%);
+  background:
+    linear-gradient(90deg, rgb(var(--ui-accent-rgb) / 15%), rgb(var(--ui-accent-rgb) / 3%) 62%, transparent);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+}
+
+.dyl-option--primary .dyl-option__glyph {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+
+.dyl-option--primary .dyl-option__copy strong {
+  font-size: 12.5px;
+}
+
+.dyl-option--primary .dyl-option__cue {
+  color: var(--ui-accent);
+}
+
+.dyl-option--catalog {
+  border-style: dashed;
+  background: transparent;
+}
+
+.dyl-option--locked,
+.dyl-option:disabled {
+  cursor: not-allowed;
+}
+
+.dyl-option--locked {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 5px,
+      rgb(var(--ui-text-soft-rgb) / 5%) 5px 6px
+    );
+}
+
+.dyl-option--locked .dyl-option__glyph {
+  color: rgb(var(--ui-text-soft-rgb) / 45%);
+}
+
+.dyl-option--locked .dyl-option__cue {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.dyl-option:disabled {
+  opacity: 0.46;
+}
+
+/* A pending route runs a scan bar along its bottom edge. */
+.dyl-option__sweep {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--ui-accent);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.dyl-option[data-busy] {
+  border-color: var(--ui-accent);
+  opacity: 1;
+}
+
+.dyl-option[data-busy] .dyl-option__sweep {
+  opacity: 1;
+  animation: dyl-sweep 1100ms cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+
+@keyframes dyl-sweep {
+  0% { transform: scaleX(0); transform-origin: left center; }
+  48% { transform: scaleX(1); transform-origin: left center; }
+  52% { transform: scaleX(1); transform-origin: right center; }
+  100% { transform: scaleX(0); transform-origin: right center; }
+}
+
+.dyl-spinner {
+  animation: dyl-spin 900ms linear infinite;
+}
+
+@keyframes dyl-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- search -------------------------------------------------------------- */
+
+.dyl-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 9px 11px 9px;
+  padding: 0 10px;
+  min-height: 38px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 20%);
+  background: rgb(0 0 0 / 40%);
+  color: rgb(var(--ui-text-soft-rgb) / 50%);
+}
+
+.dyl-search:focus-within {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.dyl-search input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.dyl-search input::placeholder {
+  color: rgb(var(--ui-text-soft-rgb) / 40%);
+  text-transform: uppercase;
+}
+
+/* ---- back controls -------------------------------------------------------- */
+
+.dyl-band-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  margin-left: -3px;
+  padding: 0 8px;
+  border: 1px solid rgb(0 0 0 / 45%);
+  background: rgb(0 0 0 / 12%);
+  color: var(--ui-on-accent);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.dyl-band-back:hover {
+  background: rgb(0 0 0 / 32%);
+}
+
+.dyl-band-back:focus-visible {
+  outline: 2px solid var(--ui-on-accent);
+  outline-offset: 2px;
+}
+
+/* The wallet directory is a page inside this screen, so a full-width return
+   control keeps that obvious on touch — where the chrome control reads as
+   "close the dialog". */
+.dyl-return {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  margin: 0 11px 11px;
+  border: 1px solid var(--ui-accent);
+  background: var(--ui-bg-deep);
+  box-shadow: 0 -10px 18px rgb(0 0 0 / 55%);
+  color: var(--ui-accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.dyl-return:hover {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+
+/* ---- signals -------------------------------------------------------------- */
+
+.dyl-signal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 22%);
+  background: rgb(var(--ui-bg-panel-rgb) / 88%);
+  box-shadow: inset 3px 0 0 rgb(var(--ui-text-soft-rgb) / 45%);
+  color: rgb(var(--ui-text-soft-rgb) / 78%);
+}
+
+.dyl-signal span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dyl-signal strong {
+  color: var(--ui-text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dyl-signal small {
+  color: rgb(var(--ui-text-soft-rgb) / 62%);
+  font-size: 10.5px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.dyl-signal--live {
+  border-color: rgb(var(--ui-accent-rgb) / 45%);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.dyl-signal--warn {
+  border-color: rgb(255 200 90 / 45%);
+  box-shadow: inset 3px 0 0 #ffc85a;
+}
+
+.dyl-signal--warn strong {
+  color: #ffc85a;
+}
+
+.dyl-signal--error {
+  border-color: rgb(var(--ui-danger-rgb) / 52%);
+  box-shadow: inset 3px 0 0 var(--ui-danger);
+}
+
+.dyl-signal--error strong {
+  color: var(--ui-danger);
+}
+
+.dyl-empty {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 10px;
+  border: 1px dashed rgb(var(--ui-text-soft-rgb) / 18%);
+  color: rgb(var(--ui-text-soft-rgb) / 55%);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  grid-column: 1 / -1;
+}
+
+/* ---- footer ---------------------------------------------------------------- */
+
+.dyl-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgb(var(--ui-text-soft-rgb) / 14%);
+  color: rgb(var(--ui-text-soft-rgb) / 45%);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dyl-foot kbd {
+  padding: 1px 5px;
+  border: 1px solid rgb(var(--ui-text-soft-rgb) / 28%);
+  color: rgb(var(--ui-text-soft-rgb) / 70%);
+  font: inherit;
+  font-size: 9px;
+}
+
+.dyl-foot__note {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- compact density --------------------------------------------------------
+   A phone sheet fits roughly a third of the desktop height, so at desktop
+   spacing the user scrolls to discover that wallets exist at all. Everything
+   below trades air for reach: the section ledes go (the band already names the
+   section), rows lose ~12px each, and Apple/X sit side by side. Both routes and
+   both wallet sections then land above the fold. */
+
+@media (max-width: 700px), (max-height: 620px) {
+  .dyl-main {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .dyl-panel__band {
+    min-height: 26px;
+    padding: 3px 9px;
+  }
+
+  .dyl-panel__band h2 {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+
+  .dyl-panel__lede {
+    display: none;
+  }
+
+  .dyl-panel__list {
+    gap: 4px;
+    padding: 7px 8px 8px;
+  }
+
+  .dyl-panel__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .dyl-option {
+    min-height: 38px;
+    gap: 8px;
+    padding: 5px 8px;
+  }
+
+  .dyl-option--primary {
+    min-height: 44px;
+  }
+
+  .dyl-option__glyph {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+  }
+
+  .dyl-option__copy strong {
+    font-size: 10.5px;
+    line-height: 1.2;
+    letter-spacing: 0.09em;
+  }
+
+  .dyl-option--primary .dyl-option__copy strong {
+    font-size: 11.5px;
+  }
+
+  .dyl-option__copy small {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  /* In the route lists the sub-line only restates the band above it ("embedded
+     wallet", "installed in this browser") or the cue beside it ("coming soon").
+     The directory's sub-line is real information, so it stays. */
+  .dyl-panel__list .dyl-option:not(.dyl-option--primary) .dyl-option__copy small {
+    display: none;
+  }
+
+  .dyl-empty {
+    min-height: 36px;
+    padding: 8px;
+    font-size: 9.5px;
+  }
+
+  .dyl-search {
+    min-height: 34px;
+    margin: 7px 8px;
+  }
+
+  .dyl-panel__grid {
+    gap: 4px;
+    padding: 0 8px 8px;
+  }
+}
+
+/* ---- short viewport ----------------------------------------------------------
+   The constraint here is height, not width: the rail sheds its art and the
+   routes keep the full column. */
+
+@media (max-height: 620px) {
+  .dyl-brief {
+    gap: 10px;
+    padding: 14px 14px 12px;
+  }
+
+  .dyl-brief__head strong {
+    font-size: 22px;
+  }
+
+  .dyl-brief__art,
+  .dyl-brief__lede {
+    display: none;
+  }
+
+  .dyl-brief__stats {
+    margin-top: 0;
+  }
+
+  .dyl-foot {
+    display: none;
+  }
+
+  /* Too little height left for a nested scroller to show more than a row or
+     two — the whole column scrolls instead. */
+  .dyl-panel--scroll {
+    flex: 1 0 auto;
+    min-height: auto;
+  }
+
+  .dyl-panel__grid {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 860px) {
+  .dyl {
+    grid-template-columns: minmax(0, 268px) minmax(0, 1fr);
+  }
+
+  .dyl-panel__grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .dyl {
+    grid-template-columns: minmax(0, 1fr);
+    /* Auto rows would otherwise share the leftover height between the strip
+       and the routes, leaving a hole under the title. */
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .solz-login__body {
+    overflow: auto;
+  }
+
+  /* The chrome header right above already reads "ACCOUNT ACCESS / CHOOSE
+     LOGIN", so the strip stays a single thin line rather than a second
+     title block competing for the height the routes need. */
+  .dyl-brief {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 0;
+    padding: 7px 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgb(var(--ui-text-soft-rgb) / 18%);
+  }
+
+  .dyl-brief__head {
+    gap: 0;
+  }
+
+  .dyl-brief__eyebrow {
+    display: none;
+  }
+
+  .dyl-brief::before,
+  .dyl-brief::after {
+    display: none;
+  }
+
+  .dyl-brief__head strong {
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    text-shadow: none;
+  }
+
+  .dyl-brief__head strong span {
+    display: inline;
+  }
+
+  .dyl-brief__art,
+  .dyl-brief__lede {
+    display: none;
+  }
+
+  .dyl-brief__stats {
+    display: flex;
+    margin: 0;
+    border: 0;
+    background: none;
+  }
+
+  .dyl-brief__stat {
+    gap: 6px;
+    padding: 0 8px;
+    border-bottom: 0;
+    border-left: 1px solid rgb(var(--ui-text-soft-rgb) / 14%);
+  }
+
+  .dyl-brief__stat:not(:nth-child(-n + 2)) {
+    display: none;
+  }
+
+  .dyl-main {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .dyl-panel--scroll {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
+  .dyl-panel__grid {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+}
+
+@media (max-width: 680px), (max-height: 560px) {
+  .solz-login-layer {
+    --solz-login-inset: 0px;
+  }
+
+  .solz-login__screen {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+  }
+
+  .solz-login__header {
+    min-height: 56px;
+    padding: 9px 12px;
+  }
+
+  .solz-login__status {
+    display: none;
+  }
+}
+
+/* Touch and compact viewports get an explicit way back to the login list: on a
+   fullscreen sheet the chrome control up top reads as "leave the screen", and
+   after scrolling a 100+ wallet directory the band control is far away. */
+@media (max-width: 700px), (max-height: 620px), (pointer: coarse) {
+  .dyl-return {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dyl-option,
+  .dyl-option__cue {
+    transition: none;
+  }
+
+  .dyl-option[data-busy] .dyl-option__sweep,
+  .dyl-sigil__scan,
+  .dyl-spinner {
+    animation: none;
+  }
+}
