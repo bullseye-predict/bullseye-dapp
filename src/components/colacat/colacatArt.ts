@@ -78,12 +78,16 @@ export const COLACAT_ART = {
 } as const
 
 /**
- * The mint, and the only place it is written down.
+ * The mint is NOT written down here. It arrives as one public environment
+ * variable, `PUBLIC_COLACAT_MINT`, read in src/pages/colacat.astro and passed
+ * to ColaCatApp as the `mint` prop (AGENTS.md: the host reads the environment,
+ * the React tree takes typed props). Setting that variable is the whole of
+ * launch day on this page - no file in this repository changes.
  *
- * It is empty until the token launches. Empty is a real state on this page, not
- * a bug: the identity card prints MINT PENDING at the same size the address
- * will occupy, and the pump.fun control is disabled rather than absent, so the
- * card does not change shape on launch day.
+ * NO MINT IS A REAL STATE, NOT A BUG. While the variable is unset the identity
+ * card prints MINT PENDING at the same width the address will occupy, and the
+ * pump.fun control is disabled rather than absent, so the card does not change
+ * shape when the value lands.
  *
  * A SHORTENED ADDRESS IS NEVER SHOWN AS IF IT WERE THE ADDRESS - there is no
  * abbreviating helper here for exactly that reason. The card prints the whole
@@ -91,14 +95,13 @@ export const COLACAT_ART = {
  * clipboard and what a reader selects by hand when the clipboard is blocked.
  * On a phone it wraps to two lines, which is the correct trade.
  */
-export const COLACAT_MINT = ''
 
 /** The token's own name, kept beside the mint rather than typed into markup. */
 export const COLACAT_SYMBOL = 'COLACAT'
 
 /** pump.fun's coin page, or an empty string while there is no mint to link to. */
-export function pumpFunHref(mint: string = COLACAT_MINT): string {
-  return mint ? `https://pump.fun/coin/${encodeURIComponent(mint)}` : ''
+export function pumpFunHref(mint: string): string {
+  return mint ? `https://pump.fun/coin/${encodeURIComponent(mint.trim())}` : ''
 }
 
 /** `01`, `02`, … the FIG. number for a plate at `index`. */

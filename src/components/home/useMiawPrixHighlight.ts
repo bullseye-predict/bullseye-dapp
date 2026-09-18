@@ -62,20 +62,20 @@ export function matchWindowEnd(match: MiawPrixMatch): number {
  * card is a fixture, so publishing one with invented sides — or with no sides
  * at all — would state something the programme has not decided.
  *
- * A card whose kickoff has passed but whose room has not closed stays in, even
- * while the database still calls it `planned`. The game server flips that flag
- * when the room actually opens, which is seconds to a minute after the clock
- * says so, and dropping the card in between made the hero jump to the match
- * after it and back again.
+ * A past kickoff is eligible only once the game has marked its room live.
+ * A planned row can remain in the database for the entire nominal room window
+ * after a missed launch. Treating that row as open claimed a live highlight
+ * when neither region had a room to watch.
  */
 export function programmeOrder(matches: readonly MiawPrixMatch[], now: number): MiawPrixMatch[] {
   return matches
     .filter((match) => match.sides.length === 2)
     .filter((match) => {
       const state = matchState(match, now)
-      return state !== 'final' && state !== 'cancelled'
+      return (state === 'live' || match.scheduledStartAt > now)
+        && state !== 'final' && state !== 'cancelled'
+        && matchWindowEnd(match) > now
     })
-    .filter((match) => matchWindowEnd(match) > now)
     .sort((a, b) => a.scheduledStartAt - b.scheduledStartAt)
 }
 

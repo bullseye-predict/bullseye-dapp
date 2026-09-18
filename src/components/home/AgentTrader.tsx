@@ -300,6 +300,16 @@ export function AgentTrader({
         agent watches the question and trades it for you. It arms the question on
         screen unless you name another match above it.
       </p>
+      {/* TWO TOKENS, SAID APART. $COLACAT is what a directive costs - it is the
+          agent's fuel, the same claim /colacat makes. The collateral below is
+          what the agent then trades inside the vault. Printing only one of them
+          is how a trader arrives at the button expecting the wrong balance. */}
+      <p className="sh-form-note">
+        Running an agent costs <b>$COLACAT</b>. Every directive you send is paid
+        in it, and the agent needs it to keep the run alive; the position itself
+        is traded in {collateralSymbol} from the vault below.{" "}
+        <a href="/colacat">What $COLACAT is</a>
+      </p>
       {unavailable && (
         <p className="ch-integration-warning" role="note">
           {unavailable}

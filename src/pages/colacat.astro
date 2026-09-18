@@ -4,6 +4,14 @@ import SiteLayout from '../layouts/SiteLayout.astro'
 
 // Route entry point only. Every href the page needs is injected here rather
 // than read inside the React tree (AGENTS.md).
+//
+// THE MINT IS ONE PUBLIC VARIABLE. `PUBLIC_COLACAT_MINT` is the contract
+// address of $COLACAT, and setting it is the whole of launch day for this
+// page: the identity card stops printing MINT PENDING, the copy button
+// enables, and the pump.fun link appears, with no code change. It is public by
+// definition - a contract address is what the page exists to hand out - so it
+// must never hold anything but the mint.
+const colacatMint = String(import.meta.env.PUBLIC_COLACAT_MINT ?? '').trim()
 ---
 
 <SiteLayout
@@ -15,6 +23,7 @@ import SiteLayout from '../layouts/SiteLayout.astro'
     marketsHref="/markets"
     catwalkHref="/catwalk"
     explainerHref="/bet-or-market"
+    mint={colacatMint}
     client:load
   />
 </SiteLayout>

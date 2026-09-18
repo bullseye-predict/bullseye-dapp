@@ -8,7 +8,7 @@ import { ColaCatPromptPanel } from './ColaCatPromptPanel'
 import { ColaCatProofStack } from './ColaCatProofStack'
 import { useReveal } from './useReveal'
 import {
-  COLACAT_ART, COLACAT_MINT, COLACAT_PROOFS, COLACAT_SYMBOL, pumpFunHref,
+  COLACAT_ART, COLACAT_PROOFS, COLACAT_SYMBOL, pumpFunHref,
 } from './colacatArt'
 
 /**
@@ -47,6 +47,12 @@ type Props = {
   catwalkHref?: string
   /** The long-form comparison this page's last section leads to. */
   explainerHref?: string
+  /**
+   * The $COLACAT mint, from `PUBLIC_COLACAT_MINT` via src/pages/colacat.astro.
+   * Empty until the token launches, which the identity card prints as its own
+   * state rather than treating as a fault.
+   */
+  mint?: string
 }
 
 /* ------------------------------------------------------------------ heading */
@@ -109,17 +115,17 @@ function Section({ id, title, meta, deck, lead, className, children }: SectionPr
  * The <code> holds the whole string at every width, because it is both what the
  * button copies and what a reader selects when the clipboard is unavailable.
  */
-function MintCard() {
+function MintCard({ mint }: { mint: string }) {
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const href = pumpFunHref()
+  const href = pumpFunHref(mint)
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const copy = async () => {
-    if (!COLACAT_MINT) return
+    if (!mint) return
     try {
-      await navigator.clipboard.writeText(COLACAT_MINT)
+      await navigator.clipboard.writeText(mint)
       setCopied(true)
       clearTimeout(timer.current)
       timer.current = setTimeout(() => setCopied(false), 1600)
@@ -140,10 +146,10 @@ function MintCard() {
             also removed the selectable text a reader falls back to when the
             clipboard is blocked. A mint wraps to two lines on a phone; that is
             the correct trade. */}
-        {COLACAT_MINT
-          ? <code>{COLACAT_MINT}</code>
+        {mint
+          ? <code>{mint}</code>
           : <code className="is-pending">MINT PENDING</code>}
-        <button type="button" onClick={copy} disabled={!COLACAT_MINT} aria-label={copied ? 'Address copied' : 'Copy the contract address'}>
+        <button type="button" onClick={copy} disabled={!mint} aria-label={copied ? 'Address copied' : 'Copy the contract address'}>
           {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
         </button>
       </div>
@@ -170,7 +176,11 @@ export function ColaCatApp({
   marketsHref = '/markets',
   catwalkHref = '/catwalk',
   explainerHref = '/bet-or-market',
+  mint = '',
 }: Props) {
+  // Trimmed once here so a trailing newline in the environment variable cannot
+  // become a trailing newline on the clipboard or inside a pump.fun URL.
+  const mintAddress = mint.trim()
   const [headNode, headShown] = useReveal<HTMLElement>()
   const proofs = COLACAT_PROOFS
 
@@ -204,7 +214,7 @@ export function ColaCatApp({
             picture of a cat in a bottle. The alt text still carries it for
             anyone who cannot see the picture. */}
         <div className="cola-head-body">
-          <MintCard />
+          <MintCard mint={mintAddress} />
           <div className="cola-bottles">
             <Plate
               src={COLACAT_ART.bottleRed}
