@@ -59,6 +59,7 @@ export function activeForPath(pathname: string): HeaderActive {
   if (pathname.startsWith('/agent-arena')) return 'agents'
   if (pathname.startsWith('/catwalk')) return 'catwalk'
   if (pathname.startsWith('/miaw-prix')) return 'miawprix'
+  if (pathname.startsWith('/colacat') || pathname.startsWith('/bet-or-market')) return 'colacat'
   if (pathname.startsWith('/profile') || /^\/(solana|somnia)\//.test(pathname)) return 'profile'
   return 'highlight'
 }

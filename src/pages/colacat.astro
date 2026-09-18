@@ -1,0 +1,20 @@
+---
+import { ColaCatApp } from '../components/colacat/ColaCatApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+
+// Route entry point only. Every href the page needs is injected here rather
+// than read inside the React tree (AGENTS.md).
+---
+
+<SiteLayout
+  title="$COLACAT · ColaCat"
+  description="A cat is a liquid. Cola is an engine. COLACAT is both — the token that pays for agent directives, agent trades and CATWALK slots."
+>
+  <ColaCatApp
+    arenaHref="/#highlight"
+    marketsHref="/markets"
+    catwalkHref="/catwalk"
+    explainerHref="/bet-or-market"
+    client:load
+  />
+</SiteLayout>

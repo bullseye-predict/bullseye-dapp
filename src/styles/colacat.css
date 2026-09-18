@@ -1,0 +1,541 @@
+/* COLACAT - the token sheet at /colacat, and its long version at /bet-or-market.
+ * Prefix: cola-.  Root element: `.solz-home.cola-app`.
+ *
+ * WHY `cola-` AND NOT `cc-`. `cc-` already has two owners on every page this
+ * shell renders - `.cc-site-footer` (src/styles/site-footer.css) and
+ * `.cc-loading-*` / `.cc-spinner` (src/styles/site-loading.css) - and both mount
+ * through src/components/solz/AppShell.tsx. A third claimant would be a
+ * collision waiting to be written.
+ *
+ * NO NEW COLOURS. Every value below is a token already declared on `.solz-home`
+ * in src/styles/home.css:6-20. The one addition is --cola-plate, the light
+ * backing the product renders sit on, and it exists because the artwork itself
+ * is photographed on white: a white square dropped straight onto #111215 reads
+ * as a missing background rather than as a plate.
+ *
+ * THE PAGE IS A SPECIMEN SHEET, so the chrome is a laboratory's: hairline
+ * frames, dashed frames for anything not yet filed, numbered plates, measured
+ * captions in tracked mono. Squared corners throughout, which is this site's
+ * default (src/styles/game-surfaces.css:72-76 makes radius opt-in by name).
+ *
+ * NO TRADING COLOUR. AGENTS.md reserves green/red for a control where a trader
+ * picks Yes or No. Nothing here is one. The BET vs PREDICTION MARKET comparison
+ * in particular is neutral ink plus lime, because painting "a bet" red would be
+ * this page making a risk judgement in paint instead of in prose.
+ *
+ * MOTION IS ONE MECHANISM, AND IT IS OPTIONAL. Sections draw a leader line in
+ * when they arrive (src/components/colacat/useReveal.ts adds `is-revealed`), and
+ * the proof plates run THE SETTLE - one lime bar stepping down the sheet, keyed
+ * off each plate's index so it is correct at three specimens and at thirty. The
+ * reduced-motion block at the foot of this file neutralises both; nothing the
+ * page says depends on either.
+ */
+
+.solz-home.cola-app {
+  /* The light backing under a product render, and the ink that goes on it. */
+  --cola-plate: #f2f2ef;
+  --cola-plate-line: #cbcbc4;
+  /* One dashed frame for everything not yet filed. Dashed means inert on this
+     site (see .cw-act--locked, catwalk.css) - it is never decorative. */
+  --cola-pending-line: #4a4d57;
+  /* WCAG AA AT 9px, MEASURED, NOT PICKED BY EYE. The pending frames are most of
+     this page until the artwork lands, and the old #7a7e8a/#5f636e pair scored
+     2.9-4.3:1 on the hatch below. --sh-dim is 5.4:1 on the lighter hatch stop
+     and 5.8:1 on the page. */
+  --cola-pending-ink: #8d8f99;
+  /* The smallest a proof plate may get before the grid drops a column. */
+  --cola-proof-min: 208px;
+}
+
+/* ONE CENTRED BAND FOR THE WHOLE PAGE.
+   `.sz-main` (src/styles/site-header.css:22) runs to a 1600px content column,
+   which is right for a trading screen and far too wide for a page that is
+   mostly prose and photographs - it left every section hugging the left edge
+   with a third of the viewport empty beside it. The cap below is the band's own
+   width, stated once, and the gutter is added back so the padding `.sz-main`
+   applies still lands outside the content rather than inside it. Every section
+   inherits it, so the headings, the leaders and the paired columns all sit on
+   the same two edges. */
+.solz-home.cola-app .cola-main {
+  --cola-band: 1168px;
+  display: grid;
+  gap: clamp(34px, 3.2vw, 50px);
+  align-content: start;
+  max-width: calc(var(--cola-band) + var(--site-gutter) * 2);
+  padding-block: 24px 64px;
+}
+
+/* ------------------------------------------------------------------- type */
+
+/* :where() ON EVERY BASE ELEMENT RULE, AND IT IS LOAD-BEARING.
+   These five set the page's DEFAULTS. Written as `.solz-home.cola-app p` they
+   score (0,2,1), which beat every `.cola-*` rule in this same file - so the
+   deck, the footnotes, the strip copy and the award card all rendered at the
+   one blanket 12px/--sh-muted and the type ladder below simply did not exist on
+   screen. `:where()` contributes no specificity, so a default stays a default
+   and any class here overrides it, as written. */
+:where(.solz-home.cola-app) :is(h1, h2, h3) { text-transform: uppercase; }
+/* The page's one h1 is the opening section's heading, so it is sized like a
+   heading. The 100px display line it replaced belonged to a wordmark that the
+   site header already carries. */
+:where(.solz-home.cola-app) h1 { font: 800 clamp(24px, 3.1vw, 40px)/1.03 var(--sh-heading); letter-spacing: -.022em; }
+:where(.solz-home.cola-app) h2 { font: 800 clamp(21px, 2.7vw, 34px)/1.04 var(--sh-heading); letter-spacing: -.018em; }
+:where(.solz-home.cola-app) h3 { font: 700 13px/1.25 var(--sh-heading); letter-spacing: .01em; }
+:where(.solz-home.cola-app) p { font-size: 12px; line-height: 1.75; color: var(--sh-muted); }
+.solz-home.cola-app p b { color: var(--sh-text); font-weight: 700; }
+.solz-home.cola-app .cola-dim { color: var(--sh-dim); }
+
+/* The kicker: the site's own, down to the single round dot (catwalk.css:120). */
+.cola-kicker { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; color: var(--sh-muted); font: 500 10px var(--sh-mono); letter-spacing: .13em; text-transform: uppercase; }
+.cola-kicker i { width: 6px; height: 6px; border-radius: 50%; background: var(--sh-lime); flex: 0 0 auto; }
+
+/* --------------------------------------------------------------- sections */
+
+/* One flex row - title, a leader that measures itself out, the meta string.
+   The mockup joins every beat to the next with a hand-drawn arrow; this is
+   that arrow, and it is the page's only structural invention. */
+.cola-section-head { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.cola-section-head h2 { flex: 0 1 auto; min-width: 0; }
+.cola-leader { flex: 1 1 auto; min-width: 22px; height: 1px; background: var(--sh-line); transform: scaleX(0); transform-origin: left center; transition: transform .7s cubic-bezier(.22, 1, .36, 1) .08s; }
+.is-revealed .cola-leader { transform: scaleX(1); }
+.cola-section-meta { flex: 0 0 auto; color: var(--sh-dim); font: 500 9px var(--sh-mono); letter-spacing: .14em; text-transform: uppercase; }
+
+/* Scoped to the page root, at (0,3,0): `.solz-home :is(h1, h2, h3, p)
+   { margin: 0 }` in home.css is (0,1,0) and loads after this file, so a bare
+   `.cola-deck` would tie and lose, and the deck would sit flush against the
+   grid under it. Same for the two other paragraph margins on this page. */
+.solz-home.cola-app .cola-deck { max-width: 66ch; margin-bottom: 20px; font-size: 13px; color: var(--sh-muted); }
+.solz-home.cola-app .cola-foot { margin-top: 16px; color: var(--sh-dim); font-size: 9px; letter-spacing: .04em; }
+.cola-foot code { color: var(--sh-dim); }
+
+/* The section body eases up as the leader draws.
+   TRANSLATE ONLY, NEVER OPACITY. The reveal class comes from JavaScript
+   (useReveal.ts), and a page that hides its own text until a script says
+   otherwise is a page that shows nothing when the script does not arrive - to a
+   reader with JavaScript off, and to anything that renders the server's HTML
+   without running it. Twelve pixels of travel is a defect nobody can see; an
+   invisible section is the whole page. */
+.cola-section > :not(.cola-section-head) { translate: 0 12px; transition: translate .55s cubic-bezier(.22, 1, .36, 1) .1s; }
+.cola-section.is-revealed > :not(.cola-section-head) { translate: none; }
+
+/* ----------------------------------------------------------- header band */
+
+.cola-head { padding-top: 6px; }
+/* A px cap, not a `ch` one: `ch` resolves against this block's inherited 12px
+   mono, which is a fifth of the size of the display line it was meant to
+   measure - and it folded the explainer's headline into four cramped lines in a
+   column with 900px of room beside it. The paragraph keeps a `ch` measure,
+   because there `ch` really is the reading width. */
+.cola-head-title { max-width: 920px; }
+.solz-home.cola-app .cola-head-lede { max-width: 62ch; font-size: 15px; line-height: 1.6; color: var(--sh-text); }
+.cola-head h1 { margin-bottom: 16px; }
+.cola-head-title p { max-width: 58ch; font-size: 14px; line-height: 1.65; }
+/* MINT LEFT, RENDERS RIGHT - the order the markup now uses too, so a reader
+   with no stylesheet gets the same sequence. Half the band each, per THE
+   CENTRELINE RULE below. */
+.cola-head-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 2.2vw, 34px); align-items: start; margin-top: clamp(20px, 2.6vw, 34px); }
+.cola-head-body .cola-mint { max-width: 340px; }
+.cola-bottles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(12px, 1.4vw, 20px); }
+/* The renders are photographed on white; the plate says so on purpose. */
+.cola-bottles .cola-plate-well { background: var(--cola-plate); border-color: var(--cola-plate-line); }
+.cola-bottles .cola-plate:not(.is-pending) .cola-plate-well:hover img { scale: 1.03; }
+
+.cola-head .cola-back { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 18px; color: var(--sh-dim); font: 500 10px var(--sh-mono); letter-spacing: .12em; text-transform: uppercase; }
+.cola-head .cola-back:hover { color: var(--sh-lime); }
+.cola-head.is-narrow .cola-head-title { max-width: 800px; }
+.cola-head.is-narrow h1 { font-size: clamp(32px, 5.4vw, 62px); }
+
+/* ------------------------------------------------------------ mint card */
+
+.cola-mint { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--sh-card-line); background: var(--sh-card); align-content: start; }
+.cola-mint-label { color: var(--sh-dim); font: 500 8px var(--sh-mono); letter-spacing: .2em; text-transform: uppercase; }
+.cola-mint-well { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--sh-line); background: var(--sh-panel-2); }
+.cola-mint-well code { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; padding: 9px 10px; color: var(--sh-text); font: 500 10px/1.4 var(--sh-mono); overflow-wrap: anywhere; }
+.cola-mint-well code.is-pending { color: var(--cola-pending-ink); letter-spacing: .14em; }
+.cola-mint-well button { flex: 0 0 auto; display: grid; place-items: center; width: 36px; border: 0; border-left: 1px solid var(--sh-line); background: transparent; color: var(--sh-dim); }
+.cola-mint-well button:hover:not(:disabled) { color: var(--sh-lime); background: #1f2127; }
+.cola-mint-hint { font-size: 9px; color: var(--sh-dim); line-height: 1.5; }
+.cola-mint-cta { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; background: var(--sh-lime); color: #15180c !important; font: 700 11px var(--sh-heading); letter-spacing: .1em; text-transform: uppercase; }
+.cola-mint-cta:hover { background: #d8ff33; }
+.cola-mint-cta.is-pending { background: transparent; border: 1px dashed var(--cola-pending-line); color: var(--cola-pending-ink) !important; font-weight: 500; font-family: var(--sh-mono); letter-spacing: .12em; cursor: not-allowed; }
+.cola-mint-facts { display: grid; gap: 0; margin: 3px 0 0; border-top: 1px solid var(--sh-line); }
+.cola-mint-facts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--sh-line); }
+.cola-mint-facts > div:last-child { border-bottom: 0; }
+.cola-mint-facts dt { color: var(--sh-dim); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.cola-mint-facts dd { margin: 0; color: var(--sh-muted); font-size: 10px; text-align: right; }
+
+/* ---------------------------------------------------------------- plates */
+
+/* align-content: start, or a plate whose neighbour has a taller caption grows
+   its own rows to match and the two captions stop sitting on one line. */
+.cola-plate { display: grid; gap: 8px; margin: 0; align-content: start; }
+/* THE HATCH IS UNDER EVERY WELL, not only under a pending one. A loaded
+   picture covers it completely, so it costs a filed plate nothing - and with
+   JavaScript off there is no React to notice a 404 and draw the frame, so this
+   is the only thing standing between a missing file and a bare broken-image
+   glyph on the page's first screen. */
+.cola-plate-well { position: relative; overflow: hidden; border: 1px solid var(--sh-card-line); background: repeating-linear-gradient(135deg, #16171b 0 7px, #191a1f 7px 14px); }
+.cola-plate-well img { display: block; width: 100%; height: 100%; object-fit: cover; transition: scale .5s cubic-bezier(.22, 1, .36, 1); }
+
+/* A FILE THAT IS NOT FILED YET KEEPS ITS EXACT FRAME. Eight of the ten slots on
+   this page have no artwork on disk today, so this state is not an edge case -
+   it is what the sheet looks like until the owner drops the files in. Dashed
+   edge, ruled hatch, the plate's own subject printed inside it. */
+.cola-plate.is-pending .cola-plate-well {
+  border-style: dashed;
+  border-color: var(--cola-pending-line);
+}
+.cola-plate-pending { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 7px; padding: 16px; text-align: center; }
+.cola-plate-pending b { color: var(--cola-pending-ink); font: 700 9px var(--sh-mono); letter-spacing: .22em; }
+.cola-plate-pending small { max-width: 24ch; color: var(--sh-dim); font-size: 9px; line-height: 1.5; }
+
+/* THE SETTLE - one lime bar stepping plate by plate down the sheet, which is
+   the mockup's "PROOFS ANIMATION". The vocabulary is the page's own soda pour
+   (@keyframes soda-transfer, src/styles/home-hero.css:377) rather than a second
+   liquid language, and the stagger is keyed off --i, the array index, so it
+   reads correctly at three specimens and at thirty. */
+.cola-plate-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--sh-lime); transform: scaleX(0); transform-origin: left center; pointer-events: none; }
+/* The probe starts when the sheet arrives, not while it is still below the
+   fold - so it reads as a measurement of these specimens rather than as an
+   animation that was already running before anyone looked. */
+.cola-liquid.is-revealed .cola-proofs .cola-plate-fill { animation: cola-settle 9s ease-out infinite; animation-delay: calc(var(--i, 0) * .17s); }
+.cola-plate:not(.is-pending) .cola-plate-well:hover .cola-plate-fill { transform: scaleX(1); transition: transform .45s cubic-bezier(.22, 1, .36, 1); animation: none; }
+@keyframes cola-settle {
+  0%, 86%, 100% { transform: scaleX(0); }
+  90%, 96% { transform: scaleX(1); }
+}
+
+.cola-plate figcaption { display: grid; gap: 3px; }
+.cola-plate-sign { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cola-plate-sign b { color: var(--sh-lime); font: 700 8px var(--sh-mono); letter-spacing: .18em; text-transform: uppercase; white-space: nowrap; }
+.cola-plate-sign > span { color: var(--sh-text); font: 500 10px var(--sh-mono); letter-spacing: .06em; text-transform: uppercase; }
+.cola-plate figcaption small { color: var(--sh-dim); font-size: 9px; line-height: 1.5; }
+.cola-plate figcaption cite { color: var(--sh-dim); font: 400 8px var(--sh-mono); font-style: normal; letter-spacing: .06em; }
+
+/* ------------------------------------------------- the claim and the pile */
+
+/* TEXT LEFT, PHOTOGRAPHS RIGHT - the mockup's leader line runs that way, so the
+   reading column stays where the line starts and the proofs sit where it ends. */
+/* THE TWO COLUMNS SIT AT THE OUTER EDGES, with the gutter between them - which
+   is what the mockup draws, a long leader running from the claim across to the
+   photographs. A `1fr` left column would have been 900px holding a 450px
+   reading measure, so the whitespace would have landed inside the text rather
+   than between the two halves. */
+/* THE CENTRELINE RULE, AND IT HOLDS FOR EVERY PAIRED SECTION ON THIS PAGE.
+   Words live left of the band's centre, pictures live right of it. So each pair
+   is two equal columns - never a content-sized one - because the moment a
+   column is sized to its content the boundary between them wanders, the prose
+   runs past the middle and the picture starts somewhere else on every section.
+   Equal columns put that boundary on the same vertical line all the way down.
+   The one exception is COLA AS ENERGY, whose banner is deliberately centred ON
+   the line rather than beside it. */
+.cola-liquid-grid,
+.cola-science-grid,
+.cola-joy-grid,
+.cola-join-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Each picture is anchored to the centreline and keeps its own size inside its
+   half - a reference does not become a billboard just because it has room. */
+.cola-science-grid > .cola-award-plate,
+.cola-join-grid > .cola-poster,
+.cola-joy-grid > .cola-exhibit { justify-self: start; }
+.cola-science-grid > .cola-award-plate { max-width: 290px; }
+.cola-join-grid > .cola-poster { max-width: 320px; }
+.cola-joy-grid > .cola-exhibit { max-width: 440px; }
+
+.cola-liquid-grid { gap: clamp(24px, 2.6vw, 48px); align-items: start; }
+.cola-liquid-note { display: grid; gap: 18px; align-content: start; }
+.solz-home.cola-app .cola-liquid-note .cola-deck { margin-bottom: 0; font-size: 14px; }
+
+/* The measured notes beside the claim. One outer rule, one rule per row, the
+   label in tracked mono - the same key/value shape the mint card uses. */
+.cola-facts { display: grid; gap: 0; margin: 0; border-top: 1px solid var(--sh-line); }
+.cola-facts > div { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--sh-line); }
+.cola-facts dt { color: var(--sh-lime); font: 500 8px var(--sh-mono); letter-spacing: .2em; text-transform: uppercase; }
+.cola-facts dd { margin: 0; color: var(--sh-muted); font-size: 12px; line-height: 1.7; }
+.solz-home.cola-app .cola-liquid-count { font-size: 12px; color: var(--sh-dim); }
+.solz-home.cola-app .cola-liquid-count b { color: var(--sh-lime); font-weight: 700; }
+
+/* THE PILE - photographs dropped on a bench.
+   Every specimen is visible at once, overlapping, each keeping its own
+   proportions. There is no aspect-ratio anywhere in here on purpose: these are
+   found photographs, four of the five are portrait and the tub is landscape,
+   and forcing them into one frame either crops the container out of the picture
+   or letterboxes it into a third of its own plate.
+   THE SCATTER IS ARITHMETIC. Three columns, and `--s` (the index modulo three,
+   set by the component) picks the offset, width and tilt. So the pile is stable
+   across renders, identical on the server, and a sixth photograph lands where
+   the third did instead of wherever a random number sent it. */
+.cola-collage {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+  gap: 0 0;
+  margin: 0;
+  padding: 0 0 clamp(20px, 3vw, 48px);
+  list-style: none;
+}
+.cola-collage > li {
+  position: relative;
+  /* Later photographs sit on top of earlier ones, which is what makes it a pile
+     rather than a grid with gaps. */
+  z-index: calc(var(--i) + 1);
+  transition: transform .3s cubic-bezier(.22, 1, .36, 1);
+}
+/* Column 1: full width, sitting high. */
+.cola-collage > li[style*='--s: 0'] { width: 106%; margin-top: 0; rotate: -1.2deg; }
+/* Column 2: pulled left over its neighbour and dropped. */
+.cola-collage > li[style*='--s: 1'] { width: 98%; margin: 14% 0 0 -14%; rotate: 1.6deg; }
+/* Column 3: smaller, lifted, overlapping both. */
+.cola-collage > li[style*='--s: 2'] { width: 88%; margin: 5% 0 0 -10%; rotate: -.8deg; }
+/* Every row after the first climbs back into the one above it, so the pile
+   stays a pile at six, twelve or thirty specimens instead of becoming rows. */
+.cola-collage > li:nth-child(n + 4) { margin-top: -22%; }
+.cola-collage > li:hover { transform: translateY(-6px) scale(1.03); z-index: 40; rotate: 0deg; }
+
+.cola-collage .cola-plate { display: block; }
+.cola-collage .cola-plate-well { border: 3px solid #f2f2ef; background: #16171b; }
+.cola-collage .cola-plate-well img { display: block; width: 100%; height: auto; }
+/* A file that is not filed yet has no picture to take a height from, so the
+   frame is given one here rather than collapsing to a hairline. */
+.cola-collage .cola-plate.is-pending .cola-plate-well { aspect-ratio: 4 / 5; border-style: dashed; border-width: 1px; border-color: var(--cola-pending-line); }
+
+/* THE SETTLE - each photograph drops onto the pile in turn when the section
+   arrives, which is the mockup's PROOFS ANIMATION. Keyed off `--i`, so it is
+   right at any count. */
+.cola-liquid.is-revealed .cola-collage > li { animation: cola-drop .5s cubic-bezier(.22, 1, .36, 1) backwards; animation-delay: calc(var(--i) * .09s); }
+@keyframes cola-drop {
+  from { opacity: 0; translate: 0 -18px; scale: 1.04; }
+  to { opacity: 1; translate: none; scale: 1; }
+}
+
+.cola-proof-empty { padding: 26px; border: 1px dashed var(--cola-pending-line); color: var(--sh-dim); text-align: center; }
+.cola-proof-empty code { color: var(--sh-lime); font-size: 11px; }
+
+/* ------------------------------------------------------------ the science */
+
+/* TWO COLUMNS. There used to be a third holding the citation picture as a 3/4
+   portrait; with the file unfiled that column was a 400px tall empty frame, and
+   the prose beside it ran out after two paragraphs, so the beat was mostly
+   void. The picture now bands into the card and the prose keeps its own half. */
+/* The same rhythm as the proof beat above it: a capped reading column at the
+   left edge, the panel at the right edge, the gutter between them. */
+/* PACKED FROM THE LEFT, and the poster is a reference, not a billboard. A `1fr`
+   first column was 900px of grid holding a 450px reading measure, so the gutter
+   opened up in the middle and the card drifted to the far edge of the page away
+   from the paragraph that introduces it. */
+.cola-science-grid { gap: clamp(20px, 2.2vw, 38px); align-items: start; }
+.cola-science-note { display: grid; gap: 16px; }
+/* Printed whole, on its own paper. It is a poster, and a poster cropped to fit
+   a band is a poster with its drawing thrown away. */
+.cola-award-plate .cola-plate-well { border: 1px solid var(--cola-plate-line); background: var(--cola-plate); }
+.cola-award-plate .cola-plate-well img { display: block; width: 100%; height: auto; }
+.cola-award { display: grid; gap: 9px; padding: 18px; border: 1px solid color-mix(in srgb, var(--sh-lime) 40%, transparent); background: color-mix(in srgb, var(--sh-lime) 6%, transparent); }
+.cola-award-label { color: var(--sh-lime); font: 700 8px var(--sh-heading); letter-spacing: .2em; text-transform: uppercase; }
+.cola-award h3 { font-size: 17px; text-transform: none; }
+.cola-award p { color: var(--sh-text); font-size: 12px; }
+.cola-award q { color: var(--sh-lime); font-style: italic; }
+.cola-award cite { padding-left: 14px; text-indent: -14px; color: var(--sh-dim); font: 400 9px/1.6 var(--sh-mono); font-style: normal; }
+.cola-award cite i { font-style: italic; }
+
+/* ------------------------------------------------------------ cola energy */
+
+/* THE BANNER RUNS THE FULL COLUMN and the prose sits above it, centred. It used
+   to be a 300px rail of text beside a 900px picture, which is a measure nobody
+   wants to read and a banner that stopped being one. */
+/* `.cola-energy-body`, NOT `.cola-energy`: that name is on the <section> itself
+   (ColaCatApp passes it as the Section className), so styling it here centred
+   the section heading along with the banner. */
+.cola-energy-body { display: grid; gap: clamp(18px, 2.2vw, 30px); justify-items: center; }
+.cola-energy-note { display: grid; gap: 10px; max-width: 74ch; text-align: center; }
+.solz-home.cola-app .cola-energy-note p { font-size: 14px; line-height: 1.7; }
+/* CAPPED. At the full content column a 16/9 plate is 900px tall, which is a
+   billboard rather than a banner and pushed everything after it off the screen. */
+.cola-energy-body .cola-banner { width: 100%; max-width: 880px; }
+
+/* ------------------------------------------------------- joy + the panel */
+
+.cola-joy-grid { gap: clamp(20px, 2.4vw, 40px); align-items: start; }
+.cola-creed { display: grid; gap: 14px; max-width: 54ch; }
+.cola-creed p { font-size: 13px; }
+/* The stamp is a stamp: rotated, ruled, and the only place on the page where
+   the lime goes round a whole block instead of marking one control. */
+.cola-stamp { display: flex; }
+.cola-stamp span { display: inline-block; padding: 7px 14px; border: 2px solid var(--sh-lime); color: var(--sh-lime); font: 800 11px var(--sh-heading); letter-spacing: .16em; text-transform: uppercase; rotate: -2.4deg; }
+
+.cola-exhibit { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--sh-card-line); background: var(--sh-card); }
+.cola-exhibit-label { color: var(--sh-dim); font: 500 8px var(--sh-mono); letter-spacing: .2em; text-transform: uppercase; }
+.cola-exhibit-foot { font-size: 10px; line-height: 1.6; color: var(--sh-muted); }
+
+/* THE ARENA'S OWN COMPOSER, IN A PAGE COLUMN.
+   The wrapper wears `.ch-console`, which is what carries the composer's paint
+   (the ~80 rules under `.solz-home :is(.ch-console, .ch-stage-corner)` in
+   src/styles/home-console.css). It deliberately does NOT wear `.ch-stage-corner`:
+   src/styles/home-hero.css:992 declares that class `position: absolute` with no
+   scope at all, which would tear the panel out of this column. The rules below
+   are the few that size it for a page rather than for the hero rail, and they
+   out-specify home-console.css by compounding the page root. */
+.solz-home.cola-app .cola-console { gap: 0; }
+.solz-home.cola-app .cola-console .ch-prompt-accordion { border: 1px solid var(--sh-line); }
+.solz-home.cola-app .cola-console .ch-mini-prompt { min-height: 0; }
+.solz-home.cola-app .cola-console .ch-prompt-details { max-height: min(320px, 46vh); overflow: auto; scrollbar-width: thin; }
+
+/* The panel's own shell while the arena's demo source is still loading: same
+   height, same edge, same field. AGENTS.md - loading keeps the final surface's
+   structure, never a standalone sentence. */
+.cola-console-waiting { display: grid; gap: 9px; min-height: 250px; align-content: start; padding: 14px 12px; border: 1px solid var(--sh-line); border-radius: var(--radius-panel); background: #202226; }
+.cola-console-waiting > span { display: block; background: #2b2f35; }
+.cola-console-waiting-head { height: 22px; width: 62%; }
+.cola-console-waiting-field { height: 96px; border-radius: 14px; }
+.cola-console-waiting-controls { height: 36px; width: 74%; border-radius: 8px; }
+.cola-console-waiting > span { animation: cola-breathe 1.7s ease-in-out infinite; }
+/* The degraded panel keeps the frame's height, so a failure downstream does not
+   shorten the section around it. Dashed, because dashed means inert here. */
+.cola-console-down { display: grid; gap: 9px; align-content: center; justify-items: start; min-height: 250px; padding: 20px; border: 1px dashed var(--cola-pending-line); border-radius: var(--radius-panel); background: #1b1d21; }
+.cola-console-down strong { color: var(--sh-text); font: 700 12px var(--sh-heading); }
+.cola-console-down > span { color: var(--sh-dim); font-size: 11px; line-height: 1.6; }
+@keyframes cola-breathe { 0%, 100% { opacity: .55; } 50% { opacity: .95; } }
+
+/* ------------------------------------------------------------ recruitment */
+
+.cola-join-grid { gap: clamp(20px, 2.4vw, 40px); align-items: center; }
+/* The measure belongs to the prose, not to the cell: capping the cell made
+   the two calls to action wrap onto separate lines in a column with 600px
+   of room beside them. */
+.cola-join-note { display: grid; gap: 14px; }
+.cola-join-note > p { max-width: 46ch; }
+.cola-join-note p { font-size: 14px; }
+.cola-join-line { color: var(--sh-text) !important; font: 800 clamp(18px, 2.2vw, 26px)/1.2 var(--sh-heading) !important; letter-spacing: -.01em; text-transform: uppercase; }
+.cola-poster .cola-plate-well { background: var(--cola-plate); border-color: var(--cola-plate-line); }
+
+.cola-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 4px; }
+.cola-button { display: inline-flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 16px; border: 1px solid var(--sh-line); color: var(--sh-text) !important; font: 600 11px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; transition: border-color .18s ease-out, background .18s ease-out; }
+.cola-button:hover { border-color: var(--sh-card-edge); background: var(--sh-card-hover); }
+.cola-button.is-primary { border-color: var(--sh-lime); background: var(--sh-lime); color: #15180c !important; font-family: var(--sh-heading); font-weight: 700; }
+.cola-button.is-primary:hover { background: #d8ff33; border-color: #d8ff33; }
+.cola-inline-link { display: inline-flex; align-items: center; gap: 6px; color: var(--sh-lime) !important; font: 600 10px var(--sh-mono); letter-spacing: .09em; text-transform: uppercase; }
+.cola-inline-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* --------------------------------------------------------------- the uses */
+
+/* ONE OUTER BORDER, INTERNAL CELL BORDERS - the site's own strip recipe
+   (.sh-how-strip, src/styles/home.css), not four separate boxes. */
+.cola-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; border: 1px solid var(--sh-card-line); background: var(--sh-card); }
+.cola-strip > li { display: grid; gap: 8px; align-content: start; padding: 18px 16px 20px; border-right: 1px solid var(--sh-line); }
+.cola-strip > li:last-child { border-right: 0; }
+.cola-strip-no { color: var(--sh-dim); font: 700 9px var(--sh-mono); letter-spacing: .18em; }
+.cola-strip h3 { color: var(--sh-text); }
+.cola-strip p { font-size: 11px; line-height: 1.7; }
+.cola-chip { display: inline-flex; align-items: center; gap: 5px; width: max-content; padding: 4px 8px; border: 1px solid currentColor; border-radius: var(--radius-control); font: 600 8px var(--sh-mono); letter-spacing: .12em; text-transform: uppercase; }
+.cola-chip.is-burn { color: var(--sh-pink); }
+/* NOT lime: lime on this site means "you can act on this", and this one says
+   the opposite - it is not built yet. */
+.cola-chip.is-later { color: var(--sh-dim); border-style: dashed; }
+
+/* ------------------------------------------------- bet vs prediction market */
+
+.cola-versus-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 22px); }
+.cola-versus-card { display: grid; gap: 12px; align-content: start; padding: 20px; border: 1px solid var(--sh-line); background: var(--sh-panel-2); }
+.cola-versus-card.is-market { border-color: color-mix(in srgb, var(--sh-lime) 42%, var(--sh-line)); background: color-mix(in srgb, var(--sh-lime) 5%, var(--sh-panel-2)); }
+.cola-versus-card :is(h2, h3) { color: var(--sh-dim); font: 700 10px var(--sh-mono); letter-spacing: .2em; }
+.cola-versus-card.is-market :is(h2, h3) { color: var(--sh-lime); }
+.cola-versus-card dl { display: grid; gap: 0; margin: 0; }
+.cola-versus-card dl > div { display: grid; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--sh-line); }
+.cola-versus-card dl > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.cola-versus-card dt { color: var(--sh-dim); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
+.cola-versus-card dd { margin: 0; color: var(--sh-text); font-size: 12px; line-height: 1.6; }
+/* The on-chain claim and its price, stated together. They are one thought: the
+   second paragraph is the cost of the first, so they share a block and the
+   cost is not tucked away somewhere quieter. */
+.cola-versus-note { display: grid; gap: 10px; max-width: 86ch; margin-bottom: 20px; padding: 16px 18px; border-left: 2px solid var(--sh-lime); background: #17181c; }
+.solz-home.cola-app .cola-versus-note p { font-size: 12px; line-height: 1.75; }
+.solz-home.cola-app .cola-versus-line { margin: 20px 0 16px; color: var(--sh-text) !important; font: 800 clamp(16px, 2vw, 23px)/1.3 var(--sh-heading) !important; letter-spacing: -.01em; text-wrap: balance; }
+
+/* ------------------------------------------------------- the long version */
+
+.cola-explainer .cola-main { gap: clamp(34px, 3.4vw, 52px); }
+.cola-beat-body { display: grid; gap: 12px; max-width: 74ch; }
+.cola-beat-body p { font-size: 13px; }
+.cola-close { display: grid; gap: 14px; justify-items: start; padding-top: 10px; border-top: 1px solid var(--sh-line); }
+.cola-close p { max-width: 68ch; font-size: 13px; }
+.cola-close h2 { margin-top: 14px; }
+
+/* ---------------------------------------------------------- narrower views */
+
+/* THE `!important` ON EVERY aspect-ratio BELOW IS LOAD-BEARING, not a shortcut.
+   Plate.tsx writes the well's ratio as an inline style, because the ratio is a
+   property of the artwork and belongs with the component that knows it. An
+   inline declaration beats any selector, so a breakpoint that needs a different
+   crop - a portrait card going landscape when it spans a row - has no other way
+   to say so. These four are the only ones on the page. */
+
+@media (max-width: 1190px) {
+  .solz-home.cola-app { --cola-proof-min: 184px; }
+}
+
+@media (max-width: 1020px) {
+  .cola-head-body { grid-template-columns: minmax(0, 1fr); }
+  .cola-liquid-grid,
+  .cola-science-grid { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .cola-liquid-note { max-width: none; }
+  /* Three columns of a 339px phone is a 117px photograph, which is a thumbnail
+     of a cat in a jug rather than evidence of one. Two columns, and the third
+     scatter slot lands on the next row - the arithmetic does not care. */
+  .cola-collage { grid-template-columns: repeat(2, 1fr); }
+  .cola-collage > li:nth-child(n + 3) { margin-top: -18%; }
+  .cola-head-body,
+  .cola-joy-grid,
+  .cola-join-grid { grid-template-columns: minmax(0, 1fr); }
+  .cola-head-body .cola-mint { max-width: 420px; }
+  .cola-joy-grid > .cola-exhibit { max-width: none; }
+  .cola-join-grid { align-items: start; }
+  .cola-poster { max-width: 330px; }
+  .cola-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cola-strip > li:nth-child(2n) { border-right: 0; }
+  .cola-strip > li:nth-child(-n+2) { border-bottom: 1px solid var(--sh-line); }
+}
+
+@media (max-width: 720px) {
+  /* 132px twice plus the gap clears a 375px viewport at --site-gutter 18px
+     (src/styles/site-header.css:86), so the sheet keeps two columns on a phone
+     instead of becoming five full-width plates in a very long column. */
+  .solz-home.cola-app { --cola-proof-min: 132px; }
+  .solz-home.cola-app .cola-main { gap: 32px; padding-block: 18px 48px; }
+  .cola-section-head { gap: 10px; }
+  .cola-leader { display: none; }
+  .cola-science-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .cola-science-note { max-width: none; }
+  .cola-versus-grid { grid-template-columns: minmax(0, 1fr); }
+  .cola-head-title p { font-size: 13px; }
+  .cola-mint { padding: 13px; }
+  .cola-actions .cola-button { flex: 1 1 auto; justify-content: center; }
+}
+
+@media (max-width: 520px) {
+  .cola-strip { grid-template-columns: minmax(0, 1fr); }
+  .cola-strip > li { border-right: 0; border-bottom: 1px solid var(--sh-line); }
+  .cola-strip > li:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 390px) {
+  /* --site-gutter drops to 12px here (site-header.css:99), so the pair still
+     fits; the floor comes down with it rather than collapsing to one column. */
+  .solz-home.cola-app { --cola-proof-min: 124px; }
+}
+
+/* ------------------------------------------------------------ less motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .solz-home.cola-app *,
+  .solz-home.cola-app *::before,
+  .solz-home.cola-app *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .cola-leader { transform: scaleX(1); }
+  .cola-section > :not(.cola-section-head) { translate: none; }
+  .cola-plate-fill { transform: scaleX(1); }
+  /* ColaCatProofStack never sets `is-stacked` under reduced motion, so the
+     proofs stay the captioned grid the server rendered. Nothing to undo here -
+     this comment is so the next reader does not go looking for it. */
+}

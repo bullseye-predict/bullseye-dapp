@@ -1,0 +1,13 @@
+---
+import { BetOrMarketApp } from '../components/colacat/BetOrMarketApp'
+import SiteLayout from '../layouts/SiteLayout.astro'
+
+// The long version of the last section on /colacat. Route entry point only.
+---
+
+<SiteLayout
+  title="Bet vs prediction market · ColaCat"
+  description="Who is on the other side, where the price comes from, whether you can leave, and where the order book actually lives — a bookmaker against an on-chain prediction market."
+>
+  <BetOrMarketApp colacatHref="/colacat" marketsHref="/markets" arenaHref="/#highlight" client:load />
+</SiteLayout>
