@@ -1,12 +1,31 @@
-import type { ArenaMarket, ArenaMarketOutcome, SolzMatch, SolzSnapshot } from '../solz/model'
+import type { ArenaMarket, ArenaMarketOutcome, MatchTeamSide, SolzMatch, SolzSnapshot } from '../solz/model'
 
 export type HighlightView = 'live' | 'market' | 'options'
 export const INTERMISSION_DELAY = 150_000
 export const teamLabel = (symbol: string) => /^team\s+\d+$/i.test(symbol) ? symbol : `${symbol.replace(/^\$/, '')} TEAM`
+/** What one side of a match is called on screen.
+ *
+ *  A MIAW PRIX side IS a coin, so its ticker is the whole identity and
+ *  `teamLabel` would publish "PURR TEAM" for a thing that has no team. A
+ *  Genesis arena side is a community flying a token, where the suffix is the
+ *  point. The mint is what tells the two apart, so neither has to be guessed
+ *  from the symbol's spelling. */
+export const sideLabel = (team: Pick<MatchTeamSide, 'symbol' | 'mint'>) =>
+  team.mint ? team.symbol.replace(/^\$/, '') : teamLabel(team.symbol)
 export const matchLabel = (teams: Array<{ symbol: string }>) => teams.length > 2 ? `${teams.length}-TEAM FREE FOR ALL` : teams.map((team) => teamLabel(team.symbol)).join(' — ')
 export function matchIdLabel(match: Pick<SolzMatch, 'displayMatchId'|'matchNumber'>) {
   if (Number.isSafeInteger(match.matchNumber) && match.matchNumber! > 0) return `MATCH #${match.matchNumber}`
-  if (match.displayMatchId?.trim()) return match.displayMatchId.trim().replace(/^MATCH\s+(\d+)$/i, 'MATCH #$1')
+  const display = match.displayMatchId?.trim()
+  if (display) {
+    // The game service names a room by its whole recipe —
+    // `GM-TDM_DR-5_TS-1789728152_ID-EEE76D5F` — of which only the trailing ID
+    // is an identity a reader can carry. Printing the recipe fills a card with
+    // a blob; printing its tail names the match and still matches the copy
+    // chip, which carries the full canonical id.
+    const tail = /_ID-([0-9A-Z]{4,})$/i.exec(display)
+    if (tail) return `MATCH #${tail[1]!.toUpperCase()}`
+    return display.replace(/^MATCH\s+(\d+)$/i, 'MATCH #$1')
+  }
   return 'MATCH —'
 }
 export function outcomeColor(outcome: ArenaMarketOutcome, snapshot: SolzSnapshot, index = 0) {

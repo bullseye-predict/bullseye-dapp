@@ -16,8 +16,8 @@ describe('homepage preview operations', () => {
   test('keeps the soda-can agents distinct from token teams', async () => {
     const snapshot = await createSolzDataSource().load()
     expect(snapshot.agents).toHaveLength(12)
-    expect(snapshot.agents.slice(0, 4).map((agent) => agent.codename)).toEqual(['COKE', 'PEPSI', 'SPRITE', 'FANTA'])
-    expect(snapshot.matches[0].roster[0].codename).toBe('COKE')
+    expect(snapshot.agents.slice(0, 4).map((agent) => agent.codename)).toEqual(['c0ke', 'peps1', '2UP', 'Monst3r'])
+    expect(snapshot.matches[0].roster[0].codename).toBe('c0ke')
     expect(snapshot.teams[0].symbol).toBe('$BONK')
     expect(snapshot.markets.every((market) => Math.abs(market.outcomes.reduce((sum, outcome) => sum + outcome.probability, 0) - 1) < 0.0001)).toBe(true)
   })
@@ -82,7 +82,7 @@ describe('homepage preview operations', () => {
     const receipt = await source.submitPrompt(intent)
     const updated = await source.load()
     expect(updated.prompts[0].id).toBe(receipt.id)
-    expect(updated.prompts[0].codename).toBe('COKE')
+    expect(updated.prompts[0].codename).toBe('c0ke')
     expect(updated.account.balances.COOLA).toBe(initial.account.balances.COOLA - source.quotePrompt(intent).cost)
     expect(updated.chat.at(-1)?.text).toContain(intent.text)
   })
@@ -103,14 +103,14 @@ describe('homepage preview operations', () => {
     const source = createSolzDataSource()
     const initial = await source.load()
     const match = initial.matches[0]
-    const named = promptRecipients(match, 'cOkE, push west; PEPSI, cover the flank.')
-    expect(named.map((entry) => entry.codename)).toEqual(['COKE', 'PEPSI'])
-    expect(promptRecipients(match, 'Agent-03, defend the objective.').map((entry) => entry.codename)).toEqual(['SPRITE'])
-    expect(promptRecipients(match, 'Pepsiman should not match an agent name.')).toHaveLength(match.roster.filter((entry) => entry.status === 'active').length)
-    await source.submitPrompt({ matchId: match.id, text: 'Coke, take point. Pepsi, hold the rear.', token: 'COOLA' })
+    const named = promptRecipients(match, 'C0KE, push west; Peps1, cover the flank.')
+    expect(named.map((entry) => entry.codename)).toEqual(['c0ke', 'peps1'])
+    expect(promptRecipients(match, 'Agent-03, defend the objective.').map((entry) => entry.codename)).toEqual(['2UP'])
+    expect(promptRecipients(match, 'Peps1man should not match an agent name.')).toHaveLength(match.roster.filter((entry) => entry.status === 'active').length)
+    await source.submitPrompt({ matchId: match.id, text: 'c0ke, take point. peps1, hold the rear.', token: 'COOLA' })
     const updated = await source.load()
     expect(updated.prompts[0].targetAgentIds).toEqual(named.map((entry) => entry.agentId))
-    expect(updated.prompts[0].codename).toBe('COKE + PEPSI')
+    expect(updated.prompts[0].codename).toBe('c0ke + peps1')
     expect(updated.account.balances.COOLA).toBe(initial.account.balances.COOLA - 75)
   })
 
@@ -118,9 +118,9 @@ describe('homepage preview operations', () => {
     const { matches } = await createSolzDataSource().load()
     const match = structuredClone(matches[0])
     match.roster[0].status = 'eliminated'
-    expect(promptRecipients(match, 'Everyone defend the objective.').some((entry) => entry.codename === 'COKE')).toBe(false)
-    expect(promptRecipients(match, 'Coke, defend the objective.')[0].status).toBe('eliminated')
-    expect(promptRecipients(match, 'Pepsi, hold the rear.', match.roster[2].agentId).map((entry) => entry.codename)).toEqual(['SPRITE'])
+    expect(promptRecipients(match, 'Everyone defend the objective.').some((entry) => entry.codename === 'c0ke')).toBe(false)
+    expect(promptRecipients(match, 'c0ke, defend the objective.')[0].status).toBe('eliminated')
+    expect(promptRecipients(match, 'peps1, hold the rear.', match.roster[2].agentId).map((entry) => entry.codename)).toEqual(['2UP'])
     expect(promptRecipients(match, 'Hold the objective.', 'missing-agent')).toHaveLength(0)
   })
 
@@ -149,4 +149,23 @@ describe('homepage preview operations', () => {
       expect(updated.account.balances.COOLA).toBe(before)
     } finally { unsubscribe() }
   }, 10_000)
+  test('posts a chat message for an arena match the fixture list never held, on any market source', async () => {
+    // The homepage shows arena-fed matches (`arena-<roomId>`), and its market
+    // source is SOLANA on this branch. Neither may silence the chat field: the
+    // message is local to this device, so it goes into the list either way.
+    const source = createSolzDataSource({ simulationEnabled: () => false })
+    const initial = await source.load()
+    expect(initial.matches.some((match) => match.id === 'arena-room-404')).toBe(false)
+
+    source.sendChat('arena-room-404', '  hold the wall  ')
+    const posted = (await source.load()).chat.filter((entry) => entry.matchId === 'arena-room-404')
+    expect(posted).toHaveLength(1)
+    expect(posted[0].text).toBe('hold the wall')
+    expect(posted[0].author).toBe('YOU')
+    expect(posted[0].self).toBe(true)
+    expect(posted[0].kind).toBe('viewer')
+
+    // A reply still has to attach to a thread this source holds.
+    expect(() => source.sendChat('arena-room-404', 'reply', posted[0].id)).toThrow('no longer available')
+  })
 })

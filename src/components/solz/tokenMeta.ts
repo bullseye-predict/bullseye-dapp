@@ -21,6 +21,35 @@ import { resolvedTokenLogo, tokenIconUrl } from './tokenIcon'
 
 export type TokenMeta = { mint: string; name: string; symbol: string; icon: string }
 
+const CACHE_KEY = 'coola:token-meta:v1'
+const CACHE_MAX_AGE_MS = 24 * 60 * 60_000
+const QUERY_BATCH = 50
+
+type CachedToken = TokenMeta & { at: number }
+
+/** Token identity changes rarely. Keep the last known symbol/icon in the
+ * browser so route changes do not turn a profile into a fresh Jupiter lookup. */
+function cachedTokens(mints: readonly string[]): Map<string, TokenMeta> {
+  if (typeof window === 'undefined') return new Map()
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(CACHE_KEY) ?? '') as CachedToken[]
+    const wanted = new Set(mints)
+    return new Map((Array.isArray(rows) ? rows : [])
+      .filter(row => wanted.has(row.mint) && Number.isSafeInteger(row.at) && Date.now() - row.at <= CACHE_MAX_AGE_MS && typeof row.name === 'string' && typeof row.symbol === 'string' && typeof row.icon === 'string')
+      .map(({ at: _at, ...token }) => [token.mint, token]))
+  } catch { return new Map() }
+}
+function cacheTokens(tokens: Map<string, TokenMeta>) {
+  if (typeof window === 'undefined') return
+  try {
+    const now = Date.now()
+    // Bound the cache so an unusually large market directory never consumes
+    // local storage just because it was viewed once.
+    const rows = [...tokens.values()].slice(-300).map(token => ({ ...token, at: now }))
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify(rows))
+  } catch { /* Caching is an optimisation, never a dependency. */ }
+}
+
 export function parseTokenMeta(payload: unknown): Map<string, TokenMeta> {
   const found = new Map<string, TokenMeta>()
   const rows = (payload as any)?.tokens
@@ -90,7 +119,8 @@ export function overlayTokenMeta(board: CatwalkBoard | null, meta: Map<string, T
  * does not move the way a price does.
  */
 export function useTokenMeta(mints: readonly string[], endpoint = '/api/token-meta'): Map<string, TokenMeta> {
-  const key = [...new Set(mints)].sort().join(',')
+  const unique = [...new Set(mints)].sort()
+  const key = unique.join(',')
   const [meta, setMeta] = useState<Map<string, TokenMeta>>(() => new Map())
 
   useEffect(() => {
@@ -98,14 +128,27 @@ export function useTokenMeta(mints: readonly string[], endpoint = '/api/token-me
     const controller = new AbortController()
     let live = true
     void (async () => {
+      const cached = cachedTokens(unique)
+      if (cached.size && live) setMeta(previous => new Map([...previous, ...cached]))
+      const missing = unique.filter(mint => !cached.has(mint))
+      if (!missing.length) return
       try {
-        const response = await fetch(`${endpoint}?mints=${encodeURIComponent(key)}`, {
-          signal: controller.signal,
-          headers: { accept: 'application/json' },
-        })
-        if (!response.ok) return
-        const parsed = parseTokenMeta(await response.json())
-        if (live && !controller.signal.aborted && parsed.size) setMeta(parsed)
+        const resolved = new Map(cached)
+        // The proxy deliberately caps one request at 50 mints. Read larger
+        // portfolios in small sequential batches instead of silently dropping
+        // later teams (or sending a burst of registry requests).
+        for (let offset = 0; offset < missing.length; offset += QUERY_BATCH) {
+          const response = await fetch(`${endpoint}?mints=${encodeURIComponent(missing.slice(offset, offset + QUERY_BATCH).join(','))}`, {
+            signal: controller.signal,
+            headers: { accept: 'application/json' },
+          })
+          if (!response.ok) continue
+          for (const [mint, token] of parseTokenMeta(await response.json())) resolved.set(mint, token)
+        }
+        if (live && !controller.signal.aborted && resolved.size) {
+          cacheTokens(resolved)
+          setMeta(previous => new Map([...previous, ...resolved]))
+        }
       } catch { /* identity the registry would not answer is not an error the board reports */ }
     })()
     return () => { live = false; controller.abort() }

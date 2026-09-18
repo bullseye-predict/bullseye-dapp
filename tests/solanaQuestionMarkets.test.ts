@@ -1,10 +1,23 @@
 import { describe, expect, test } from 'bun:test'
-import { onchainFallbackQuestions, parseReservedSolanaQuestions, reservedSolanaView, resolveMatchMarkets, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
+import { inferredHeadToHeadPresentation, mergeQuestionCatalogue, onchainFallbackQuestions, parseReservedSolanaQuestions, reservedSolanaView, resolveMatchMarkets, resolveQuestionEvent, solanaQuestionLocksAt, standaloneQuestions, questionKind, questionEvents, linkedAnswerLabel, linkedQuestionTitle, type ReservedSolanaQuestion } from '../src/components/home/solanaQuestionMarkets'
 import type { PublicPredictionVenue } from '../packages/prediction-core/market-data'
 
 const question = { eventId: 'solana-demo', matchId: '0x0000000000000014000000006aa0000000000000000000000000000000000000', questionId: `0x${'22'.repeat(32)}`, marketId: 'market-pda', label: 'Will SOLZ-LAZY-DEMO win?', outcomes: ['YES', 'NO'], scheduledStartAt: '2026-10-12T00:11:31.000Z', status: 'reserved' }
 
 describe('reserved Solana question view', () => {
+  test('recognises legacy mint-pair labels as a head-to-head token market', () => {
+    const presentation = inferredHeadToHeadPresentation({
+      outcomes: ['So11111111111111111111111111111111111111112', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'],
+    })
+    expect(presentation).toMatchObject({
+      kind: 'head-to-head',
+      outcomes: [
+        { label: 'So11111111111111111111111111111111111111112', teamId: 'So11111111111111111111111111111111111111112' },
+        { label: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', teamId: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
+      ],
+    })
+  })
+
   test('parses only canonical binary reservations', () => {
     expect(parseReservedSolanaQuestions({ questions: [question, { ...question, questionId: 'bad' }] })).toHaveLength(1)
   })
@@ -32,6 +45,29 @@ describe('reserved Solana question view', () => {
     const { match, market } = reservedSolanaView(parsed, solanaQuestionLocksAt(parsed) + 1)
     expect(match).toMatchObject({ phase: 'settled', round: 'RESULT PENDING' })
     expect(market.status).toBe('closed')
+  })
+
+  test('a question with no tradeable flag is tradable, so an older backend reads the same', () => {
+    expect(parseReservedSolanaQuestions({ questions: [question] })[0]!.tradeable).toBe(true)
+  })
+
+  test('a finished question is published to be named, and is closed however its clock reads', () => {
+    // The catalogue carries this so a position the trader still holds can show
+    // a name, outcome labels and artwork. Its own window is still open here.
+    const parsed = parseReservedSolanaQuestions({ questions: [{ ...question, status: 'live', tradeable: false }] })[0]!
+    expect(parsed.tradeable).toBe(false)
+    const { match, market } = reservedSolanaView(parsed, 1)
+    expect(match).toMatchObject({ phase: 'settled', round: 'RESULT PENDING' })
+    expect(market.status).toBe('closed')
+    expect(market.rules).toContain('Trading is closed')
+    expect(market.title).toBe(question.label)
+  })
+
+  test('a settled question keeps its name rather than being dropped', () => {
+    const parsed = parseReservedSolanaQuestions({ questions: [{ ...question, status: 'settled', tradeable: false }] })[0]!
+    const { match, market } = reservedSolanaView(parsed, 1)
+    expect(match.round).toBe('SETTLED')
+    expect(market).toMatchObject({ status: 'closed', title: question.label })
   })
 })
 
@@ -242,5 +278,53 @@ describe('a canonical match is tradable from its own identity', () => {
     expect(markets[2]!.outcomes.map((outcome) => outcome.participantId)).toEqual(['genesis-03', 'genesis-03'])
     expect(markets[2]!.presentation?.eventTitle).toBe('Who will win this match?')
     expect(markets[2]!.outcomes.map((outcome) => outcome.label)).toEqual(['Yes', 'No'])
+  })
+})
+
+describe('the persisted catalogue names a position the live list has dropped', () => {
+  // ONE agent, TWO rounds. winnerQuestionId() hashes the agent alone, so both
+  // rounds carry the same question id; only the market address, seeded from
+  // (matchId, questionId), tells the two markets apart.
+  const round = (kickoff: string, marketId: string, status = 'live'): ReservedSolanaQuestion => ({
+    eventId: `arena-${Math.floor(Date.parse(kickoff) / 1000).toString(16)}`,
+    matchId: `0x534f4c5a01010014${Math.floor(Date.parse(kickoff) / 1000).toString(16).padStart(16, '0')}00000000000000000000000000000001`,
+    questionId: '0x51554553010102f9dcc2247b7e613c796cc77d8b9f9ea35780c6ed6181582207',
+    marketId, label: 'Will COKE win?', outcomes: ['YES', 'NO'],
+    scheduledStartAt: new Date(kickoff).toISOString(), status: status as ReservedSolanaQuestion['status'],
+  })
+  const finished = round('2026-09-16T10:00:00Z', 'market-finished', 'settled')
+  const upcoming = round('2026-09-16T12:00:00Z', 'market-upcoming')
+
+  test('a finished round survives beside the same agent\'s upcoming one', () => {
+    // The bug this replaces: the just-finished round was dropped because the
+    // agent was still entered in an upcoming match, and a Genesis roster is fixed.
+    const merged = mergeQuestionCatalogue([upcoming], [finished])
+    expect(merged.map(q => q.marketId)).toEqual(['market-upcoming', 'market-finished'])
+    expect(merged.map(q => q.matchId)).toEqual([upcoming.matchId, finished.matchId])
+    // Joined by market address, which is what a holding carries.
+    expect(new Map(merged.map(q => [q.marketId, q])).get('market-finished')?.label).toBe('Will COKE win?')
+  })
+
+  test('a stored entry is a name, never an offer to trade', () => {
+    const merged = mergeQuestionCatalogue([upcoming], [finished])
+    expect(merged.map(q => q.tradeable)).toEqual([true, false])
+    // The chain read stays as wide as the live list, so naming a settled
+    // position cannot add books to poll.
+    expect(merged.filter(q => q.tradeable !== false).map(q => q.marketId)).toEqual(['market-upcoming'])
+  })
+
+  test('the live entry always wins, so a stale stored status cannot reopen a market', () => {
+    const stale = { ...upcoming, status: 'reserved' as const, label: 'Stale copy' }
+    const merged = mergeQuestionCatalogue([upcoming], [stale])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({ label: 'Will COKE win?', status: 'live', tradeable: true })
+  })
+
+  test('a missing, malformed or empty stored list leaves the live catalogue alone', () => {
+    const normalised = [{ ...upcoming, tradeable: true }]
+    expect(mergeQuestionCatalogue([upcoming], undefined)).toEqual(normalised)
+    expect(mergeQuestionCatalogue([upcoming], 'not an array')).toEqual(normalised)
+    expect(mergeQuestionCatalogue([upcoming], [{ ...finished, questionId: 'bad' }, { ...finished, marketId: '' }]))
+      .toEqual(normalised)
   })
 })

@@ -87,6 +87,11 @@ export type GenesisAgent = {
   id: string
   number: number
   codename: string
+  /** The second line on this agent's can label, e.g. `c0ke` → `C-ZEROKE`. */
+  subname: string
+  /** Names the can-wrap artwork: `/images/solz/genesis/<slug>.png` here, and
+   *  `/assets/loadout/body_soda-core-full/skins/<slug>.png` in the engine. */
+  skinSlug: string
   archetype: string
   color: string
   status: AgentStatus
@@ -128,6 +133,11 @@ export type MatchRosterEntry = {
 
 export type MatchTeamSide = {
   teamId: string
+  /** Contract address, when the side IS a coin. Present on a MIAW PRIX
+   *  pairing, absent on a Genesis arena team. It is what lets a renderer tell
+   *  a ticker apart from a squad name: "$COKE TEAM" is wrong for a coin whose
+   *  identity is the mint, and "SOLZ" alone is wrong for a community team. */
+  mint?: string
   symbol: string
   name: string
   logoUrl?: string
@@ -144,6 +154,10 @@ export type SolzMatch = {
   id: string
   /** Game-service room identity used to reconcile public watch listings. */
   roomId?: string
+  /** The match id the GAME uses - the on-chain id where a match has one, the
+   *  room id otherwise. `id` above is this site's own display identity and is
+   *  not interchangeable with it: the directive relay accepts only this one. */
+  sourceMatchId?: string
   /** Human-readable match label assigned by the game service, when available. */
   displayMatchId?: string
   /** Monotonic public match number assigned by the game service, when available. */

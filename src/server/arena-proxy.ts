@@ -18,9 +18,23 @@ export async function proxyArena(request:Request,origin:string,fetcher:(input:st
     // `cycle` is on the allowlist for the CATWALK cycle picker, which is
     // otherwise inert: without it every pick would serve the index again.
     for(const key of ['agentId','gameMode','teamFormat','status','limit','cursor','seasonId','matchId','cycle']){const value=url.searchParams.get(key);if(value)target.searchParams.set(key,value);}
-    const upstream=await fetcher(target,{signal:AbortSignal.timeout(10000),redirect:'error',headers:{accept:'application/json'}});
+    // 25s, not 10s. The control plane's board read normally lands well inside a
+    // second now that it is cached, but a COLD read - the first after a deploy,
+    // or one behind a Neon cold start - measured 5-12s, and a 10s ceiling sat
+    // inside that spread. The page then printed "the MIAW PRIX programme is
+    // unavailable" for a read that was merely slow, and did so precisely when
+    // several tabs asked at once. Matches the 25s budget useSolanaVenue already
+    // allows for the same class of read.
+    const upstream=await fetcher(target,{signal:AbortSignal.timeout(25000),redirect:'error',headers:{accept:'application/json'}});
     if(!upstream.ok)return Response.json({error:'ARENA_SOURCE_UNAVAILABLE'},{status:upstream.status===404?404:502});
     // Do not forward cookies, authorization or upstream response headers.
     return Response.json(await upstream.json(),{headers:{'cache-control':'public, max-age=5, s-maxage=10','x-content-type-options':'nosniff'}});
-  }catch{return Response.json({error:'ARENA_SOURCE_UNAVAILABLE'},{status:503});}
+  }catch(reason){
+    // A timeout and a refused connection are different operational facts and the
+    // page reads them differently: 504 says the programme is there but slow, 503
+    // says nothing answered. Collapsing both into 503 hid every slow read behind
+    // "unavailable", which is what made this failure look like an outage.
+    const timedOut=(reason as {name?:string})?.name==='TimeoutError';
+    return Response.json({error:timedOut?'ARENA_SOURCE_TIMEOUT':'ARENA_SOURCE_UNAVAILABLE'},{status:timedOut?504:503});
+  }
 }

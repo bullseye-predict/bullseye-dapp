@@ -8,6 +8,7 @@ import type { PublicPredictionVenue } from '../../../packages/prediction-core/ma
 import type { ArenaMarket, ArenaPricePoint } from '../solz/model'
 import { manifestClient } from './venue/manifestClients'
 import { solanaScope, useVenueRevisions } from './venue/revision'
+import { schedulePoll } from './venue/pollGate'
 import type { SolanaBinding, VenueQuote } from './venue/types'
 import { levels } from './venue/useSolanaMarket'
 import { unpricedMarkets } from './useVenueMarketPrices'
@@ -125,7 +126,9 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
       return
     }
     let active = true
-    let timer: ReturnType<typeof setTimeout>
+    // A cancel function rather than a timeout id: the poll is gated, so it
+    // may be waiting on a visibility or cooldown event instead of a clock.
+    let timer: (() => void) | undefined
     // A kick landing mid-pass must not start a second overlapping read; mark it
     // and let the pass in flight reschedule immediately instead.
     let running = false, requested = false
@@ -156,7 +159,7 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
       // Re-read every render-derived value on each pass, never from the closure.
       const { base, focusMarketId } = latest.current
       const bound = latest.current.bindings.filter((item): item is { market: ArenaMarket; binding: SolanaBinding } => item.binding !== null)
-      if (!bound.length) { running = false; if (active) timer = setTimeout(() => void load(), 10_000); return }
+      if (!bound.length) { running = false; if (active) timer = schedulePoll(() => void load(), 10_000); return }
       try {
         const requests = bound.flatMap(({ binding }) => [0, 1].map(outcome => ({ question: new PublicKey(binding.marketId), outcome: outcome as 0 | 1 })))
         const decoded = await adapter.bindings(requests)
@@ -289,13 +292,15 @@ export function useSolanaMarketPrices(sourceMarkets: ArenaMarket[], venue: Publi
         if (active) setResult(previous => ({ scope, markets: previous.scope === scope ? previous.markets : base, status: reason instanceof Error && /429|rate/i.test(reason.message) ? `${cluster} · THROTTLED` : `${cluster} · DATA UNAVAILABLE` }))
       } finally {
         running = false
-        if (active) timer = setTimeout(() => void load(), requested ? 0 : 10_000)
+        if (active) timer = schedulePoll(() => void load(), requested ? 0 : 10_000)
         requested = false
       }
     }
-    kick.current = () => { clearTimeout(timer); void load() }
+    // A kick is a person asking, so it bypasses the gate rather than queueing
+    // behind a cooldown or a hidden tab.
+    kick.current = () => { timer?.(); void load() }
     void load()
-    return () => { active = false; kick.current = null; clearTimeout(timer) }
+    return () => { active = false; kick.current = null; timer?.() }
   }, [scope, enabled, revision])
 
   return enabled

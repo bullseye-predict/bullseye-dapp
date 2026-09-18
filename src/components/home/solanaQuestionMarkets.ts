@@ -1,6 +1,6 @@
 import { solanaClusterLabel } from '../../../packages/adapters/solana/cluster'
 import { PublicKey } from '@solana/web3.js'
-import { questionMarketAddress } from '../../../packages/adapters/solana/wire'
+import { cachedQuestionMarketAddress } from '../solz/questionMarketPda'
 import { parsePresentation, type Presentation } from '../../../packages/prediction-core/portfolio/model'
 import { useEffect, useMemo, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
@@ -13,7 +13,35 @@ import { resolvedTokenLogo } from '../solz/tokenIcon'
 const MATCH_ID = /^0x[0-9a-f]{64}$/i
 const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 const EMPTY_MATCHES: readonly SolzMatch[] = []
-const bytes = (value: string) => Uint8Array.from((value.slice(2).match(/../g) ?? []).map(byte => Number.parseInt(byte, 16)))
+
+/** A catalogue written before `presentation` existed can still name a two-sided
+ * token market by its two mint addresses. Treat that precise shape as a
+ * head-to-head market so it joins the ordinary token-identity path below.
+ *
+ * This is intentionally stricter than a base58-looking regex: a generic
+ * question must never become a team market merely because its answer text
+ * happens to contain base58 characters. */
+function mint(value: string): string | undefined {
+  try {
+    const parsed = new PublicKey(value.trim())
+    return parsed.toBase58() === value.trim() ? parsed.toBase58() : undefined
+  } catch { return undefined }
+}
+
+export function inferredHeadToHeadPresentation(question: Pick<ReservedSolanaQuestion, 'outcomes' | 'presentation'>): Presentation | undefined {
+  const explicit = parsePresentation(question.presentation)
+  if (explicit) return explicit.kind === 'head-to-head' ? explicit : undefined
+  const teamIds = question.outcomes.map(mint)
+  if (!teamIds[0] || !teamIds[1]) return undefined
+  return {
+    kind: 'head-to-head',
+    eventTitle: teamIds.join(' vs '),
+    outcomes: [
+      { id: 0, label: teamIds[0], teamId: teamIds[0] },
+      { id: 1, label: teamIds[1], teamId: teamIds[1] },
+    ],
+  }
+}
 
 /** Derives match-linked questions from the independently available game feed.
  * General questions deliberately do not appear here: their text and resolution
@@ -32,7 +60,7 @@ export async function onchainFallbackQuestions(matches: readonly SolzMatch[]): P
       const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`agent:${member.agentId}`)))
       questions.push({ eventId: match.id, matchId: matchId.toLowerCase(), questionId: `0x515545530101${hex(digest.slice(0, 26))}`,
         marketId: '', label: `Will ${member.codename || member.agentId.toUpperCase()} win?`, outcomes: ['YES', 'NO'],
-        scheduledStartAt: new Date(kickoff * 1000).toISOString(), status,
+        scheduledStartAt: new Date(kickoff * 1000).toISOString(), status, tradeable: status !== 'settled',
         presentation: { kind: 'linked', eventTitle: 'Who will win this match?', answer: { label: member.codename || member.agentId.toUpperCase(), participantId: member.agentId }, outcomes: [{ id: 0, label: 'Yes' }, { id: 1, label: 'No' }] },
       })
     }
@@ -49,8 +77,19 @@ export type ReservedSolanaQuestion = {
   label: string
   outcomes: [string, string]
   scheduledStartAt: string
-  status: 'reserved' | 'live' | 'settled' | 'cancelled'
+  status: 'planned' | 'reserved' | 'live' | 'settled' | 'cancelled'
+  /** False for a question the catalogue publishes only so a position a trader
+   *  still holds can be named. The market account on chain carries two 32-byte
+   *  identities and no text, so a finished question has nowhere else to get its
+   *  name, its outcome labels or its artwork from. Absent means tradeable: a
+   *  backend that publishes open questions only never sets it. */
+  tradeable?: boolean
 }
+
+/** Whether this entry is an offer to trade or a name for something finished.
+ *  Every surface that can open or price a market reads this, never the status
+ *  alone: a source can report a match as live for minutes after it ended. */
+export const questionTradeable = (question: Pick<ReservedSolanaQuestion, 'tradeable'>) => question.tradeable !== false
 
 export function solanaQuestionLocksAt(question: Pick<ReservedSolanaQuestion, 'matchId'>) {
   const encoded = question.matchId.slice(2)
@@ -72,8 +111,38 @@ export function parseReservedSolanaQuestions(value: unknown): ReservedSolanaQues
       /^0x[0-9a-f]{64}$/i.test(String(item.questionId)) && typeof item.marketId === 'string' &&
       typeof item.label === 'string' && Array.isArray(item.outcomes) && item.outcomes.length === 2 &&
       item.outcomes.every(outcome => typeof outcome === 'string') && typeof item.scheduledStartAt === 'string' &&
-      Number.isFinite(Date.parse(item.scheduledStartAt)) && ['reserved', 'live', 'settled', 'cancelled'].includes(String(item.status))
-  })
+      Number.isFinite(Date.parse(item.scheduledStartAt)) && ['planned', 'reserved', 'live', 'settled', 'cancelled'].includes(String(item.status))
+  // The flag is normalised, not required, so a backend that publishes open
+  // questions only keeps working: an explicit false withdraws one from trading.
+  }).map(question => ({ ...question, tradeable: questionTradeable(question) }))
+}
+
+/**
+ * The live catalogue plus every question this deployment ever published.
+ *
+ * /solana/questions lists only what a permit can still reach, so a question
+ * disappears from it the moment its match locks. A trader keeps the shares. The
+ * market account on chain carries two 32-byte identities and no text, so
+ * without a second source a settled position renders as `Question 12Nc…nHGG`
+ * with no name, no outcome labels and no artwork.
+ *
+ * That second source is the per-owner catalogue the prediction API persists and
+ * returns as `questions` on /solana/portfolio/<owner>. It has no time window and
+ * no entry cap, so a position is named for as long as it exists.
+ *
+ * Joined by MARKET ADDRESS, which is what a holding carries. A question id is
+ * not an identity here: an arena question id is derived from the agent alone,
+ * so one Genesis agent carries the same id in every round it ever plays. The
+ * live entry always wins, and a stored entry that the live list no longer
+ * carries is a name, never an offer to trade.
+ */
+export function mergeQuestionCatalogue(live: readonly ReservedSolanaQuestion[], stored: unknown): ReservedSolanaQuestion[] {
+  const merged = new Map(live.map(question => [question.marketId, { ...question, tradeable: questionTradeable(question) }]))
+  for (const question of parseReservedSolanaQuestions({ questions: Array.isArray(stored) ? stored : [] })) {
+    if (!question.marketId || merged.has(question.marketId)) continue
+    merged.set(question.marketId, { ...question, tradeable: false })
+  }
+  return [...merged.values()]
 }
 
 /** Builds the venue binding for a Solana question so the shared venue hook can
@@ -103,8 +172,10 @@ export function reservedSolanaView(question: ReservedSolanaQuestion, now = Date.
   const settled = question.status === 'settled'
   // A stale upstream status must not leave a past match looking tradeable. This
   // applies to both live and never-flipped reserved records once their encoded
-  // match window has ended; the authoritative result can arrive afterward.
-  const finishedPending = !cancelled && !settled && now >= closesAt
+  // match window has ended; the authoritative result can arrive afterward. A
+  // question the catalogue publishes for display only is finished by the same
+  // rule, whatever its clock says: it exists here to be named, not traded.
+  const finishedPending = !cancelled && !settled && (now >= closesAt || !questionTradeable(question))
   const finished = cancelled || settled || finishedPending
   const presentation = parsePresentation(question.presentation)
   const headToHead = presentation?.kind === 'head-to-head'
@@ -311,7 +382,7 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
   const allQuestions = useMemo(() => {
     const program = venue?.programId ? new PublicKey(venue.programId) : undefined
     return [...new Map([...questions, ...fallbackQuestions].map(question => {
-      const marketId = question.marketId || (program ? questionMarketAddress(program, bytes(question.matchId), bytes(question.questionId)).toBase58() : question.questionId)
+      const marketId = question.marketId || (program ? cachedQuestionMarketAddress(program, question.matchId, question.questionId) : question.questionId)
       return [`${question.matchId}:${question.questionId}`, { ...question, marketId }]
     })).values()]
   }, [questions, fallbackQuestions, venue?.programId])
@@ -331,15 +402,15 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
  * as currently tradeable questions. */
 export function useQuestionIdentity(questions: readonly ReservedSolanaQuestion[]) {
   const identityMints = useMemo(() => questions.flatMap((question) => {
-    const presentation = parsePresentation(question.presentation)
-    return presentation?.kind === 'head-to-head'
+    const presentation = inferredHeadToHeadPresentation(question)
+    return presentation
       ? presentation.outcomes.flatMap((outcome) => outcome.teamId ? [outcome.teamId] : [])
       : []
   }), [questions])
   const tokenMeta = useTokenMeta(identityMints)
   return useMemo<ReservedSolanaQuestion[]>(() => questions.map((question) => {
-    const presentation = parsePresentation(question.presentation)
-    if (presentation?.kind !== 'head-to-head') return question
+    const presentation = inferredHeadToHeadPresentation(question)
+    if (!presentation) return question
     let changed = false
     const outcomes = presentation.outcomes.map((outcome) => {
       const meta = outcome.teamId ? tokenMeta.get(outcome.teamId) : undefined
@@ -350,7 +421,10 @@ export function useQuestionIdentity(questions: readonly ReservedSolanaQuestion[]
       changed = true
       return { ...outcome, label, ...(imageUrl ? { imageUrl } : {}) }
     }) as typeof presentation.outcomes
-    if (!changed) return question
+    // Keep the inferred presentation even before the registry responds. It
+    // preserves the mint identities for a later retry and gives the portfolio
+    // a truthful head-to-head shape instead of treating it as YES/NO.
+    if (!changed) return { ...question, presentation }
     const labels = outcomes.map((outcome) => outcome.label) as [string, string]
     const enrichedPresentation: Presentation = {
       kind: 'head-to-head', eventTitle: labels.join(' vs '), outcomes,

@@ -1,6 +1,7 @@
 import { promptRecipients } from './promptRouting'
 import { baseOutcomeId, isNoContract, resolvePredictionContract } from './predictionContracts'
 import type { ArenaPosition, LimitOrder, LimitOrderIntent } from './model'
+import { PROMPT_COST } from './fuelToken'
 import type {
   ArenaAccount,
   ArenaMarket,
@@ -52,7 +53,6 @@ const HISTORY_CAP = 48
 const HISTORY_POINTS = 28
 const HISTORY_STEP_MS = 15_000
 const MINIMUM_ORDER: Record<SettlementToken, number> = { SOL: 0.01, COOLA: 25 }
-const PROMPT_COST: Record<SettlementToken, number> = { SOL: 0.005, COOLA: 75 }
 const REQUIRED_MATCHES = 25
 const REQUIRED_PLAYERS = 250
 const REQUIRED_ARENAS = 40
@@ -265,6 +265,11 @@ const TEAM_SEEDS: TeamSeed[] = [
 
 type AgentSeed = {
   codename: string
+  /** The second line on the can label. Kept in the seed so the offline adapter
+   *  shows the same identity the `genesis_agents` migration writes. */
+  subname: string
+  /** Wrap artwork under /images/solz/genesis/. */
+  skinSlug: string
   archetype: string
   color: string
   preferredMode: string
@@ -272,19 +277,22 @@ type AgentSeed = {
   bio: string
 }
 
+// Slot order is the numeral each agent carries: c0ke is 0, peps1 is 1, up to
+// 12ed 13u11. Colours are sampled from each wrap's own brand panel, so a card's
+// accent and the can behind it are the same ink.
 const AGENT_SEEDS: AgentSeed[] = [
-  { codename: 'COKE', archetype: 'BREACHER', color: '#ff6868', preferredMode: 'DOMINION', teamHistory: ['team-bonk', 'team-solz'], bio: 'Opens every round by forcing the first contest and refuses to trade ground back.' },
-  { codename: 'PEPSI', archetype: 'RECON', color: '#74a9ff', preferredMode: 'BREACH', teamHistory: ['team-bonk', 'team-jup', 'team-mew'], bio: 'Maps the arena before committing, then feeds firing lines to the rest of the side.' },
-  { codename: 'SPRITE', archetype: 'VANGUARD', color: '#7ad88b', preferredMode: 'DOMINION', teamHistory: ['team-bonk', 'team-popcat'], bio: 'Runs the shortest path to the objective and absorbs whatever is waiting there.' },
-  { codename: 'FANTA', archetype: 'SPECTRE', color: '#ffa449', preferredMode: 'RECLAIM', teamHistory: ['team-wif', 'team-mew'], bio: 'Works the flanks alone and only surfaces when a relay is already contested.' },
-  { codename: 'DR PEPPER', archetype: 'ANCHOR', color: '#f883a4', preferredMode: 'DOMINION', teamHistory: ['team-wif', 'team-pengu', 'team-solz'], bio: 'Holds a single point for an entire round and rarely leaves it voluntarily.' },
-  { codename: 'MTN DEW', archetype: 'ARBITER', color: '#b6ed38', preferredMode: 'BREACH', teamHistory: ['team-wif', 'team-jup'], bio: 'Reads round economy better than positioning and calls the rotation timing.' },
-  { codename: '7UP', archetype: 'BREACHER', color: '#8be0ae', preferredMode: 'BREACH', teamHistory: ['team-jup', 'team-ansem'], bio: 'Trades health for tempo and keeps pressure on the far half of the map.' },
-  { codename: 'SUNKIST', archetype: 'ANCHOR', color: '#ffba69', preferredMode: 'RECLAIM', teamHistory: ['team-pengu', 'team-giga'], bio: 'Slow, patient and almost impossible to displace from a held corridor.' },
-  { codename: 'CRUSH', archetype: 'RECON', color: '#cb87ed', preferredMode: 'RECLAIM', teamHistory: ['team-ansem', 'team-popcat'], bio: 'Baits rotations with false pressure and punishes whoever answers first.' },
-  { codename: 'A&W', archetype: 'ARBITER', color: '#dbb276', preferredMode: 'DOMINION', teamHistory: ['team-solz', 'team-jup'], bio: 'Balances objective clock against elimination risk on every single decision.' },
-  { codename: 'SCHWEPPES', archetype: 'VANGUARD', color: '#f4df67', preferredMode: 'DUEL', teamHistory: ['team-popcat', 'team-bonk'], bio: 'Fights straight through the middle and dares the other side to answer.' },
-  { codename: 'JARRITOS', archetype: 'SPECTRE', color: '#64dcca', preferredMode: 'DUEL', teamHistory: ['team-mew', 'team-moodeng', 'team-wif'], bio: 'Disappears for half a round and reappears behind the contested relay.' },
+  { codename: 'c0ke', subname: 'C-ZEROKE', skinSlug: 'c0ke', archetype: 'BREACHER', color: '#d51115', preferredMode: 'DOMINION', teamHistory: ['team-bonk', 'team-solz'], bio: 'Opens every round by forcing the first contest and refuses to trade ground back.' },
+  { codename: 'peps1', subname: 'pepsONE', skinSlug: 'peps1', archetype: 'RECON', color: '#0142a4', preferredMode: 'BREACH', teamHistory: ['team-bonk', 'team-jup', 'team-mew'], bio: 'Maps the arena before committing, then feeds firing lines to the rest of the side.' },
+  { codename: '2UP', subname: 'two-up', skinSlug: '2up', archetype: 'VANGUARD', color: '#54be43', preferredMode: 'DOMINION', teamHistory: ['team-bonk', 'team-popcat'], bio: 'Runs the shortest path to the objective and absorbs whatever is waiting there.' },
+  { codename: 'Monst3r', subname: 'Monsthree', skinSlug: 'monst3r', archetype: 'SPECTRE', color: '#aff904', preferredMode: 'RECLAIM', teamHistory: ['team-wif', 'team-mew'], bio: 'Works the flanks alone and only surfaces when a relay is already contested.' },
+  { codename: 'fant4', subname: 'FANTQUAD', skinSlug: 'fant4', archetype: 'ANCHOR', color: '#f95b02', preferredMode: 'DOMINION', teamHistory: ['team-wif', 'team-pengu', 'team-solz'], bio: 'Holds a single point for an entire round and rarely leaves it voluntarily.' },
+  { codename: '5prite', subname: 'pentaprite', skinSlug: '5prite', archetype: 'ARBITER', color: '#049a3c', preferredMode: 'BREACH', teamHistory: ['team-wif', 'team-jup'], bio: 'Reads round economy better than positioning and calls the rotation timing.' },
+  { codename: '6uiness', subname: 'SIXUINESS', skinSlug: '6uiness', archetype: 'BREACHER', color: '#cca258', preferredMode: 'BREACH', teamHistory: ['team-jup', 'team-ansem'], bio: 'Trades health for tempo and keeps pressure on the far half of the map.' },
+  { codename: '7iger', subname: 'SEVENIGER', skinSlug: '7iger', archetype: 'ANCHOR', color: '#eb9b3b', preferredMode: 'RECLAIM', teamHistory: ['team-pengu', 'team-giga'], bio: 'Slow, patient and almost impossible to displace from a held corridor.' },
+  { codename: 'bintan8', subname: 'bintanlapan', skinSlug: 'bintan8', archetype: 'RECON', color: '#b40a15', preferredMode: 'RECLAIM', teamHistory: ['team-ansem', 'team-popcat'], bio: 'Baits rotations with false pressure and punishes whoever answers first.' },
+  { codename: 'hei9ken', subname: 'HEI-NINEKEN', skinSlug: 'hei9ken', archetype: 'ARBITER', color: '#1f923a', preferredMode: 'DOMINION', teamHistory: ['team-solz', 'team-jup'], bio: 'Balances objective clock against elimination risk on every single decision.' },
+  { codename: 'MOUN10-DEW', subname: 'MOUNTEN DEW', skinSlug: 'moun10-dew', archetype: 'VANGUARD', color: '#4ebc25', preferredMode: 'DUEL', teamHistory: ['team-popcat', 'team-bonk'], bio: 'Fights straight through the middle and dares the other side to answer.' },
+  { codename: '12ed 13u11', subname: '12-13-11', skinSlug: '12ed-13u11', archetype: 'SPECTRE', color: '#e7ce2c', preferredMode: 'DUEL', teamHistory: ['team-mew', 'team-moodeng', 'team-wif'], bio: 'Disappears for half a round and reappears behind the contested relay.' },
 ]
 
 type MatchSeed = {
@@ -439,6 +447,8 @@ function buildAgents(): GenesisAgent[] {
       id,
       number,
       codename: seed.codename,
+      subname: seed.subname,
+      skinSlug: seed.skinSlug,
       archetype: seed.archetype,
       color: seed.color,
       status: 'active' as const,
@@ -1869,11 +1879,20 @@ export function createSolzDataSource(options: { simulationEnabled?: () => boolea
     },
 
     sendChat(matchId, text, replyToId) {
-      if (!simulationEnabled()) return
+      // Not gated on the simulation switch. The spectator channel is local to
+      // this device either way, so a live market source has nothing to say
+      // about it; gating it here only made the field dead on SOLANA/SOMNIA.
       const message = text.trim()
       if (!message) return
-      if (!snapshot.matches.some((match) => match.id === matchId)) throw new Error('This event is no longer available.')
-      if (replyToId && !snapshot.chat.some((entry) => entry.id === replyToId && entry.matchId === matchId)) throw new Error('The comment you are replying to is no longer available.')
+      // The match is only required to exist for a reply, which has to attach to
+      // a thread this source holds. A plain message is accepted for any id: the
+      // homepage renders arena-fed matches (`arena-<roomId>`, built in
+      // src/components/home/predictionArena.ts) that never enter this fixture
+      // list, and demanding one here silently swallowed every homepage message.
+      if (replyToId) {
+        if (!snapshot.matches.some((match) => match.id === matchId)) throw new Error('This event is no longer available.')
+        if (!snapshot.chat.some((entry) => entry.id === replyToId && entry.matchId === matchId)) throw new Error('The comment you are replying to is no longer available.')
+      }
       pushChat({
         matchId,
         at: Date.now(),

@@ -43,6 +43,11 @@ export const ICON_HOSTS = [
   // without this the seven xStocks on the board fell back to the generic mark
   // while the registry was handing back a perfectly good URL for each of them.
   'backed.fi',
+  // The other half of the xStock artwork. RDDT is published by the board AND by
+  // the registry as backpack.exchange/api/stock-logo/RDDT, so with this host
+  // missing there was no second source to fall back to and the row was the
+  // generic mark on every single load. Verified: 200 image/svg+xml.
+  'backpack.exchange',
   'coingecko.com',
   'cloudfront.net',
   'akamaized.net',
@@ -87,8 +92,18 @@ export const tokenIconUrl = (raw: string) =>
  * are not valid on this frontend, so registry identity wins in that case.
  */
 export function resolvedTokenLogo(boardLogo?: string | null, registryLogo = ''): string {
-  if (boardLogo && (/^https:\/\//i.test(boardLogo) || boardLogo.startsWith('data:'))) {
-    return tokenIconUrl(boardLogo) || boardLogo
+  // Already inline; there is no host to allow or refuse.
+  if (boardLogo?.startsWith('data:')) return boardLogo
+  if (boardLogo && /^https:\/\//i.test(boardLogo)) {
+    const proxied = tokenIconUrl(boardLogo)
+    if (proxied) return proxied
+    // A BOARD URL THIS SITE WILL NOT FETCH IS NOT A CREST, IT IS A DEAD END.
+    // This used to read `tokenIconUrl(boardLogo) || boardLogo`, which handed the
+    // browser the raw cross-origin URL in exactly the case the allowlist had
+    // just refused - reintroducing the CORP/COEP failure this module exists to
+    // prevent - and, worse, returned before the registry was ever consulted. A
+    // coin whose board logo sat on an unlisted host therefore ignored a perfectly
+    // good registry icon and rendered as the generic mark. Fall through instead.
   }
   return registryLogo
 }

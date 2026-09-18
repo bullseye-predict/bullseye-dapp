@@ -3,6 +3,7 @@ import { PublicKey } from '@solana/web3.js'
 import { bookAddress } from '../../../../packages/adapters/solana/manifest/wire'
 import { manifestClient } from './manifestClients'
 import { solanaScope, useVenueRevision } from './revision'
+import { schedulePoll } from './pollGate'
 import { ManifestActivityReader, type ActivityBook } from './solanaActivity'
 import type { SolanaBinding, VenueActivityRow } from './types'
 
@@ -41,7 +42,9 @@ export function useSolanaActivity(binding: SolanaBinding | null, enabled: boolea
   useEffect(() => {
     if (!enabled || !binding) return
     let active = true
-    let timer: ReturnType<typeof setTimeout>
+    // A cancel function rather than a timeout id: the poll is gated, so it
+    // may be waiting on a visibility or cooldown event instead of a clock.
+    let timer: (() => void) | undefined
     const controller = new AbortController()
     let client: ReturnType<typeof manifestClient>
     try {
@@ -70,11 +73,11 @@ export function useSolanaActivity(binding: SolanaBinding | null, enabled: boolea
         if (active) setState(previous => ({ key, rows: previous.key === key ? previous.rows : [], error: reason instanceof Error ? reason.message : 'Market activity unavailable.', loading: false }))
       } finally {
         clearTimeout(timeout)
-        if (active && !controller.signal.aborted) timer = setTimeout(() => void load(), 10_000)
+        if (active && !controller.signal.aborted) timer = schedulePoll(() => void load(), 10_000)
       }
     }
     void load()
-    return () => { active = false; controller.abort(); clearTimeout(timer) }
+    return () => { active = false; controller.abort(); timer?.() }
   }, [key, enabled, revision])
 
   return state.key === key ? state : { rows: [], error: '', loading: Boolean(enabled && binding) }
