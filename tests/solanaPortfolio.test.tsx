@@ -29,7 +29,7 @@ const outcome = (overrides: Partial<ManifestOutcomeHolding> = {}, id: 0 | 1 = 0)
   return { ...base, totalShares: base.walletShares + base.seatShares + base.reservedShares + base.vaultShares }
 }
 const holding = (overrides: Partial<ManifestQuestionHolding> = {}): ManifestQuestionHolding => ({
-  marketId: MARKET, opened: true, status: 1, winningOutcome: 255, paused: false,
+  marketId: MARKET, opened: true, status: 1, winningOutcome: 255, paused: false, positionAccount: false,
   startsAt: 1_000, locksAt: 9_000, outcomes: [outcome(), outcome({}, 1)], ...overrides,
 })
 const portfolio = (overrides: Partial<ManifestPortfolio> = {}): ManifestPortfolio => ({
@@ -58,6 +58,21 @@ describe('Solana holdings become portfolio rows', () => {
     const rows = solanaPositionRows(portfolio({ questions: [holding({ outcomes: [outcome({ quoteVolume: 5_000_000n }), outcome({}, 1)] })] }), [question], 6)
     expect(rows.map(row => row.state)).toEqual(['Closed'])
     expect(closedSolanaRows(rows)).toHaveLength(1)
+  })
+
+  test('a redeemed payout stays visible as closed through its position account', () => {
+    const rows = solanaPositionRows(portfolio({ questions: [holding({ status: 3, winningOutcome: 1, positionAccount: true })] }), [question], 6)
+    expect(rows.map(row => [row.outcome, row.state])).toEqual([[1, 'Closed']])
+    expect(closedSolanaRows(rows)).toHaveLength(1)
+  })
+
+  test('a voided question redeemed to nothing keeps one row rather than none', () => {
+    const rows = solanaPositionRows(portfolio({ questions: [holding({ status: 4, positionAccount: true })] }), [question], 6)
+    expect(rows.map(row => [row.outcome, row.state])).toEqual([[0, 'Closed']])
+  })
+
+  test('a position account on an unsettled question adds no empty row', () => {
+    expect(solanaPositionRows(portfolio({ questions: [holding({ positionAccount: true })] }), [question], 6)).toEqual([])
   })
 
   test('settlement decides claims, and an unset winner byte never unlocks one', () => {
@@ -94,6 +109,26 @@ describe('Solana holdings become portfolio rows', () => {
 
   test('a listed question keeps the catalogue label and its own outcome names', () => {
     expect(solanaIdentity(MARKET, question)).toMatchObject({ label: 'Will genesis-01 win?', eventId: question.eventId, listed: true, outcomeLabels: ['YES', 'NO'] })
+  })
+
+  test('a settled question the catalogue still publishes names the position it pays out', () => {
+    // Its match is over, so it can never be traded again, but the trader holds
+    // the winning shares until they claim. On chain the market carries two
+    // 32-byte ids and no text: without this entry the row reads as the bare
+    // market address, with YES/NO and no artwork.
+    const finished: ReservedSolanaQuestion = {
+      ...question, status: 'settled', tradeable: false, label: 'CLAW vs STONK', outcomes: ['CLAW', 'STONK'],
+      presentation: { kind: 'head-to-head', eventTitle: 'CLAW vs STONK', outcomes: [
+        { id: 0, label: 'CLAW', teamId: 'MintClaw', imageUrl: 'https://images.example/claw.png' },
+        { id: 1, label: 'STONK', teamId: 'MintStonk' },
+      ] },
+    }
+    const rows = solanaPositionRows(portfolio({
+      questions: [holding({ status: 3, winningOutcome: 0, outcomes: [outcome({ walletShares: 9n }), outcome({}, 1)] })],
+    }), [finished], 6)
+    expect(rows[0]!.state).toBe('Claim winnings')
+    expect(rows[0]!.identity).toMatchObject({ listed: true, label: 'CLAW vs STONK', outcomeLabels: ['CLAW', 'STONK'], eventId: finished.eventId })
+    expect(rows[0]!.identity.presentation?.outcomes[0]?.imageUrl).toBe('https://images.example/claw.png')
   })
 
   test('the event filter lists events from rows the catalogue no longer carries', () => {

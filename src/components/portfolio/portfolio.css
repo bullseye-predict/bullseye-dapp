@@ -31,6 +31,11 @@
 .pf-collateral dl { margin: 12px 0 0; display: grid; gap: 8px; }
 .pf-collateral dl > div { display: flex; justify-content: space-between; gap: 10px; }
 .pf-collateral dd { margin: 0; color: var(--sh-text); font-variant-numeric: tabular-nums; }
+/* The signature that finishes a claim. It sits under the split it acts on, at
+   the full width of the disclosure, so it reads as the exit from that balance
+   rather than as a fifth line of the list. */
+.pf-page .pf-collateral .sp-vault-withdraw { margin-top: 12px; width: 100%; }
+.pf-collateral > p { margin: 8px 0 0; }
 .pf-page .pf-refresh { margin-top: auto; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 
 .pf-page button { border: 1px solid var(--sh-line); border-radius: 6px; background: #24252b; color: var(--sh-text); padding: 10px 14px; transition: background 150ms ease-out; }

@@ -110,14 +110,11 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
   // Naming a finished question must not widen the chain read: the books worth
   // polling are the tradeable ones plus whatever discovery finds for this owner.
   const tradeable = useMemo(() => questions.filter(questionTradeable), [questions])
-  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, tradeable, retry, true)
+  const sol = useSolanaPortfolio(solanaVenue, solana ? owner : undefined, tradeable, retry)
   const solDecimals = solanaVenue?.collateralDecimals ?? 6
   const solRows = useMemo(() => sol.portfolio ? solanaPositionRows(sol.portfolio, questions, solDecimals) : [], [sol.portfolio, questions, solDecimals])
   const solOrders = useMemo(() => sol.portfolio ? solanaOrderRows(sol.portfolio, questions) : [], [sol.portfolio, questions])
   const solFunds = useMemo(() => sol.portfolio ? solanaCollateral(sol.portfolio) : null, [sol.portfolio])
-  const solChart = useMemo<ChartMarket[]>(() => sol.portfolio
-    ? [{ decimals: solDecimals, now: sol.portfolio.now, historyError: sol.historyError, historyLimited: sol.historyLimited, cashFlows: sol.flows.map(flow => ({ ...flow, amount: flow.amount.toString() })) }]
-    : [], [sol.portfolio, sol.flows, sol.historyError, sol.historyLimited, solDecimals])
 
   const scope = solana ? `solana:${owner}` : `${chain}:${owner?.toLowerCase()}`
   const rows = useMemo(() => portfolioRows(data.markets), [data.markets])
@@ -162,14 +159,14 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
 
   const selected = selection?.scope === scope ? rows.find(row => row.id === selection.id) : undefined
   const incomplete = solana
-    ? (sol.portfolio?.failures ?? 0) > 0 || sol.historyLimited || sol.historyError
+    ? (sol.portfolio?.failures ?? 0) > 0
     : data.failures > 0 || data.markets.some(m => m.historyError || m.historyLimited)
   const symbol = solana ? (solanaVenue?.collateralSymbol ?? 'USDC') : chain === '50312' ? 'tUSDC' : 'USDso'
   // Somnia mainnet settles in 18dp USDso, so the EVM scale is read from the
   // markets rather than assumed; `mixed` below still guards a genuinely
   // heterogeneous set.
   const decimals = solana ? solDecimals : data.markets[0]?.snapshot.market.decimals ?? 6
-  const loading = solana ? sol.loading || sol.historyLoading || (!questionsLoaded && !sol.portfolio) : data.loading
+  const loading = solana ? sol.loading || (!questionsLoaded && !sol.portfolio) : data.loading
   // Balances are all the summary needs. The executed-fill scan behind the chart
   // runs for tens of seconds, and gating the stats on it blanked the card while
   // the table beside it was already showing rows.
@@ -214,14 +211,14 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
     setChain(next); setSelection(null); setMatchFilter('')
     if (profile?.chain === 'somnia') window.location.assign(profileHref('somnia', next === '5031' ? 'mainnet' : 'testnet', profile.address))
   }
-  if (solana) return <SolanaProfile apiUrl={apiUrl} venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} onRefresh={() => setRetry(n => n + 1)}/>
+  if (solana) return <SolanaProfile apiUrl={apiUrl} venue={solanaVenue} owner={owner} isSelf={isSelf} network={profile?.network} questions={questions} sol={sol} coverage={accounting.data?.coverage} onRefresh={() => setRetry(n => n + 1)}/>
   return <AppShell className="solz-home pf-page" mainId="portfolio" mainClassName="pf-main" active="profile" skipTo="#portfolio" skipLabel="Skip to portfolio" backToTopHref="#portfolio">
       <div className="pf-heading"><h1 className="sz-page-title">{isSelf ? 'My portfolio' : 'Portfolio'}</h1>{!solana && <label className="pf-network">Network<select value={chain} onChange={e => selectNetwork(e.target.value as typeof chain)}><option value="50312">Somnia testnet · tUSDC</option><option value="5031">Somnia mainnet · USDso</option></select></label>}</div>
       <div className="pf-hero">
         <PortfolioSummary owner={owner} meta={meta} value={value} claimable={claimableCount} orders={{ total: orderRows.length, expired: expiredOrders }} collateral={solana ? solFunds : null} decimals={decimals} symbol={symbol} ready={ready} copyStatus={copyStatus} refreshing={balancesLoading || !owner}
           onCopy={() => void navigator.clipboard.writeText(owner!).then(() => setCopyStatus('Address copied')).catch(() => setCopyStatus('Could not copy address'))}
           onRefresh={() => { setSelection(null); setRetry(n => n + 1) }}/>
-        <PortfolioChart markets={solana ? solChart : filteredMarkets.map(chartMarket)} loading={loading} connected={!!owner} symbol={symbol} unavailable={!!error || (solana ? false : data.failures > 0)}/>
+        <PortfolioChart markets={filteredMarkets.map(chartMarket)} loading={loading} connected={!!owner} symbol={symbol} unavailable={!!error || (solana ? false : data.failures > 0)}/>
       </div>
       {canManage && dreamClaimable.length > 0 && <div className="pf-claim-banner"><div><strong>{dreamClaimable.length} {dreamClaimable.length === 1 ? 'position is' : 'positions are'} ready to claim</strong><p>Your resolved payouts are waiting in Active positions.</p></div><button onClick={() => { setTab('active'); setSearch(''); setMatchFilter(''); const row = dreamClaimable[0]!; setSelection({ scope, id: row.id, outcome: row.outcome! }) }}>Review claim <ArrowUpRight size={16}/></button></div>}
       <div className="pf-toolbar">

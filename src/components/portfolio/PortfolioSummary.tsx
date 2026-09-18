@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Copy, RefreshCw, WalletCards } from 'lucide-react'
 import { formatUnitsExact } from '../prediction/amounts'
 import { matchGlyph } from './matchIdentity'
@@ -21,6 +22,9 @@ type Props = {
   orders: { total: number; expired: number }
   /** Solana only; the EVM path has no vault or venue seat to split. */
   collateral: Collateral | null
+  /** Control for moving the vault balance out, rendered on the line it belongs
+   *  to. The EVM path passes nothing, because it has no vault. */
+  vaultAction?: ReactNode
   decimals: number
   symbol: string
   /** False while loading, erroring or signed out: every number reads '—'. */
@@ -41,7 +45,7 @@ const count = (ready: boolean, value: number) => ready ? String(value) : '—'
  * page, the collateral split is one disclosure rather than four cards, and the
  * Active/Closed counts are left to the tabs that filter by them.
  */
-export function PortfolioSummary({ compact = false, publicView = false, valuationLabel, owner, meta, value, claimable, orders, collateral, decimals, symbol, ready, copyStatus, onCopy, onRefresh, refreshing }: Props) {
+export function PortfolioSummary({ compact = false, publicView = false, valuationLabel, owner, meta, value, claimable, orders, collateral, vaultAction, decimals, symbol, ready, copyStatus, onCopy, onRefresh, refreshing }: Props) {
   const hue = matchGlyph(owner ?? 'unconnected').hue
   // The same directory the holders board and the tape read, so a trader is
   // called one thing across the app rather than being an address here and a
@@ -78,6 +82,11 @@ export function PortfolioSummary({ compact = false, publicView = false, valuatio
         <div><dt>Reserved in buy orders</dt><dd>{formatUnitsExact(collateral.reserved, decimals, 6)}</dd></div>
         <div><dt>In the prediction vault</dt><dd>{formatUnitsExact(collateral.vault, decimals, 6)}</dd></div>
       </dl>
+      {/* A settled payout is redeemed into the vault, not into the wallet. This
+          is the signature that finishes the claim, and it belongs beside the
+          balance it moves rather than on a position row that has already
+          settled to Closed and dropped out of the Active tab. */}
+      {vaultAction}
     </details>}
     <button className="pf-refresh" disabled={refreshing || !owner} onClick={onRefresh}><RefreshCw size={14}/>Refresh</button>
   </section>

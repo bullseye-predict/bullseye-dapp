@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, Link as LinkIcon, Search } from 'lucide-react'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
-import type { PortfolioEvent, PositionAccounting } from '../../../packages/prediction-core/portfolio/model'
+import type { PortfolioCoverage, PortfolioEvent, PositionAccounting } from '../../../packages/prediction-core/portfolio/model'
 import { AppShell } from '../solz/AppShell'
 import { formatUnitsExact, sharePrice } from '../prediction/amounts'
-import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
+import { useQuestionIdentity, type ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
 import type { SolanaPortfolioState } from './useSolanaPortfolio'
+import { SolanaVaultWithdraw } from './SolanaVaultWithdraw'
 import {
   solanaCollateral,
   solanaIdentity,
@@ -37,6 +38,9 @@ type Props = {
   network?: string
   questions: ReservedSolanaQuestion[]
   sol: SolanaPortfolioState
+  /** The prediction API reporting on its own replay of this wallet's finalized
+   *  history. Absent while that read is in flight or unavailable. */
+  coverage?: PortfolioCoverage
   onRefresh: () => void
 }
 type PositionView = {
@@ -136,6 +140,7 @@ export function SolanaProfile({
   network,
   questions,
   sol,
+  coverage,
   onRefresh,
 }: Props) {
   const [section, setSection] = useState<'positions' | 'orders' | 'activity'>(
@@ -160,7 +165,15 @@ export function SolanaProfile({
   // the live list for an open question, and the deployment's persisted store
   // for one whose match has ended. PortfolioApp merges the two by market
   // address before handing them over.
-  const catalogue = questions
+  // Only resolve identity for markets this wallet actually holds. The stored
+  // catalogue can span a whole programme; asking Jupiter about every historic
+  // team just to paint four portfolio rows is needless traffic.
+  const portfolioQuestions = useMemo(() => {
+    if (!sol.portfolio) return questions
+    const held = new Set(sol.portfolio.questions.map(question => question.marketId))
+    return questions.filter(question => held.has(question.marketId))
+  }, [questions, sol.portfolio])
+  const catalogue = useQuestionIdentity(portfolioQuestions)
   const rows = useMemo(
     () =>
       sol.portfolio
@@ -251,8 +264,18 @@ export function SolanaProfile({
   const refresh = () => {
     onRefresh()
   }
-  const reason = sol.historyLimited || sol.historyError
-    ? 'On-chain fill history is incomplete; holdings and order state remain live.'
+  // Holdings, books and orders on this page are direct chain reads and are
+  // always current. What can be incomplete is the DERIVED history — cost basis,
+  // realized P/L — which the prediction API replays from finalized receipts and
+  // reconciles against on-chain share balances every pass. `coverage` is that
+  // service reporting on itself.
+  //
+  // This used to report on a browser-side fill scan instead, so it said
+  // "incomplete" whenever that scan hit its own 240-receipt cap or caught a
+  // rate limit — which was permanently, for any trader with real history, and
+  // told them nothing about whether the numbers were actually available.
+  const reason = coverage && !coverage.complete
+    ? coverage.reason ?? 'Trade history is still being indexed; holdings and order state remain live.'
     : undefined
   // The direct reader deliberately does not claim complete account history or
   // cost-basis accounting. An indexer can add that later without becoming the
@@ -303,6 +326,16 @@ export function SolanaProfile({
             }}
             collateral={
               isSelf && sol.portfolio ? solanaCollateral(sol.portfolio) : null
+            }
+            vaultAction={
+              isSelf && sol.portfolio && owner && venue ? (
+                <SolanaVaultWithdraw
+                  venue={venue}
+                  owner={owner}
+                  atoms={sol.portfolio.vaultCollateral}
+                  onRefresh={refresh}
+                />
+              ) : undefined
             }
             decimals={decimals}
             symbol={symbol}
@@ -609,7 +642,7 @@ export function SolanaProfile({
                                       setAction({ kind: 'claim', row: p.row! })
                                     }
                                   >
-                                    Claim
+                                    {p.row.state === 'Claim refund' ? 'Claim refund' : 'Claim winnings'}
                                   </button>
                                 ))}
                               {/* Collateral a cancellation left on the seat.
@@ -862,6 +895,7 @@ export function SolanaProfile({
               action={action}
               venue={venue}
               owner={owner}
+              vaultAtoms={sol.portfolio?.vaultCollateral ?? 0n}
               onClose={() => setAction(null)}
               onRefresh={refresh}
             />

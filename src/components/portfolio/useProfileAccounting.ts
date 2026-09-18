@@ -1,9 +1,27 @@
 import { useEffect, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
 import type { PortfolioReadModel } from '../../../packages/prediction-core/portfolio/model'
+import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import type { ReservedSolanaQuestion } from '../home/solanaQuestionMarkets'
 export type ProfileAccounting = PortfolioReadModel & {
   questions?: ReservedSolanaQuestion[]
+}
+/** How the prediction API scopes one stored portfolio, and the only deployment
+ *  whose questions may name this page's positions. A profile read from another
+ *  cluster carries another program and another collateral mint, so its market
+ *  addresses mean nothing here. */
+export function solanaDeployment(
+  venue:
+    | Pick<
+        PublicPredictionVenue,
+        'chainId' | 'programId' | 'manifestProgramId' | 'collateralToken'
+      >
+    | null
+    | undefined,
+) {
+  if (!venue?.programId || !venue.manifestProgramId || !venue.collateralToken)
+    return undefined
+  return `${venue.chainId}:${venue.programId}:${venue.manifestProgramId}:${venue.collateralToken}`
 }
 export function useProfileAccounting(
   apiUrl: string,

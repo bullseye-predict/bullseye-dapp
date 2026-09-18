@@ -88,10 +88,19 @@ export function solanaPositionRows(portfolio: ManifestPortfolio, questions: read
   return portfolio.questions.flatMap(holding => {
     const identity = solanaIdentity(holding.marketId, byMarket.get(holding.marketId))
     const lifecycle = lifecycleOf(holding, portfolio.now)
+    // A settled question the trader has already redeemed keeps no balance
+    // anywhere: the claim shares are burnt and the payout sits in the vault.
+    // The position PDA is the only survivor, and without it the row fails the
+    // emptiness test below and leaves the profile completely, rather than
+    // falling through to Closed. That is read as a lost position, so the row
+    // for the side that was actually redeemed is kept.
+    const settled = holding.positionAccount && (holding.status === 3 || holding.status === 4)
+    const redeemedSide = holding.status === 4 ? 0 : holding.winningOutcome
     return ([0, 1] as const).flatMap<SolanaPositionRow>(outcome => {
       const side = holding.outcomes[outcome]
       const quantity = side.totalShares
-      if (quantity === 0n && side.seatCollateral === 0n && side.quoteVolume === 0n) return []
+      const empty = quantity === 0n && side.seatCollateral === 0n && side.quoteVolume === 0n
+      if (empty && !(settled && redeemedSide === outcome)) return []
       return [{
         id: `${holding.marketId}:${outcome}`, identity, holding, outcome, quantity,
         custody: custodyOf(side),
