@@ -252,7 +252,7 @@ body { margin: 0; }
 .sh-form-stack :is(input, select, textarea), .sh-qualification-check select { min-width: 0; width: 100%; min-height: 36px; padding: 8px; border: 1px solid #777983; border-radius: 0; background: #c4c6cf; color: #171820; font-size: 11px; }
 .sh-form-stack :is(input, select, textarea):hover { border-color: #24252c; }
 .sh-form-stack textarea { resize: vertical; }
-.sh-form-stack textarea::placeholder, .sh-chat-form input::placeholder { color: #50535e; }
+.sh-form-stack :is(input, textarea)::placeholder, .sh-chat-form input::placeholder { color: #50535e; }
 .sh-form-columns { display: flex; gap: 10px; }
 .sh-form-columns > label { flex: 1; }
 .sh-feedback { padding: 10px 12px; background: #ddf3ac; color: #1e2c0a; font-size: 10px; border: 1px solid #829c43; }
@@ -446,6 +446,9 @@ body { margin: 0; }
 /* The second line on the agent's own can label. It sits on the light name
    plate, so it takes a muted ink rather than the card's brand accent. */
 .sh-agent-subname { grid-column: 1; font: 600 9px var(--sh-mono); letter-spacing: .07em; color: #41454f; }
+/* A card that lists a supply per body has no count in the second column, so the
+   codename and its can label take the whole width above the list. */
+.sh-agent-card-name.has-splits :is(h3, .sh-agent-subname) { grid-column: 1/-1; }
 .sh-agent-profile { position: relative; display: grid; grid-template-columns: 200px 1fr; gap: 24px; background: #26292e; border: 1px solid #666b78; padding: 20px; margin-bottom: 22px; }
 .sh-agent-profile > .sh-portrait { align-self: start; }
 .sh-agent-profile > div:nth-child(2) > span:first-child { font-size: 9px; color: var(--team-color); }

@@ -58,6 +58,37 @@ function withMatchPolicy(match: ArenaMatch, policy: unknown): ArenaMatch {
   return { ...match, matchDurationMs: duration, timingType: "countdown" };
 }
 
+/**
+ * HOW LONG THE DAY-AHEAD SCHEDULE MAY HOLD UP THE LIVE ROOM.
+ *
+ * `agents` and `current` are the hero: who is playing and which room is open.
+ * `schedule` fills the UP NEXT rail, which the MIAW PRIX programme now leads
+ * anyway. Catching the schedule's REJECTION was not enough - a read that is
+ * merely SLOW still made `Promise.all` wait for it, and this query has measured
+ * 21 seconds against a proxy ceiling of 25 while the other two land in four. So
+ * the whole page sat on "Loading the arena…" for a rail nobody was waiting for.
+ *
+ * Past this deadline the rail is simply empty and fills on the next poll.
+ */
+const SCHEDULE_DEADLINE_MS = 6_000
+
+/**
+ * `work`, or `fallback` if it has not settled within `ms`.
+ *
+ * A REJECTION still rejects: this bounds how long a caller waits, it does not
+ * turn a failure into an answer. The late promise is already handled here, so a
+ * read that rejects after the deadline cannot surface as an unhandled rejection.
+ */
+function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    work.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error: unknown) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 export function createArenaFeed(
   endpoint: string,
   fetcher: (
@@ -111,10 +142,14 @@ export function createArenaFeed(
     const [agents, current, upcoming] = await Promise.all([
       api.agents(signal),
       api.current(signal),
-      api.schedule(signal).catch((error: unknown) => {
-        if (signal.aborted) throw error;
-        return [] as ArenaScheduleEntry[];
-      }),
+      withDeadline(
+        api.schedule(signal).catch((error: unknown) => {
+          if (signal.aborted) throw error;
+          return [] as ArenaScheduleEntry[];
+        }),
+        SCHEDULE_DEADLINE_MS,
+        [] as ArenaScheduleEntry[],
+      ),
     ]);
     const match = current.match
       ? withMatchPolicy(

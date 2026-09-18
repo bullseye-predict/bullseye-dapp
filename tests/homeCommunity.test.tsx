@@ -60,11 +60,13 @@ test('the programme panel leads with the settled card, winner first', () => {
   // this page that has already happened.
   expect(html).toContain('aria-selected="true"')
   expect(html.indexOf('Recent matches')).toBeLessThan(html.indexOf('Up next'))
-  // Winner first, loser muted, and the verb says which is which without a score
-  // column the programme does not publish.
-  expect(html.indexOf('ALPHA')).toBeLessThan(html.indexOf('BETA'))
+  // WHO WON IS SAID THREE TIMES, and none of the three is colour alone - the
+  // first pass relied on the winner's ticker being in its coin's own hue, which
+  // tells a reader nothing, because nothing says the coloured one won.
+  expect(html.indexOf('ALPHA')).toBeLessThan(html.indexOf('BETA'))   // 1. order
+  expect(html).toContain('WON')                                      // 2. a chip
+  expect(html).toContain('ch-coin ch-coin--lost')                    // 3. weight
   expect(html).toContain('BEAT')
-  expect(html).toContain('ch-coin ch-coin--lost')
   expect(html).toContain('FINAL')
   // Crest AND ticker. One without the other is unreadable at this size.
   expect(html).toContain('ch-coin-mark')
@@ -82,6 +84,10 @@ test('a card whose winner is not one of its sides is never reordered into a resu
   const html = renderToStaticMarkup(<ProgrammeStandings board={board} loading={false} refreshing={false} />)
   expect(html).toContain('NO RESULT')
   expect(html).not.toContain('BEAT')
+  // No verdict, so nothing carries a verdict's marks: no WON chip, and neither
+  // side is dimmed as the one that lost.
+  expect(html).not.toContain('ch-coin-won')
+  expect(html).not.toContain('ch-coin--lost')
 })
 
 test('the reel only duplicates itself when there is more than the frame holds', () => {

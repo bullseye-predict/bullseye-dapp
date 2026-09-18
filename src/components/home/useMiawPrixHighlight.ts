@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { matchState } from '../miawprix/board'
 import { miawPrixEventView } from '../miawprix/miawPrixEventView'
 import { miawPrixBoardKey, miawPrixSource, type MiawPrixBoard, type MiawPrixMatch, type MiawPrixSeason } from '../miawprix/miawPrixSource'
-import { cachedValue } from '../solz/liveCache'
+import { cachedValue, useCacheSeed } from '../solz/liveCache'
 import { useLogoPalette } from '../markets/logoIdentity'
 import { teamIdentityColor } from '../markets/moneyline'
 import { resolvedTokenLogo } from '../solz/tokenIcon'
@@ -201,19 +201,27 @@ export function identify(match: MiawPrixMatch, meta: Map<string, TokenMeta>): Mi
 
 export function useMiawPrixHighlight(arenaEndpoint = '/api/agent-arena', predictionApiUrl = ''): MiawPrixHighlight {
   const source = useMemo(() => miawPrixSource(arenaEndpoint, predictionApiUrl), [arenaEndpoint, predictionApiUrl])
-  // THE FIRST FRAME IS THE LAST GOOD READ, when this realm has one. Home,
-  // /catwalk and /miaw-prix are three islands over one <ClientRouter /> document
-  // and they read the SAME programme URL, so arriving from any of them paints
-  // the schedule immediately instead of flashing the arena fallback while the
-  // identical request goes out again. See src/components/solz/liveCache.ts.
-  const seed = useMemo(() => cachedValue<MiawPrixBoard>(miawPrixBoardKey(arenaEndpoint)), [arenaEndpoint])
-  const [board, setBoard] = useState<MiawPrixBoard | null>(seed?.value ?? null)
-  const [loaded, setLoaded] = useState(Boolean(seed))
+  const [board, setBoard] = useState<MiawPrixBoard | null>(null)
+  const [loaded, setLoaded] = useState(false)
   // True only while the FIRST read of this mount is in flight over rows carried
   // in from another route. An ordinary poll sets nothing: a badge that returns
   // every sixty seconds over current rows says nothing.
-  const [refreshing, setRefreshing] = useState(Boolean(seed))
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  // THE LAST GOOD READ, AS SOON AS THIS ISLAND IS LIVE. Home, /catwalk and
+  // /miaw-prix are three islands over one <ClientRouter /> document and they
+  // read the SAME programme URL, so arriving from any of them paints the
+  // schedule immediately instead of flashing the arena fallback while the
+  // identical request goes out again. Applied after the first commit and before
+  // paint, so this island's markup never disagrees with the server's - see
+  // `useCacheSeed` in src/components/solz/liveCache.ts.
+  useCacheSeed(() => {
+    const seed = cachedValue<MiawPrixBoard>(miawPrixBoardKey(arenaEndpoint))
+    if (!seed) return
+    setBoard(seed.value)
+    setLoaded(true)
+    setRefreshing(true)
+  }, [arenaEndpoint])
   const [attempt, setAttempt] = useState(0)
   const [now, setNow] = useState(() => Date.now())
   const boundary = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)

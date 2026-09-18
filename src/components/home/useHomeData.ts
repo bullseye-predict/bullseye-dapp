@@ -7,7 +7,7 @@ import {
 } from "./arenaFeed";
 import type { ArenaScheduleEntry } from "../agent-arena/model";
 import { applyPredictionArena } from "./predictionArena";
-import { cachedValue, rememberValue } from "../solz/liveCache";
+import { cachedValue, rememberValue, useCacheSeed } from "../solz/liveCache";
 import { predictionUrl } from "../../../packages/sdk/prediction-url";
 
 /**
@@ -25,9 +25,7 @@ const snapshotKey = (predictionApiUrl: string) => `home-snapshot:${predictionApi
 const scheduleKey = (predictionApiUrl: string) => `home-schedule:${predictionApiUrl}`;
 
 export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
-  const [snapshot, setSnapshot] = useState<SolzSnapshot | null>(
-    () => cachedValue<SolzSnapshot>(snapshotKey(predictionApiUrl))?.value ?? null,
-  );
+  const [snapshot, setSnapshot] = useState<SolzSnapshot | null>(null);
   const [referenceSnapshot, setReferenceSnapshot] =
     useState<SolzSnapshot | null>(null);
   const [error, setError] = useState("");
@@ -44,9 +42,18 @@ export function useHomeData(source: SolzDataSource, predictionApiUrl = "") {
    * success path and on the failure path alike.
    */
   const [predictionFeedSettled, setPredictionFeedSettled] = useState(false);
-  const [arenaSchedule, setArenaSchedule] = useState<ArenaScheduleEntry[]>(
-    () => cachedValue<ArenaScheduleEntry[]>(scheduleKey(predictionApiUrl))?.value ?? [],
-  );
+  const [arenaSchedule, setArenaSchedule] = useState<ArenaScheduleEntry[]>([]);
+  // The last composed snapshot this realm produced, applied after the first
+  // commit and before paint. Every page using this hook is `client:only` today,
+  // so there is no server markup to disagree with - it goes through
+  // `useCacheSeed` anyway so that switching one of them to `client:load` cannot
+  // quietly reintroduce the hydration mismatch it exists to prevent.
+  useCacheSeed(() => {
+    const seed = cachedValue<SolzSnapshot>(snapshotKey(predictionApiUrl));
+    if (seed) setSnapshot(seed.value);
+    const schedule = cachedValue<ArenaScheduleEntry[]>(scheduleKey(predictionApiUrl));
+    if (schedule) setArenaSchedule(schedule.value);
+  }, [predictionApiUrl]);
 
   useEffect(() => {
     let active = true;

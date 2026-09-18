@@ -33,7 +33,10 @@
 .ch-reel { position: relative; height: 425px; overflow: hidden; background: var(--sh-panel); border-inline: 1px solid #33353d; }
 /* Rows enter and leave under a fade rather than being cut mid-row, so the
    movement reads as a strip passing rather than as content being clipped. */
-.ch-reel.is-rolling::before, .ch-reel.is-rolling::after { content: ''; position: absolute; left: 0; right: 0; height: 34px; pointer-events: none; z-index: 1; }
+/* Short on purpose. At 34px this mask covered most of a 46px row, and a
+   half-erased row on a panel whose whole job is won-versus-lost read as a third
+   state. 16px fades the edge without touching the content. */
+.ch-reel.is-rolling::before, .ch-reel.is-rolling::after { content: ''; position: absolute; left: 0; right: 0; height: 16px; pointer-events: none; z-index: 1; }
 .ch-reel.is-rolling::before { top: 0; background: linear-gradient(#191a1e, #191a1e00); }
 .ch-reel.is-rolling::after { bottom: 0; background: linear-gradient(#191a1e00, #191a1e); }
 .ch-reel.is-rolling { overflow: clip; }
@@ -52,7 +55,12 @@
 .ch-reel-when b { font: 600 11px var(--sh-mono); color: #dfe0e6; }
 .ch-reel-when small { font-size: 7px; color: var(--sh-muted); text-transform: uppercase; }
 .ch-reel-pair { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.ch-reel-pair em { flex-shrink: 0; font: 500 7px var(--sh-mono); font-style: normal; color: #7c7f8a; letter-spacing: .08em; }
+/* THE VERB POINTS AT THE WINNER. It used to be the same grey as every other
+   label on the row, which made it furniture; in lime it reads as part of the
+   result rather than as a separator. VS and VOID are not results, so they stay
+   grey - see `.ch-reel-pair em.is-open` below. */
+.ch-reel-pair em { flex-shrink: 0; font: 700 8px var(--sh-mono); font-style: normal; color: var(--sh-lime); letter-spacing: .1em; }
+.ch-reel-pair em.is-open { font-weight: 500; font-size: 7px; color: #7c7f8a; letter-spacing: .08em; }
 .ch-reel-tag { flex-shrink: 0; padding: 3px 6px; border: 1px solid #4a4d56; color: #9b9ea9; font: 500 7px var(--sh-mono); letter-spacing: .06em; }
 .ch-reel-tag.is-final { border-color: #5c6136; color: var(--sh-lime); }
 .ch-reel-tag.is-live { border-color: var(--sh-pink); color: var(--sh-pink); }
@@ -65,9 +73,22 @@
 /* A coin, as one chip: its crest and its ticker, never one without the other. */
 .ch-coin { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .ch-coin-mark { width: 22px; height: 22px; flex-shrink: 0; }
-.ch-coin b { font: 700 13px var(--sh-heading); color: #eeeef0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-coin--lost b { color: #83868f; }
-.ch-coin--lost .ch-coin-mark { opacity: .55; }
+/* The ticker is INK, never the coin's hue - see CoinChip for why. The winner
+   gets the panel's brightest text and the loser two steps down, so the pair
+   reads as a result at a glance and every coin is legible whatever colour its
+   crest happens to be. */
+.ch-coin b { font: 700 13px var(--sh-heading); color: #f2f3f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* THE LOSER IS PRESENT AND CLEARLY SECOND. It keeps its crest and its ticker,
+   because it played the match; what it loses is weight, so the eye lands on the
+   winner first without having to read anything. */
+/* Two steps down, and still READABLE: 4.78:1 on this panel. The loser is the
+   second thing the eye lands on, not a thing somebody has to squint at - it is
+   half the fixture, and a reader who wants to know who it lost to has to be
+   able to read the ticker. */
+.ch-coin--lost b { color: #83868f; font-weight: 500; }
+.ch-coin--lost .ch-coin-mark { opacity: .38; }
+/* The result, said in a word rather than implied by a colour. */
+.ch-coin-won { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 2px 5px; background: var(--sh-lime); color: #15180c; font: 700 7px var(--sh-mono); font-style: normal; letter-spacing: .08em; }
 
 /* The season table's coin cell, which is a chip rather than a button: this
    panel navigates to the programme, it does not expand a row in place. */

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { CutoutCorner } from '../solz/ui'
 import type { SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { LiveChatForm } from './LiveChatForm'
-import { PromptComposer } from './PromptComposer'
+import { PromptComposer, type PromptHint } from './PromptComposer'
 
 /**
  * The two plates that notch into the bottom corners of the broadcast stage.
@@ -25,6 +25,9 @@ type PromptProps = {
   intermission: boolean
   simulation: boolean
   warning?: string
+  /** The plate hands its hint to the rail below rather than growing to fit it.
+   *  See PromptComposer's `onHint`. */
+  onHint?: (hint: PromptHint | null) => void
 }
 
 /**
@@ -44,6 +47,7 @@ export function StagePromptCorner({
   intermission,
   simulation,
   warning,
+  onHint,
 }: PromptProps) {
   const [open, setOpen] = useState(true)
   return (
@@ -60,6 +64,7 @@ export function StagePromptCorner({
         intermission={intermission}
         simulation={simulation}
         warning={warning}
+        onHint={onHint}
       />
     </div>
   )

@@ -303,8 +303,6 @@ export function InteractionConsole({
           // sample one. See AgentTrader for why the two cannot share a form.
           <AgentTrader
             market={market}
-            outcome={outcome}
-            onOutcome={onOutcome}
             collateralSymbol={collateralSymbol}
             venue={solanaVenue}
             apiUrl={predictionApiUrl}

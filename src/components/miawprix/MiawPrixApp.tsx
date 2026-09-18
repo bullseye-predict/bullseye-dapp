@@ -7,7 +7,7 @@ import { ProgrammeLayout, useNarrow, type ProgrammeSurface } from './ProgrammeLa
 import { SeasonPanel } from './SeasonPanel'
 import { StandingsTable } from './StandingsTable'
 import { miawPrixBoardKey, miawPrixSource, type MiawPrixBoard } from './miawPrixSource'
-import { cachedValue } from '../solz/liveCache'
+import { cachedValue, useCacheSeed } from '../solz/liveCache'
 import { useTokenMeta } from '../solz/tokenMeta'
 import { resolvedTokenLogo } from '../solz/tokenIcon'
 import { champion, orderSeasons, rankStandings, seasonMismatch, splitMatches, sectionCount } from './board'
@@ -91,23 +91,13 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   // both trees and never renders more than one of them.
   const narrow = useNarrow()
   const [seasonId, setSeasonId] = useState(initialSeasonId)
-  // THE FIRST FRAME IS THE LAST GOOD READ. This page is usually opened from the
-  // home hero or from /catwalk, which are islands over the SAME document and
-  // have already read this exact programme URL. Starting from nothing redrew
-  // three tables of rows the reader had been looking at one click earlier as
-  // skeletons. The read still goes out below - the seed buys a first frame, it
-  // never answers for one. See src/components/solz/liveCache.ts.
-  const seed = useMemo(
-    () => cachedValue<MiawPrixBoard>(miawPrixBoardKey(endpoint, initialSeasonId)),
-    [endpoint, initialSeasonId],
-  )
-  const [board, setBoard] = useState<MiawPrixBoard | null>(seed?.value ?? null)
-  const [loading, setLoading] = useState(!seed)
+  const [board, setBoard] = useState<MiawPrixBoard | null>(null)
+  const [loading, setLoading] = useState(true)
   /** The rows on screen were carried in from another route and this mount's own
    *  read has not landed yet. `loading` is false — there IS a board — so nothing
    *  draws a skeleton; this is what stops those rows being passed off as fresh.
    *  Cleared by the first read that settles, and never set by a later one. */
-  const [carried, setCarried] = useState(Boolean(seed))
+  const [carried, setCarried] = useState(false)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
   /** Which table's REFRESH was pressed, or null when nothing is in flight.
@@ -124,7 +114,23 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   const [refreshingFrom, setRefreshingFrom] = useState<ProgrammeSurface | null>(null)
   /** The season the rows on screen belong to. A refresh re-reads the same
    *  season and keeps them; a season change has nothing worth keeping. */
-  const shownSeason = useRef<string | null>(seed ? initialSeasonId : null)
+  const shownSeason = useRef<string | null>(null)
+
+  // THE LAST GOOD READ, AS SOON AS THIS ISLAND IS LIVE. This page is usually
+  // opened from the home hero or from /catwalk, which are islands over the SAME
+  // document and have already read this exact programme URL; starting from
+  // nothing redrew three tables of rows the reader had been looking at one
+  // click earlier as skeletons. It runs after the first commit and before paint
+  // so the island's markup never disagrees with the server's, and it never
+  // answers FOR the read - the read below still goes out and `carried` says so.
+  useCacheSeed(() => {
+    const seed = cachedValue<MiawPrixBoard>(miawPrixBoardKey(endpoint, initialSeasonId))
+    if (!seed) return
+    setBoard(seed.value)
+    setLoading(false)
+    setCarried(true)
+    shownSeason.current = initialSeasonId
+  }, [endpoint, initialSeasonId])
   /** Consecutive failed reads, for the backoff below. Reset by any read that
    *  lands, so one bad minute does not leave the page on a 30s cadence. */
   const attempts = useRef(0)

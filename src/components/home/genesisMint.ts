@@ -19,7 +19,10 @@ export type GenesisMintPart = { label: string; supply: number }
 export type GenesisMintEntry = {
   slug: string
   rarity: GenesisRarity
-  /** Units offered in the sale. Zero means the agent is not sold at all. */
+  /** Units offered in the sale, summed over the parts when there are parts.
+   *  Zero means the agent is not sold at all. This number is the collection
+   *  total's share, never a count a buyer can ask for: a three-body agent
+   *  sells three separate supplies, so its card prints the parts instead. */
   supply: number
   parts?: GenesisMintPart[]
   /** What the card says in place of a supply count. c0ke has no sale, so a
@@ -82,3 +85,9 @@ const BY_SLUG = new Map(GENESIS_MINT.map((entry) => [entry.slug, entry]))
 export const genesisMint = (slug: string): GenesisMintEntry | undefined => BY_SLUG.get(slug)
 
 export const supplyLabel = (value: number) => value.toLocaleString('en')
+
+/** What a card announces to a screen reader. A multi-part agent has no single
+ *  supply to offer, so it names each body's own count rather than their sum. */
+export const mintSupplyText = (entry: GenesisMintEntry) =>
+  entry.parts ? entry.parts.map((part) => `${supplyLabel(part.supply)} ${part.label} supply`).join(', ')
+    : entry.claim ?? `${supplyLabel(entry.supply)} supply`

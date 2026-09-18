@@ -677,8 +677,18 @@ function Home({
             </div>
           )}
         </section>
-        {snapshot && (
-          <section className="ch-guide" aria-labelledby="arena-guide-title">
+        {/* NOTHING BELOW WAITS ON THE ARENA SNAPSHOT.
+            Every section under the hero used to be inside `{snapshot && ...}`,
+            so the SLOWEST read on the page - the arena overview plus its
+            schedule, 8-22s on a cold control plane - held back a static
+            explainer strip, the live-room list on its own feed, and the two
+            panels below, which read the MIAW PRIX programme and the CATWALK
+            board and have nothing to do with the arena at all. The page then
+            showed one sentence for twenty seconds with the whole site under it
+            blank. Each part now arrives on its own read, and draws its own
+            loading state in its own frame. Only GenesisAgents genuinely needs
+            the snapshot - the roster IS the snapshot - so only it is gated. */}
+        <section className="ch-guide" aria-labelledby="arena-guide-title">
             <div className="ch-guide-heading">
               <h2 id="arena-guide-title">Find your way in the arena.</h2>
               <p>Watch the action. Choose how you take part.</p>
@@ -731,19 +741,18 @@ function Home({
                 </button>
               ))}
             </div>
-          </section>
-        )}
+        </section>
+        <LiveMatches feed={watchMatches} watchHref={liveHref} />
+        <div className="sh-community-grid">
+          <ProgrammeStandings
+            board={miawPrix.board}
+            loading={!miawPrix.loaded}
+            refreshing={miawPrix.refreshing}
+          />
+          <CatwalkEntry feed={catwalk} />
+        </div>
         {snapshot && (
           <>
-            <LiveMatches feed={watchMatches} watchHref={liveHref} />
-            <div className="sh-community-grid">
-              <ProgrammeStandings
-                board={miawPrix.board}
-                loading={!miawPrix.loaded}
-                refreshing={miawPrix.refreshing}
-              />
-              <CatwalkEntry feed={catwalk} />
-            </div>
             <GenesisAgents
               snapshot={snapshot}
               onPrompt={(agentId) => {

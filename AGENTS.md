@@ -37,3 +37,43 @@ Three-way markets with a draw do not exist yet (`Outcome = 0 | 1` in `packages/p
 ## Loading states
 
 Loading must preserve the final surface's structure, dimensions, and column layout. Use a skeleton or shimmer shaped like the loaded content; do not replace a table, ticket, chart, list, or card with a standalone loading sentence. Keep loading text available to assistive technology, and reserve textual messages for unavailable or terminal error states.
+
+## Compute cost — CRITICAL
+
+Every database here is Neon in us-east-1. One round trip is ~250 ms and bills
+compute. Correct code that burns compute is still defective.
+
+**Retry loops must back off.** Any journal, outbox, sweep, poller or reconciler
+needs exponential backoff and a maximum interval. A flat retry turns one failing
+record into a permanent load generator. On 2026-09-18 a settlement journal
+retrying every 30 s with no ceiling produced 3,360 calls an hour for eight hours,
+saturated a 3-connection pool, and took Agent Arena and Agent Colosseum down as
+bystanders. `SodaStakeOutbox` had the right curve; the journal beside it did not.
+
+**Count round trips and bytes, not query plans.** These tables are small and plan
+in under a millisecond. Cost is `sequential round trips × 250 ms` plus payload.
+No query inside a loop over items — read once before it, write one batched
+statement after it. Project only the columns that are read; a jsonb blob
+dominates the wire.
+
+**No repair work on a hot path.** `next()` is waited on by a director with a
+4.5 s timeout. Rebuilds, reconciliation and self-healing belong in a bounded
+one-shot migration, never in a handler. A self-healing branch that re-triggers
+each call is an outage.
+
+**Budgets are part of the contract.** Measure the call against the caller's
+timeout and state the measured number before calling the work done.
+
+**Stop the bleeding before diagnosing.** Pause or back off a running storm first;
+do not investigate while it burns.
+
+## Prefer the alternative that is safe to implement
+
+Take the route that reaches the same outcome with the least risk, and keep the
+drastic one for when the safe ones are genuinely exhausted.
+
+- Back off a loop before deleting its rows; pause work before abandoning it.
+- Change a constant before rewriting a subsystem.
+- Reproduce a failure through the real call path before naming its cause.
+- Never propose taking a running service down, deploying, or dropping data as
+  the first move. State the safe alternative first.

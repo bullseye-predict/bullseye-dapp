@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Square, Zap } from "lucide-react";
-import type { ArenaMarket, ArenaMarketOutcome } from "../solz/model";
+import { PublicKey } from "@solana/web3.js";
+import type { ArenaMarket } from "../solz/model";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import { getPredictionConfig } from "../../../packages/sdk/PredictionTradingClient";
 import { predictionUrl } from "../../../packages/sdk/prediction-url";
@@ -8,6 +9,8 @@ import { vaultAddress } from "../../../packages/adapters/solana/wire";
 import { connectSolanaTradingWallet, type TradingWallet } from "../prediction/wallets";
 import { useSolanaWallet } from "../session/store";
 import { venueBinding } from "./venue/useVenueMarket";
+import { cachedQuestionMarketAddress } from "../solz/questionMarketPda";
+import { parseReservedSolanaQuestions, type ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 
 /**
  * WHY HERMES AND NOT THE RULE FORM BESIDE IT.
@@ -61,6 +64,71 @@ const REASONS: Record<string, string> = {
 
 const RUNNING = ["RUNNING", "START_REQUESTED", "STOPPING"];
 
+/** A canonical match id and a canonical question id share this shape. */
+const CANONICAL_ID = /^0x[0-9a-f]{64}$/i;
+
+const marketAddress = (value: string) => {
+  try {
+    return new PublicKey(value).toBase58() === value;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Turns what the trader typed into the ONE market Hermes can be armed on.
+ *
+ * A market address needs nothing. A match id does: a match carries a question
+ * per agent, so it names several markets and the trader has to say which. The
+ * catalogue is read here, on submit, rather than polled: this is one round trip
+ * on an explicit action, and the panel is idle the rest of the time.
+ */
+export async function resolveAgentTarget(
+  typed: string,
+  apiUrl: string,
+  programId: string | undefined,
+  fetchQuestions: () => Promise<unknown> = async () => {
+    const response = await fetch(predictionUrl("/solana/questions", apiUrl), {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!response.ok)
+      throw new Error("The question catalogue is unavailable, so that id cannot be resolved.");
+    return (await response.json().catch(() => null)) as unknown;
+  },
+): Promise<string> {
+  const value = typed.trim();
+  if (marketAddress(value)) return value;
+  if (!CANONICAL_ID.test(value))
+    throw new Error(
+      "Enter a match id or question id (0x and 64 hex characters), or a market address.",
+    );
+  const questions = parseReservedSolanaQuestions(await fetchQuestions());
+  const program = programId ? new PublicKey(programId) : undefined;
+  const address = (question: ReservedSolanaQuestion) =>
+    question.marketId ||
+    (program ? cachedQuestionMarketAddress(program, question.matchId, question.questionId) : "");
+  const wanted = value.toLowerCase();
+  const byQuestion = questions.filter((item) => item.questionId.toLowerCase() === wanted);
+  const matched = byQuestion.length
+    ? byQuestion
+    : questions.filter((item) => item.matchId.toLowerCase() === wanted);
+  if (!matched.length)
+    throw new Error(`No question on this deployment carries the id ${value}.`);
+  if (matched.length > 1)
+    throw new Error(
+      `That match carries ${matched.length} questions, so it does not name one market. Arm one by its market address: ${matched
+        .map((item) => `${item.label} — ${address(item)}`)
+        .join(" · ")}`,
+    );
+  const resolved = address(matched[0]!);
+  if (!resolved)
+    throw new Error(
+      "That question has no market address yet. Open it from the trade ticket first, then instruct the agent.",
+    );
+  return resolved;
+}
+
 const shortAddress = (value: string) =>
   value.length > 12 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
 
@@ -73,8 +141,6 @@ const formatAtoms = (value: bigint, decimals: number) => {
 
 type Props = {
   market: ArenaMarket;
-  outcome: ArenaMarketOutcome;
-  onOutcome: (outcome: ArenaMarketOutcome) => void;
   collateralSymbol: string;
   venue?: PublicPredictionVenue | null;
   apiUrl: string;
@@ -84,8 +150,6 @@ type Props = {
 
 export function AgentTrader({
   market,
-  outcome,
-  onOutcome,
   collateralSymbol,
   venue,
   apiUrl,
@@ -93,6 +157,8 @@ export function AgentTrader({
 }: Props) {
   const wallet = useSolanaWallet();
   const [prompt, setPrompt] = useState("");
+  /** Blank means the question on screen. */
+  const [target, setTarget] = useState("");
   const [status, setStatus] = useState<HermesState | null>(null);
   const [balance, setBalance] = useState<{ available: bigint; reserved: bigint } | null>(null);
   const [unavailable, setUnavailable] = useState("");
@@ -194,9 +260,16 @@ export function AgentTrader({
     try {
       if (!wallet) throw new Error("Connect your Solana wallet to instruct the agent.");
       if (!venue) throw new Error("The prediction venue is unavailable.");
-      if (start && !onchainMarketId)
+      // Blank targets the question on screen; a typed id targets that one, so a
+      // trader can arm a match they are not currently looking at.
+      const marketId = start
+        ? target.trim()
+          ? await resolveAgentTarget(target, apiUrl, venue.programId)
+          : onchainMarketId
+        : undefined;
+      if (start && !marketId)
         throw new Error(
-          "This question has no Manifest market yet. Open it from the trade ticket first, then instruct the agent.",
+          "This question has no Manifest market yet. Open it from the trade ticket first, or paste the match id of the one you want.",
         );
       const { audience } = await getPredictionConfig(apiUrl);
       // Reconnected per command on purpose: the signed session is short lived,
@@ -205,7 +278,7 @@ export function AgentTrader({
       session.current?.dispose();
       const connected = await connectSolanaTradingWallet(venue, apiUrl, audience, wallet);
       session.current = connected;
-      if (start) await connected.client.startHermes(onchainMarketId!, prompt.trim());
+      if (start) await connected.client.startHermes(marketId!, prompt.trim());
       else await connected.client.stopHermes();
       setStatus(await connected.client.getHermesStatus());
     } catch (reason) {
@@ -217,12 +290,15 @@ export function AgentTrader({
     }
   };
 
-  const blocked = closed || !!unavailable || !wallet;
+  // `closed` describes the question on screen. A typed target is a different
+  // question, so it is gated by its own market, not by this one.
+  const blocked = (closed && !target.trim()) || !!unavailable || !wallet;
   return (
     <div className="ch-agent-trader">
       <p className="sh-console-intro">
         Tired of catching every card yourself? Write the instruction once and the
-        agent watches this question and trades it for you.
+        agent watches the question and trades it for you. It arms the question on
+        screen unless you name another match above it.
       </p>
       {unavailable && (
         <p className="ch-integration-warning" role="note">
@@ -237,22 +313,18 @@ export function AgentTrader({
         }}
       >
         <label>
-          BUY OUTCOME
-          <select
-            value={outcome.id}
-            onChange={(event) => {
-              const next = market.outcomes.find(
-                (item) => item.id === event.target.value,
-              );
-              if (next) onOutcome(next);
-            }}
-          >
-            {market.outcomes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          MATCH ID (OPTIONAL)
+          <input
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            disabled={busy || running}
+            spellCheck={false}
+            placeholder={
+              onchainMarketId
+                ? `Blank arms this question · ${shortAddress(onchainMarketId)}`
+                : "Paste a match id, question id or market address"
+            }
+          />
         </label>
         <label>
           TRADING INSTRUCTIONS
@@ -262,12 +334,13 @@ export function AgentTrader({
             maxLength={8000}
             rows={4}
             disabled={busy || running}
-            placeholder="Describe when the agent should trade or hold. For example: buy this side under 45c, scale out above 70c, and never hold through the horn."
+            placeholder="Describe which side to buy and when to trade or hold. For example: buy YES with USDC under 45c, scale out above 70c, and never hold through the horn."
           />
         </label>
         <p className="sh-form-note">
-          {prompt.trim().length}/8000 · The instruction decides what the agent
-          does inside its authorized limits. It cannot raise them.
+          {prompt.trim().length}/8000 · Name the side and the token in the
+          instruction itself. It decides what the agent does inside its
+          authorized limits; it cannot raise them.
         </p>
         <div className="ch-agent-trader__actions">
           <button
@@ -335,9 +408,10 @@ export function AgentTrader({
             "The agent is stopped. Review the configured vault session before continuing."}
         </p>
       )}
-      {closed && (
+      {closed && !target.trim() && (
         <p className="sh-form-note">
-          Trading has closed on this question, so nothing can be armed against it.
+          Trading has closed on this question. Paste a match id above to arm the
+          agent on another one.
         </p>
       )}
       {error && (

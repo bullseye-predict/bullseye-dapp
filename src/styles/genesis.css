@@ -88,8 +88,16 @@
 .ga-card-supply-label { grid-column: 2; text-align: right; font: 500 8px var(--sh-mono); letter-spacing: .1em; color: #4c505b; }
 /* c0ke's line carries a claim, not a unit, so it has to be read, not scanned. */
 .ga-card-supply-label.is-claim { font-weight: 600; color: #14161c; }
-/* 12ed 13u11 mints as three bodies, so its card breaks its own count down. */
-.ga-card-parts { grid-column: 1/-1; margin-top: 3px; padding-top: 8px; border-top: 1px solid var(--sh-gray-line); font: 500 8px var(--sh-mono); letter-spacing: .04em; color: #41454f; }
+/* 12ed 13u11 mints as three bodies, and each body carries its own supply. The
+   three rows replace the single count: one line per body, the number on the
+   right where the single count used to read, and the word SUPPLY beside each
+   one so no row can be mistaken for a share of a larger total. */
+.ga-card-splits { grid-column: 1/-1; list-style: none; margin: 2px 0 0; padding: 0; border-top: 1px solid var(--sh-gray-line); }
+.ga-card-splits li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--sh-gray-line); }
+.ga-card-splits li:last-child { padding-bottom: 0; border-bottom: 0; }
+.ga-card-splits li > span { font: 500 8px var(--sh-mono); letter-spacing: .1em; color: #4c505b; }
+.ga-card-splits li > b { margin-left: auto; font: 700 16px/1 var(--sh-heading); color: #14161c; }
+.ga-card-splits li > small { font: 500 8px var(--sh-mono); letter-spacing: .1em; color: #4c505b; }
 
 .ga-breeding { background: #191c20; border: 1px solid #363c3f; margin-top: 30px; padding: 27px 30px 0; }
 .ga-breeding > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
@@ -159,7 +167,8 @@
   .ga-owned-agent strong { font-size: 15px; }
 }
 @media (max-width: 720px) {
-  .ga-card-supply-label, .ga-card-parts { font-size: 7px; }
+  .ga-card-supply-label, .ga-card-splits li > :is(span, small) { font-size: 7px; }
+  .ga-card-splits li > b { font-size: 14px; }
   .ga-card-supply-label.is-claim { grid-column: 1/-1; margin-top: 1px; }
   .sh-genesis .sh-section-heading { flex-wrap: wrap; align-items: flex-start; }
   .ga-whitelist-flag { padding: 12px 15px; }

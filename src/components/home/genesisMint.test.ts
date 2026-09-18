@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { GENESIS_MINT, GENESIS_TIER_COLOR, GENESIS_TIER_INK, GENESIS_TOTAL_SUPPLY, genesisMint } from './genesisMint'
+import { GENESIS_MINT, GENESIS_TIER_COLOR, GENESIS_TIER_INK, GENESIS_TOTAL_SUPPLY, genesisMint, mintSupplyText } from './genesisMint'
 import { GENESIS_SKIN_SLUGS } from './HomePrimitives'
 
 test('the mint table covers every Genesis slot exactly once', () => {
@@ -18,6 +18,16 @@ test('a multi-part agent splits into its own bodies', () => {
   const bull = genesisMint('12ed-13u11')!
   expect(bull.parts?.map((part) => part.supply)).toEqual([1100, 1200, 1300])
   expect(bull.parts!.reduce((total, part) => total + part.supply, 0)).toBe(bull.supply)
+})
+
+/** The sum of the three bodies is not a supply anyone can buy, so it must not
+ *  be announced as one - the card and the label name each body instead. */
+test('a multi-part agent announces each body, never their sum', () => {
+  const bull = genesisMint('12ed-13u11')!
+  expect(mintSupplyText(bull)).toBe('1,100 MELEE supply, 1,200 RANGE supply, 1,300 MAGIC supply')
+  expect(mintSupplyText(bull)).not.toContain('3,600')
+  expect(mintSupplyText(genesisMint('peps1')!)).toBe('100 supply')
+  expect(mintSupplyText(genesisMint('c0ke')!)).toBe('OWN IT BY XXX')
 })
 
 test('c0ke is not sold and says so in place of a count', () => {

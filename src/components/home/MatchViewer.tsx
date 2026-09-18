@@ -29,6 +29,7 @@ import { emptyChart } from "../markets/chartEmpty";
 import { PredictionOptions } from "./PredictionOptions";
 import { HeroActivity } from "./HeroActivity";
 import { StageChatCorner, StagePromptCorner } from "./StageCorners";
+import type { PromptHint } from "./PromptComposer";
 import { matchIdLabel, sideLabel, type HighlightView } from "./heroMarket";
 import { needsIframeWarning, useArenaPerformance, type ArenaPerformance } from "./useArenaPerformance";
 
@@ -384,6 +385,9 @@ export function MatchViewer({
   const [broadcastStatus, setBroadcastStatus] =
     useState<ArenaBroadcastStatus | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  // The composer's sentence, held here because the plate that writes it and the
+  // rail that shows it are siblings. See PromptComposer's `onHint`.
+  const [promptHint, setPromptHint] = useState<PromptHint | null>(null);
   async function fullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -779,6 +783,7 @@ export function MatchViewer({
                   intermission={intermission}
                   simulation={simulation}
                   warning={promptWarning}
+                  onHint={setPromptHint}
                 />
               )}
               {!broadcastOnly && chatOpen && (
@@ -890,6 +895,7 @@ export function MatchViewer({
             match={match}
             onChat={onChat}
             onPrompt={onPrompt}
+            promptHint={promptHint}
           />
         )}
       </div>

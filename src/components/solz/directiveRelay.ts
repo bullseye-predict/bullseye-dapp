@@ -387,3 +387,58 @@ export async function confirmDirectivePayment(
     }
   }
 }
+
+/**
+ * ONE DIRECTIVE AS THE RELAY REMEMBERS IT.
+ *
+ * `DirectivePurchase` is what a quote and a payment answer with: enough to
+ * charge a wallet and to say whether the charge landed. A receipt is the same
+ * row read back later, and it carries the two things a feed needs and a
+ * purchase does not - the directive's own words and when it was bought - plus
+ * the state as it moves from paid to executed.
+ */
+export type DirectiveReceipt = DirectivePurchase & {
+  at: number
+  text: string
+  botId?: string
+  signature?: string
+}
+
+function parseReceipt(raw: unknown): DirectiveReceipt | null {
+  const value = raw as Record<string, unknown>
+  if (!value || typeof value.id !== 'string') return null
+  try {
+    return {
+      ...parsePurchase({ ...value, amountAtoms: String(value.amountAtoms ?? '0') }),
+      at: asNumber(value.createdAt, 0),
+      text: typeof value.text === 'string' ? value.text : '',
+      ...(typeof value.botId === 'string' && value.botId ? { botId: value.botId } : {}),
+      ...(typeof value.signature === 'string' && value.signature ? { signature: value.signature } : {}),
+    }
+  } catch {
+    // One malformed row must not blank a feed that has good rows beside it.
+    return null
+  }
+}
+
+/**
+ * The directives this wallet bought for one match, newest first.
+ *
+ * The wallet is the identity. No cookie or bearer token crosses the host proxy
+ * (see src/server/directive-proxy.ts), so a read that omits it asks the relay
+ * about an account it cannot see.
+ */
+export async function readDirectivePurchases(
+  matchId: string,
+  wallet: string,
+  base = '/api/directives',
+  signal?: AbortSignal,
+): Promise<DirectiveReceipt[]> {
+  if (!matchId || !wallet) return []
+  const query = new URLSearchParams({ matchId, wallet })
+  const payload = await relay(`purchases?${query}`, { headers: { accept: 'application/json' }, signal }, base)
+  const rows = Array.isArray(payload.purchases) ? payload.purchases : []
+  return rows
+    .flatMap((row) => { const entry = parseReceipt(row); return entry ? [entry] : [] })
+    .sort((left, right) => right.at - left.at)
+}

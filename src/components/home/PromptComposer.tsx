@@ -18,13 +18,25 @@ import { useSolanaWallet } from '../session/store'
 import { useDirectiveRelay } from './useDirectiveRelay'
 import type { DirectiveStage } from './sendDirective'
 import { canSubmitDirective } from './directiveSubmit'
+import { recordDirective } from './directiveHistory'
 import { AnimatedCollapse } from './AnimatedCollapse'
 import { amountLabel } from './HomePrimitives'
+
+/** What the composer would have said under its own field. */
+export type PromptHint = { text: string; tone: 'idle' | 'blocked' | 'error' | 'success' }
 
 type Props = {
   source: SolzDataSource; snapshot: SolzSnapshot; match: SolzMatch; open: boolean; onToggle: () => void
   promptAgentId?: string; intermission: boolean; simulation: boolean
   warning?: string
+  /**
+   * Take the hint instead of printing it here. The stage plate is a fixed
+   * shape notched into the broadcast, so a sentence appearing under the field
+   * grew the plate and pushed the corner cutouts out of the stage. The rail
+   * below already has a header row with room to spare, so the reason for a
+   * refused Send is shown there and the plate never changes height.
+   */
+  onHint?: (hint: PromptHint | null) => void
 }
 
 /** What the viewer is waiting for. A directive is a payment, not a message: a
@@ -62,7 +74,7 @@ function useTypedPlaceholder(text: string, active: boolean): string {
   return typed
 }
 
-export function PromptComposer({ source, snapshot, match, open, onToggle, promptAgentId, intermission, simulation, warning }: Props) {
+export function PromptComposer({ source, snapshot, match, open, onToggle, promptAgentId, intermission, simulation, warning, onHint }: Props) {
   const [prompt, setPrompt] = useState('')
   const [agentId, setAgentId] = useState(promptAgentId ?? '')
   const [stage, setStage] = useState<DirectiveStage | null>(null)
@@ -188,6 +200,10 @@ export function PromptComposer({ source, snapshot, match, open, onToggle, prompt
           botId: agentId || undefined,
           onStage: (value) => { if (mounted.current) setStage(value) },
         })
+        // The rail below reads this store, not `snapshot.prompts`: nothing on
+        // the live path ever writes a paid directive into the snapshot. Recorded
+        // before `settle`, because `settle` clears the field this text came from.
+        recordDirective({ purchase, text: prompt, wallet: wallet.address, botId: agentId || undefined })
         settle(`Queued for ${targetLabel}. ${tokenAmountLabel(purchase.amountAtoms, purchase.decimals)} ${tokenLabel} paid.`, false)
       } else if (simulation) {
         await source.submitPrompt({ matchId: target.id, agentId: agentId || undefined, text: prompt, token: 'COOLA' })
@@ -219,6 +235,15 @@ export function PromptComposer({ source, snapshot, match, open, onToggle, prompt
     : unavailable ? missing ?? (live ? 'Agents accept directives during a live match. The next one opens shortly.' : warning) ?? 'Agents accept prompts during a live match.'
     : tooShort ? `Add a little more detail · at least 8 characters (${prompt.trim().length}/8).`
     : `${targetNote}Enter to send · Shift + Enter for a new line`
+  const hintTone: PromptHint['tone'] = feedback?.error ? 'error' : feedback ? 'success' : blocked ? 'blocked' : 'idle'
+  const hintText = feedback?.text ?? hint
+  // The host owns the sentence while it is mounted, and gets a null on unmount
+  // so a reason for a composer that is gone does not stay under the rail.
+  useEffect(() => {
+    if (!onHint) return
+    onHint({ text: hintText, tone: hintTone })
+  }, [onHint, hintText, hintTone])
+  useEffect(() => () => onHint?.(null), [onHint])
   const examples = SAMPLE_DIRECTIVES.slice(0, 2)
   const placeholder = 'Name an agent, then the move. e.g. Coke, hold the west relay.'
   const typedPlaceholder = useTypedPlaceholder(placeholder, prompt.length === 0)
@@ -244,7 +269,7 @@ export function PromptComposer({ source, snapshot, match, open, onToggle, prompt
         <textarea id="mini-prompt" ref={input} value={prompt} onChange={(event) => { setPrompt(event.target.value); setFeedback(null) }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void sendPrompt() } }} placeholder={typedPlaceholder} minLength={8} maxLength={220} required rows={2} aria-describedby="prompt-hint"/>
         <div className="ch-mini-controls"><label className="ch-prompt-target"><span className="sr-only">Prompt recipient</span><select value={agentId} onChange={(event) => { setAgentId(event.target.value); setFeedback(null) }}><option value="">Auto</option>{target.roster.map((entry) => <option key={entry.agentId} value={entry.agentId} disabled={entry.status !== 'active'}>{entry.codename}{entry.status !== 'active' ? ' · out of round' : ''}</option>)}</select></label><p className="ch-prompt-price">{fueling ? 'FUELED' : pending ? stage ? stageLabel[stage] : 'SENDING' : priceTag}</p><button type="submit" aria-label={live && priceAmount ? fixedPrice ? `Send directive for ${priceAmount} ${tokenLabel}` : `Send directive for ${priceAmount} in ${tokenLabel}` : 'Send directive'} disabled={!canSend}>{fueling ? <Check size={16}/> : <ArrowRight size={16}/>}<i className="ch-button-soda" aria-hidden="true"/></button></div>
         </div>
-        <p id="prompt-hint" className={`ch-prompt-hint ${feedback?.error ? 'is-error' : feedback ? 'is-success' : blocked ? 'is-blocked' : ''}`} role={feedback?.error ? 'alert' : 'status'}>{feedback?.text ?? hint}</p>
+        {!onHint && <p id="prompt-hint" className={`ch-prompt-hint ${feedback?.error ? 'is-error' : feedback ? 'is-success' : blocked ? 'is-blocked' : ''}`} role={feedback?.error ? 'alert' : 'status'}>{hintText}</p>}
       </form>
       <div className="ch-soda-flow" aria-hidden="true"><i/><i/><i/></div>
     </header>

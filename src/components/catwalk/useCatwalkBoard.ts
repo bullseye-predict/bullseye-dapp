@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { catwalkReadKey, catwalkSource, standingsByMint, type CatwalkBoard, type CatwalkLadderRead, type GrandPrixStanding } from '../solz/catwalkSource'
-import { cachedValue } from '../solz/liveCache'
+import { cachedValue, useCacheSeed } from '../solz/liveCache'
 import type { LadderState, StandingsState } from './catwalkBands'
 import type { CatwalkSpot } from '../solz/model'
 import { miawPrixBoardKey, type MiawPrixBoard } from '../miawprix/miawPrixSource'
@@ -104,6 +104,20 @@ const POLL_MS = 30_000
  *  "nobody answered" are the two states this hook has always kept apart. */
 const SCHEDULE_NOT_ASKED = Error('The MIAW PRIX schedule was not requested.')
 
+/**
+ * HOW SOON A FAILED BOARD READ IS TRIED AGAIN.
+ *
+ * The control plane's board read is the slow one on this site: cached it lands
+ * in milliseconds, cold it has measured past the proxy's 25-second ceiling and
+ * comes back 504. Waiting for the next poll meant a single slow read left the
+ * board empty for a full cadence - thirty seconds on /catwalk and a minute on
+ * the home panel, which is most of the time a reader spends on the page.
+ *
+ * Doubling from four seconds, capped at the poll, so a blip recovers in one
+ * breath while a control plane that is genuinely down is not hammered.
+ */
+const RETRY_MS = 4_000
+
 const EMPTY: CatwalkFeed = {
   board: null, spots: [], outbidSpots: 0, ladder: 'unknown', standings: new Map(), standingRows: [],
   standingsState: 'unknown', schedule: null, scheduleRead: false, loading: true, refreshing: false,
@@ -166,15 +180,23 @@ export type CatwalkBoardOptions = {
 }
 
 export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = true, pollMs = POLL_MS }: CatwalkBoardOptions = {}): CatwalkFeed {
-  const [feed, setFeed] = useState<CatwalkFeed>(() => seeded(endpoint))
+  // The first render is the SERVER's render: EMPTY, and identical to the markup
+  // this island hydrates against. The seed lands in the layout effect below,
+  // after that commit and before paint. See `useCacheSeed`.
+  const [feed, setFeed] = useState<CatwalkFeed>(EMPTY)
+  // A fresh endpoint is a different board, so it starts from that board's own
+  // memory rather than from the rows of the last one.
+  useCacheSeed(() => { setFeed(seeded(endpoint)) }, [endpoint])
 
   useEffect(() => {
     const source = catwalkSource(endpoint)
     const controller = new AbortController()
     let live = true
-    // A fresh endpoint is a different board, so it starts from that board's own
-    // memory rather than from the rows of the last one.
-    setFeed(seeded(endpoint))
+    /** Consecutive failed BOARD reads, for the backoff below. The board is what
+     *  every row on the page is drawn from; a standings or ladder rejection
+     *  degrades one column and is not worth a retry of its own. */
+    let misses = 0
+    let retry: ReturnType<typeof setTimeout> | undefined
 
     const read = async () => {
       const [board, standings, spots, schedule] = await Promise.allSettled([
@@ -221,6 +243,13 @@ export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = tru
         readAt: board.status === 'fulfilled' ? Date.now() : previous.readAt,
         error: board.status === 'rejected' && !previous.board ? String((board.reason as Error)?.message ?? 'The CATWALK board is unavailable.') : '',
       }))
+      // THE PAGE HEALS ITSELF rather than waiting out a cadence it chose for
+      // steady state. A landed read resets the count, so one bad minute does
+      // not leave the board on a slow retry afterwards.
+      if (board.status === 'fulfilled') { misses = 0; return }
+      misses += 1
+      if (retry) clearTimeout(retry)
+      retry = setTimeout(() => void read(), Math.min(pollMs, RETRY_MS * 2 ** (misses - 1)))
     }
 
     void read()
@@ -229,6 +258,7 @@ export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = tru
       live = false
       controller.abort()
       clearInterval(timer)
+      if (retry) clearTimeout(retry)
     }
   }, [endpoint, wantSchedule, pollMs])
 

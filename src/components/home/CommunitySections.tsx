@@ -231,11 +231,29 @@ function useNow(intervalMs = 30_000) {
  * Both, always. The crest alone is unreadable at this size for the dozens of
  * coins whose logo is a circle with a letter in it, and the ticker alone throws
  * away the one thing that makes a row scannable while it slides past.
+ *
+ * WHO WON IS SAID THREE TIMES OVER, and none of the three is colour.
+ *
+ * The first pass leaned entirely on the coin's own hue - winner in its colour,
+ * loser in grey - and that fails twice. It never said which one was the winner,
+ * because nothing tells a reader that the coloured one won; and it was often
+ * not even legible. `teamIdentityColor` re-seats a crest's hue at 44-51%
+ * lightness, which is readable for a green or a yellow and unreadable for a
+ * blue: QQQx measured 1.94:1 against this panel, five of fourteen winners
+ * missed 4.5:1, and the row the owner was looking at had its winner in dark
+ * blue on near-black.
+ *
+ * So: the ticker takes the panel's ink and IDENTITY MOVES TO THE CREST, which
+ * is the same rule `CoinIdentity` already applies on the light standings table
+ * one surface over. The result is then carried by an explicit WON chip, by the
+ * loser dropping to a third of its weight, and by the verb between them, which
+ * is lime and points at the winner. Any one of the three answers the question.
  */
 function CoinChip({ side, tone = 'plain' }: { side: MiawPrixCoinSide; tone?: 'won' | 'lost' | 'plain' }) {
   return <span className={`ch-coin ch-coin--${tone}`}>
     <TeamMark id={side.mint} color={side.color} logoUrl={side.logoUrl} className="ch-coin-mark" />
-    <b style={side.color && tone !== 'lost' ? { color: side.color } : undefined}>{side.symbol}</b>
+    <b>{side.symbol}</b>
+    {tone === 'won' && <i className="ch-coin-won" aria-hidden="true"><Check size={9} strokeWidth={3} />WON</i>}
   </span>
 }
 
@@ -271,7 +289,8 @@ function ResultRow({ match }: { match: MiawPrixMatch }) {
       <span className="ch-reel-when"><b>{when.time}</b><small>{when.date}</small></span>
       <span className="ch-reel-pair">
         {pair[0] && <CoinChip side={pair[0]} tone={decided ? 'won' : 'plain'} />}
-        <em>{state === 'cancelled' ? 'VOID' : decided ? 'BEAT' : 'VS'}</em>
+        {/* VS and VOID are not results and must not be dressed as one. */}
+        <em className={decided ? undefined : 'is-open'}>{state === 'cancelled' ? 'VOID' : decided ? 'BEAT' : 'VS'}</em>
         {pair[1] && <CoinChip side={pair[1]} tone={decided ? 'lost' : 'plain'} />}
       </span>
       <span className={`ch-reel-tag ${decided ? 'is-final' : ''}`}>{state === 'cancelled' ? 'VOID' : decided ? 'FINAL' : 'NO RESULT'}</span>

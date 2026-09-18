@@ -120,6 +120,24 @@
 .ch-prompt-preview footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 5px; font-size: 8px; color: #3c414e; }
 .ch-prompt-preview footer button { border: 1px solid #6d7381; color: #252a34; background: transparent; padding: 2px 7px; font-size: 9px; }
 .ch-prompt-preview button[aria-pressed='true'] { background: var(--sh-lime); }
+
+/* THE COMPOSER'S SENTENCE, IN THE RAIL'S HEADER ROW.
+   The stage plate above is notched into the broadcast and cannot change height
+   without pulling its cutouts off the stage edge, so the reason a Send is
+   refused is printed here instead. The row already has `min-height: 24px` and
+   nothing but an icon button in it, so one clipped line costs no height at all.
+   See PromptComposer's `onHint`. */
+.ch-rail-hint { flex: 1 1 auto; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 9px/1.5 var(--sh-mono); color: #4b505c; }
+.ch-rail-hint.is-blocked { color: #8d1c2c; }
+.ch-rail-hint.is-error { color: #8d1c2c; font-weight: 500; }
+.ch-rail-hint.is-success { color: #3d520f; }
+/* A directive the viewer paid for. The lime mark separates it from the sample
+   prompts under it and from the agents' own accepted ones. */
+.ch-directive-sent .ch-directive-mark { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; background: #242b1a; color: var(--sh-lime); border: 1px solid #5c6b2a; }
+.ch-prompt-status.is-pending { background: #dfe1e8; color: #4b505c; padding: 2px 4px; }
+.ch-prompt-status.is-accepted { background: #2c3240; color: #c9d6ff; padding: 2px 4px; }
+.ch-prompt-status.is-ignored { background: #3a2126; color: #ffc9d2; padding: 2px 4px; }
+.ch-directive-sent footer > span:first-child { font: 500 8px var(--sh-mono); letter-spacing: .1em; }
 .ch-empty { padding: 20px 0; font-size: 11px; }
 /* Compact prediction graph and independently expandable markets. */
 .ch-simulation { border: 1px solid #63723b; color: #d4ec98; padding: 2px 5px; font: 500 8px var(--sh-mono); white-space: nowrap; }

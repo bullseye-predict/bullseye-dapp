@@ -53,9 +53,17 @@ export async function proxyDirectives(
       { status: 503 },
     )
   const target = new URL(route.path, `${origin}/`)
-  // `purchases` is read per match. An allowlist, not a passthrough.
-  const matchId = new URL(request.url).searchParams.get('matchId')
-  if (route.path.endsWith('/purchases') && matchId) target.searchParams.set('matchId', matchId)
+  // `purchases` is read per match, for one payer. An allowlist, not a
+  // passthrough. `wallet` is required in practice: no browser identity crosses
+  // this boundary, so without it the relay falls back to a signed-in account it
+  // will never see and answers `action_account_required`.
+  if (route.path.endsWith('/purchases')) {
+    const query = new URL(request.url).searchParams
+    const matchId = query.get('matchId')
+    const wallet = query.get('wallet')
+    if (matchId) target.searchParams.set('matchId', matchId)
+    if (wallet) target.searchParams.set('wallet', wallet)
+  }
   const headers = new Headers({ accept: 'application/json' })
   if (route.method === 'POST') headers.set('content-type', 'application/json')
   try {

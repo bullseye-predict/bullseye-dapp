@@ -1,4 +1,9 @@
 import { afterEach, expect, test } from 'bun:test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { CatwalkApp } from '../src/components/catwalk/CatwalkApp'
+import { MiawPrixApp } from '../src/components/miawprix/MiawPrixApp'
+import { catwalkReadKey as boardKey } from '../src/components/solz/catwalkSource'
 import {
   cachedAge, cachedValue, forgetCachedValues, rememberValue,
 } from '../src/components/solz/liveCache'
@@ -101,4 +106,48 @@ test("CATWALK's schedule read is remembered as the programme, so /miaw-prix open
   // second copy of the one programme, ageing separately from the one
   // /miaw-prix reads.
   expect(catwalkReadKey('/api/agent-arena', 'miawPrix')).toBe(miawPrixBoardKey('/api/agent-arena'))
+})
+
+/**
+ * THE SERVER RENDER NEVER SEEDS.
+ *
+ * `/catwalk` and `/miaw-prix` are `client:load` islands: the server renders
+ * their markup and React hydrates the client against it. The first pass seeded
+ * inside `useState`, so the client's FIRST render carried remembered rows that
+ * the server - where this map is always empty - had drawn as a skeleton. React
+ * called that a hydration failure, threw the server's markup away and rebuilt
+ * the island, which is the opposite of what the seed is for and took the whole
+ * visible page with it.
+ *
+ * `renderToStaticMarkup` runs the render phase and no effects, which is exactly
+ * what the server does and exactly what the client must match on its first
+ * commit. So: a populated cache must change nothing here. The seed belongs in
+ * `useCacheSeed`, which runs after that commit and before paint.
+ */
+test('a populated cache changes nothing about the first render of /catwalk', () => {
+  const props = { endpoint: '/api/agent-arena' }
+  const cold = renderToStaticMarkup(createElement(CatwalkApp, props))
+  rememberValue(boardKey('/api/agent-arena', 'catwalk'), {
+    gameKey: 'solz', activeSlots: 1, lineupSize: 2, lockLeadMs: null, season: null,
+    lineup: [], seats: null, rankedLane: null, lastSeatPaidAt: null, explorer: null,
+  })
+  const warm = renderToStaticMarkup(createElement(CatwalkApp, props))
+  expect(warm).toBe(cold)
+  // And specifically: the carried-board line is a CLIENT fact and is never in
+  // the markup the client hydrates against.
+  expect(warm).not.toContain('cw-notice--carried')
+})
+
+test('a populated cache changes nothing about the first render of /miaw-prix', () => {
+  const props = { endpoint: '/api/agent-arena', predictionApiUrl: '/api/prediction', initialSeasonId: '' }
+  const cold = renderToStaticMarkup(createElement(MiawPrixApp, props))
+  rememberValue(miawPrixBoardKey('/api/agent-arena'), {
+    season: { seasonId: 'solz-00', seasonIndex: 0, startsAt: 1, endsAt: 2, status: 'live' },
+    seasons: [], standings: [], matches: [],
+  })
+  const warm = renderToStaticMarkup(createElement(MiawPrixApp, props))
+  expect(warm).toBe(cold)
+  expect(warm).not.toContain('mp-carried')
+  // The skeleton the server draws is still the skeleton, not a seeded table.
+  expect(warm).toContain('mp-pending')
 })
