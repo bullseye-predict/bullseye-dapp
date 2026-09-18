@@ -1,12 +1,15 @@
 import { Connection, type ConnectionConfig } from '@solana/web3.js'
+import { noteRpcAccepted, noteRpcThrottled } from './throttle'
 
 type RpcFetch = NonNullable<ConnectionConfig['fetch']>
 type FetchCall = (...args: Parameters<RpcFetch>) => ReturnType<RpcFetch>
 const connections = new Map<string, Connection>()
 
-/** Share both concurrency and retries across the page. Never retry a write:
- * a lost sendTransaction response must be reconciled by signature. */
-export function manifestRpcFetch(fetcher: FetchCall = globalThis.fetch, pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))): RpcFetch {
+/** Share concurrency and in-flight reads across the page, and record what the
+ * endpoint refuses. Nothing is retried here — not a write, whose lost
+ * sendTransaction response must be reconciled by signature, and no longer a
+ * read either: see the note at the 429 below. */
+export function manifestRpcFetch(fetcher: FetchCall = globalThis.fetch): RpcFetch {
   let running = 0
   const waiting: (() => void)[] = []
   const inFlight = new Map<string, Promise<Response>>()
@@ -33,14 +36,21 @@ export function manifestRpcFetch(fetcher: FetchCall = globalThis.fetch, pause = 
     const request = (async () => {
       await acquire()
       try {
-        for (let attempt = 0; ; attempt++) {
+        {
           const signal = init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000)
           const response = await fetcher(url, { ...init, signal })
-          if (read && response.status === 429 && attempt < 3) {
-            const retry = Number(response.headers.get('retry-after'))
-            await pause(Math.min(5_000, Math.max(500 * 2 ** attempt, Number.isFinite(retry) ? retry * 1000 : 0)))
-            continue
-          }
+          // A refusal is recorded and surfaced, never retried here.
+          //
+          // The old loop sent up to four requests for every read the endpoint
+          // had just refused, which is four times the traffic at exactly the
+          // moment the endpoint asked for less — and every queued read behind
+          // it arrived into the same throttle, so the retries fed each other.
+          // Recording it parks the background pollers instead (see
+          // ./throttle and venue/pollGate). The write path keeps its own
+          // bounded retry in ./browser, where TRANSIENT already matches 429,
+          // so a trade the trader is watching still survives one refusal.
+          if (response.status === 429) noteRpcThrottled()
+          else if (read && response.ok) noteRpcAccepted()
           if (body.method === 'getTransaction' && response.ok) {
             const json = await response.clone().json()
             if (json.result?.meta) {
