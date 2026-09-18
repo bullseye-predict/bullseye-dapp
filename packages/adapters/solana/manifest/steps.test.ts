@@ -1,13 +1,16 @@
 import { expect, test } from 'bun:test'
 import {
   applyStage,
+  planReleaseSteps,
   planTradeSteps,
   reconcileSteps,
   rentLamports,
   SIGNATURE_LAMPORTS,
   TRADE_STEPS,
   uncertainSignature,
+  LIMIT_LEGS,
   type LiveStep,
+  type ReleaseFacts,
   type StepFacts,
 } from './steps'
 
@@ -110,9 +113,14 @@ test('funding appears only when the seat is short of the order', () => {
 test('a limit buy is one repeating execute step with the loop ceiling on it', () => {
   const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 1n }))
   const leg = plan.steps.find(step => step.id === 'match-leg')!
-  expect(leg.repeats).toEqual({ most: 8 })
+  expect(leg.repeats).toEqual({ least: 1, most: LIMIT_LEGS })
   expect(leg.step).toBe(TRADE_STEPS.match)
   expect(plan.approximate).toBe(true)
+  // Prompts, not nodes. Two nodes stand for up to sixteen signatures, and
+  // counting the nodes is what announced "Up to 2 transactions" to a trader who
+  // was then asked to approve four.
+  expect(plan.steps).toHaveLength(2)
+  expect({ least: plan.least, most: plan.most }).toEqual({ least: 2, most: 2 * LIMIT_LEGS })
 })
 
 test('a complete-set buy pays upfront collateral that is not counted as spend', () => {
@@ -197,10 +205,13 @@ test('an unplanned step lands where it ran, not at the end', () => {
   // which is what made a transaction that ran before the others look like a
   // fourth step spawned at the end.
   expect(rows.map(row => [row.title, row.unplanned])).toEqual([
-    [TRADE_STEPS.accounts, true],
+    ['Extra transaction', true],
     ['Fund order', false],
     ['Execute order', false],
   ])
+  // The label is not lost by giving the row a title the width of every other
+  // row's: it moves to `step`, which the detail pane prints.
+  expect(rows[0]!.step).toBe(TRADE_STEPS.accounts)
   expect(rows.every(row => row.status === 'sent')).toBe(true)
 })
 
@@ -351,4 +362,262 @@ test('a sell that rests instead of filling stays one execute step', () => {
   expect(rows).toHaveLength(1)
   expect(rows[0]!.unplanned).toBe(false)
   expect(rows[0]!.status).toBe('sent')
+})
+
+const release = (over: Partial<ReleaseFacts> = {}): ReleaseFacts => ({
+  side: 'BUY',
+  collateralSymbol: 'fUSDC',
+  releasedAtoms: 40_000_000n,
+  releasedShares: 0n,
+  seatAtoms: 0n,
+  ...over,
+})
+
+test('a release is two signatures, because the cancellation moves nothing', () => {
+  const plan = planReleaseSteps(release())
+  expect(plan.steps.map(step => step.id)).toEqual(['cancel-order', 'withdraw-seat'])
+  expect(plan.lamports).toBe(2n * SIGNATURE_LAMPORTS)
+  expect(plan.approximate).toBe(false)
+})
+
+test('the withdrawal shows the whole seat, not only this order', () => {
+  const plan = planReleaseSteps(release({ releasedAtoms: 40_000_000n, seatAtoms: 1_600_000n }))
+  const returned = plan.steps[1]!.costs.find(cost => cost.kind === 'return')
+  expect(returned?.amount).toBe(41_600_000n)
+  // Money coming back is never added to what the run costs.
+  expect(plan.collateralAtoms).toBe(0n)
+})
+
+test('an empty seat leaves the withdrawal uncertain rather than promising it', () => {
+  const plan = planReleaseSteps(release({ releasedAtoms: 0n, seatAtoms: 0n }))
+  expect(plan.steps[1]!.certain).toBe(false)
+  expect(plan.steps[1]!.costs.some(cost => cost.kind === 'return')).toBe(false)
+  expect(plan.approximate).toBe(true)
+})
+
+test('a resting offer releases shares, and never labels them as collateral', () => {
+  const plan = planReleaseSteps(release({ side: 'SELL', releasedAtoms: 0n, releasedShares: 120_000_000n }))
+  expect(plan.steps[1]!.step).toBe(TRADE_STEPS.withdrawShares)
+  expect(plan.steps[1]!.costs.some(cost => cost.asset === 'COLLATERAL')).toBe(false)
+})
+
+test('an order already off the book marks only the cancellation not needed', () => {
+  const plan = planReleaseSteps(release())
+  const live = applyStage(
+    applyStage([], { step: TRADE_STEPS.withdrawSeat('fUSDC'), status: 'preparing' }),
+    { step: TRADE_STEPS.withdrawSeat('fUSDC'), status: 'sent', signature: 'x' },
+  )
+  const rows = reconcileSteps(plan, live, true)
+  expect(rows[0]!.status).toBe('skipped')
+  expect(rows[0]!.skipped).toBe('already-done')
+  expect(rows[1]!.status).toBe('sent')
+  expect(rows.some(row => row.unplanned)).toBe(false)
+})
+
+test('a release that stops after the cancellation keeps the withdrawal waiting', () => {
+  const plan = planReleaseSteps(release())
+  let live: LiveStep[] = applyStage([], { step: TRADE_STEPS.cancelOrder, status: 'preparing' })
+  live = applyStage(live, { step: TRADE_STEPS.cancelOrder, status: 'sent', signature: 'a' })
+  live = applyStage(live, { step: TRADE_STEPS.withdrawSeat('fUSDC'), status: 'preparing' })
+  live = applyStage(live, { step: TRADE_STEPS.withdrawSeat('fUSDC'), status: 'failed', error: 'User rejected' })
+  const rows = reconcileSteps(plan, live, true)
+  expect(rows[0]!.status).toBe('sent')
+  expect(rows[1]!.status).toBe('failed')
+  expect(rows[1]!.error).toBe('User rejected')
+})
+
+test('a seat balance with no order behind it is one signature, not two', () => {
+  const plan = planReleaseSteps(release({ cancels: false, releasedAtoms: 0n, seatAtoms: 40_000_000n }))
+  expect(plan.steps.map(step => step.id)).toEqual(['withdraw-seat'])
+  expect(plan.lamports).toBe(SIGNATURE_LAMPORTS)
+  expect(plan.steps[0]!.costs.find(cost => cost.kind === 'return')?.amount).toBe(40_000_000n)
+})
+
+/**
+ * The recording this count model was rewritten for. A 2000-share CLAW limit buy
+ * at 50.0c was announced as "Up to 2 transactions" and then asked the wallet for
+ * four: prepare, a complete-set leg through the opposite bids, a funding deposit
+ * for the leg after it, and a direct leg. Two of the four arrived as rows the
+ * plan had no slot for.
+ */
+test('the recorded limit buy plans every transaction it actually sent', () => {
+  const plan = planTradeSteps(facts({
+    type: 'limit',
+    // The first leg quoted through the opposite bids, which is what suppressed
+    // the funding step: it was planned only for a first leg routed direct.
+    route: 'complete-set',
+    accounts: { ...open, walletClaims: false },
+    accountsAlternate: open,
+    fundingAtoms: 1_000_000_000n,
+    upfrontAtoms: 2_000_000_000n,
+    // Two execute legs and one of them funded, from walking the books.
+    run: { legs: 2, funds: 1 },
+  }))
+  expect(plan.steps.map(step => step.id)).toEqual(['prepare-accounts', 'fund-remaining', 'match-leg'])
+  // The floor is what the run actually sent. The trader is never asked for a
+  // transaction outside the range they read before the first prompt.
+  expect({ least: plan.least, most: plan.most }).toEqual({ least: 4, most: 1 + 2 * LIMIT_LEGS })
+
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: TRADE_STEPS.accounts, status: 'preparing' as const },
+    { step: TRADE_STEPS.accounts, status: 'sent' as const, signature: 'a' },
+    { step: TRADE_STEPS.completeSet(1), status: 'preparing' as const },
+    { step: TRADE_STEPS.completeSet(1), status: 'sent' as const, signature: 'b' },
+    { step: TRADE_STEPS.fundRemaining, status: 'preparing' as const },
+    { step: TRADE_STEPS.fundRemaining, status: 'sent' as const, signature: 'c' },
+    { step: TRADE_STEPS.match, status: 'preparing' as const },
+    { step: TRADE_STEPS.match, status: 'sent' as const, signature: 'd' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  // Four transactions, four rows, and not one of them an "extra transaction the
+  // preview could not see".
+  expect(rows).toHaveLength(4)
+  expect(rows.some(row => row.unplanned)).toBe(false)
+  expect(rows.every(row => row.status === 'sent')).toBe(true)
+})
+
+test('the rail shows every leg from the first frame, so the list cannot grow', () => {
+  const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 5_000_000n, run: { legs: 3, funds: 2 } }))
+  // Nothing signed yet: the rail already holds one row per leg the books say
+  // this order takes. Materialising a leg only once its transaction had been
+  // signed is what put "2 of 2 done" on screen with two prompts still queued.
+  const empty = reconcileSteps(plan, [], false)
+  expect(empty).toHaveLength(5)
+  expect(empty.every(row => row.status === 'planned')).toBe(true)
+  expect(empty.map(row => row.leg)).toEqual([1, 2, 1, 2, 3])
+
+  // One leg in, and the row count has not moved.
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: TRADE_STEPS.fundRemaining, status: 'preparing' as const },
+    { step: TRADE_STEPS.fundRemaining, status: 'sent' as const, signature: 'f' },
+  ])
+    live = applyStage(live, stage)
+  expect(reconcileSteps(plan, live, false)).toHaveLength(5)
+})
+
+test('a leg the run turned out not to need reads as not needed, never as missing', () => {
+  const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 5_000_000n, run: { legs: 2, funds: 1 } }))
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: TRADE_STEPS.match, status: 'preparing' as const },
+    { step: TRADE_STEPS.match, status: 'sent' as const, signature: 'm' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  expect(rows.map(row => row.status)).toEqual(['skipped', 'sent', 'skipped'])
+})
+
+/**
+ * The same defect as the limit buy, and worse: a market sell announced ONE
+ * transaction while the real flow sends up to four. The ticket sizes a sell from
+ * the typed shares, but the plan was reading a buy-only quote that is always
+ * null on a sell, so the custody facts were dropped and every custody step with
+ * them.
+ */
+test('a sell whose custody has not been read still plans the custody moves', () => {
+  const plan = planTradeSteps(facts({ side: 'sell', accounts: { ...open, walletClaims: false }, sell: null }))
+  expect(plan.steps.map(step => step.id)).toEqual([
+    'prepare-accounts',
+    'release-claims',
+    'deposit-claims',
+    'sell-order',
+  ])
+  // The preparation and the order itself are certain — a named account is
+  // missing and the sell always sends. The two custody moves are planned but
+  // not promised, because shares already on the book seat move nothing.
+  expect({ least: plan.least, most: plan.most }).toEqual({ least: 2, most: 4 })
+
+  // Read custody with nothing to move is still the one-transaction sell it was.
+  const ready = planTradeSteps(facts({ side: 'sell', sell: { exportAtoms: 0n, depositAtoms: 0n, matched: true } }))
+  expect(ready.steps.map(step => step.id)).toEqual(['sell-order'])
+  expect({ least: ready.least, most: ready.most }).toEqual({ least: 1, most: 1 })
+})
+
+test('an extra signature fee is counted once per leg, and rent only once', () => {
+  const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 1n }))
+  // Two nodes, each repeating up to LIMIT_LEGS. Only the signature fee repeats:
+  // a collateral figure is bound to the whole order and rent is paid once.
+  expect(plan.lamports).toBe(2n * BigInt(LIMIT_LEGS) * SIGNATURE_LAMPORTS)
+})
+
+test('a sell never plans the other outcome, because it never prepares one', () => {
+  // A trader who bought YES direct has no NO claim account, and the ticket used
+  // to hand that fact to every limit plan, sell included. The sell path prepares
+  // the selected binding once, so the extra set was a firm promise of a
+  // transaction that only ever ended as "Not needed".
+  const half = { ...open, walletClaims: false }
+  const plan = planTradeSteps(facts({
+    side: 'sell', type: 'limit', accounts: open, accountsAlternate: half,
+    sell: { exportAtoms: 5_000_000n, depositAtoms: 5_000_000n, matched: true },
+  }))
+  expect(plan.steps.map(step => step.id)).toEqual(['release-claims', 'deposit-claims', 'sell-order'])
+  expect({ least: plan.least, most: plan.most }).toEqual({ least: 3, most: 3 })
+  expect(plan.lamports).toBe(3n * SIGNATURE_LAMPORTS)
+})
+
+test('a stopped run leaves every untouched row waiting, above the stop as well as below', () => {
+  // The plan lists both funding legs before both execute legs, but the run
+  // interleaves them: fund, execute, fund, execute. A failure on the first
+  // execute leaves the SECOND funding row — which sits above it on the list —
+  // untouched, and a run that stopped never skipped it.
+  const plan = planTradeSteps(facts({ type: 'limit', fundingAtoms: 5_000_000n, run: { legs: 2, funds: 2 } }))
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: TRADE_STEPS.fundRemaining, status: 'preparing' as const },
+    { step: TRADE_STEPS.fundRemaining, status: 'sent' as const, signature: 'f' },
+    { step: TRADE_STEPS.match, status: 'preparing' as const },
+    { step: TRADE_STEPS.match, status: 'failed' as const, error: 'Simulation failed' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  expect(rows.map(row => row.status)).toEqual(['sent', 'planned', 'failed', 'planned'])
+  expect(rows.every(row => row.skipped === undefined)).toBe(true)
+})
+
+test('two unforeseen transactions under one label are two rows, not one', () => {
+  const plan = planTradeSteps(facts())
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: 'Something unforeseen', status: 'preparing' as const },
+    { step: 'Something unforeseen', status: 'sent' as const, signature: 'one' },
+    { step: 'Something unforeseen', status: 'preparing' as const },
+    { step: 'Something unforeseen', status: 'sent' as const, signature: 'two' },
+    { step: TRADE_STEPS.submit, status: 'preparing' as const },
+    { step: TRADE_STEPS.submit, status: 'sent' as const, signature: 'order' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  // Folding them hid a signature the trader had already approved, which is the
+  // same concealment the planned side of this function exists to prevent.
+  expect(rows.map(row => [row.unplanned, row.signature])).toEqual([
+    [true, 'one'],
+    [true, 'two'],
+    [false, 'order'],
+  ])
+  expect(new Set(rows.map(row => row.id)).size).toBe(3)
+})
+
+test('an unplanned transaction is placed by what ran, not by its step name', () => {
+  // Two execute legs with an unforeseen transaction between them. Every leg row
+  // shares one `matches` list, so reading the step's first live index put the
+  // extra transaction ahead of the leg that had already confirmed before it.
+  const plan = planTradeSteps(facts({ type: 'limit', run: { legs: 3, funds: 0 } }))
+  let live: LiveStep[] = []
+  for (const stage of [
+    { step: TRADE_STEPS.match, status: 'preparing' as const },
+    { step: TRADE_STEPS.match, status: 'sent' as const, signature: 'm1' },
+    { step: 'Something unforeseen', status: 'preparing' as const },
+    { step: 'Something unforeseen', status: 'sent' as const, signature: 'x' },
+    { step: TRADE_STEPS.match, status: 'preparing' as const },
+    { step: TRADE_STEPS.match, status: 'sent' as const, signature: 'm2' },
+  ])
+    live = applyStage(live, stage)
+  const rows = reconcileSteps(plan, live, true)
+  expect(rows.map(row => row.signature)).toEqual(['m1', 'x', 'm2', undefined])
+  // The third planned leg never ran, so it sorts last rather than claiming a
+  // place in a run it took no part in.
+  expect(rows[3]!.status).toBe('skipped')
 })

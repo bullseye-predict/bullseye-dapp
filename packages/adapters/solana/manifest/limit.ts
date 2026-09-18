@@ -2,7 +2,7 @@ import { Buffer } from 'buffer'
 import { FillLog } from '@bonasa-tech/manifest-sdk'
 import type { ManifestBrowserWallet } from './browser'
 import { takerFee, type ManifestBinding } from './wire'
-import { TRADE_STEPS } from './steps'
+import { LIMIT_LEGS, TRADE_STEPS } from './steps'
 import { MANIFEST_LOG, manifestLogBody, manifestProgramFrames } from './logs'
 
 const SCALE=1_000_000n
@@ -24,6 +24,55 @@ export function nextBinaryBuy(asks:readonly Level[], oppositeBids:readonly Level
   return filled?{route,quantity:filled,price:worst,maximumCost:cost(filled,worst),upfrontCollateral:route==='complete-set'?filled:cost(filled,worst)}:null
 }
 
+/** One execute transaction, as the books stand now.
+ *
+ *  `maximumCost` is the whole leg at the worst level it touches, which is what
+ *  the flow deposits before it sends. `fillCost` is what the leg really costs at
+ *  the maker prices it takes, so the difference between them stays on the book
+ *  seat and can pay for the leg after it. */
+export type BuyLeg={route:'direct'|'complete-set';quantity:bigint;maximumCost:bigint;fillCost:bigint}
+
+/**
+ * The legs placeBinaryLimitBuy will send against the books as they stand.
+ *
+ * The same quote the loop below takes, run to exhaustion against a working copy
+ * of the two ladders instead of against the chain. One entry per execute
+ * transaction. A leg ends where the cheaper of the two books changes, NOT at a
+ * price level: nextBinaryBuy takes every level of one ladder that beats the
+ * other ladder's best price, so thirteen asks in a row are one signature and one
+ * alternation between the books is two.
+ *
+ * The count exists only so the dialog can state it before the first wallet
+ * prompt. It was previously discovered one prompt at a time, which a trader
+ * cannot tell apart from a trade adding transactions behind their back.
+ *
+ * Pure, and an upper bound on nothing: the books can move between this walk and
+ * the run, which is why the plan built from it still carries the loop ceiling.
+ */
+export function walkBinaryBuy(asks:readonly Level[], oppositeBids:readonly Level[], quantity:bigint, limit:bigint) {
+ const direct=asks.map(row=>({...row})),opposite=oppositeBids.map(row=>({...row}))
+ const legs:BuyLeg[]=[]
+ let remaining=quantity
+ for(let step=0;step<LIMIT_LEGS&&remaining>0n;step++){
+  const next=nextBinaryBuy(direct,opposite,remaining,limit)
+  if(!next)break
+  remaining-=next.quantity
+  // Take the fill off the ladder this leg used, cheapest level first, which is
+  // the order nextBinaryBuy fills in. An opposite bid is held at its own price
+  // and only ordered by its complement, so the two ladders sort opposite ways.
+  const rows=next.route==='direct'
+   ?direct.slice().sort((a,b)=>a.price<b.price?-1:a.price>b.price?1:0)
+   :opposite.slice().sort((a,b)=>a.price>b.price?-1:a.price<b.price?1:0)
+  // A direct ask is priced as it stands; an opposite bid is paid at its
+  // complement, which is what the complete-set route actually costs per share.
+  const paid=(price:bigint)=>next.route==='direct'?price:SCALE-price
+  let take=next.quantity,fillCost=0n
+  for(const row of rows){if(take<=0n)break;const off=row.quantity<take?row.quantity:take;row.quantity-=off;take-=off;fillCost+=cost(off,paid(row.price))}
+  legs.push({route:next.route,quantity:next.quantity,maximumCost:next.maximumCost,fillCost})
+ }
+ return {legs,resting:remaining}
+}
+
 /** Match both books before posting any remainder. A changed book or incomplete
  * receipt stops the flow rather than placing a new crossed order or retrying a
  * purchase whose outcome is uncertain. Each confirmed leg is separately logged. */
@@ -32,7 +81,7 @@ export async function placeBinaryLimitBuy(wallet:ManifestBrowserWallet, selected
   const adapter=wallet.adapter,owner=wallet.owner
   let remaining=quantity
   const signatures:string[]=[]
-  for(let step=0;step<8;step++) {
+  for(let step=0;step<LIMIT_LEGS;step++) {
     const books=await Promise.all([adapter.readBook(selected),adapter.readBook(opposite)])
     const levels=(rows:ReturnType<typeof books[0]['bids']>)=>rows.filter(o=>!o.trader.equals(owner)).map(o=>({price:BigInt(o.price.toString())/10n**12n,quantity:BigInt(o.numBaseAtoms.toString())}))
     const next=nextBinaryBuy(levels(books[0]!.asks()),levels(books[1]!.bids()),remaining,price)

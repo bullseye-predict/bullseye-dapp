@@ -67,6 +67,10 @@ export type ManifestQuestionHolding = {
   startsAt: number
   locksAt: number
   outcomes: [ManifestOutcomeHolding, ManifestOutcomeHolding]
+  /** The trader's prediction position PDA for this question exists on chain.
+   *  It survives a redeem with every balance at zero, which is the only proof
+   *  left that this trader ever held the question once the claim is paid. */
+  positionAccount: boolean
   /** Set when this question could not be decoded; its row is shown as unavailable
    *  rather than as an empty balance. */
   error?: string
@@ -194,10 +198,11 @@ export class ManifestPortfolioReader {
       const question = questions[index]!
       const positionInfo = infos[base + 7]
       let vaultShares: bigint[] = []
+      let positionAccount = false
       try {
         if (positionInfo) {
           const position = decodePosition({ ...positionInfo, address: keys[base + 7]! }, predictionProgram)
-          if (position.market.equals(question) && position.vault.equals(vault)) vaultShares = position.balances
+          if (position.market.equals(question) && position.vault.equals(vault)) { vaultShares = position.balances; positionAccount = true }
         }
       } catch { failures++ }
 
@@ -245,16 +250,16 @@ export class ManifestPortfolioReader {
       }
 
       const marketInfo = infos[base]
-      if (!marketInfo) return { marketId, opened: false, status: 0, winningOutcome: 255, paused: false, startsAt: 0, locksAt: 0, outcomes }
+      if (!marketInfo) return { marketId, opened: false, status: 0, winningOutcome: 255, paused: false, startsAt: 0, locksAt: 0, outcomes, positionAccount }
       try {
         const decoded = decodeMarket({ ...marketInfo, address: question }, predictionProgram)
         return {
           marketId, opened: true, status: decoded.status, winningOutcome: decoded.winningOutcome, paused: decoded.paused,
-          startsAt: Number(decoded.startsAtSeconds) * 1000, locksAt: Number(decoded.locksAtSeconds) * 1000, outcomes,
+          startsAt: Number(decoded.startsAtSeconds) * 1000, locksAt: Number(decoded.locksAtSeconds) * 1000, outcomes, positionAccount,
         }
       } catch (reason) {
         failures++
-        return { marketId, opened: true, status: 0, winningOutcome: 255, paused: false, startsAt: 0, locksAt: 0, outcomes, error: reason instanceof Error ? reason.message : 'Question state is unreadable.' }
+        return { marketId, opened: true, status: 0, winningOutcome: 255, paused: false, startsAt: 0, locksAt: 0, outcomes, positionAccount, error: reason instanceof Error ? reason.message : 'Question state is unreadable.' }
       }
     })
 
