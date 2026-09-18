@@ -28,16 +28,20 @@ export function CatwalkChampionRail({ shape }: { shape: CatwalkBoardShape }) {
         CHAMPIONS
       </h3>
       <p className="cw-legend-lede">
-        The top three by season wins. A champion holds its position on its record, so no
-        price reaches it: the spot ladder publishes no seat for one and no ask is ever
-        rendered against it.
+        {/* Both routes into this lane, in the order they are settled. The page
+            explains this lane in exactly two places - here and `laneBlurb` in
+            CatwalkComposition.tsx - and they must not disagree about how a coin
+            gets here. */}
+        Won on season wins, or by leading the prediction market on volume. A champion
+        holds its position on that record, so no price reaches it: the spot ladder
+        publishes no seat for one and no ask is ever rendered against it.
       </p>
 
       {standing === 0
         ? <LaneNote
             lane="champion"
             title="NO CHAMPION HAS BEEN SETTLED YET."
-            body="Season wins decide this lane, and this season has not decided it. Every position below is either open or held through another lane."
+            body="Season wins and prediction-market volume decide this lane, and this season has decided it on neither. Every position below is either open or held through another lane."
           />
         : null}
 

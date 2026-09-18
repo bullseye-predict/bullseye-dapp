@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { catwalkSource, standingsByMint, type CatwalkBoard, type GrandPrixStanding } from '../solz/catwalkSource'
+import { catwalkReadKey, catwalkSource, standingsByMint, type CatwalkBoard, type CatwalkLadderRead, type GrandPrixStanding } from '../solz/catwalkSource'
+import { cachedValue } from '../solz/liveCache'
 import type { LadderState, StandingsState } from './catwalkBands'
 import type { CatwalkSpot } from '../solz/model'
-import type { MiawPrixBoard } from '../miawprix/miawPrixSource'
+import { miawPrixBoardKey, type MiawPrixBoard } from '../miawprix/miawPrixSource'
 
 /**
  * One poll for the whole board.
@@ -58,6 +59,25 @@ export type CatwalkFeed = {
    *  ladder has kept these two apart since the first pass; this read had not. */
   standingsState: StandingsState
   loading: boolean
+  /**
+   * THE ROWS ON SCREEN WERE CARRIED IN, and the read that replaces them has not
+   * landed yet.
+   *
+   * `loading` means there is nothing to show; this means there is, and it came
+   * from the page the reader just left rather than from this mount's own read.
+   * The page draws a quiet badge from it instead of a skeleton — blanking a
+   * board somebody was looking at one click ago is the thing this exists to
+   * stop, and saying nothing at all would pass those rows off as fresh.
+   *
+   * It is FALSE during the ordinary poll. A badge that reappears every thirty
+   * seconds over rows that are already current says nothing and trains the
+   * reader to ignore it.
+   */
+  refreshing: boolean
+  /** When the rows on screen were read, in epoch ms, or 0 while none have been.
+   *  Non-zero before the first read of THIS mount when the board was carried in
+   *  from another route. */
+  readAt: number
   /** Terminal, board-level failure only. A missing price is not an error. */
   error: string
 }
@@ -76,25 +96,92 @@ export function ladderStateOf(spots: PromiseSettledResult<{ available: boolean }
 
 const POLL_MS = 30_000
 
+/** What a schedule read that was never ASKED FOR settles as.
+ *
+ *  A caller that draws no lock clock must not spend a request on the programme
+ *  every poll. Settling its slot as a rejection keeps the tuple one shape, and
+ *  `scheduleRead` below refuses to report it as a failure - "we did not ask" and
+ *  "nobody answered" are the two states this hook has always kept apart. */
+const SCHEDULE_NOT_ASKED = Error('The MIAW PRIX schedule was not requested.')
+
 const EMPTY: CatwalkFeed = {
   board: null, spots: [], outbidSpots: 0, ladder: 'unknown', standings: new Map(), standingRows: [],
-  standingsState: 'unknown', schedule: null, scheduleRead: false, loading: true, error: '',
+  standingsState: 'unknown', schedule: null, scheduleRead: false, loading: true, refreshing: false,
+  readAt: 0, error: '',
 }
 
-export function useCatwalkBoard(endpoint: string): CatwalkFeed {
-  const [feed, setFeed] = useState<CatwalkFeed>(EMPTY)
+/**
+ * THE BOARD THIS REALM ALREADY READ, as a first frame.
+ *
+ * `/` and `/catwalk` are two islands over one `<ClientRouter />` document, so a
+ * reader who opens the board from the home page used to watch thirty-six rows
+ * they had just been shown redraw from a skeleton. Everything the last read
+ * landed is still in memory (src/components/solz/liveCache.ts); this hands it
+ * back synchronously, before the first paint.
+ *
+ * It is a SEED, not an answer: `refreshing` is true beside it and the read goes
+ * out regardless, so nothing on screen is older than one poll without saying so.
+ * A realm that has read nothing falls through to EMPTY and the skeleton it
+ * always drew.
+ */
+function seeded(endpoint: string): CatwalkFeed {
+  const board = cachedValue<CatwalkBoard>(catwalkReadKey(endpoint, 'catwalk'))
+  const standings = cachedValue<{ rows: GrandPrixStanding[] }>(catwalkReadKey(endpoint, 'standings'))
+  const spots = cachedValue<CatwalkLadderRead>(catwalkReadKey(endpoint, 'catwalkSpots'))
+  const schedule = cachedValue<MiawPrixBoard>(miawPrixBoardKey(endpoint))
+  if (!board && !standings && !spots && !schedule) return EMPTY
+  const open = Boolean(spots?.value.available)
+  return {
+    ...EMPTY,
+    board: board?.value ?? null,
+    standings: standings ? standingsByMint(standings.value.rows) : EMPTY.standings,
+    standingRows: standings?.value.rows ?? [],
+    standingsState: standings ? 'read' : 'unknown',
+    spots: open ? spots!.value.spots : [],
+    outbidSpots: open ? spots!.value.outbidSpots : 0,
+    // A remembered ladder still states what it stated when it was read. Only a
+    // read that never happened is 'unknown'.
+    ladder: spots ? (spots.value.available ? 'open' : 'closed') : 'unknown',
+    configuredSeats: spots?.value.configuredSeats,
+    closedReason: spots?.value.closedReason,
+    schedule: schedule?.value ?? null,
+    scheduleRead: Boolean(schedule),
+    loading: !board,
+    refreshing: Boolean(board),
+    readAt: board?.at ?? standings?.at ?? spots?.at ?? 0,
+  }
+}
+
+export type CatwalkBoardOptions = {
+  /**
+   * Read the MIAW PRIX programme as well, for the lock clock. The board payload
+   * carries no lock (see src/components/catwalk/catwalkLock.ts), so /catwalk
+   * needs it - and a surface that shows no clock must not spend a second
+   * request on it every poll.
+   */
+  schedule?: boolean
+  /** How often to re-read. A summary panel beside other live panels does not
+   *  need the board page's cadence. */
+  pollMs?: number
+}
+
+export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = true, pollMs = POLL_MS }: CatwalkBoardOptions = {}): CatwalkFeed {
+  const [feed, setFeed] = useState<CatwalkFeed>(() => seeded(endpoint))
 
   useEffect(() => {
     const source = catwalkSource(endpoint)
     const controller = new AbortController()
     let live = true
+    // A fresh endpoint is a different board, so it starts from that board's own
+    // memory rather than from the rows of the last one.
+    setFeed(seeded(endpoint))
 
     const read = async () => {
       const [board, standings, spots, schedule] = await Promise.allSettled([
         source.board(controller.signal),
         source.standings(controller.signal),
         source.spots(controller.signal),
-        source.schedule(controller.signal),
+        wantSchedule ? source.schedule(controller.signal) : Promise.reject(SCHEDULE_NOT_ASKED),
       ])
       if (!live || controller.signal.aborted) return
       setFeed((previous) => ({
@@ -123,22 +210,27 @@ export function useCatwalkBoard(endpoint: string): CatwalkFeed {
         // still in flight, and the clock states THE SCHEDULE COULD NOT BE READ
         // before anybody has asked.
         schedule: schedule.status === 'fulfilled' ? schedule.value : previous.schedule,
-        scheduleRead: schedule.status === 'fulfilled',
+        // A schedule this caller never asked for is not a schedule that failed,
+        // so a seeded one keeps its 'read' rather than being demoted by a
+        // rejection this hook manufactured.
+        scheduleRead: schedule.status === 'fulfilled' || (!wantSchedule && previous.scheduleRead),
         configuredSeats: spots.status === 'fulfilled' ? spots.value.configuredSeats : undefined,
         closedReason: spots.status === 'fulfilled' ? spots.value.closedReason : undefined,
         loading: false,
+        refreshing: false,
+        readAt: board.status === 'fulfilled' ? Date.now() : previous.readAt,
         error: board.status === 'rejected' && !previous.board ? String((board.reason as Error)?.message ?? 'The CATWALK board is unavailable.') : '',
       }))
     }
 
     void read()
-    const timer = setInterval(() => void read(), POLL_MS)
+    const timer = setInterval(() => void read(), pollMs)
     return () => {
       live = false
       controller.abort()
       clearInterval(timer)
     }
-  }, [endpoint])
+  }, [endpoint, wantSchedule, pollMs])
 
   return feed
 }

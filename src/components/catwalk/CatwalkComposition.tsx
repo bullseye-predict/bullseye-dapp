@@ -60,7 +60,13 @@ const LANE_TITLE: Record<CatwalkLane, string> = {
  * arrives through them.
  */
 const laneBlurb = (lane: CatwalkLane, ladder: LadderState): string => {
-  if (lane === 'champion') return 'Won its position on season wins. No price reaches it and no ask is published for it.'
+  // TWO WAYS TO WIN THIS LANE, AND THE SENTENCE NAMES BOTH. Stating season wins
+  // alone read as the only route, so a coin that took its position on
+  // prediction-market volume looked unexplained in the one place the page
+  // explains the lanes. What does NOT change is the second sentence: however a
+  // champion arrived, no price reaches it. The champion rail's own lede carries
+  // the same pair (CatwalkChampionRail.tsx) - one lane, one story.
+  if (lane === 'champion') return 'Won its position on season wins, or by leading the prediction market on volume. No price reaches it and no ask is published for it.'
   if (lane === 'ranked') return 'Climbed the SOLZ ranked ladder and took its position free at season roll. Nothing paid, nothing bid.'
   if (ladder === 'closed') {
     return 'Paid for a seat on the spot ladder. It is the one lane anybody can enter — but bidding is closed right now, so no seat can be taken until it reopens.'

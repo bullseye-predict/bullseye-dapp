@@ -215,6 +215,15 @@ export function CatwalkHero({
           ? <div className="cw-hero-intro cw-hero-intro--pending" aria-busy="true"><h1>Catwalk</h1><i className="cw-pending cw-pending--line" aria-hidden="true" /><span className="sr-only">Reading the board.</span></div>
           : <div className="cw-hero-intro">
               <h1>Catwalk</h1>
+              {/* THE COIN IS NAMED, AND SO IS WHAT IT IS. A symbol alone under
+                  CATWALK read as "PURR is number one", which is a claim this
+                  board never makes: `catwalkFront` leads with the CHAMPION, and
+                  a champion's board slot is whatever slot it holds - 05 as
+                  often as 01. The label says which question the name answers,
+                  so the coin's own slot number on the card below stops looking
+                  like a contradiction. Withheld on an empty board, where there
+                  is no coin to represent anything. */}
+              {empty ? null : <span className="cw-hero-role">TOP REPRESENTATIVE</span>}
               <h2>{empty ? <>The spotlight<br />is yours to take.</> : <>{front[0]?.entry?.team?.symbol ?? 'Meet the front row.'}</>}</h2>
               <span className="sr-only">{headline}</span>
               <a className="cw-hero-link" href="#cw-list" onClick={onLadder}>{onLadder ? 'Explore the spot ladder' : 'Explore the board'}<ArrowUpRight size={17} aria-hidden="true" /></a>

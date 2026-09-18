@@ -3,7 +3,7 @@ import { useState, type CSSProperties, type MouseEvent } from 'react'
 import { TeamMark } from '../home/HomePrimitives'
 import { explorerAddressUrl, marketCapLabel, usdLabel } from '../solz/catwalkSource'
 import type { ExplorerVenue } from '../../../packages/adapters/explorer'
-import { bandInvitation, bandSpoken, pad, type CatwalkRow, type LadderState } from './catwalkBands'
+import { bandInvitation, bandSpoken, pad, type CatwalkLadderSeat, type CatwalkRow, type LadderState } from './catwalkBands'
 
 /**
  * One row of the CATWALK table, authored once.
@@ -69,6 +69,23 @@ export type RowProps = {
    *  is drawn at all - the address is still copyable, because copying the
    *  verbatim mint cannot send anybody to the wrong chain. */
   explorer?: ExplorerVenue | null
+  /**
+   * TAKE THE SEAT THIS ROW'S COIN IS STANDING ON.
+   *
+   * The same handler the OUTBID tab's own rows call, taking the same
+   * `CatwalkLadderSeat` - `row.offer` IS one - so the runway and the ladder open
+   * the identical claim dialog for the identical seat rather than each having
+   * their own idea of what outbidding means.
+   *
+   * Typed here rather than imported as `ClaimHandler`: CatwalkLadder already
+   * imports from this file, and importing back would close the cycle.
+   *
+   * Absent means the viewer cannot claim right now (no wallet, sale shut), and
+   * `claimReason` is why - the button renders DISABLED and says so, which is the
+   * one thing a hidden button cannot do.
+   */
+  onClaim?: (seat: CatwalkLadderSeat) => void
+  claimReason?: string
 }
 
 /** HEAD AND TAIL, FOR DISPLAY ONLY, AND AUTHORED ONCE. Every copy control on
@@ -449,6 +466,7 @@ function CoinIdentity({ row, coinHref, explorer, onCoin }: {
 
 export function CatwalkSlotRow({
   row, metric, state, dim, matched, ladder = 'unknown', crown, onLadder, coinHref, explorer, onCoin,
+  onClaim, claimReason,
 }: RowProps) {
   const ask = row.offer?.askUsdMicros ?? 0
   const team = row.entry?.team ?? null
@@ -480,12 +498,20 @@ export function CatwalkSlotRow({
     )
   }
 
-  /* A ROW CLICK IS A SEARCH, NOT A DOCUMENT LOAD. This row called
-     `window.location.assign(coinHref(mint))`, and `coinHref` resolves to
-     `/catwalk?q=<mint>` - the page the reader is already on - so pressing any
-     row reloaded the whole document in order to run a filter. `<li>` is not a
-     link and never was, so no middle-click or cmd-click behaviour is lost by
-     dropping the href; the symbol anchor inside the row keeps both. */
+  /* THE ROW ITSELF IS NOT A CONTROL. It used to take a click anywhere on it and
+     run a search for that coin, which made a twelve-row table into twelve
+     invisible buttons: there was no affordance saying so, the whole row lit up
+     under the cursor, and a reader reaching for the contract address or the
+     explorer link got a filter they never asked for. The row now holds ITS
+     controls and is not one - the symbol anchor still runs the search, the mint
+     still copies, the explorer link still opens, and the action column on the
+     right is the only thing that acts on the position.
+
+     (It called `window.location.assign(coinHref(mint))` before that, and
+     `coinHref` resolves to `/catwalk?q=<mint>` - the page the reader is already
+     on - so pressing any row reloaded the whole document to run a filter.
+     `<li>` is not a link and never was, so nothing about middle-click or
+     cmd-click is lost here; the symbol anchor keeps both.) */
   return (
     <li
       className={`cw-slot${open ? ' cw-slot--open' : ''}`}
@@ -495,7 +521,6 @@ export function CatwalkSlotRow({
       data-matched={matched ? 'true' : undefined}
       style={team?.color ? ({ '--team-color': team.color } as CSSProperties) : undefined}
       aria-label={rowLabel(row, ladder)}
-      onClick={onCoin && row.entry ? () => onCoin(row.entry!.mint) : undefined}
     >
       {crown ? <Crown className="cw-row-crown" size={14} aria-hidden="true" /> : null}
       <span className="cw-num">{pad(row.spot)}</span>
@@ -526,10 +551,34 @@ export function CatwalkSlotRow({
         : row.lane === 'outbid'
           ? block
             ? <span className="cw-act cw-act--closed" title={block.title}>{block.label}</span>
-            : <span className="cw-act cw-act--ghostly" title={`This coin holds ladder seat ${pad(row.offer!.seat)}. Take it on the OUTBID tab for ${usdLabel(ask)}.`}>
-                <i>SEAT {pad(row.offer!.seat)}</i>
-                <b>{usdLabel(ask)}</b>
-              </span>
+            /* A SEAT THAT CAN BE TAKEN GETS A BUTTON HERE, NOT A PRICE TAG. The
+               runway used to state `SEAT 03 · $6` as dead text and leave the
+               reader to find the OUTBID tab themselves, which put the one
+               action this lane exists for two navigations away from the row
+               that names it. Only the OUTBID lane gets one: champion and ranked
+               positions are earned, and no price reaches them.
+               It keeps its words - `OUTBID $6` - because the price IS the
+               action here, and it names the seat in its title rather than in
+               the label, which has one line to say what pressing it does.
+               With no `onLadder` there is nowhere to send anybody, so the row
+               falls back to stating the seat exactly as it did before. */
+            : <button
+                type="button"
+                className="cw-act"
+                disabled={!onClaim}
+                /* THE SEAT NUMBER SURVIVES THE REWRITE. The label is the action
+                   and its price, so the ladder seat this coin stands on moved
+                   into the title - it must still be stated, and in the page's
+                   own `SEAT 03` idiom, because it is how this row and the OUTBID
+                   tab refer to the same thing. A disabled button says WHY here,
+                   which is the one thing hiding the control cannot do. */
+                title={onClaim
+                  ? `SEAT ${pad(row.offer!.seat)} — take it for ${usdLabel(ask)}.`
+                  : `SEAT ${pad(row.offer!.seat)} — ${claimReason ?? 'it cannot be taken right now.'}`}
+                onClick={() => onClaim?.(row.offer!)}
+              >
+                OUTBID {usdLabel(ask)}
+              </button>
           : <span className="cw-act cw-act--locked" title="Champion and ranked slots are earned, not bought.">
               <Lock size={12} aria-hidden="true" />HELD BY RECORD
             </span>}

@@ -35,6 +35,10 @@ import type { CatwalkLane, CatwalkSpot } from '../src/components/solz/model'
 const MINT_A = 'ZqTestM1nt' + 'A'.repeat(34)
 const MINT_B = 'YwTestM1nt' + 'B'.repeat(34)
 const MINT_C = 'XvTestM1nt' + 'C'.repeat(34)
+/** A fourth coin, so a board can hold all three lanes AND a second holder in
+ *  one of them - which is the only shape that can tell "one card per lane"
+ *  apart from "the best three holders in board order". */
+const MINT_D = 'WuTestM1nt' + 'D'.repeat(34)
 
 // The fixture tickers are $FOOFIX / $BARFIX: foo-and-bar placeholders nobody can
 // mistake for a listing. They used to be $MIAW and $GIGA, and $MIAW is the
@@ -567,7 +571,7 @@ test('a board nobody has read yet states no count, no headline and no invitation
  * no price can take. Between the other lanes the function invents no ranking of
  * its own: it defers to the board position the server already assigned.
  */
-test('the front of the walk takes champions first, then holders, then vacancies', () => {
+test('the front of the walk stands up one top qualifier per lane, then holders, then vacancies', () => {
   // A champion at 02, an outbid holder at 05 and a ranked holder at 09: by board
   // number the front three would be 01 (empty), 02 and 03 (empty).
   const mixed = buildBoard({
@@ -582,6 +586,41 @@ test('the front of the walk takes champions first, then holders, then vacancies'
   })
   expect(catwalkFront(mixed).map((row) => `${row.spot} ${row.lane}`))
     .toEqual(['2 champion', '5 outbid', '9 ranked'])
+
+  // ONE CARD PER LANE, EACH ONE ITS LANE'S TOP QUALIFIER. The outbid holder at
+  // 02 is the second-best coin on this board by board order, and it still does
+  // not get card three: card three belongs to the ranked lane, whose own top
+  // qualifier stands at 11. Taking the best three holders in board order would
+  // have shown the outbid lane twice and the ranked lane not at all.
+  const perLane = buildBoard({
+    board: board([
+      entry(1, 'outbid', MINT_A, '$FOOFIX', '$FOOFIX', 4_200_000_000),
+      entry(2, 'outbid', MINT_B, '$BARFIX', '$BARFIX', 4_200_000_000),
+      entry(6, 'champion', MINT_C, '$BAZFIX'),
+      entry(11, 'ranked', MINT_D, '$QUXFIX'),
+    ]),
+    spots: ladder(3, { 1: MINT_A }),
+    standings: new Map(),
+    ladder: 'open',
+  })
+  expect(catwalkFront(perLane).map((row) => `${row.spot} ${row.lane}`))
+    .toEqual(['6 champion', '1 outbid', '11 ranked'])
+
+  // A LANE WITH NOBODY IN IT LEAVES NO HOLE. With the ranked lane empty the row
+  // falls back to the remaining HOLDERS before it falls back to vacancies, so
+  // two live lanes never render as one coin and two empty plinths.
+  const twoLanes = buildBoard({
+    board: board([
+      entry(1, 'outbid', MINT_A, '$FOOFIX', '$FOOFIX', 4_200_000_000),
+      entry(2, 'outbid', MINT_B, '$BARFIX', '$BARFIX', 4_200_000_000),
+      entry(6, 'champion', MINT_C, '$BAZFIX'),
+    ]),
+    spots: ladder(3, { 1: MINT_A }),
+    standings: new Map(),
+    ladder: 'open',
+  })
+  expect(catwalkFront(twoLanes).map((row) => `${row.spot} ${row.lane}`))
+    .toEqual(['6 champion', '1 outbid', '2 outbid'])
 
   // Short of three holders it fills from the LOWEST-NUMBERED vacancies, and the
   // fill rows are genuinely open positions rather than fabricated ones.
@@ -1797,8 +1836,11 @@ test('the token overlay fills in a missing name and an unresolvable logo, and ne
   const source = board([
     // Names itself with its own ticker and points at a path this origin 404s.
     { spot: 1, mint: MINT_A, lane: 'ranked', active: true, team: { mint: MINT_A, symbol: '$FOOFIX', name: '$FOOFIX', logoUrl: '/solz_logo.svg' } },
-    // Already fully described, by an absolute URL the browser can fetch.
-    { spot: 2, mint: MINT_B, lane: 'ranked', active: true, team: { mint: MINT_B, symbol: '$BARFIX', name: 'Barfix, As The Board Has It', logoUrl: 'https://cdn.test/board.png' } },
+    // Already fully described, by an absolute URL the browser can fetch. The host
+    // has to be one the icon allowlist actually accepts: cdn.test is refused, and
+    // this row only passed with it because resolvedTokenLogo used to hand back a
+    // refused URL raw instead of falling through to the registry.
+    { spot: 2, mint: MINT_B, lane: 'ranked', active: true, team: { mint: MINT_B, symbol: '$BARFIX', name: 'Barfix, As The Board Has It', logoUrl: 'https://cdn.dexscreener.com/board.png' } },
   ])
   const merged = overlayTokenMeta(source, meta)!
 
@@ -1811,9 +1853,10 @@ test('the token overlay fills in a missing name and an unresolvable logo, and ne
   expect(first.symbol).toBe('$FOOFIX')
 
   const second = merged.lineup[1]!.team!
-  // The board described this one itself, so the overlay leaves it alone.
+  // The board described this one itself, so the overlay keeps the board's own
+  // crest - routed through this origin, which is what every allowlisted URL gets.
   expect(second.name).toBe('Barfix, As The Board Has It')
-  expect(second.logoUrl).toBe('https://cdn.test/board.png')
+  expect(second.logoUrl).toBe('/api/token-icon?url=' + encodeURIComponent('https://cdn.dexscreener.com/board.png'))
 
   // A registry that answered nothing returns the SAME board, so a poll that
   // learns nothing does not re-render every row.
@@ -3003,4 +3046,58 @@ test('the board column states the rotation, and states no win-loss record', () =
   // in the same column - so the two bands read as one rotation, not two states.
   const waiting = shape.rows.find((row) => !row.walks)!
   expect(renderToStaticMarkup(<CatwalkSlotRow row={waiting} metric="rotation" state="open" />)).toContain('IN TURN')
+})
+
+/* ── the runway row's action column ───────────────────────────────────────── */
+
+/**
+ * THE SEAT IS TAKEN FROM THE ROW THAT NAMES IT.
+ *
+ * The runway stated `SEAT 01 · $6` as dead text and left the reader to find the
+ * OUTBID tab, which put the one action this lane exists for two navigations
+ * away from the row naming it. Only the OUTBID lane gets a button: champion and
+ * ranked positions are earned and no price reaches them.
+ *
+ * (The row's own click handler is gone in the same change - a row that acts
+ * when pressed anywhere is twelve invisible buttons - but React attaches its
+ * handlers at the root, so neither static markup nor `li.onclick` can be asked
+ * about it. What IS testable is that the action column holds a real control.)
+ */
+test('an outbid seat is a button in the runway row, and an earned position is not', () => {
+  const shape = buildBoard({
+    board: board([entry(1, 'outbid', MINT_A, '$FOOFIX', '$FOOFIX', 4_200_000_000)]),
+    spots: ladder(3, { 1: MINT_A }),
+    standings: new Map(),
+    ladder: 'open',
+  })
+  const row = shape.rows[0]!
+
+  // THE SEAT IS TAKEABLE FROM THE ROW THAT NAMES IT. It used to state
+  // `SEAT 01 · $x` as dead text and leave the reader to find the OUTBID tab.
+  const actionable = renderToStaticMarkup(
+    <CatwalkSlotRow row={row} metric="take" state="filled" ladder="open" onClaim={() => {}} />,
+  )
+  expect(actionable).toMatch(/<button[^>]*class="cw-act"[^>]*>OUTBID \$/)
+  expect(actionable).not.toMatch(/<button[^>]*class="cw-act"[^>]*disabled/)
+  // The seat is still named, in the page's own idiom, on the control itself.
+  expect(actionable).toContain('SEAT 01')
+
+  // NO HANDLER IS A DISABLED BUTTON THAT SAYS WHY, not a hidden one.
+  const blocked = renderToStaticMarkup(
+    <CatwalkSlotRow row={row} metric="take" state="filled" ladder="open" claimReason="connect a wallet first." />,
+  )
+  expect(blocked).toMatch(/<button[^>]*disabled/)
+  expect(blocked).toContain('connect a wallet first.')
+
+  // Champion and ranked positions are earned, so no price and no button.
+  const champion = buildBoard({
+    board: board([entry(1, 'champion', MINT_B, '$BARFIX')]),
+    spots: [], standings: new Map(), ladder: 'open',
+  })
+  const earned = renderToStaticMarkup(
+    <CatwalkSlotRow row={champion.rows[0]!} metric="take" state="filled" ladder="open" onClaim={() => {}} />,
+  )
+  expect(earned).toContain('HELD BY RECORD')
+  expect(earned).not.toContain('OUTBID')
+
 })

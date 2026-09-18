@@ -1,5 +1,6 @@
 import { explorerClusterParam } from '../../../packages/adapters/solana/cluster'
-import { parseMiawPrixBoard } from '../miawprix/miawPrixSource'
+import { rememberValue } from './liveCache'
+import { miawPrixBoardKey, parseMiawPrixBoard } from '../miawprix/miawPrixSource'
 import type { ExplorerVenue } from '../../../packages/adapters/explorer'
 import type { CatwalkLane, CatwalkLineupEntry, CatwalkSpot, SolzTeam } from './model'
 
@@ -685,6 +686,18 @@ export function parseCatwalkCycle(value: unknown): CatwalkCycle {
   }
 }
 
+/**
+ * The cache key one CATWALK read is remembered under: its own request URL.
+ *
+ * Exported because the READER needs it too - a hook seeds its first frame with
+ * `cachedValue(catwalkReadKey(endpoint, 'catwalk'))`. Building the string twice
+ * is how the writer and the reader drift apart and the seed quietly stops
+ * working, so there is one builder and two callers.
+ */
+export function catwalkReadKey(endpoint: string, kind: string): string {
+  return `${endpoint}?${new URLSearchParams({ kind })}`
+}
+
 export function catwalkSource(endpoint: string, fetcher: typeof fetch = fetch) {
   const read = async (kind: string, signal?: AbortSignal, params?: Record<string, string>) => {
     const query = new URLSearchParams({ kind, ...(params ?? {}) })
@@ -699,10 +712,25 @@ export function catwalkSource(endpoint: string, fetcher: typeof fetch = fetch) {
     }
     return response.json()
   }
+  /** Whether this source is on the realm's OWN transport.
+   *
+   *  Only its answers become the realm's memory. A source built on an injected
+   *  fetcher is a caller's private wire - a test's, most often - and writing
+   *  its answer under the shared key would hand the next island a board that
+   *  never came off this page's network. */
+  const ours = fetcher === fetch
+  /** Read, parse, and remember the parsed answer under its request URL so the
+   *  next island to mount paints it on its first frame. See
+   *  src/components/solz/liveCache.ts - this seeds a frame, it never skips a
+   *  read. */
+  const keep = async <T>(kind: string, parse: (payload: unknown) => T, signal?: AbortSignal): Promise<T> => {
+    const value = parse(await read(kind, signal))
+    return ours ? rememberValue(catwalkReadKey(endpoint, kind), value).value : value
+  }
   return {
-    board: async (signal?: AbortSignal) => parseCatwalkBoard(await read('catwalk', signal)),
-    standings: async (signal?: AbortSignal) => parseGrandPrixStandings(await read('standings', signal)),
-    spots: async (signal?: AbortSignal) => parseCatwalkSpots(await read('catwalkSpots', signal)),
+    board: async (signal?: AbortSignal) => keep('catwalk', parseCatwalkBoard, signal),
+    standings: async (signal?: AbortSignal) => keep('standings', parseGrandPrixStandings, signal),
+    spots: async (signal?: AbortSignal) => keep('catwalkSpots', parseCatwalkSpots, signal),
     /**
      * THE MIAW PRIX PROGRAMME, read for one fact: when this board next locks.
      *
@@ -712,7 +740,13 @@ export function catwalkSource(endpoint: string, fetcher: typeof fetch = fetch) {
      * `parseMiawPrixBoard` still owns that wire shape, exactly as it does for
      * /miaw-prix, so the two pages can never disagree about what arrived.
      */
-    schedule: async (signal?: AbortSignal) => parseMiawPrixBoard(await read('miawPrix', signal)),
+    schedule: async (signal?: AbortSignal) => {
+      // Remembered under the PROGRAMME's own key, not a CATWALK one: this is
+      // byte-for-byte the read /miaw-prix and the home hero make, so one board
+      // in the cache serves all three rather than three copies that age apart.
+      const board = parseMiawPrixBoard(await read('miawPrix', signal))
+      return ours ? rememberValue(miawPrixBoardKey(endpoint), board).value : board
+    },
     /**
      * THE WALKS ALREADY RECORDED - the index, then one board.
      *

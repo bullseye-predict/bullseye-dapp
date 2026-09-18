@@ -352,20 +352,33 @@ export function buildBoard({ board, spots, outbidSpots, standings, standingsStat
   }
 }
 
+/** The three ways onto the board, in the order the hero stands them up. It is
+ *  deliberately not `LANES`: that list is the wire vocabulary and carries
+ *  'open', which is the absence of a lane rather than one of them. */
+const FRONT_LANES = ['champion', 'outbid', 'ranked'] as const
+
 /**
  * THE FRONT OF THE WALK: the three cards the hero stands up.
  *
- * It is a choice ACROSS THE LANES, not a slice of the board. It used to be
- * board positions 01, 02 and 03 by number, which on a board whose champions had
- * not been settled yet put three vacancies at the top of the page while real
- * coins stood at 04 and 05 - the page's loudest surface advertising emptiness
- * over its own holders.
+ * ONE CARD PER LANE, AND EACH ONE IS THAT LANE'S TOP QUALIFIER - champion,
+ * then outbid, then SOLZ ranked. That is the whole point of the row: the three
+ * cards are not a podium and not the top of the board, they are the three ways
+ * onto this board, each showing who currently leads it. A row that took the
+ * best three holders in board order instead put the outbid lane in two cards
+ * and left the ranked lane unrepresented, so the hero advertised two routes
+ * where the board offers three.
  *
- * The order is CHAMPIONS FIRST, then every other holder in board order.
- * Champion is the only lane that is WON and the only one no price can take, so
- * it leads; between an outbid holder and a ranked one this function invents no
- * ranking of its own - it defers to the board position the server assigned,
- * which already carries whatever priority the product intends.
+ * It is therefore a choice ACROSS THE LANES, not a slice of the board. It used
+ * to be board positions 01, 02 and 03 by number, which on a board whose
+ * champions had not been settled yet put three vacancies at the top of the page
+ * while real coins stood at 04 and 05 - the page's loudest surface advertising
+ * emptiness over its own holders.
+ *
+ * WITHIN A LANE THE TOP QUALIFIER IS THE LOWEST BOARD POSITION, and between
+ * lanes the order is fixed: champion is the only lane that is WON and the only
+ * one no price can take, so it leads. This function invents no ranking of its
+ * own beyond that - inside a lane it defers to the board position the server
+ * assigned, which already carries whatever priority the product intends.
  *
  * IT RANKS ON NOTHING THAT MIGHT NOT HAVE BEEN READ. Not wins (`standing` is
  * null both for a coin with no record and, whenever the standings read failed,
@@ -374,15 +387,23 @@ export function buildBoard({ board, spots, outbidSpots, standings, standingsStat
  * that reshuffled itself when a side-read failed would restate the board on
  * every blip. `lane` and `spot` are the two fields every row always carries.
  *
- * EXACTLY THREE, ALWAYS. Short of three holders it fills from the lowest-
- * numbered VACANCIES, so an empty board is the same code path as a full one and
- * the hero never grows or loses a card. A filled slot is never fabricated: the
- * fill rows are genuinely open positions and render as vacancies.
+ * EXACTLY THREE, ALWAYS. A lane with no holder yet does not leave a hole and
+ * does not get a card fabricated for it: the row falls back to the remaining
+ * HOLDERS in board order, and only then to the lowest-numbered VACANCIES. So an
+ * empty board is the same code path as a full one, the hero never grows or
+ * loses a card, and a board with two lanes running still shows two real coins
+ * rather than one coin and two empty plinths. The fill rows are genuinely open
+ * positions and render as vacancies.
  */
 export function catwalkFront(shape: CatwalkBoardShape, cards = 3): CatwalkRow[] {
   const bySpot = (a: CatwalkRow, b: CatwalkRow) => a.spot - b.spot
-  const champions = shape.rows.filter((row) => row.lane === 'champion').sort(bySpot)
-  const others = shape.rows.filter((row) => row.lane !== 'champion' && row.lane !== 'open').sort(bySpot)
+  const held = shape.rows.filter((row) => row.lane !== 'open').sort(bySpot)
+  // The lane order IS the card order, so this array is the row's contract.
+  const leaders = FRONT_LANES.flatMap((lane) => {
+    const top = held.find((row) => row.lane === lane)
+    return top ? [top] : []
+  })
+  const rest = held.filter((row) => !leaders.includes(row))
   const vacant = shape.rows.filter((row) => row.lane === 'open').sort(bySpot)
-  return [...champions, ...others, ...vacant].slice(0, Math.max(0, cards))
+  return [...leaders, ...rest, ...vacant].slice(0, Math.max(0, cards))
 }

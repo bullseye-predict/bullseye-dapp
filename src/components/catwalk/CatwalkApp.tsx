@@ -1,6 +1,6 @@
 import '../../styles/home.css'
 import '../../styles/catwalk.css'
-import { ArrowUpRight, Search } from 'lucide-react'
+import { ArrowUpRight, RefreshCw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppShell } from '../solz/AppShell'
 import { DEFAULT_CATWALK_EXPLORER, usdLabel, type CatwalkRankedLaneRead, type CatwalkSeatPlan } from '../solz/catwalkSource'
@@ -36,6 +36,7 @@ import { useCatwalkBoard } from './useCatwalkBoard'
 import { useCatwalkCycles } from './useCatwalkCycles'
 import { CatwalkCycleBanner, CatwalkCyclePicker } from './CatwalkCyclePicker'
 import { resolvedTokenLogo } from '../solz/tokenIcon'
+import { cachedAge } from '../solz/liveCache'
 import { overlayTokenMeta, useTokenMeta } from '../solz/tokenMeta'
 import { CatwalkClaimDialog } from './CatwalkClaimDialog'
 
@@ -189,6 +190,10 @@ type ListProps = {
   matched: (row: CatwalkRow) => boolean
   crowned: boolean
   onLadder?: () => void
+  /** Take a seat off the coin standing on it, from the numbered table itself.
+   *  The OUTBID tab's rows call the same handler with the same seat. */
+  onClaim?: ClaimHandler
+  claimReason?: string
   coinHref?: (mint: string) => string
   explorer?: ExplorerVenue | null
   /** Filter the board in place instead of reloading the page it is on. */
@@ -253,6 +258,8 @@ function SlotList(props: ListProps) {
                 ladder={ladder}
                 crown={crowned && row.lane === 'champion'}
                 onLadder={props.onLadder}
+                onClaim={props.onClaim}
+                claimReason={props.claimReason}
                 coinHref={props.coinHref}
                 explorer={props.explorer}
                 onCoin={props.onCoin}
@@ -626,6 +633,8 @@ export function CatwalkPanel({
       matched={matched}
       crowned={false}
       onLadder={onLadder}
+      onClaim={onClaim}
+      claimReason={claimReason}
       coinHref={coinHref}
       explorer={explorer}
       onCoin={onCoin}
@@ -1044,6 +1053,9 @@ export function CatwalkApp({
   // dead, so nothing is written on it.
   const claimReason = undefined
   const pending = feed.loading && !feed.board
+  /** How old the carried board is, in words, or empty when it is fresh enough
+   *  that saying anything would be noise. See src/components/solz/liveCache.ts. */
+  const carriedAge = feed.readAt ? cachedAge(feed.readAt, now) : ''
 
   // A vacancy points at the ladder only when the ladder actually has a seat
   // nobody is standing on. Otherwise the row says how the position fills and
@@ -1271,6 +1283,22 @@ export function CatwalkApp({
           now={now}
           onLadder={toLadder}
         />
+
+        {/* THE BOARD WAS CARRIED IN FROM ANOTHER ROUTE and this page's own read
+            has not landed yet. Not an error and not a skeleton - the thirty-six
+            rows below are real, they are simply a moment old - so it is a quiet
+            line rather than a banner, and it clears on the first read. Saying
+            nothing would pass carried rows off as this page's own. */}
+        {feed.refreshing
+          ? <p className="cw-notice cw-notice--carried" role="status">
+              <RefreshCw size={12} aria-hidden="true" className="cw-spin" />
+              {/* HOW OLD, when it is old enough to matter. `cachedAge` returns
+                  nothing under twenty seconds, which is the common case - a
+                  reader who clicked through a moment ago does not need a
+                  timestamp, and printing "0s ago" would invite one. */}
+              Showing the last read board{carriedAge ? ` (${carriedAge})` : ''} while it is re-read.
+            </p>
+          : null}
 
         {/* Disclosed once for the page rather than implied row by row. Without
             it every W-L column is an em dash and the CHAMPIONS band head reads

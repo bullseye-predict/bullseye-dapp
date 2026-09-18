@@ -127,6 +127,9 @@
 .cw-hero-intro { display: grid; gap: 6px; align-content: start; }
 .cw-hero-intro--pending .cw-pending--line { height: 42px; }
 .cw-hero-intro h2 { font: 800 40px/1.05 var(--cw-head); letter-spacing: -.035em; text-wrap: balance; overflow-wrap: anywhere; }
+/* Sits between CATWALK and the coin, in the kicker's own mono voice, so it
+   reads as a label on the name rather than as part of it. */
+.cw-hero-role { font: 500 9px var(--cw-mono); letter-spacing: .14em; color: var(--cw-muted); }
 .cw-hero-season p { font: 400 14px/1.6 var(--cw-head); color: #b7b9c0; }
 .cw-hero-link { display: inline-flex; align-items: center; gap: 10px; justify-self: start; color: var(--cw-lime); font: 600 13px var(--cw-head); padding: 4px 0; }
 .cw-hero-link:hover { text-decoration: underline; text-underline-offset: 5px; }
@@ -152,17 +155,38 @@
 .cw-board .mx-seg__cell { flex: 1 1 auto; height: 9px; background: #2b2d33; border: 1px solid #3a3c44; }
 .cw-board .mx-seg__cell--on { background: var(--cw-lime); border-color: var(--cw-lime-edge); }
 
-.cw-hero-front { position: relative; height: 244px; width: 100%; max-width: 520px; justify-self: center; }
+/* THREE CARDS OF ONE SIZE, IN A ROW. They used to be a fan of three different
+   sizes stacked on top of each other, and the size was doing a job it had no
+   right to do: it ranked them. The front row is a CHOICE ACROSS THE LANES, not
+   a podium - card one holds the champion, cards two and three hold whoever else
+   is at the front - so a card twice the size of its neighbours stated an order
+   the board does not have. Equal cards state the only thing that is true: these
+   three are the front of the walk.
+   The overlap goes with it. Nothing covers anything now, so no card needs a
+   z-index, and the identity block at the foot of each card is readable on all
+   three at every width - which is what the stacking order and the shunted-up
+   name block were both failing to arrange. */
+.cw-hero-front {
+  position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; align-items: start; padding-top: 22px;
+  width: 100%; max-width: 520px; justify-self: center;
+}
 .cw-front-label { position: absolute; right: 0; top: 0; color: #b7b9c0; font: 500 10px var(--cw-mono); letter-spacing: .12em; }
-.cw-hero-card { position: absolute; transition: translate .18s ease-out; }
+/* `aspect-ratio` rather than a pixel height: the three cards stay identical to
+   each other AND in proportion as the row narrows, so no breakpoint has to
+   restate three heights and get them equal by hand. */
+.cw-hero-card { position: relative; aspect-ratio: 3 / 4; transition: translate .18s ease-out; }
 .cw-hero-face { position: relative; width: 100%; height: 100%; overflow: clip; border: 5px solid var(--cw-metal); border-radius: 14px; background: #191a1e; box-shadow: inset 0 0 0 2px #ffffff30, 0 0 32px -12px var(--cw-glow); }
 /* data-pos IS THE CARD'S PLACE IN THIS ROW OF THREE, never a board slot. It
    sizes, tilts and metals the card; the digit printed on the card is the coin's
    own board position and comes from the component. The two were the same
    integer only while the hero took slots 01-03 by number. */
-.cw-hero-card[data-pos='1'] { --cw-metal: #f6bd43; --cw-glow: #b87819; z-index: 1; width: 56%; height: 196px; right: 9%; top: 12px; transform: rotate(-7deg); }
-.cw-hero-card[data-pos='2'] { --cw-metal: #bfc3cb; --cw-glow: #79818d; z-index: 2; width: 39%; height: 136px; left: 1%; bottom: 0; transform: rotate(6deg); }
-.cw-hero-card[data-pos='3'] { --cw-metal: #e18b48; --cw-glow: #c46926; z-index: 3; width: 37%; height: 122px; right: 0; bottom: -4px; transform: rotate(7deg); }
+/* SIZE AND POSITION ARE GONE FROM THESE THREE; the grid above owns both. What
+   is left is the card's own metal and its tilt - character, not rank. The tilts
+   are gentle enough that neighbours never touch across a 12px gap. */
+.cw-hero-card[data-pos='1'] { --cw-metal: #f6bd43; --cw-glow: #b87819; transform: rotate(-4deg); }
+.cw-hero-card[data-pos='2'] { --cw-metal: #bfc3cb; --cw-glow: #79818d; transform: rotate(3deg); }
+.cw-hero-card[data-pos='3'] { --cw-metal: #e18b48; --cw-glow: #c46926; transform: rotate(4deg); }
 .cw-hero-card:hover { translate: 0 -4px; }
 .cw-hero-position { position: absolute; top: 6px; left: 11px; z-index: 2; font: 900 38px/1 var(--cw-head); color: var(--cw-metal); text-shadow: 0 2px 2px #000; }
 .cw-hero-mark { width: 100%; height: 100%; object-fit: cover; display: block; color: var(--cw-metal); }
@@ -565,7 +589,9 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
   .cw-split-rail {
     position: sticky; top: calc(var(--cw-sticky-top) + 12px);
     max-height: calc(100vh - var(--cw-sticky-top) - 24px);
-    overflow: auto; overscroll-behavior: contain;
+    /* Vertical chaining stays native, so the wheel carries the page once the
+       rail is at its end. */
+    overflow: auto; overscroll-behavior-x: contain;
   }
 }
 .cw-split-board, .cw-split-rail { container-type: inline-size; }
@@ -912,7 +938,15 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
      carries `cw-slot`; the ranked row never does. */
   .cw-slot .cw-num, .cw-slot .cw-crest, .cw-slot .cw-open-well { grid-row: 1 / span 2; }
   .cw-slot .cw-id { grid-column: 3 / 6; grid-row: 1; }
-  .cw-lane { grid-column: 3; grid-row: 2; }
+  /* SCOPED FOR THE SAME REASON THE THREE ABOVE ARE. `.cw-lane` is the lane chip
+     WHEREVER a lane is named, and the hero card names one too - inside
+     `.cw-hero-name`, a one-column grid. Written bare, this placed that chip at
+     column 3 / row 2 of the hero's identity grid, which conjured two tracks
+     that grid never declared and fanned the symbol, the record and the chip
+     across the card in a row instead of stacking them. It then pushed the
+     record and the chip out under the card overlapping it on the right, so the
+     lead coin lost its record and its lane below 820px only. */
+  .cw-slot .cw-lane { grid-column: 3; grid-row: 2; }
   /* Market cap folds onto the second line beside the lane chip rather than
      dropping out: it is the figure that says whether these coins are
      interchangeable, and a phone reader needs it as much as a desktop one. */
@@ -936,11 +970,12 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
   .cw-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 20px 20px 24px; }
   .cw-hero-season { gap: 12px; }
   .cw-hero-intro h2 { font-size: 34px; }
-  .cw-hero-front { max-width: 380px; height: 224px; margin-top: 4px; }
-  .cw-hero-card[data-pos='1'] { height: 180px; }
-  .cw-hero-card[data-pos='2'] { height: 126px; }
-  .cw-hero-card[data-pos='3'] { height: 114px; }
-  .cw-hero-card--open .cw-hero-face i { font-size: 56px; }
+  /* The row narrows; the cards keep their proportion and each other's size,
+     so there are no per-card heights to restate here any more. */
+  .cw-hero-front { max-width: 380px; margin-top: 4px; gap: 9px; }
+  .cw-hero-name > b { font-size: 16px; }
+  .cw-hero-position { font-size: 28px; }
+  .cw-hero-card--open .cw-hero-face i { font-size: 44px; }
 }
 /* The search drops to its own row before the tabs wrap, and sits ABOVE them
    visually while staying after them in DOM and keyboard order. Once it has a
@@ -990,11 +1025,20 @@ a.cw-symbol:hover { color: var(--cw-edge); text-decoration-color: currentColor; 
   font: 400 11px/1.6 var(--cw-mono);
 }
 .cw-notice b { color: var(--cw-text); letter-spacing: .04em; }
+/* The carried-board line is NOT a failure, so it does not take the notice's
+   alarm edge: the rows below are real and merely a moment old. It sits in the
+   same place because it answers the same question - how much of what is on
+   screen can be trusted right now. */
+.cw-notice--carried { display: flex; align-items: center; gap: 8px; border-left-color: var(--cw-lane-open); }
+.cw-spin { animation: cw-spin 900ms linear infinite; flex-shrink: 0; }
+@keyframes cw-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .cw-spin { animation: none; } }
 
-/* Keep the leading identity above the overlapping front cards. */
-.cw-hero-card[data-pos='1'] .cw-hero-name { top: 62px; bottom: auto; }
-.cw-hero-card[data-pos='1'] .cw-hero-scrim { background: linear-gradient(180deg, #08090bc9, transparent 85%); }
-.cw-hero-card[data-pos='1'].cw-hero-card--open .cw-hero-face { padding-bottom: 64px; }
+/* NO PER-CARD EXCEPTIONS LEFT HERE. Card one used to pin its name to
+   `top: 62px`, flip its scrim to match and pad its open plinth by 64px, all to
+   dodge the smaller cards that stacked in front of it. They sit beside it now,
+   so all three cards write their identity at the foot of the card and centre
+   their open plinth the same way. */
 
 .cw-closed-seat { display: flex; align-items: center; gap: 16px; padding: 18px 14px; border-bottom: 1px solid var(--cw-line); color: var(--cw-muted); }
 .cw-closed-seat b { color: var(--cw-lane-outbid); }
