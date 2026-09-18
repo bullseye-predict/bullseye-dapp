@@ -131,7 +131,7 @@ export function NetworkTrading({
           <h2>{network === "SOLANA" ? "Solana" : "Somnia"} markets</h2>
           <p>
             {network === "SOLANA"
-              ? `${venue?.collateralSymbol ?? 'fUSDC'} predictions · Manifest order book`
+              ? `${venue?.collateralSymbol ?? 'USDC'} predictions · Manifest order book`
               : venue ? `${venue.collateralSymbol} custom SOLZ settlement · chain ${venue.chainId}` : `DreamDEX Event Contracts · ${somniaChainId === '50312' ? 'tUSDC testnet' : 'USDso mainnet'}`}
           </p>
         </div>

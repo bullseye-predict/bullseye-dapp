@@ -30,3 +30,23 @@ export function solanaRpcEndpoint(): string {
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) reject('must be https, or http on localhost')
   return url.toString()
 }
+
+export type SolanaWalletNetwork = 'mainnet' | 'devnet' | 'testnet'
+
+export function solanaNetworkFromRpcEndpoint(endpoint = solanaRpcEndpoint()): SolanaWalletNetwork {
+  const host = new URL(endpoint).hostname
+  if (/devnet/i.test(host)) return 'devnet'
+  if (/testnet/i.test(host)) return 'testnet'
+  return 'mainnet'
+}
+
+export function solanaWalletChain(endpoint = solanaRpcEndpoint()): `solana:${SolanaWalletNetwork}` {
+  return `solana:${solanaNetworkFromRpcEndpoint(endpoint)}`
+}
+
+export function solscanAccountUrl(address: string, endpoint = solanaRpcEndpoint()) {
+  const network = solanaNetworkFromRpcEndpoint(endpoint)
+  return network === 'mainnet'
+    ? `https://solscan.io/account/${address}`
+    : `https://solscan.io/account/${address}?cluster=${network}`
+}

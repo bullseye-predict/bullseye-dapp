@@ -1,5 +1,5 @@
 import { getWallets } from '@wallet-standard/app'
-import { solanaRpcEndpoint } from './solanaRpc'
+import { solanaRpcEndpoint, solanaWalletChain } from './solanaRpc'
 import type { Wallet, WalletAccount } from '@wallet-standard/base'
 import { StandardConnect, StandardDisconnect, type StandardConnectFeature, type StandardDisconnectFeature } from '@wallet-standard/features'
 import { SolanaSignMessage, SolanaSignTransaction, type SolanaSignMessageFeature, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features'
@@ -70,7 +70,7 @@ export async function connectStandardSolanaWallet(wallet: CompatibleWallet, rpcU
     publicKey: owner,
     async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
       const feature = wallet.features[SolanaSignTransaction] as SolanaSignTransactionFeature[typeof SolanaSignTransaction]
-      const [result] = await feature.signTransaction({ account, transaction: unsignedBytes(transaction), chain: 'solana:devnet' })
+      const [result] = await feature.signTransaction({ account, transaction: unsignedBytes(transaction), chain: solanaWalletChain(rpcUrl) })
       if (!result) throw new Error('The wallet did not return a signed transaction.')
       return (transaction instanceof Transaction ? Transaction.from(result.signedTransaction) : VersionedTransaction.deserialize(result.signedTransaction)) as T
     },

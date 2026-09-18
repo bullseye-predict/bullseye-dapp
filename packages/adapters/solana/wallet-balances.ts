@@ -13,6 +13,20 @@ export type SolanaWalletBalances = {
   tokens: Record<string, bigint>
 }
 
+/** Live SOLZ token. Collateral remains deployment configuration. */
+export const SOLZ_WALLET_ASSET = {
+  symbol: 'SOLZ',
+  mint: 'soLZV1owGUPERxCUNivWUUadNwwNzdtXMU5Wq13BYfV',
+  decimals: 9,
+} as const satisfies SolanaWalletAsset
+
+export const DEVNET_SOLZ_WALLET_ASSET = {
+  symbol: 'fSOLZ22',
+  mint: '4N7d177zYPmGZeEhvsUaV9u8KCEPaW64L4YBtMf4ZTNf',
+  decimals: 9,
+} as const satisfies SolanaWalletAsset
+
+/** Fixture-only devnet assets. Deployed wallet UI must not use this list. */
 export const SOLANA_DEVNET_WALLET_ASSETS = [
   {
     symbol: 'fUSDC',
@@ -20,9 +34,7 @@ export const SOLANA_DEVNET_WALLET_ASSETS = [
     decimals: 6,
   },
   {
-    symbol: 'fSOLZ22',
-    mint: '4N7d177zYPmGZeEhvsUaV9u8KCEPaW64L4YBtMf4ZTNf',
-    decimals: 9,
+    ...DEVNET_SOLZ_WALLET_ASSET,
   },
 ] as const satisfies readonly SolanaWalletAsset[]
 

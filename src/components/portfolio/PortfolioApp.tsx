@@ -199,7 +199,7 @@ export function Portfolio({ apiUrl, matchApiUrl = '', profile }: { apiUrl: strin
 
   useEffect(() => {
     if (profile) return
-    if (solanaWallet) window.location.replace(profileHref('solana', solanaNetwork(solanaVenue?.chainId) ?? 'devnet', solanaWallet.address))
+    if (solanaWallet) window.location.replace(profileHref('solana', solanaNetwork(solanaVenue?.chainId) ?? 'mainnet', solanaWallet.address))
     else if (wallet) window.location.replace(profileHref('somnia', 'testnet', wallet.address))
   }, [profile, wallet, solanaWallet, solanaVenue?.chainId])
 

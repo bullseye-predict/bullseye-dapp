@@ -249,5 +249,5 @@ export function tradingCollateral(
   network: "SOLANA" | "SOMNIA",
   chainId: string,
 ) {
-  return network === "SOLANA" ? "fUSDC" : chainId === "5031" ? "USDso" : "tUSDC";
+  return network === "SOLANA" ? "USDC" : chainId === "5031" ? "USDso" : "tUSDC";
 }

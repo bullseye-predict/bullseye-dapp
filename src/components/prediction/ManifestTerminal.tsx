@@ -50,7 +50,7 @@ function ConfiguredManifest({ venue, apiUrl }: Props) {
     {draftError && <p className="pt-error" role="status">New question catalogue: {draftError}</p>}
     {selectedLive ? <QuestionTerminal key={`${address}:${solanaWallet?.address ?? ''}`} client={client} adapter={adapter} wallet={wallet} labels={selectedLive.outcomes} address={address} matchId={selectedLive.matchId} apiUrl={apiUrl}/>
       : selectedDraft ? <LazyQuestionActivation draft={selectedDraft} wallet={wallet} apiUrl={apiUrl} onReady={() => setActivated(current => [...current.filter(market => market.address !== selectedDraft.marketId), { address:selectedDraft.marketId, matchId:selectedDraft.matchId, label:selectedDraft.label, outcomes:selectedDraft.outcomes }])}/>
-      : <div className="pt-empty"><h3>No Solana markets configured</h3><p>There are no active or reserved devnet questions right now.</p></div>}</>
+      : <div className="pt-empty"><h3>No Solana markets configured</h3><p>There are no active or reserved Solana questions right now.</p></div>}</>
 }
 type LiveQuestion = { address:string; matchId:string; label:string; outcomes:string[] }
 type LazyQuestion = { eventId:string; marketId:string; matchId:string; questionId:string; label:string; outcomes:[string,string]; scheduledStartAt:string; status:'reserved' }

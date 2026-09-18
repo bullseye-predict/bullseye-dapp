@@ -1,5 +1,5 @@
 import { getWalletProviderRegistry, type BaseWalletAccount } from '@dynamic-labs-sdk/client/core'
-import { solanaRpcEndpoint } from './solanaRpc'
+import { solanaNetworkFromRpcEndpoint, solanaRpcEndpoint, solscanAccountUrl } from './solanaRpc'
 import {
   useConnectAndVerifyWithWalletProvider,
   useGetAvailableWalletProvidersData,
@@ -204,9 +204,9 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
             })}
             <p>Orders, positions, and payouts use the selected wallet.</p>
           </div>}
-          <a href={profileHref('solana', 'devnet', selectedWallet.address)}>Profile</a>
+          <a href={profileHref('solana', solanaNetworkFromRpcEndpoint(), selectedWallet.address)}>Profile</a>
           <button type="button" onClick={() => void navigator.clipboard.writeText(selectedWallet.address).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1_600) })}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? 'Copied' : 'Copy address'}</button>
-          <a href={`https://solscan.io/account/${selectedWallet.address}?cluster=devnet`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Solscan</a>
+          <a href={solscanAccountUrl(selectedWallet.address)} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" /> Solscan</a>
           <button type="button" disabled={logoutPending} onClick={() => void logout().then(() => queryClient.clear())}><LogOut size={14} aria-hidden="true" /> Log out</button>
         </div>
       </details>

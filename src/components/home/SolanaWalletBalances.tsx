@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { getPredictionConfig } from '../../../packages/sdk/PredictionTradingClient'
 import {
   readSolanaWalletBalances,
-  SOLANA_DEVNET_WALLET_ASSETS,
+  DEVNET_SOLZ_WALLET_ASSET,
+  SOLZ_WALLET_ASSET,
   type SolanaWalletBalances as BalanceValue,
 } from '../../../packages/adapters/solana/wallet-balances'
+import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
+import { publicSolanaVenue } from './solanaVenueFallback'
 import { schedulePoll } from './venue/pollGate'
 import { noteRpcThrottled } from '../../../packages/adapters/solana/manifest/throttle'
 
@@ -13,7 +16,7 @@ type Props = {
   apiUrl?: string
 }
 const CACHE_MAX_AGE_MS = 2 * 60_000
-const CACHE_PREFIX = 'coola:solana-wallet:v1:'
+const CACHE_PREFIX = 'coola:solana-wallet:v2:'
 
 function cacheKey(apiUrl: string, address: string) { return `${CACHE_PREFIX}${apiUrl}:${address}` }
 function readCachedBalance(apiUrl: string, address: string): BalanceValue | null {
@@ -42,10 +45,12 @@ function compact(amount: bigint, decimals: number) {
 /** Compact read-only Solana wallet overview for the shared site header. */
 export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
   const [value, setValue] = useState<BalanceValue | null>(null)
+  const [assets, setAssets] = useState<readonly SolanaWalletAssetView[]>([])
   const [error, setError] = useState(false)
 
   useEffect(() => {
     setValue(null)
+    setAssets([])
     setError(false)
     if (!apiUrl) return
     let active = true
@@ -56,9 +61,11 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
     const load = async () => {
       try {
         const config = await getPredictionConfig(apiUrl, AbortSignal.timeout(10_000))
-        const venue = config.venues.find((item) => item.family === 'SOLANA' && item.publicRpcUrl)
+        const venue = config.venues.find((item) => item.family === 'SOLANA' && item.publicRpcUrl) ?? publicSolanaVenue()
         if (!venue?.publicRpcUrl) throw new Error('Solana RPC unavailable')
-        const next = await readSolanaWalletBalances(venue.publicRpcUrl, address, SOLANA_DEVNET_WALLET_ASSETS)
+        const nextAssets = walletAssets(venue)
+        if (active) setAssets(nextAssets)
+        const next = await readSolanaWalletBalances(venue.publicRpcUrl, address, nextAssets)
         if (active) { writeCachedBalance(apiUrl, address, next); setValue(next); setError(false); retryDelay = 15_000 }
       } catch (reason) {
         if (/429|rate limit/i.test(reason instanceof Error ? reason.message : String(reason))) noteRpcThrottled()
@@ -79,6 +86,14 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
   const title = error ? 'Prediction backend or Solana RPC unavailable. Retrying automatically.' : undefined
   return <section className="ch-wallet-overview" aria-label="Solana wallet balances" aria-live="polite" data-state={error ? 'retrying' : value ? 'ready' : 'loading'} title={title}>
     <span className="ch-wallet-metric"><small>Native</small><b>{value ? compact(value.nativeLamports, 9) : pending}{value ? ' SOL' : ''}</b></span>
-    {SOLANA_DEVNET_WALLET_ASSETS.map((asset) => <span className="ch-wallet-metric" key={asset.mint}><small>Balance</small><b>{value ? `${compact(value.tokens[asset.symbol] ?? 0n, asset.decimals)} ${asset.symbol}` : pending}</b></span>)}
+    {assets.map((asset) => <span className="ch-wallet-metric" key={asset.mint}><small>Balance</small><b>{value ? `${compact(value.tokens[asset.symbol] ?? 0n, asset.decimals)} ${asset.symbol}` : pending}</b></span>)}
   </section>
+}
+
+type SolanaWalletAssetView = { symbol: string; mint: string; decimals: number }
+
+function walletAssets(venue: Pick<PublicPredictionVenue, 'chainId' | 'collateralToken' | 'collateralDecimals' | 'collateralSymbol'>): readonly SolanaWalletAssetView[] {
+  const collateral = { symbol: venue.collateralSymbol, mint: venue.collateralToken, decimals: venue.collateralDecimals }
+  const solz = venue.chainId === 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' ? DEVNET_SOLZ_WALLET_ASSET : SOLZ_WALLET_ASSET
+  return collateral.mint === solz.mint ? [collateral] : [collateral, solz]
 }
