@@ -189,6 +189,27 @@ export function lastExecution(view: Pick<VenueMarketView, 'last'>, market: Pick<
   return other && (!own || other.at > own.at) ? 1 - other.probability : own?.probability
 }
 
+/** A book that was read and has nothing in it.
+ *
+ *  The third state, and the reason this exists: `book === null` used to mean
+ *  both "still loading" and "this question has no books", so a question nobody
+ *  has traded yet shimmered forever instead of saying so. A read that came back
+ *  lands here — either the question is not opened on-chain, which the first
+ *  trade fixes, or the read failed, which the panel must name rather than
+ *  disguise as loading.
+ *
+ *  The empty table is kept so the panel holds its height and the column headings
+ *  stay readable; it takes no `onPick`, because there is no level to pick. */
+export function BookUnavailable({ label, error }: { label: string; error: string | null }) {
+  return <div className="ch-empty-book" role="status">
+    <OrderBookTable asks={[]} bids={[]} decimals={6} label={label}/>
+    <div className="ch-market-empty">
+      <strong>{error ? 'Order book unavailable.' : 'No order book yet.'}</strong>
+      <span>{error ?? 'This question is not open on-chain. The first trade creates it and activates both Manifest books; resting levels appear here from that moment.'}</span>
+    </div>
+  </div>
+}
+
 /** Keep the table geometry in place until the venue returns its first book. */
 export function OrderBookSkeleton({ label }: { label: string }) {
   const rows = ['ask', 'ask', 'spread', 'bid', 'bid'] as const
@@ -232,7 +253,13 @@ export function LiveOrderBook({ market, view, isNo, label, onPick, picked }: { m
   // refresh now sits in the tab strip, and the caption carries what the notes
   // used to say. What is left below the table is only ever a live condition.
   return <div className="ch-live-book">
-    {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book.noAsks : data.book.yesAsks) ?? []} bids={(isNo ? data.book.noBids : data.book.yesBids) ?? []} crossAsks={(isNo ? data.book.crossNoAsks : data.book.crossYesAsks) ?? []} crossLabel={isNo ? 'YES' : 'NO'} decimals={data.decimals} last={last} label={label} centerRowRef={centerRow} onPick={onPick} picked={picked} onRecenter={recenter}/></div> : <OrderBookSkeleton label={label}/>}
+    {/* Three states, not two. `view.now` is stamped by every completed read,
+        success or failure, so it is the one venue-neutral way to tell "the
+        venue has not answered yet" from "the venue answered and there is no
+        book". Only the first of those is a shimmer. */}
+    {data ? <div className="ch-order-book-viewport" ref={viewport}><OrderBookTable asks={(isNo ? data.book.noAsks : data.book.yesAsks) ?? []} bids={(isNo ? data.book.noBids : data.book.yesBids) ?? []} crossAsks={(isNo ? data.book.crossNoAsks : data.book.crossYesAsks) ?? []} crossLabel={isNo ? 'YES' : 'NO'} decimals={data.decimals} last={last} label={label} centerRowRef={centerRow} onPick={onPick} picked={picked} onRecenter={recenter}/></div>
+      : view.now ? <BookUnavailable label={label} error={view.error}/>
+        : <OrderBookSkeleton label={label}/>}
     {/* `crossed` fires on any overlap of the consolidated interval — a bid above
         an ask on one book, combined bids over 1, or combined asks under 1 — so
         the copy must not name one of those four as the cause. */}

@@ -5,6 +5,7 @@ import { manifestClient } from './manifestClients'
 import type { DepthLevel } from '../LiveOrderBook'
 import type { SolanaBinding, VenueBook, VenueMarketView, VenueQuote } from './types'
 import { bumpVenue, solanaScope, useVenueRevision } from './revision'
+import { schedulePoll } from './pollGate'
 
 // Orders are submitted with priceMantissa = priceMicros and priceExponent = -6,
 // so the resting price reads back as a 1e18 fixed point of quote atoms per base
@@ -63,13 +64,19 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean,
   const scope = binding ? solanaScope(binding.rpcUrl, binding.marketId) : ''
   const key = `${scope}:${owner ?? ''}`
   const revision = useVenueRevision(scope)
-  const [state, setState] = useState<{ key: string; book: VenueBook | null; quote: { yes?: VenueQuote; no?: VenueQuote } | null; error: string | null; now: number }>({ key: '', book: null, quote: null, error: null, now: 0 })
+  // `opened` is what the read actually found, kept apart from `error` so the
+  // panel can tell a question that has no books yet from a read that failed.
+  // Collapsing both into a null book is what made an unopened question shimmer
+  // as though it were still loading, forever.
+  const [state, setState] = useState<{ key: string; book: VenueBook | null; quote: { yes?: VenueQuote; no?: VenueQuote } | null; error: string | null; now: number; opened: boolean }>({ key: '', book: null, quote: null, error: null, now: 0, opened: false })
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (!enabled || !binding) return
     let active = true
-    let timer: ReturnType<typeof setTimeout>
+    // A cancel function rather than a timeout id: the poll is gated, so it
+    // may be waiting on a visibility or cooldown event instead of a clock.
+    let timer: (() => void) | undefined
     // Constructed inside the guard: ManifestAdapter's constructor throws on a
     // malformed deployment, and a throw in an effect body escapes React and
     // blanks the entire page rather than just emptying this panel.
@@ -82,7 +89,7 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean,
         collateralMint: binding.collateralMint,
       })
     } catch (reason) {
-      setState({ key, book: null, quote: null, now: Date.now(), error: reason instanceof Error ? reason.message : 'Solana venue misconfigured.' })
+      setState({ key, book: null, quote: null, opened: false, now: Date.now(), error: reason instanceof Error ? reason.message : 'Solana venue misconfigured.' })
       return
     }
     async function load() {
@@ -107,35 +114,40 @@ export function useSolanaMarket(binding: SolanaBinding | null, enabled: boolean,
         const side = (b: { asks(): unknown[]; bids(): unknown[] } | null) =>
           b ? { asks: levels(b.asks() as never[], owner), bids: levels(b.bids() as never[], owner) } : { asks: [], bids: [] }
         const y = side(yes as never), n = side(no as never)
+        // Neither book activated is the ordinary state of a question nobody has
+        // traded yet, not a failure. It is reported through `opened` so the
+        // panel draws an empty book and says the first trade opens it.
+        const activated = Boolean(yes || no)
         setState({
           key,
           now: Date.now(),
-          error: yes || no ? null : 'This question has no Manifest books yet.',
+          opened: activated,
+          error: null,
           // The same transform binaryQuotes applies one line below, so the ladder
           // the panel draws and the quote the Buy button prints cannot disagree
           // about what is executable. Asks only: there is no complete-set sell
           // route (inventory.ts nextSell), so a complemented bid ladder would
           // advertise levels this codebase deliberately cannot fill.
-          book: yes || no ? { yesAsks: y.asks, yesBids: y.bids, noAsks: n.asks, noBids: n.bids, crossYesAsks: complementAsks(n.bids), crossNoAsks: complementAsks(y.bids) } : null,
-          quote: yes || no ? binaryQuotes(executable(y.asks), executable(y.bids), executable(n.asks), executable(n.bids)) : null,
+          book: activated ? { yesAsks: y.asks, yesBids: y.bids, noAsks: n.asks, noBids: n.bids, crossYesAsks: complementAsks(n.bids), crossNoAsks: complementAsks(y.bids) } : null,
+          quote: activated ? binaryQuotes(executable(y.asks), executable(y.bids), executable(n.asks), executable(n.bids)) : null,
         })
       } catch (reason) {
         // A question whose books are not activated yet is the normal pre-first-trade
         // state, not an error worth showing as a failure.
-        if (active) setState(previous => ({ key, book: previous.key === key ? previous.book : null, quote: previous.key === key ? previous.quote : null, now: Date.now(), error: reason instanceof Error ? reason.message : 'Solana market data unavailable.' }))
+        if (active) setState(previous => ({ key, book: previous.key === key ? previous.book : null, quote: previous.key === key ? previous.quote : null, opened: previous.key === key ? previous.opened : false, now: Date.now(), error: reason instanceof Error ? reason.message : 'Solana market data unavailable.' }))
       } finally {
-        if (active) { setRefreshing(false); timer = setTimeout(load, 10_000) }
+        if (active) { setRefreshing(false); timer = schedulePoll(load, 10_000) }
       }
     }
     void load()
-    return () => { active = false; clearTimeout(timer) }
+    return () => { active = false; timer?.() }
   }, [key, enabled, revision])
 
   const refresh = useMemo(() => () => { if (scope) bumpVenue(scope) }, [scope])
-  const current = state.key === key ? state : { book: null, quote: null, error: null, now: 0 }
+  const current = state.key === key ? state : { book: null, quote: null, error: null, now: 0, opened: false }
   return {
     family: 'SOLANA',
-    opened: Boolean(binding) && current.book !== null,
+    opened: Boolean(binding) && current.opened,
     book: current.book,
     quote: current.quote ?? undefined,
     decimals: binding?.collateralDecimals ?? 6,

@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { consolidate, depthRows, lastExecution, levelPick, OrderBookSkeleton, OrderBookTable } from '../src/components/home/LiveOrderBook'
+import { BookUnavailable, consolidate, depthRows, lastExecution, levelPick, LiveOrderBook, OrderBookSkeleton, OrderBookTable } from '../src/components/home/LiveOrderBook'
+import { EMPTY_VIEW, type VenueMarketView } from '../src/components/home/venue/types'
+import type { ArenaMarket } from '../src/components/solz/model'
 import { activityRows } from '../packages/adapters/dreamdex/activity'
 const asks = [{ price: 100_000n, quantity: 25_000_000n }, { price: 550_000n, quantity: 10_000_000n }]
 
@@ -169,4 +171,40 @@ test('activity is newest first, correctly inverts NO fills, and excludes another
   expect(rows.map(row => row.id)).toEqual(['fill:12_6', 'fill:12_4', 'fill:10_1'])
   expect(rows[0].label).toBe('Buy NO filled')
   expect(rows[0].detail).toContain('5 shares at 55¢')
+})
+
+
+const question = { id: 'q', matchId: 'm', kind: 'match-winner', title: 'CRCLx vs KNOTS', description: '', status: 'indicative', closesAt: 0, volume: { SOL: 0, COOLA: 0 }, rules: '', outcomes: [{ id: 'yes', label: 'CRCLx', detail: '', probability: .5, indicative: true, priceHistory: [] }, { id: 'no', label: 'KNOTS', detail: '', probability: .5, indicative: true, priceHistory: [] }] } as unknown as ArenaMarket
+const book = (view: Partial<VenueMarketView>) =>
+  renderToStaticMarkup(<LiveOrderBook market={question} view={{ ...EMPTY_VIEW, ...view } as VenueMarketView} isNo={false} label="YES"/>)
+
+test('a venue that has not answered yet still shimmers', () => {
+  // `now` of 0 is the only loading state: no read has completed.
+  expect(book({ family: 'SOLANA' })).toContain('ch-book-skeleton')
+})
+
+test('a question with no books says so instead of shimmering forever', () => {
+  // The bug: an unopened Solana question returns a null book on every poll, so
+  // the panel shimmered for as long as it was left open.
+  const html = book({ family: 'SOLANA', now: 1_700_000_000_000, opened: false })
+  expect(html).not.toContain('ch-book-skeleton')
+  expect(html).toContain('No order book yet.')
+  expect(html).toContain('The first trade')
+  // The empty ladder is decorative: no level on a market that does not exist.
+  expect(html).not.toContain('data-level')
+})
+
+test('a failed read names the failure rather than disguising it as loading', () => {
+  const html = book({ family: 'SOLANA', now: 1_700_000_000_000, error: 'Solana market data unavailable.' })
+  expect(html).not.toContain('ch-book-skeleton')
+  expect(html).toContain('Order book unavailable.')
+  expect(html).toContain('Solana market data unavailable.')
+})
+
+test('the unavailable placeholder keeps the column headings', () => {
+  const html = renderToStaticMarkup(<BookUnavailable label="YES" error={null}/>)
+  expect(html).toContain('PRICE')
+  expect(html).toContain('SHARES')
+  expect(html).toContain('TOTAL')
+  expect(html).toContain('role="status"')
 })
