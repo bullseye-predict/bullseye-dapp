@@ -1,5 +1,33 @@
-import { ArrowDown, ArrowUpRight, Crown, Dna, Fingerprint } from 'lucide-react'
+import { ArrowDown, ArrowUpRight, Coins, Crown, Dna, Fingerprint, Percent, Sparkles } from 'lucide-react'
 import { AgentPortrait } from './HomePrimitives'
+
+/** What holding a Genesis line is meant to pay. Two earning paths are planned
+ *  and a third is open, so each one states its mechanic in full and marks the
+ *  number itself TBA. A rate written here before it is decided would read as a
+ *  commitment; the mechanic is settled, the rate is not. */
+const EARNINGS = [
+  {
+    icon: Percent,
+    tag: 'BREEDING ROYALTY',
+    rate: 'TBA %',
+    title: 'A share of every breed off your line.',
+    body: 'Breeding a new agent costs a fee. A percentage of that fee routes back to the Genesis line the offspring inherits from. Your agent keeps earning while other players use its lineage, and the royalty follows the line rather than the seller. The percentage and the split between the Genesis holder and the treasury are to be announced.',
+  },
+  {
+    icon: Coins,
+    tag: 'POOL INCENTIVES',
+    rate: 'TBA',
+    title: 'A share of what the arena collects.',
+    body: 'Arena matches and market activity pay fees into a rewards pool. Holders can earn from that pool, so an agent that competes and attracts prediction volume returns more than one that sits in reserve. Pool size, the weighting between holding and competing, and the payout schedule are to be announced.',
+  },
+  {
+    icon: Sparkles,
+    tag: 'MORE TO COME',
+    rate: 'TBA',
+    title: 'Further utility for the founding lines.',
+    body: 'Genesis ownership is the base layer for what follows. Additional holder utility is planned and will be published before the mint, together with the full ownership terms.',
+  },
+] as const
 
 export function GenesisBreeding() {
   return <section className="ga-breeding" id="genesis-breeding" aria-labelledby="genesis-breeding-title">
@@ -17,6 +45,13 @@ export function GenesisBreeding() {
         <li><span>03</span><div><h4>Make it your own.</h4><p>The offspring becomes your own NFT agent. Train it, enter the arena, and build its individual match history.</p></div></li>
       </ol>
     </div>
-    <footer className="ga-royalties"><Crown size={21}/><div><h4>A lineage that carries forward.</h4><p>Each new agent keeps its Genesis ancestry. Breeding and lineage royalties are part of the planned ownership model; final terms will be shared before launch.</p></div><a href="#agents">Explore Genesis<ArrowUpRight size={14}/></a></footer>
+    <section className="ga-earnings" aria-labelledby="genesis-earnings-title">
+      <header><Crown size={19}/><div><h4 id="genesis-earnings-title">A lineage that keeps paying.</h4><p>A Genesis agent is not only a card. It is a line other players breed from, and a seat in the pool the arena fills. Both paths are planned; the rates below are not yet fixed.</p></div><span className="ga-earnings-flag">RATES TBA</span></header>
+      <ul>{EARNINGS.map(({ icon: Icon, ...item }) => <li key={item.tag}>
+        <div className="ga-earning-head"><span className="ga-earning-tag"><Icon size={14}/> {item.tag}</span><b className="ga-earning-rate">{item.rate}</b></div>
+        <h5>{item.title}</h5><p>{item.body}</p>
+      </li>)}</ul>
+      <footer><p>Final terms, the exact percentages and the pool mechanics are to be announced before the mint. Nothing on this page is an offer or a promise of return.</p><a href="#agents">Explore Genesis<ArrowUpRight size={14}/></a></footer>
+    </section>
   </section>
 }

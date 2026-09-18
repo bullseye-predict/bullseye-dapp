@@ -3,6 +3,7 @@ import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstructi
 import { Buffer } from 'buffer'
 import type { Market, Order, TxResult } from '../../../packages/prediction-core/types'
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
+import { awaitConfirmation } from '../../../packages/adapters/solana/manifest/browser'
 import type { LiveArenaWalletPort } from '../arena/liveArenaAdapter'
 import type { DynamicEvmWalletPort } from '../arena/DynamicSolanaSession'
 import { PredictionTradingClient } from '../../../packages/sdk/PredictionTradingClient'
@@ -153,8 +154,10 @@ export async function connectSolanaTradingWallet(config: PublicPredictionVenue, 
     await check()
     if (!Buffer.from(signed.serializeMessage()).equals(expectedMessage)) throw new Error('The wallet changed the requested transaction.')
     const txHash = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: false })
-    const receipt = await connection.confirmTransaction({ ...recent, signature: txHash }, 'confirmed')
-    if (receipt.value.err) throw new Error(`Transaction failed: ${txHash}`)
+    // Same reason as the Manifest wallet: confirmTransaction asks getBlockHeight
+    // once a second for the life of the blockhash, which is a request per second
+    // per transaction against the same rate limit the trade is competing for.
+    await awaitConfirmation(connection, txHash, recent.lastValidBlockHeight)
     return { id: txHash, txHash, status: 'CONFIRMED' }
   }
   const client = new PredictionTradingClient({ baseUrl, audience, venue: 'SOLANA', chainId: config.chainId, account: vault.toBase58(),

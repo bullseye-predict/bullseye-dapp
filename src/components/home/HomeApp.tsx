@@ -7,8 +7,6 @@ import {
   ArrowUpRight,
   Bot,
   ChartNoAxesCombined,
-  Check,
-  Copy,
   Radio,
   Zap,
 } from "lucide-react";
@@ -17,28 +15,25 @@ import { createSolzDataSource } from "../solz/solzDataSource";
 import type { ArenaMarket, ArenaMarketOutcome, SolzMatch } from "../solz/model";
 import { useHomeData } from "./useHomeData";
 import { AppShell } from "../solz/AppShell";
-import { TradeContextBar } from "./TradeContextBar";
 import { broadcastBelongsToMatch, MatchViewer } from "./MatchViewer";
 import { InteractionConsole, type ConsoleSection } from "./InteractionConsole";
-import { ArenaEntry, LiveMatches, NextMatches, TeamStandings } from "./CommunitySections";
+import { CatwalkEntry, LiveMatches, NextMatches, ProgrammeStandings } from "./CommunitySections";
+import { useCatwalkBoard } from "../catwalk/useCatwalkBoard";
 import { GenesisAgents } from "./GenesisAgents";
-import { StatusDot } from "./HomePrimitives";
 import type { PredictionAnswer } from "../solz/predictionContracts";
 import {
   matchIdLabel,
   shouldShowSeason,
   type HighlightView,
 } from "./heroMarket";
-import {
-  MarketSourceControls,
-  type MarketSource,
-  type SolanaCluster,
-  type SomniaChain,
-} from "./MarketSourceControls";
+import type { MarketSource, SomniaChain } from "./MarketSourceControls";
+import { solanaClusterLabel } from "../../../packages/adapters/solana/cluster";
 import { useSomniaMarketPrices } from "./useVenueMarketPrices";
 import { useSolanaMarketPrices } from "./useSolanaMarketPrices";
-import { resolveMatchMarkets, useReservedSolanaQuestions } from "./solanaQuestionMarkets";
+import { questionTradeable, resolveMatchMarkets, useReservedSolanaQuestions } from "./solanaQuestionMarkets";
 import { useSolanaVenue } from "./useSolanaVenue";
+import { useMiawPrixHighlight } from "./useMiawPrixHighlight";
+import { seasonLabel } from "../miawprix/board";
 
 type Props = {
   apiUrl?: string;
@@ -50,76 +45,11 @@ type Props = {
 };
 
 const BREAK_DURATION_MS = 5 * 60_000;
+/** 2XL and up. Narrower than this, the console rail opens Trade only. */
+const CONSOLE_BOTH_OPEN = "(min-width: 1536px)";
 
-export function MatchHeading({
-  match,
-  season,
-  copied,
-  onCopy,
-}: {
-  match: SolzMatch;
-  season: boolean;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        "solz:arena:match-clock",
-        JSON.stringify({
-          matchId: match.id,
-          displayMatchId: match.displayMatchId,
-          phase: match.phase,
-          startedAt: match.startedAt,
-          endsAt: match.endsAt,
-          savedAt: Date.now(),
-        }),
-      );
-    } catch {
-      // The live feed remains authoritative when storage is unavailable.
-    }
-  }, [
-    match.displayMatchId,
-    match.endsAt,
-    match.id,
-    match.phase,
-    match.startedAt,
-  ]);
-
-  const displayId = matchIdLabel(match);
-  const shortId = match.id.replace(/^arena-/, "");
-
-  return (
-    <div className="sh-match-heading">
-      <h1>
-        {season ? "SEASON HIGHLIGHT" : "HIGHLIGHT MATCH"}
-        <span aria-hidden="true">↗</span>
-      </h1>
-      <span className="sh-highlight-kicker">
-        <StatusDot>GENESIS SERIES</StatusDot>
-        <span>
-          SEASON 01 / {displayId}{" "}
-          <button
-            className="sh-match-id"
-            type="button"
-            title="Copy full match ID"
-            aria-label={`Copy match ID ${shortId}`}
-            onClick={onCopy}
-          >
-            {copied ? (
-              <Check size={11} aria-hidden="true" />
-            ) : (
-              <Copy size={11} aria-hidden="true" />
-            )}
-            <code>
-              {shortId.slice(0, 6)}…{shortId.slice(-6)}
-            </code>
-          </button>
-        </span>
-      </span>
-    </div>
-  );
-}
+/** Somnia has no chain switcher on the page any more; this was its default. */
+const SOMNIA_CHAIN: SomniaChain = "50312";
 
 export function HomeApp({
   apiUrl = "",
@@ -154,28 +84,67 @@ function Home({
   eventBasePath,
   marketSources,
 }: Props) {
+  // The source switcher is gone from the page, so this is a fixed choice now:
+  // the strongest venue the deployment configured, Solana first.
   const [marketSource, setMarketSource] = useState<MarketSource>(() =>
-    marketSources.includes("SOMNIA")
-      ? "SOMNIA"
-      : (marketSources[0] ?? "SIMULATION"),
+    marketSources.includes("SOLANA")
+      ? "SOLANA"
+      : marketSources.includes("SOMNIA")
+        ? "SOMNIA"
+        : (marketSources[0] ?? "SIMULATION"),
   );
-  const [solanaCluster, setSolanaCluster] = useState<SolanaCluster>("devnet");
-  const [somniaChain, setSomniaChain] = useState<SomniaChain>("50312");
+  // Both venues were reader-toggled. With the switcher gone the Solana label
+  // comes from the venue's genesis hash instead, which is the one cluster fact
+  // that cannot drift - see packages/adapters/solana/cluster.ts, whose own
+  // notes name this toggle as the thing that used to announce a mainnet
+  // deployment as devnet. Somnia keeps its previous default.
+  const somniaChain: SomniaChain = SOMNIA_CHAIN;
   const source = useMemo(() => createSolzDataSource(), []);
-  const { snapshot, referenceSnapshot, error, predictionFeed, arenaSchedule, retry } =
+  const { snapshot, referenceSnapshot, error, predictionFeed, predictionFeedSettled, arenaSchedule, retry } =
     useHomeData(source, apiUrl);
   const solanaVenue = useSolanaVenue(apiUrl, marketSources.includes("SOLANA"));
-  const reservedSolana = useReservedSolanaQuestions(apiUrl, solanaVenue, true, snapshot?.matches ?? []).questions;
+  const reservedQuestions = useReservedSolanaQuestions(apiUrl, solanaVenue, true, snapshot?.matches ?? []);
+  const reservedSolana = reservedQuestions.questions;
+  // THE HIGHLIGHT IS THE MIAW PRIX PROGRAMME. Agent Colosseum runs the coin
+  // fixtures this page is about: two coins per match, one of them wins, and the
+  // prediction question is that pairing rather than twelve per-agent questions.
+  // The Genesis arena feed below still supplies the rest of the page - the
+  // roster, the standings, the live rooms - and stands in for the hero only
+  // when the programme has no open card at all.
+  const miawPrix = useMiawPrixHighlight("/api/agent-arena", apiUrl);
+  // CATWALK IS THE DOOR INTO THE PROGRAMME ABOVE, so the panel that explains it
+  // reads the real board rather than describing one.
+  //
+  // `schedule: false` because this page draws no lock clock, and the schedule
+  // read is byte-for-byte the programme read `useMiawPrixHighlight` is already
+  // making one line up - asking for it here would double the home page's traffic
+  // to the control plane for a fact nothing on this page renders.
+  const catwalk = useCatwalkBoard("/api/agent-arena", { schedule: false, pollMs: 60_000 });
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");
   const [marketId, setMarketId] = useState("");
   const [answer, setAnswer] = useState<PredictionAnswer>("yes");
   const [pinned, setPinned] = useState(false);
-  const [section, setSection] = useState<ConsoleSection | null>("trade");
+  // Live chat and Prompt Agent moved to the stage corners, so the rail holds
+  // only these two. Both start open only from 2XL up: below that the rail shares
+  // its column height with the ticket, and two open panels pushed Agent Trader's
+  // own controls past the fold. Trade is what a viewer came for, so it keeps the
+  // room and Agent Trader opens on demand. A lazy initial value is safe here -
+  // this island is client:only, so there is no server pass to disagree with.
+  const [sections, setSections] = useState<ConsoleSection[]>(() =>
+    typeof window !== "undefined" && window.matchMedia?.(CONSOLE_BOTH_OPEN).matches
+      ? ["trade", "automate"]
+      : ["trade"],
+  );
+  const [chatOpen, setChatOpen] = useState(false);
   const [promptAgentId, setPromptAgentId] = useState<string | undefined>();
   const [dreamDexRefresh, setDreamDexRefresh] = useState(0);
   const [matchIdCopied, setMatchIdCopied] = useState(false);
+  const openSection = (name: ConsoleSection) =>
+    setSections((current) =>
+      current.includes(name) ? current : [...current, name],
+    );
   const [broadcastState, setBroadcastState] = useState<
     "preview" | "intermission" | "preparing" | "live" | "unavailable" | null
   >(null);
@@ -188,11 +157,29 @@ function Home({
   // A trade reservation is independent from the actual game feed. Never let a
   // stale reservation replace a game the arena is already reporting as live.
   const liveMatch = snapshot?.matches.find((item) => item.phase === "live");
-  const loadedMatch = selectedMatch?.phase === "live" ? selectedMatch : liveMatch ?? selectedMatch;
+  const arenaMatch = selectedMatch?.phase === "live" ? selectedMatch : liveMatch ?? selectedMatch;
+  // A reader who picked a match out of the page keeps it. Otherwise the
+  // programme's card is the hero, and the arena room is the fallback.
+  const programme = matchId ? undefined : miawPrix.highlight;
+  const loadedMatch = programme?.match ?? arenaMatch;
+  // Matched on BOTH canonical ids. A Genesis arena question names its event by
+  // this site's own `arena-<id>` display identity, while a MIAW PRIX question
+  // names the Colosseum matchId that is also the match's id here; one equality
+  // cannot answer for both, and the wrong one leaves a live pairing with no
+  // tradable market at all.
   const loadedSolanaQuestions = marketSource === "SOLANA" && loadedMatch
-    ? reservedSolana.filter((item) => item.question.eventId === loadedMatch.id)
+    ? reservedSolana.filter(
+        (item) =>
+          item.question.eventId.toLowerCase() === loadedMatch.id.toLowerCase() ||
+          item.question.matchId.toLowerCase() === loadedMatch.id.toLowerCase(),
+      )
     : [];
-  const reservedSolanaMatch = marketSource === "SOLANA" && !loadedMatch ? reservedSolana[0] : undefined;
+  // The first TRADEABLE question. The catalogue also publishes recently
+  // finished ones so a held position can be named, and the highlight is an
+  // invitation to trade rather than a record of what is over.
+  const reservedSolanaMatch = marketSource === "SOLANA" && !loadedMatch
+    ? reservedSolana.find((item) => questionTradeable(item.question))
+    : undefined;
   const match: SolzMatch | undefined = loadedMatch ?? reservedSolanaMatch?.match ??
     (externalFeedPending && snapshot
       ? {
@@ -234,13 +221,18 @@ function Home({
   // the backend composes one linked binary question per participant on demand -
   // which is what makes an FFA field tradable without anyone pre-registering a row
   // for it. The only identity that matters is (matchId, questionId).
-  const catalogueMarkets = useMemo(
-    () =>
-      marketSource === "SOLANA" && !season
-        ? loadedSolanaQuestions.map((item) => item.market)
-        : [],
-    [loadedSolanaQuestions, marketSource, season],
-  );
+  const catalogueMarkets = useMemo(() => {
+    if (season) return [];
+    if (marketSource === "SOLANA" && loadedSolanaQuestions.length)
+      return loadedSolanaQuestions.map((item) => item.market);
+    // The programme card's OWN moneyline, when no canonical question carries
+    // this pairing yet. It names the two coins and nothing else: it has no
+    // venue binding, so the ticket still reports that no market has been
+    // opened. That is the truth for a card the catalogue has not listed, and
+    // it beats "Prediction questions unavailable" over a fixture the page can
+    // name in full.
+    return programme ? [programme.market] : [];
+  }, [loadedSolanaQuestions, marketSource, programme, season]);
   // Where this match's questions come from, and whether that source is canonical.
   // Keying the ticket off /arena/events alone meant that endpoint being slow,
   // stalled or down took a live match with twelve valid questions to zero
@@ -333,11 +325,17 @@ function Home({
       : marketSource === "SOLANA"
         ? solana.markets
         : predictionMarkets;
+  // Same rule as MatchViewer: a live broadcast settles it, because a stored
+  // slot can still read `countdown` after the room has actually started. This
+  // flag blanks prices and closes the prompt composer, so a stale `countdown`
+  // used to mute a match that viewers could already see being played.
   const preparingMatch =
-    match?.phase === "countdown" ||
-    broadcastState === "preview" ||
-    broadcastState === "intermission" ||
-    broadcastState === "preparing";
+    broadcastState === "live"
+      ? false
+      : match?.phase === "countdown" ||
+        broadcastState === "preview" ||
+        broadcastState === "intermission" ||
+        broadcastState === "preparing";
   const activeMarkets = useMemo(
     () =>
       preparingMatch
@@ -383,34 +381,20 @@ function Home({
     marketSource === "SIMULATION"
       ? "LOCAL SIMULATION"
       : marketSource === "SOLANA"
-        ? `SOLANA ${solanaCluster.toUpperCase()}`
+        ? `SOLANA ${solanaClusterLabel(solanaVenue?.chainId)}`
         : `SOMNIA ${somniaChain === "50312" ? "TESTNET" : "MAINNET"}`;
-  const sourceStatus =
-    marketSource === "SIMULATION"
-      ? "LOCAL MEMORY · HELD"
-      : marketSource === "SOLANA"
-        ? loadedSolanaQuestions.length > 0
-          ? `${solanaCluster.toUpperCase()} · LIVE · ${loadedSolanaQuestions.length} LAZY QUESTIONS`
-          : reservedSolanaMatch
-            ? reservedSolanaMatch.question.status === "live"
-              ? `${solanaCluster.toUpperCase()} · LIVE · ${reservedSolana.filter(item => item.match.id === reservedSolanaMatch.match.id).length} LAZY QUESTIONS`
-            // The books, not a guess: a reserved question stops being 50/50 the
-            // moment anyone rests an order on it, and the producer knows how
-            // many of its books are actually readable.
-            // The producer names its own cluster now, from the venue's genesis
-            // hash. This used to strip a hardcoded 'DEVNET' off the status and
-            // prepend the reader's toggle instead — a label describing which
-            // button was clicked, not which chain answered.
-            : solana.status
-          : `${solanaCluster.toUpperCase()} · EVENT BINDINGS PENDING`
-        : somnia.status;
+  const promptWarning = !simulationEnabled
+    ? somniaChain === "5031" && marketSource === "SOMNIA"
+      ? "Mainnet selected. The live prompt relay is not integrated yet."
+      : "Agent directives open when the relay is configured and a match is live."
+    : undefined;
   const collateralSymbol =
     marketSource === "SOMNIA"
       ? somniaChain === "50312"
         ? "tUSDC"
         : "USDso"
       : marketSource === "SOLANA"
-        ? "fUSDC"
+        ? (solanaVenue?.collateralSymbol ?? "USDC")
         : "COOLA";
   const shellMarket: ArenaMarket | undefined = match
     ? {
@@ -438,10 +422,33 @@ function Home({
   const displayedMarket = market ?? shellMarket;
   const displayedOutcome = outcome ?? shellMarket?.outcomes[0];
   const marketAvailable = Boolean(market && outcome && activeMarkets.length);
-  const detailHref =
-    marketAvailable && !season
-      ? `${eventBasePath}/${encodeURIComponent(match?.id ?? "")}`
-      : undefined;
+  /**
+   * The question sources are still answering, so any count taken from them now
+   * is provisional.
+   *
+   * Deliberately NOT `externalFeedPending`: that stays true for as long as the
+   * prediction backend is down, and a "still loading" badge that never clears
+   * is the same lie in a different shape. These two flags flip once the
+   * request has been MADE, whatever it came back with.
+   */
+  const sourcesAnswered =
+    Boolean(snapshot) &&
+    predictionFeedSettled &&
+    (marketSource !== "SOLANA" || reservedQuestions.loaded);
+  /**
+   * Latched per match, because "pending" has to mean ONE thing.
+   *
+   * Both flags above go false again on a later pass - the catalogue re-polls,
+   * the arena refreshes on its schedule boundary - and a badge that drops back
+   * to an ellipsis every few seconds over a count it has already published is
+   * its own wrong answer: it reads as the page losing the questions it is
+   * visibly showing. So this says "no answer yet FOR THIS MATCH", and once an
+   * answer lands it stays answered until the match changes.
+   */
+  const answeredMatch = useRef<string | null>(null);
+  if (sourcesAnswered && match?.id) answeredMatch.current = match.id;
+  const marketsPending =
+    !sourcesAnswered && (!match?.id || answeredMatch.current !== match.id);
   const watchMatches = useMemo(
     () => ({
       matches: (snapshot?.matches ?? [])
@@ -479,17 +486,6 @@ function Home({
         : "smooth",
       block: "start",
     });
-  const chooseMatch = (next: SolzMatch) => {
-    setAnswer("yes");
-    setPinned(false);
-    setMarketId("");
-    setMatchId(next.id);
-    setOutcomeId("");
-    setPromptAgentId(undefined);
-    setView("live");
-    setSection("trade");
-    toHighlight();
-  };
   const selectPrediction = (
     nextMarket: ArenaMarket,
     nextOutcome: ArenaMarketOutcome,
@@ -498,14 +494,17 @@ function Home({
     setMarketId(nextMarket.id);
     setOutcomeId(nextOutcome.id);
     setAnswer(nextAnswer);
-    setSection("trade");
+    openSection("trade");
   };
   const chooseFeature = (
     feature: "watch" | "trade" | "automate" | "prompt" | "track",
   ) => {
     if (feature === "watch") setView("live");
     else if (feature === "track") setView("market");
-    else setSection(feature);
+    // The prompt composer lives in the stage's bottom-right corner now, and
+    // that corner only exists on the livestream tab.
+    else if (feature === "prompt") setView("live");
+    else openSection(feature);
     toHighlight();
   };
   const matchCode = match?.id.split("-")[1] ?? "07";
@@ -523,6 +522,33 @@ function Home({
       setMarketSource(marketSources[0] ?? "SIMULATION");
   }, [marketSource, marketSources]);
 
+  // Mirrored for the arena iframe, which reads this key to keep its own clock
+  // in step. It used to hang off the match heading; the heading is gone but the
+  // contract with the arena is not.
+  const displayMatchId = match?.displayMatchId;
+  const matchPhase = match?.phase;
+  const matchStartedAt = match?.startedAt;
+  const matchEndsAt = match?.endsAt;
+  const matchKey = match?.id;
+  useEffect(() => {
+    if (!matchKey) return;
+    try {
+      window.localStorage.setItem(
+        "solz:arena:match-clock",
+        JSON.stringify({
+          matchId: matchKey,
+          displayMatchId,
+          phase: matchPhase,
+          startedAt: matchStartedAt,
+          endsAt: matchEndsAt,
+          savedAt: Date.now(),
+        }),
+      );
+    } catch {
+      // The live feed remains authoritative when storage is unavailable.
+    }
+  }, [displayMatchId, matchEndsAt, matchKey, matchPhase, matchStartedAt]);
+
   return (
     <AppShell
       className="solz-home ch-home"
@@ -533,7 +559,22 @@ function Home({
       skipTo="#highlight"
       skipLabel="Skip to the arena"
     >
-        <NextMatches snapshot={snapshot} schedule={arenaSchedule} eventBasePath={eventBasePath} />
+        <NextMatches
+          snapshot={snapshot}
+          schedule={arenaSchedule}
+          programme={miawPrix.upcoming}
+          {...(miawPrix.season
+            // Only when the programme has actually named a season. MIAW PRIX
+            // opens at SEASON 00, while seasonLabel(null) is "NO SEASON" -
+            // not a thing to print over the Genesis arena fallback.
+            ? { seasonName: seasonLabel(miawPrix.season) }
+            : {})}
+          eventBasePath={eventBasePath}
+          highlight={match}
+          season={season}
+          matchIdCopied={matchIdCopied}
+          onCopyMatchId={copyMatchId}
+        />
         <section
           className="sh-highlight-section"
           ref={highlight}
@@ -541,44 +582,10 @@ function Home({
         >
           {snapshot && match && displayedMarket && displayedOutcome ? (
             <>
-              <div
-                className="ch-hero-grid"
-                id="network-trading-panel"
-                role="tabpanel"
-                aria-labelledby={`market-source-${marketSource}`}
-              >
-                <TradeContextBar
-                  networkControls={
-                    <MarketSourceControls
-                      sources={marketSources}
-                      source={marketSource}
-                      onSource={setMarketSource}
-                      solana={solanaCluster}
-                      onSolana={setSolanaCluster}
-                      somnia={somniaChain}
-                      onSomnia={setSomniaChain}
-                      status={sourceStatus}
-                    />
-                  }
-                  simulation={simulationEnabled}
-                  onSimulationChange={() => {}}
-                  showSimulationToggle={false}
-                  liveMatchCount={
-                    watchMatches.matches.filter((item) => item.phase === "live")
-                      .length
-                  }
-                />
+              <div className="ch-hero-grid" id="network-trading-panel">
                 <MatchViewer
                   onBroadcastState={setBroadcastState}
                   onBroadcastMatchId={reconcileBroadcastMatch}
-                  heading={
-                    <MatchHeading
-                      match={match}
-                      season={season}
-                      copied={matchIdCopied}
-                      onCopy={copyMatchId}
-                    />
-                  }
                   marketSourceLabel={sourceLabel}
                   collateralSymbol={collateralSymbol}
                   referenceMarkets={
@@ -586,36 +593,39 @@ function Home({
                   }
                   simulation={simulationEnabled}
                   answer={answer}
-                  detailHref={detailHref}
                   match={match}
                   market={displayedMarket}
                   markets={activeMarkets}
+                  marketsPending={marketsPending}
                   snapshot={snapshot}
                   source={source}
                   view={view}
-                  onView={setView}
+                  // Both stage plates belong to the livestream tab. The
+                  // composer unmounts with the panel; the chat field's open
+                  // flag lives here, so it is closed explicitly - otherwise it
+                  // reopened by itself on the way back.
+                  onView={(next) => {
+                    setView(next);
+                    if (next !== "live") setChatOpen(false);
+                  }}
                   outcome={displayedOutcome}
                   onSelect={selectPrediction}
                   liveHref={liveHref}
-                  onChat={() => setSection("chat")}
-                  onPrompt={() => setSection("prompt")}
+                  onChat={() => {
+                    setView("live");
+                    setChatOpen(true);
+                  }}
+                  onPrompt={() => setView("live")}
+                  promptAgentId={promptAgentId}
+                  promptWarning={promptWarning}
+                  chatOpen={chatOpen}
+                  onChatClose={() => setChatOpen(false)}
                   season={season}
-                  pinned={pinned}
-                  onPin={() => setPinned(!pinned)}
                 />
                 <InteractionConsole
                   automationWarning={
                     marketSource === "SOMNIA"
                       ? "Somnia automation is unavailable: BotKit and Hermes Agent are not integrated yet."
-                      : !simulationEnabled
-                        ? "Live auto trading is not integrated on this network yet."
-                        : undefined
-                  }
-                  promptWarning={
-                    !simulationEnabled
-                      ? somniaChain === "5031" && marketSource === "SOMNIA"
-                        ? "Mainnet selected. The live prompt relay is not integrated yet."
-                        : "Prompt Agent is mainnet-only. Switch to Somnia Mainnet when the directive relay is available."
                       : undefined
                   }
                   solana={marketSource === "SOLANA"}
@@ -628,7 +638,7 @@ function Home({
                     setDreamDexRefresh((value) => value + 1)
                   }
                   marketAvailable={marketAvailable}
-                  key={`${match.id}:${marketSource}:${solanaCluster}:${somniaChain}`}
+                  key={`${match.id}:${marketSource}:${solanaVenue?.chainId ?? ""}:${somniaChain}`}
                   source={source}
                   snapshot={snapshot}
                   match={match}
@@ -641,53 +651,30 @@ function Home({
                   answer={answer}
                   onAnswer={setAnswer}
                   simulation={simulationEnabled}
-                  section={section}
-                  onSection={setSection}
-                  promptAgentId={promptAgentId}
+                  sections={sections}
+                  onSections={setSections}
+                  hideChat
+                  hidePrompt
                   intermission={preparingMatch || season}
                 />
               </div>
             </>
           ) : error ? (
-            <>
-              <div className="sh-highlight-heading">
-                <div>
-                  <h1>
-                    HIGHLIGHT MATCH<span aria-hidden="true">↗</span>
-                  </h1>
-                  <span className="sh-highlight-kicker">
-                    <StatusDot>GENESIS SERIES</StatusDot>
-                    <span>SEASON 01</span>
-                  </span>
-                </div>
-              </div>
-              <div className="sh-load-state" role="alert">
-                <h2>The arena couldn’t load.</h2>
-                <p>{error}</p>
-                <button className="sh-button" onClick={retry}>
-                  Try again
-                </button>
-              </div>
-            </>
+            // The match identity lives in the UP NEXT rail above now, so these
+            // two states are the state alone.
+            <div className="sh-load-state" role="alert">
+              <h2>The arena couldn’t load.</h2>
+              <p>{error}</p>
+              <button className="sh-button" onClick={retry}>
+                Try again
+              </button>
+            </div>
           ) : (
-            <>
-              <div className="sh-highlight-heading">
-                <div>
-                  <h1>
-                    HIGHLIGHT MATCH<span aria-hidden="true">↗</span>
-                  </h1>
-                  <span className="sh-highlight-kicker">
-                    <StatusDot>GENESIS SERIES</StatusDot>
-                    <span>SEASON 01</span>
-                  </span>
-                </div>
-              </div>
-              <div className="sh-loading" role="status">
-                <div />
-                <div />
-                <span>Loading the arena…</span>
-              </div>
-            </>
+            <div className="sh-loading" role="status">
+              <div />
+              <div />
+              <span>Loading the arena…</span>
+            </div>
           )}
         </section>
         {snapshot && (
@@ -750,8 +737,12 @@ function Home({
           <>
             <LiveMatches feed={watchMatches} watchHref={liveHref} />
             <div className="sh-community-grid">
-              <TeamStandings snapshot={snapshot} onSelect={chooseMatch} />
-              <ArenaEntry snapshot={snapshot} source={source} />
+              <ProgrammeStandings
+                board={miawPrix.board}
+                loading={!miawPrix.loaded}
+                refreshing={miawPrix.refreshing}
+              />
+              <CatwalkEntry feed={catwalk} />
             </div>
             <GenesisAgents
               snapshot={snapshot}
@@ -768,8 +759,10 @@ function Home({
                   setMatchId(nextMatch.id);
                   setOutcomeId("");
                   setPromptAgentId(agentId);
+                  // The prompt composer is the stage's bottom-right corner,
+                  // which only exists on the livestream tab. PromptComposer
+                  // focuses its field when promptAgentId names a roster agent.
                   setView("live");
-                  setSection("prompt");
                   toHighlight();
                 }
               }}

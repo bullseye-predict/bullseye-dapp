@@ -20,6 +20,9 @@ type Props = {
   markets: ArenaMarket[]; market: ArenaMarket; outcome: ArenaMarketOutcome; snapshot: SolzSnapshot
   answer?: PredictionAnswer; onSelect: (market: ArenaMarket, outcome: ArenaMarketOutcome, answer?: PredictionAnswer) => void
   simulation: boolean; referenceMarkets?: ArenaMarket[]; sourceLabel?: string
+  /** The question sources are still answering, so this list is provisional and
+   *  must not be announced as a settled count. */
+  pending?: boolean
   /** The venue's own collateral symbol. Derived from the venue config, never
    *  guessed from the display label — which fell through to the literal word
    *  "collateral" for every source it did not know by name, Solana included. */
@@ -33,7 +36,7 @@ export function PredictionOptions(props: Props) {
   // books meant two polling panels and a list you had to scroll past to read.
   const [openTopic, setOpenTopic] = useState<string | null>(props.market.id)
   return <div className="ch-options" aria-label="Related predictions">
-    <div className="ch-options-heading"><div><div className="ch-options-title"><h2>Make your call.</h2><span className="ch-options-match">{props.match && <MatchAvatar id={props.match.id}/>}<b>{displayId}</b></span></div><p>{props.markets.length} predictions · select a topic or an outcome</p></div><span className="ch-simulation">{props.sourceLabel ?? (props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS')}</span></div>
+    <div className="ch-options-heading"><div><div className="ch-options-title"><h2>Make your call.</h2><span className="ch-options-match">{props.match && <MatchAvatar id={props.match.id}/>}<b>{displayId}</b></span></div><p>{props.pending ? 'Reading this match\u2019s questions\u2026' : `${props.markets.length} predictions \u00b7 select a topic or an outcome`}</p></div><span className="ch-simulation">{props.sourceLabel ?? (props.simulation ? 'SAMPLE MARKETS' : 'NEON EVENT DRAFTS')}</span></div>
     <div className="ch-options-scroll" tabIndex={0} aria-label="Scrollable prediction options">{props.markets.map((item) => <PredictionTopic {...props} item={item} key={item.id} open={openTopic === item.id} onOpen={() => setOpenTopic((current) => current === item.id ? null : item.id)}/>)}</div>
   </div>
 }

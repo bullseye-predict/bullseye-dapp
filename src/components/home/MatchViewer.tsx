@@ -6,13 +6,13 @@ import {
   ExternalLink,
   ListFilter,
   Maximize,
-  Pin,
+  MousePointerClick,
   Play,
   Radio,
   X,
 } from "lucide-react";
 import { animate } from "animejs";
-import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type {
   ArenaMarket,
   ArenaMarketOutcome,
@@ -21,14 +21,15 @@ import type {
   SolzSnapshot,
 } from "../solz/model";
 import type { PredictionAnswer } from "../solz/predictionContracts";
-import { Tabs, TabPanel, formatClock } from "../solz/ui";
+import { CutoutCorner, Tabs, TabPanel, formatClock } from "../solz/ui";
 import { AgentPortrait, compact, TeamMark } from "./HomePrimitives";
 import { ProbabilityChart } from "../markets/ProbabilityChart";
 import { chartHeadline, chartSeries } from "../markets/chartSeries";
 import { emptyChart } from "../markets/chartEmpty";
 import { PredictionOptions } from "./PredictionOptions";
 import { HeroActivity } from "./HeroActivity";
-import { matchIdLabel, teamLabel, type HighlightView } from "./heroMarket";
+import { StageChatCorner, StagePromptCorner } from "./StageCorners";
+import { matchIdLabel, sideLabel, type HighlightView } from "./heroMarket";
 import { needsIframeWarning, useArenaPerformance, type ArenaPerformance } from "./useArenaPerformance";
 
 // Stable source identity keeps market ticks independent from playback.
@@ -55,6 +56,9 @@ const BroadcastMedia = memo(function BroadcastMedia({
 }) {
   const [failed, setFailed] = useState(false);
   const [mode, setMode] = useState<"iframe" | "video">("video");
+  // The embedded game swallows every click it is given, including the ones
+  // meant for the page around it, so it starts inert and the viewer opts in.
+  const [interactive, setInteractive] = useState(false);
   const [iframeWarning, setIframeWarning] = useState<ArenaPerformance | null>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
   const performanceDialog = useRef<HTMLDialogElement>(null);
@@ -67,6 +71,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
   const chooseMode = (next: "iframe" | "video") => {
     setMode(next);
     setFailed(false);
+    setInteractive(false);
   };
   const requestMode = async (next: "iframe" | "video") => {
     if (next === "video") { chooseMode(next); return; }
@@ -127,6 +132,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
         <iframe
           ref={iframe}
           className="sh-broadcast-image sh-broadcast-frame"
+          style={{ pointerEvents: interactive ? "auto" : "none" }}
           src={iframeSrc}
           title="SOLZ agent arena livestream"
           allow="autoplay; fullscreen"
@@ -175,6 +181,21 @@ const BroadcastMedia = memo(function BroadcastMedia({
         <strong>{context.time}</strong>
         <small>{context.detail}</small>
       </div>
+      {iframeActive && (
+        <div className="sh-broadcast-interact">
+          <button
+            type="button"
+            aria-pressed={interactive}
+            onClick={() => {
+              setInteractive(!interactive);
+              if (!interactive) iframe.current?.focus();
+            }}
+          >
+            <MousePointerClick size={13} aria-hidden="true" />
+            {interactive ? "Release the game" : "Click to control the game"}
+          </button>
+        </div>
+      )}
       <div
         className="sh-broadcast-source"
         role="group"
@@ -274,6 +295,10 @@ type Props = {
   match: SolzMatch;
   market: ArenaMarket;
   markets: ArenaMarket[];
+  /** True while the question sources this list is built from are still in
+   *  flight. A count published before they answer is not a small count, it is
+   *  a WRONG one, and the tab prints it as fact. */
+  marketsPending?: boolean;
   snapshot: SolzSnapshot;
   source: SolzDataSource;
   view: HighlightView;
@@ -288,16 +313,18 @@ type Props = {
   onChat: () => void;
   onPrompt: () => void;
   season: boolean;
-  pinned: boolean;
-  onPin: () => void;
   broadcastOnly?: boolean;
-  detailHref?: string;
   referenceMarkets?: ArenaMarket[];
   simulation?: boolean;
   answer?: PredictionAnswer;
   marketSourceLabel?: string;
   collateralSymbol?: string;
-  heading?: ReactNode;
+  /** Pre-selects a recipient in the stage prompt corner and focuses its field. */
+  promptAgentId?: string;
+  promptWarning?: string;
+  /** The bottom-left chat field stays hidden until the CHAT HIGHLIGHTS rail asks for it. */
+  chatOpen?: boolean;
+  onChatClose?: () => void;
   onBroadcastState?: (state: ArenaBroadcastStatus["state"] | null) => void;
   onBroadcastMatchId?: (matchId: string | null) => void;
 };
@@ -331,21 +358,22 @@ export function MatchViewer({
   view,
   onView,
   outcome,
+  marketsPending = false,
   onSelect,
   liveHref,
   onChat,
   onPrompt,
   season,
-  pinned,
-  onPin,
-  detailHref,
   broadcastOnly = false,
   simulation = true,
   answer = "yes",
   referenceMarkets,
   marketSourceLabel,
   collateralSymbol,
-  heading,
+  promptAgentId,
+  promptWarning,
+  chatOpen = false,
+  onChatClose,
   onBroadcastState,
   onBroadcastMatchId,
 }: Props) {
@@ -353,14 +381,9 @@ export function MatchViewer({
   const livestreamChip = useRef<HTMLSpanElement>(null);
   const livestreamTab = useRef<HTMLSpanElement>(null);
   const [fullscreenError, setFullscreenError] = useState("");
-  const [detail, setDetail] = useState<ArenaMarket | null>(null);
   const [broadcastStatus, setBroadcastStatus] =
     useState<ArenaBroadcastStatus | null>(null);
   const [clock, setClock] = useState(() => Date.now());
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (detail && !dialog.current?.open) dialog.current?.showModal();
-  }, [detail]);
   async function fullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -369,6 +392,16 @@ export function MatchViewer({
       setFullscreenError("Full screen is unavailable in this browser.");
     }
   }
+  // A MIAW PRIX card is TWO COINS AND NO ROSTER: the programme's competitors
+  // are the coins themselves, and the agents that play the room are not part of
+  // the fixture. Every panel below that counts agents reads this first, so a
+  // real pairing is never announced as "0 AGENTS CONFIRMED" beside an empty
+  // grid. The mint is the test, not the team count: a Genesis team match also
+  // has two sides.
+  const coinSides =
+    match.teams.length === 2 && match.teams.every((team) => team.mint)
+      ? match.teams
+      : null;
   const winnerMarkets = markets.filter((item) => item.kind === "match-winner");
   const board = matchWinnerBoard(
     winnerMarkets,
@@ -384,11 +417,20 @@ export function MatchViewer({
   const boardChart = chartSeries(board, snapshot, {
     selectedId: boardOutcome?.id,
   });
+  // THE BROADCAST OUTRANKS THE STORED SLOT.
+  //
+  // A planned row keeps `countdown` until its own kickoff time passes, and that
+  // time drifts whenever a slot is replanned or a room starts late. The arena
+  // is the only thing that knows a match is actually running, so a `live`
+  // status ends the question: without this, a stale slot put a full-stage
+  // BREAK TIME card over a match that was already being played.
   const intermission =
-    match.phase === "countdown" ||
-    broadcastStatus?.state === "preview" ||
-    broadcastStatus?.state === "intermission" ||
-    broadcastStatus?.state === "preparing";
+    broadcastStatus?.state === "live"
+      ? false
+      : match.phase === "countdown" ||
+        broadcastStatus?.state === "preview" ||
+        broadcastStatus?.state === "intermission" ||
+        broadcastStatus?.state === "preparing";
   const publicMatchLabel = matchIdLabel(match);
   const matchCode =
     publicMatchLabel !== "MATCH —"
@@ -422,12 +464,39 @@ export function MatchViewer({
     timing.remainingMs === null ? null : formatClock(timing.remainingMs);
   const duration =
     timing.durationMs === null ? null : formatClock(timing.durationMs);
-  const broadcastContext: BroadcastContext = intermission
+  // BREAK TIME IS A COUNTDOWN, NOT EVERY STATE THAT IS NOT LIVE.
+  //
+  // `preparing` is what the arena posts whenever it has no match selected AND
+  // no break clock either - connecting, resolving a route, or sitting between
+  // rooms. It means "not known yet", and covering the stage with PREPARING
+  // MATCH announced a break the programme was not in. `preview` is the
+  // fifteen-second pre-roll, which is too short to hide the stage for.
+  //
+  // So the full-stage card is reserved for a real break window: the arena says
+  // `intermission`, or - when the arena has posted nothing at all, which is
+  // every Colosseum card, because LiveBroadcastPage only posts for the
+  // `agent-arena` channel - the stored slot is counting down to its own
+  // kickoff. Either way there has to be time left to put on it.
+  const breakTime =
+    intermission &&
+    Boolean(remaining) &&
+    (broadcastStatus
+      ? broadcastStatus.state === "intermission"
+      : match.phase === "countdown");
+  const broadcastContext: BroadcastContext = breakTime
     ? {
         state: "BREAK TIME",
-        time: remaining ? `${remaining} LEFT` : "PREPARING MATCH",
+        time: `${remaining} LEFT`,
         detail: `NEXT ${matchCode}`,
       }
+    : intermission
+      ? {
+          // Says what is true - the stage is waiting - without claiming a break
+          // window that has no clock behind it.
+          state: "STANDING BY",
+          time: remaining ? `${remaining} LEFT` : "PREPARING MATCH",
+          detail: `NEXT ${matchCode}`,
+        }
     : match.phase === "live"
       ? timing.remainingMs === 0
         ? {
@@ -447,7 +516,10 @@ export function MatchViewer({
           time: "FINAL",
           detail: "AWAITING NEXT MATCH",
         };
-  const isLiveBroadcast = match.phase === "live" && !intermission;
+  // A stored slot can still read `countdown` while the arena is playing, so
+  // the broadcast's own word counts as live on its own.
+  const isLiveBroadcast =
+    broadcastStatus?.state === "live" || (match.phase === "live" && !intermission);
   useEffect(() => {
     if (!isLiveBroadcast || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const targets = [livestreamChip.current, livestreamTab.current].filter((element): element is HTMLSpanElement => Boolean(element));
@@ -463,65 +535,53 @@ export function MatchViewer({
   }, [isLiveBroadcast]);
   return (
     <section className="ch-viewer" aria-label="Highlighted event viewer">
-      <div className="ch-view-navigation">
-        <div className="ch-match-actions">
-          {heading ?? (
-            <>
-              {!detailHref && (
-                <button
-                  className="ch-detail-button"
-                  onClick={() => setDetail(structuredClone(market))}
-                >
-                  Match info <ArrowUpRight size={12} />
-                </button>
-              )}
-              {season && (
-                <button className="ch-pinned" onClick={onPin}>
-                  <Pin size={11} />
-                  {pinned ? "Pinned · release" : "Keep highlight"}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-        {!broadcastOnly && (
-          <Tabs
-            label="Highlight view"
-            idPrefix="highlight-view"
-            value={view}
-            onChange={onView}
-            tabs={[
-              {
-                id: "options",
-                label: (
-                  <>
-                    <ListFilter size={14} /> Predictions{" "}
-                    <span>{markets.length}</span>
-                  </>
-                ),
-              },
-              {
-                id: "market",
-                label: (
-                  <>
-                    <ChartNoAxesCombined size={14} /> Market
-                  </>
-                ),
-              },
-              {
-                id: "live",
-                label: (
-                  <span ref={livestreamTab} className={`ch-livestream-tab ${isLiveBroadcast ? "is-live" : ""}`}>
-                    <Radio size={14} /> Livestream
-                  </span>
-                ),
-              },
-            ]}
-          />
-        )}
-      </div>
       <div className="ch-viewer-body">
         <div className={`ch-screen ${season ? "is-season" : ""}`}>
+          {/* The view switch is a plate notched into the stage's top-left
+              corner, so it reads as part of the frame rather than a bar above
+              it. Its two wedges carry the plate's own colour. */}
+          {!broadcastOnly && (
+            <div className="ch-stage-tabs ch-stage-plate">
+              <Tabs
+                label="Highlight view"
+                idPrefix="highlight-view"
+                value={view}
+                onChange={onView}
+                tabs={[
+                  {
+                    id: "options",
+                    label: (
+                      <>
+                        <ListFilter size={14} /> Predictions{" "}
+                        {/* No number until the sources behind it have
+                            answered. An ellipsis says "counting"; a digit
+                            says "this is how many there are". */}
+                        <span>{marketsPending ? "…" : markets.length}</span>
+                      </>
+                    ),
+                  },
+                  {
+                    id: "market",
+                    label: (
+                      <>
+                        <ChartNoAxesCombined size={14} /> Market
+                      </>
+                    ),
+                  },
+                  {
+                    id: "live",
+                    label: (
+                      <span ref={livestreamTab} className={`ch-livestream-tab ${isLiveBroadcast ? "is-live" : ""}`}>
+                        <Radio size={14} /> Livestream
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+              <CutoutCorner size={28} className="ch-stage-cut ch-stage-cut--tl-side" />
+              <CutoutCorner size={28} className="ch-stage-cut ch-stage-cut--tl-below" />
+            </div>
+          )}
           <TabPanel
             id="live"
             idPrefix="highlight-view"
@@ -545,25 +605,27 @@ export function MatchViewer({
               <div className="sh-broadcast-top">
                 <span ref={livestreamChip} className={`sh-preview-chip ${isLiveBroadcast ? "is-live" : ""}`}>
                   {isLiveBroadcast && <i aria-hidden="true" />}
-                  {intermission
+                  {breakTime
                     ? "NEXT MATCH RESERVED"
                     : isLiveBroadcast
                       ? "LIVE BROADCAST"
-                      : "VIDEO UNAVAILABLE"}
+                      : intermission
+                        ? "STANDING BY"
+                        : "VIDEO UNAVAILABLE"}
                 </span>
                 <span>
                   <Eye size={13} />
                   {compact(match.viewers)} watching
                 </span>
               </div>
-              {!intermission && (
+              {!breakTime && (
                 <div
                   className={`ch-scoreboard ${match.teams.length > 2 ? "is-ffa" : ""}`}
                 >
                   {match.teams.map((team, index) => (
                     <div key={team.teamId} style={{ color: team.color }}>
-                      <TeamMark id={team.teamId} color={team.color} />
-                      <strong>{teamLabel(team.symbol)}</strong>
+                      <TeamMark id={team.teamId} color={team.color} logoUrl={team.logoUrl} />
+                      <strong>{sideLabel(team)}</strong>
                       <b>{String(team.score).padStart(2, "0")}</b>
                       {index === 0 && match.teams.length === 2 && (
                         <span className="ch-score-center">
@@ -576,7 +638,7 @@ export function MatchViewer({
                   ))}
                 </div>
               )}
-              {intermission ? (
+              {breakTime ? (
                 <div className="ch-intermission" role="status">
                   <div className="ch-intermission-copy">
                     <span>BREAK TIME</span>
@@ -591,12 +653,36 @@ export function MatchViewer({
                       </div>
                     )}
                     <p>
-                      The room is reserved and the match system is preparing the
-                      next round. Prediction sides remain visible at 50:50 until
-                      live pricing begins.
+                      {coinSides
+                        ? "The pairing is locked and the room is reserved. Prediction sides remain visible at 50:50 until live pricing begins."
+                        : "The room is reserved and the match system is preparing the next round. Prediction sides remain visible at 50:50 until live pricing begins."}
                     </p>
-                    <strong>{match.roster.length} AGENTS CONFIRMED</strong>
+                    <strong>
+                      {coinSides
+                        ? coinSides.map((team) => sideLabel(team)).join(" VS ")
+                        : `${match.roster.length} AGENTS CONFIRMED`}
+                    </strong>
                   </div>
+                  {coinSides ? (
+                    <div
+                      className="ch-intermission-roster ch-intermission-roster--coins"
+                      aria-label="Next match coin pairing"
+                    >
+                      {coinSides.map((team) => (
+                        <div key={team.teamId} style={{ color: team.color }}>
+                          <TeamMark
+                            id={team.teamId}
+                            color={team.color}
+                            logoUrl={team.logoUrl}
+                          />
+                          <span>
+                            <strong>{sideLabel(team)}</strong>
+                            <small>{team.name}</small>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <div
                     className="ch-intermission-roster"
                     aria-label="Next match agent roster"
@@ -621,6 +707,7 @@ export function MatchViewer({
                       );
                     })}
                   </div>
+                  )}
                   <small className="ch-intermission-lock">
                     CHECK THE TRADE PANEL FOR THIS EVENT’S ON-CHAIN CUTOFF
                   </small>
@@ -629,21 +716,34 @@ export function MatchViewer({
                 <div className="sh-broadcast-bottom">
                   <div>
                     <span className="sh-map-label">
-                      <Crosshair size={14} /> COOLA / GENESIS SERIES
+                      <Crosshair size={14} />{" "}
+                      {coinSides ? "MIAW PRIX / AGENT COLOSSEUM" : "COOLA / GENESIS SERIES"}
                     </span>
                     <h2>
                       {match.phase === "settled" ? "MATCH COMPLETE" : match.map}
                     </h2>
                     <div className="ch-broadcast-roster">
-                      {match.roster.map((entry) => (
-                        <span title={entry.codename} key={entry.agentId}>
-                          <AgentPortrait
-                            number={Number(entry.agentId.split("-")[1])}
-                          />
-                        </span>
-                      ))}
+                      {coinSides
+                        ? coinSides.map((team) => (
+                            <span title={team.name} key={team.teamId}>
+                              <TeamMark
+                                id={team.teamId}
+                                color={team.color}
+                                logoUrl={team.logoUrl}
+                              />
+                            </span>
+                          ))
+                        : match.roster.map((entry) => (
+                            <span title={entry.codename} key={entry.agentId}>
+                              <AgentPortrait
+                                number={Number(entry.agentId.split("-")[1])}
+                              />
+                            </span>
+                          ))}
                       <span>
-                        {match.roster.length} CAN AGENTS{" "}
+                        {coinSides
+                          ? coinSides.map((team) => sideLabel(team)).join(" VS ")
+                          : `${match.roster.length} CAN AGENTS`}{" "}
                         <span>
                           /{" "}
                           {match.phase === "settled"
@@ -666,6 +766,27 @@ export function MatchViewer({
                     </button>
                   </div>
                 </div>
+              )}
+              {/* Mounted inside the livestream panel on purpose: leaving this
+                  tab hides the panel and takes both corners with it, which is
+                  the "only available in livestream" rule with no extra state. */}
+              {!broadcastOnly && (
+                <StagePromptCorner
+                  source={source}
+                  snapshot={snapshot}
+                  match={match}
+                  promptAgentId={promptAgentId}
+                  intermission={intermission}
+                  simulation={simulation}
+                  warning={promptWarning}
+                />
+              )}
+              {!broadcastOnly && chatOpen && (
+                <StageChatCorner
+                  source={source}
+                  matchId={match.id}
+                  onClose={() => onChatClose?.()}
+                />
               )}
               {fullscreenError && (
                 <p className="sh-fullscreen-error" role="status">
@@ -721,6 +842,7 @@ export function MatchViewer({
                 sourceLabel={marketSourceLabel}
                 answer={answer}
                 key={`${match.id}-${season}`}
+                pending={marketsPending}
                 markets={markets}
                 market={market}
                 outcome={outcome}
@@ -734,12 +856,22 @@ export function MatchViewer({
                 <div className="ch-options-heading">
                   <div>
                     <h2>Make your call.</h2>
-                    <p>0 predictions · waiting for the prediction feed</p>
+                    <p>
+                      {marketsPending
+                        ? "Reading this match’s questions…"
+                        : "0 predictions · waiting for the prediction feed"}
+                    </p>
                   </div>
-                  <span className="ch-simulation">FEED UNAVAILABLE</span>
+                  <span className="ch-simulation">
+                    {marketsPending ? "LOADING" : "FEED UNAVAILABLE"}
+                  </span>
                 </div>
                 <div className="ch-market-empty">
-                  <strong>No prediction questions yet.</strong>
+                  <strong>
+                    {marketsPending
+                      ? "Loading prediction questions."
+                      : "No prediction questions yet."}
+                  </strong>
                   <span>
                     Livestream, chat, and agent controls remain available
                     independently.
@@ -761,54 +893,6 @@ export function MatchViewer({
           />
         )}
       </div>
-      <dialog
-        ref={dialog}
-        className="ch-event-dialog"
-        onClose={() => setDetail(null)}
-        aria-labelledby="event-overview-title"
-      >
-        {detail && (
-          <>
-            <div>
-              <span className="ch-simulation">SIMULATION</span>
-              <button
-                aria-label="Close event detail"
-                onClick={() => dialog.current?.close()}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <h2 id="event-overview-title">{detail.title}</h2>
-            <p>{detail.description}</p>
-            <h3>Resolution</h3>
-            <p>{detail.rules}</p>
-            <dl>
-              <div>
-                <dt>Closes</dt>
-                <dd>{new Date(detail.closesAt).toLocaleString("en")}</dd>
-              </div>
-              <div>
-                <dt>Trading</dt>
-                <dd>Off-chain sample credits</dd>
-              </div>
-            </dl>
-            {!detail.matchId && (
-              <button
-                className="sh-button"
-                onClick={() => {
-                  if (!pinned) onPin();
-                  dialog.current?.close();
-                }}
-              >
-                Keep this highlight <Pin size={14} />
-              </button>
-            )}
-            <p className="ch-dialog-note">
-              Market overview · off-chain preview credits.
-            </p>
-          </>
-        )}
-      </dialog>
     </section>
   );
 }

@@ -99,10 +99,21 @@
 .ch-order-help { color: #bdc9d5; line-height: 1.5; }
 .ch-trade-feedback a { color: #a6d9ff; text-decoration: underline; }
 /* Upcoming markets echo the linked-arrow shape, while retaining each match's own team palette. */
-.sh-next-matches { margin: 0 0 6px; }
+.sh-next-matches { margin: 0 0 22px; }
 .ch-home .sh-main { padding-top: 12px; }
-.sh-next-match-rail { display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); grid-auto-columns: minmax(220px, 1fr); grid-auto-flow: column; overflow-x: auto; padding: 2px 0 4px 1px; scrollbar-color: #555963 transparent; }
-.sh-next-match { --next-match-gradient: linear-gradient(105deg, #354858, #202a32); position: relative; display: grid; min-height: 106px; gap: 5px; align-content: center; padding: 13px 38px 13px 35px; color: #eff3f8; background: linear-gradient(90deg, rgb(8 13 20 / .7), rgb(8 13 20 / .18)), var(--next-match-gradient); clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 50%, calc(100% - 28px) 100%, 0 100%, 28px 50%); transition: filter .18s ease-out, transform .18s ease-out; }
+/* Exactly five cards and no sideways scroll: NextMatches caps the list, so the
+   row is a finished shape that ends on a whole chevron instead of a cut one.
+   Below 1020px five will not fit, and scrolling is the only honest option. */
+.sh-next-match-rail { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 2px 0 4px 1px; }
+.sh-next-match { --side-a: #5b7288; --side-b: #3b4b5c; position: relative; display: grid; min-height: 106px; gap: 5px; align-content: center; padding: 13px 38px 13px 35px; color: #eff3f8; background: #161d26; clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 50%, calc(100% - 28px) 100%, 0 100%, 28px 50%); transition: filter .18s ease-out, transform .18s ease-out; }
+/* IDENTITY IS A RULE, NOT A WASH.
+   The card used to be painted in its two sides' colours, which blended them
+   into a third colour belonging to neither and left every label sitting on
+   whatever happened to land under it. The two colours now meet as a HARD SPLIT
+   along the top edge - half the card each, no blend - and the panel underneath
+   stays one readable dark on all five cards. The strip is clipped by the card's
+   own chevron, so it runs into the arrow tip rather than stopping short of it. */
+.sh-next-match::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--side-a) 0 50%, var(--side-b) 50%); }
 .sh-next-match:first-child { padding-left: 17px; clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 50%, calc(100% - 28px) 100%, 0 100%); }
 .sh-next-match:hover { z-index: 1; filter: brightness(1.12); transform: translateY(-2px); }
 .sh-next-match > div { display: flex; align-items: center; justify-content: space-between; }
@@ -112,13 +123,28 @@
 .sh-next-match strong { overflow: hidden; font: 600 15px/1.1 var(--sh-heading); text-overflow: ellipsis; white-space: nowrap; }
 .sh-next-match > span:not(.sh-next-teams) { color: rgb(239 243 248 / .88); font-size: 8px; }
 .sh-next-match small { color: rgb(239 243 248 / .72); font-size: 8px; }
-.sh-next-match--empty { background: linear-gradient(105deg, #27313a, #171b21); }
+/* Nothing is scheduled, so there are no sides to name. The rule stays, in one
+   neutral ink, rather than splitting a card between two colours it does not
+   have. */
+.sh-next-match--empty { background: #14191f; }
+.sh-next-match--empty::before { background: #2c3743; }
 .sh-next-match--empty strong { font-size: 12px; }
-.sh-next-match { height: 64px; min-height: 64px; padding-block: 7px; gap: 3px; }
-.sh-next-match .sh-next-matchup { justify-content: flex-start; gap: 8px; min-width: 0; }
-.sh-next-teams { min-height: 16px; flex-shrink: 0; }
-.sh-next-teams .sh-team-mark { width: 15px; height: 16px; margin-right: -2px; }
-.sh-next-match strong { font-size: 12px; }
+.sh-next-match { height: 78px; min-height: 78px; padding-block: 9px; gap: 4px; }
+.sh-next-match .sh-next-matchup { justify-content: flex-start; gap: 9px; min-width: 0; }
+.sh-next-teams { min-height: 30px; flex-shrink: 0; }
+/* THE PAIR IS THE PICTURE. A MIAW PRIX card is two coins, and at 15px their
+   artwork was a pair of smudges - the one thing on the card that says WHO is
+   playing was the least legible thing on it. A coin's crest is a round token,
+   so it is drawn round, ringed in that coin's own colour, and the two overlap
+   the way a fixture is drawn everywhere else on the site. */
+.sh-next-teams .sh-team-mark { width: 30px; height: 30px; margin-right: -9px; border-radius: 50%; background: #0c1119; box-shadow: 0 0 0 1.5px currentColor, 0 2px 4px rgb(0 0 0 / .45); }
+.sh-next-teams .sh-team-mark--logo { object-fit: cover; padding: 0; }
+.sh-next-teams .sh-team-mark:last-child { margin-right: 0; }
+.sh-next-match strong { font-size: 13px; }
+@media (max-width: 1190px) {
+  .sh-next-teams .sh-team-mark { width: 25px; height: 25px; margin-right: -8px; }
+  .sh-next-match strong { font-size: 12px; }
+}
 
 .mk-main { padding-block: 48px 72px; }
 .mk-heading { max-width: 680px; margin-bottom: 40px; }
@@ -210,10 +236,76 @@
 .mk-state strong { color: var(--sh-text); }
 
 @media (max-width: 760px) {
-  .sh-next-matches { margin-bottom: 6px; }
+  .sh-next-matches { margin-bottom: 14px; }
   .sh-next-match-rail { margin-right: calc(var(--site-gutter) * -1); padding-right: var(--site-gutter); }
   .mk-main { padding-top: 32px; }
   .mk-heading { margin-bottom: 30px; }
   .mk-card-grid { grid-template-columns: 1fr; }
   .mk-card { min-height: 0; }
+}
+
+/* The rail's leading card is the match this page is about, not a scheduled one.
+   It carries the identity the deleted header row used to show, so it needs more
+   room than a two-line UP NEXT chevron and reads as present tense, not queued. */
+/* The leading card carries three short lines where the others carry two, so it
+   takes a little more width - but it stays the same height as the rest, and its
+   identity line truncates rather than wrapping the row taller. */
+.sh-next-match-rail:has(.sh-next-match--live) { grid-template-columns: minmax(0, 1.28fr) repeat(4, minmax(0, 1fr)); }
+.sh-next-match--live { gap: 2px; padding: 7px 34px 7px 15px; }
+.sh-next-match--live > div:first-child { gap: 10px; }
+.sh-next-match--live .sh-status { font-size: 7px; letter-spacing: .08em; }
+.sh-next-match--live a { display: flex; color: inherit; }
+.sh-next-match--live a:hover { color: var(--sh-lime); }
+.sh-next-match--live strong { font-size: 15px; }
+.sh-next-detail { display: flex; align-items: center; gap: 0 6px; min-width: 0; color: rgb(239 243 248 / .82); font: 500 8px/1.3 var(--sh-mono); letter-spacing: .04em; }
+.sh-next-detail > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-next-detail .sh-match-id { flex: 0 0 auto; margin-left: 0; gap: 4px; color: rgb(239 243 248 / .72); font-size: 8px; }
+.sh-next-detail .sh-match-id:hover { color: var(--sh-lime); }
+
+/* THE LIVE CARD LEADS THE RAIL, and now it does so on weight rather than on
+   colour: a lighter panel and a thicker rule. The scrim this replaces existed
+   only to keep white text readable over a live team's lime wash - there is no
+   wash to sit on any more, so the text keeps one contrast on every card. */
+.sh-next-match--live { background: #1c242f; }
+.sh-next-match--live::before { height: 5px; }
+.sh-next-match--live > div:first-child > a { margin-left: auto; }
+.sh-next-match--live .sh-status i { border-radius: 50%; box-shadow: 0 0 0 3px rgb(199 255 0 / .22); }
+.sh-next-match--live .sh-status--pink i { box-shadow: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .sh-next-match--live .sh-status:not(.sh-status--pink) i { animation: sh-next-live-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes sh-next-live-pulse {
+  50% { box-shadow: 0 0 0 5px rgb(199 255 0 / 0); }
+}
+/* The clock is the one number on this card that changes every second, so it is
+   tabular: a proportional font makes the whole line twitch on each tick. */
+.sh-next-clock { flex: 0 0 auto; color: #f1f5fa; font: 600 9px/1 var(--sh-mono); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.sh-next-viewers { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; color: rgb(239 243 248 / .78); font: 500 8px/1 var(--sh-mono); font-variant-numeric: tabular-nums; }
+/* Narrowing the chevrons' side padding is what keeps all five on one line down
+   to a small laptop. Below that a phone cannot show five, and scrolling is the
+   only honest answer. */
+@media (max-width: 1190px) {
+  .sh-next-match { padding-inline: 32px 30px; }
+  .sh-next-match:first-child { padding-left: 15px; }
+  .sh-next-match strong { font-size: 13px; }
+  .sh-next-match--live { padding-inline: 14px 30px; }
+  .sh-next-match--live strong { font-size: 14px; }
+}
+@media (max-width: 1100px) {
+  .sh-next-match { padding-inline: 30px 22px; }
+  .sh-next-match strong { font-size: 11px; }
+  .sh-next-status { font-size: 7px; }
+  .sh-next-teams .sh-team-mark { width: 13px; height: 14px; }
+  .sh-next-match--live { padding-inline: 13px 22px; }
+  .sh-next-match--live strong { font-size: 12px; }
+  .sh-next-detail { font-size: 7px; }
+  /* The card is minimum-width here: the clock stays, the viewer count goes,
+     because only one of the two changes what a reader does next. */
+  .sh-next-viewers { display: none; }
+}
+@media (max-width: 960px) {
+  /* Keeps the tighter type and padding from the step above: at these widths the
+     cards are minimum-width, not stretched, so restoring the wide-screen sizes
+     would clip every label. */
+  .sh-next-match-rail, .sh-next-match-rail:has(.sh-next-match--live) { grid-template-columns: minmax(250px, 1.3fr) repeat(4, minmax(200px, 1fr)); grid-auto-columns: minmax(200px, 1fr); grid-auto-flow: column; overflow-x: auto; scrollbar-color: #555963 transparent; }
 }

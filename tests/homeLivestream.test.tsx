@@ -5,12 +5,10 @@ import {
   matchClock,
   MatchViewer,
 } from "../src/components/home/MatchViewer";
-import { MatchHeading } from "../src/components/home/HomeApp";
-import { TradeContextBar } from "../src/components/home/TradeContextBar";
-import { MarketSourceControls } from "../src/components/home/MarketSourceControls";
+import { InteractionConsole } from "../src/components/home/InteractionConsole";
 import { unpricedMarkets } from "../src/components/home/useVenueMarketPrices";
 import { createSolzDataSource } from "../src/components/solz/solzDataSource";
-import { LiveMatches } from "../src/components/home/CommunitySections";
+import { LiveMatches, NextMatches } from "../src/components/home/CommunitySections";
 import {
   OpenDreamDexMarket,
   readMarketCreationResponse,
@@ -100,29 +98,6 @@ describe("highlight livestream navigation", () => {
       ),
     ).rejects.toThrow("Sponsored market creation is unavailable (404).");
   });
-  test("labels real and simulated match counts accurately", () => {
-    const live = renderToStaticMarkup(
-      <TradeContextBar
-        simulation={false}
-        onSimulationChange={() => {}}
-        liveMatchCount={1}
-        networkControls={<span>Networks</span>}
-      />,
-    );
-    const sample = renderToStaticMarkup(
-      <TradeContextBar
-        simulation
-        onSimulationChange={() => {}}
-        liveMatchCount={4}
-        networkControls={<span>Networks</span>}
-      />,
-    );
-
-    expect(live).toContain("1 LIVE MATCH");
-    expect(live).not.toContain("SAMPLE MATCH");
-    expect(sample).toContain("4 SAMPLE MATCHES");
-  });
-
   for (const state of ["match", "intermission", "pinned-season"] as const) {
     test(`keeps the livestream tab and panel available during ${state}`, async () => {
       const source = createSolzDataSource();
@@ -152,8 +127,6 @@ describe("highlight livestream navigation", () => {
             onChat={() => {}}
             onPrompt={() => {}}
             season={season}
-            pinned={state === "pinned-season"}
-            onPin={() => {}}
           />,
         );
         const tab = html.match(
@@ -203,8 +176,6 @@ describe("highlight livestream navigation", () => {
         onChat={() => {}}
         onPrompt={() => {}}
         season={false}
-        pinned={false}
-        onPin={() => {}}
         simulation={false}
       />,
     );
@@ -251,8 +222,6 @@ describe("highlight livestream navigation", () => {
         onChat={() => {}}
         onPrompt={() => {}}
         season={false}
-        pinned={false}
-        onPin={() => {}}
         simulation={false}
       />,
     );
@@ -270,7 +239,7 @@ describe("highlight livestream navigation", () => {
       expect(html).toContain(agent.codename.replace("&", "&amp;"));
   });
 
-  test("puts match duration and break time in the title area without loading video", async () => {
+  test("leads the UP NEXT rail with the live match and its identity", async () => {
     const source = createSolzDataSource();
     const snapshot = await source.load();
     const original = snapshot.matches.find(
@@ -284,35 +253,148 @@ describe("highlight livestream navigation", () => {
       endsAt: 1_201_000,
       phase: "live" as const,
     };
-    const liveHtml = renderToStaticMarkup(
-      <MatchHeading
-        match={live}
+    const html = renderToStaticMarkup(
+      <NextMatches
+        snapshot={{ ...snapshot, matches: [live, ...snapshot.matches.filter((item) => item.id !== live.id)] }}
+        schedule={[]}
+        eventBasePath="/events"
+        highlight={live}
         season={false}
-        copied={false}
-        onCopy={() => {}}
+        matchIdCopied={false}
+        onCopyMatchId={() => {}}
       />,
     );
-    expect(liveHtml).toContain("MATCH #42");
-    expect(liveHtml).toContain("HIGHLIGHT MATCH");
+    const leading = html.slice(0, html.indexOf("UP NEXT"));
+    // The header row is gone, so the rail is the only place the match names
+    // itself. Its leading card has to carry that, not just the matchup.
+    expect(leading).toContain("LIVE MATCH");
+    expect(leading).toContain("MATCH #42");
+    expect(leading).toContain("SEASON 01");
+    expect(leading).toContain("Copy match ID");
+    // And the leading card must not be repeated as an upcoming one.
+    expect(html.indexOf("MATCH #42")).toBe(html.lastIndexOf("MATCH #42"));
+    // Five cards, no more: the rail is a fixed row, not a scroller.
+    expect([...html.matchAll(/class="sh-next-match[ "]/g)].length).toBe(5);
   });
 
-  test("offers separate simulation, Solana, and Somnia sources with Somnia testnet selected", () => {
+  test("keeps the stage prompt and chat corners to the livestream tab", async () => {
+    const source = createSolzDataSource();
+    const snapshot = await source.load();
+    const match = snapshot.matches.find(
+      (item) => item.id === snapshot.highlightMatchId,
+    )!;
+    const market = snapshot.markets.find((item) => item.matchId === match.id)!;
+    const render = (view: "live" | "market" | "options", chatOpen: boolean) =>
+      renderToStaticMarkup(
+        <MatchViewer
+          match={match}
+          market={market}
+          markets={[market]}
+          snapshot={snapshot}
+          source={source}
+          view={view}
+          onView={() => {}}
+          outcome={market.outcomes[0]}
+          onSelect={() => {}}
+          liveHref="https://solz.fun/watch/live/agent-arena"
+          onChat={() => {}}
+          onPrompt={() => {}}
+          chatOpen={chatOpen}
+          onChatClose={() => {}}
+          season={false}
+        />,
+      );
+
+    // Both corners live inside the livestream panel, so leaving that tab hides
+    // them with the panel rather than needing their own visibility rule.
+    const live = render("live", true);
+    const liveHidden = live.slice(live.indexOf('id="highlight-view-live-panel"'));
+    expect(liveHidden).toContain("ch-stage-corner--prompt");
+    expect(liveHidden).toContain("ch-stage-corner--chat");
+    expect(live).toContain("PROMPT AGENT");
+
+    // The chat field is not there until the CHAT HIGHLIGHTS rail asks for it.
+    expect(render("live", false)).not.toContain("ch-stage-corner--chat");
+
+    for (const view of ["market", "options"] as const) {
+      const panel = render(view, true).match(
+        /<div[^>]*id="highlight-view-live-panel"[^>]*>/,
+      )?.[0];
+      expect(panel).toContain("hidden");
+    }
+  });
+
+  test("opens Trade and Agent Trader together and leaves chat and prompt to the stage", async () => {
+    const source = createSolzDataSource();
+    const snapshot = await source.load();
+    const match = snapshot.matches.find(
+      (item) => item.id === snapshot.highlightMatchId,
+    )!;
+    const market = snapshot.markets.find((item) => item.matchId === match.id)!;
     const html = renderToStaticMarkup(
-      <MarketSourceControls
-        source="SOMNIA"
-        onSource={() => {}}
-        solana="devnet"
-        onSolana={() => {}}
-        somnia="50312"
-        onSomnia={() => {}}
-        status="TESTNET · 0 / 12 BOUND"
+      <InteractionConsole
+        source={source}
+        snapshot={snapshot}
+        match={match}
+        market={market}
+        outcome={market.outcomes[0]}
+        onOutcome={() => {}}
+        collateralSymbol="COOLA"
+        sections={["trade", "automate"]}
+        onSections={() => {}}
+        hideChat
+        hidePrompt
+        intermission={false}
       />,
     );
-    expect(html).toContain(">Simulation</button>");
-    expect(html).toContain(">Solana</button>");
-    expect(html).toContain('aria-selected="true" tabindex="0">Somnia</button>');
-    expect(html).toContain('aria-pressed="true">Testnet</button>');
-    expect(html).toContain("TESTNET · 0 / 12 BOUND");
+    const expanded = (name: string) =>
+      html
+        .match(new RegExp(`<button[^>]*id="console-${name}-button"[^>]*>`))?.[0]
+        ?.includes('aria-expanded="true"');
+
+    // The rail is a list of open panels now, not one exclusive key, because the
+    // homepage needs both of these expanded at once.
+    expect(expanded("trade")).toBe(true);
+    expect(expanded("automate")).toBe(true);
+    // Live chat and Prompt Agent moved to the stage corners.
+    expect(html).not.toContain("console-chat-button");
+    expect(html).not.toContain("console-prompt-button");
+  });
+
+  test("keeps the event page rail single-open through the list contract", async () => {
+    const source = createSolzDataSource();
+    const snapshot = await source.load();
+    const match = snapshot.matches.find(
+      (item) => item.id === snapshot.highlightMatchId,
+    )!;
+    const market = snapshot.markets.find((item) => item.matchId === match.id)!;
+    // What EventApp passes: at most one entry, so at most one panel is open and
+    // every other panel is still rendered.
+    const html = renderToStaticMarkup(
+      <InteractionConsole
+        source={source}
+        snapshot={snapshot}
+        match={match}
+        market={market}
+        outcome={market.outcomes[0]}
+        onOutcome={() => {}}
+        collateralSymbol="COOLA"
+        sections={["trade"]}
+        onSections={() => {}}
+        intermission={false}
+      />,
+    );
+    for (const [name, open] of [
+      ["trade", true],
+      ["automate", false],
+      ["chat", false],
+      ["prompt", false],
+    ] as const)
+      expect(
+        html
+          .match(new RegExp(`<button[^>]*id="console-${name}-button"[^>]*>`))?.[0]
+          ?.includes('aria-expanded="true"'),
+      ).toBe(open);
   });
 
   test("never reuses simulation history for an unbound on-chain source", async () => {
@@ -379,8 +461,6 @@ describe("highlight livestream navigation", () => {
         onChat={() => {}}
         onPrompt={() => {}}
         season={false}
-        pinned={false}
-        onPin={() => {}}
         simulation={false}
       />,
     );

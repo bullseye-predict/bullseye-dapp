@@ -12,8 +12,19 @@ export type AlertRecord = { id: string; level: AlertLevel; title: string; detail
 const KEY = 'solz:alerts:v1'
 /** The only automatic removal in the whole store. Without a ceiling the log
  *  would grow until localStorage refused the write; everything below it stays
- *  until the user clears a record or the list. */
-const MAX = 200
+ *  until the user clears a record or the list.
+ *
+ *  The badge stops counting at 99, so a log past that point is a wall of
+ *  history nobody reads. At the ceiling the store keeps the newest KEEP
+ *  records and drops the rest in one step, which puts the badge back to a
+ *  readable number instead of parking it on "99+" for ever. */
+const CEILING = 99
+const KEEP = 20
+
+/** Newest first, so the survivors are at the head. */
+function trim(records: AlertRecord[]): AlertRecord[] {
+  return records.length > CEILING ? records.slice(0, KEEP) : records
+}
 const LEVELS: AlertLevel[] = ['error', 'warning', 'info', 'success']
 
 type Persisted = { records: AlertRecord[] }
@@ -75,7 +86,7 @@ export const useAlertStore = create<AlertState>()(persist(
     // step recorded is ever overwritten.
     push: alert => set(state => {
       const at = alert.at ?? Date.now()
-      return { records: [{ ...alert, at, id: `${at}-${sequence++}` }, ...state.records].slice(0, MAX) }
+      return { records: trim([{ ...alert, at, id: `${at}-${sequence++}` }, ...state.records]) }
     }),
     dismiss: id => set(state => ({ records: state.records.filter(record => record.id !== id) })),
     clear: () => set({ records: [] }),
@@ -86,8 +97,8 @@ export const useAlertStore = create<AlertState>()(persist(
     partialize: state => ({ records: state.records }),
     merge: (persisted, current) => ({
       ...current,
-      records: (Array.isArray((persisted as Persisted | undefined)?.records) ? (persisted as Persisted).records : [])
-        .map(restore).filter((record): record is AlertRecord => record !== null).slice(0, MAX),
+      records: trim((Array.isArray((persisted as Persisted | undefined)?.records) ? (persisted as Persisted).records : [])
+        .map(restore).filter((record): record is AlertRecord => record !== null)),
     }),
   },
 ))

@@ -32,7 +32,8 @@ function solanaFixture() {
     getLatestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 }),
     getAccountInfo: async (address: PublicKey) => address.equals(vaultAddress(program, owner.publicKey)) ? { owner: program, data: new Uint8Array() } : null,
     sendRawTransaction: async (raw: Uint8Array) => { transactions.push(Transaction.from(raw)); return 'fixture-transaction' },
-    confirmTransaction: async () => ({ context: { slot: 1 }, value: { err: null } }),
+    getSignatureStatuses: async () => ({ context: { slot: 1 }, value: [{ err: null, confirmationStatus: 'confirmed' }] }),
+    getBlockHeight: async () => 1,
   } as unknown as Connection
   const port: LiveArenaWalletPort = { address: owner.publicKey.toBase58(), getConnection: async () => connection, getSigner: async () => { signerReads++; return signer() } }
   const api = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch() { return Response.json({ account: vaultAddress(program, owner.publicKey).toBase58(), collateralToken: mint.toBase58(), total: '1000000', available: '1000000', reserved: '0' }) } })

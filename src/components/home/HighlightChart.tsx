@@ -101,9 +101,14 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
   useEffect(() => {
     const element = plot.current
     if (!element) return
+    // Bail on an unchanged box. ResizeObserver fires for any layout pass that
+    // touches the element, not only for a box that actually moved, and
+    // `setSize({ width, height })` is a fresh object every time — which React
+    // can never compare equal, so each notification re-ran the whole render
+    // below (see the O(points) passes further down).
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
-      if (width > 0 && height > 0) setSize({ width, height })
+      if (width > 0 && height > 0) setSize(previous => previous.width === width && previous.height === height ? previous : { width, height })
     })
     observer.observe(element)
     return () => observer.disconnect()
@@ -156,9 +161,21 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
     return last && last.at < end ? [...points, { at: end, probability: last.probability }] : points
   }
   const plotted = series.map(item => ({ ...item, priceHistory: windowed(item.priceHistory) }))
-  const visibleProbabilities = plotted.filter(item => simulation || item.priceHistory.length > 0).flatMap((item) => [item.probability, ...item.priceHistory.map((point) => point.probability)])
-  if (!visibleProbabilities.length) visibleProbabilities.push(.5)
-  const minimum = Math.min(...visibleProbabilities), maximum = Math.max(...visibleProbabilities)
+  // Folded rather than spread, for the same reason `span` above is a reduce:
+  // appendQuote keeps up to 1200 points per series, so a twelve-answer event
+  // built a ~14k-element array here and then spread it into TWO calls — once
+  // into Math.min and once into Math.max — on every single render.
+  let minimum = Infinity, maximum = -Infinity
+  for (const item of plotted) {
+    if (!simulation && item.priceHistory.length === 0) continue
+    if (item.probability < minimum) minimum = item.probability
+    if (item.probability > maximum) maximum = item.probability
+    for (const point of item.priceHistory) {
+      if (point.probability < minimum) minimum = point.probability
+      if (point.probability > maximum) maximum = point.probability
+    }
+  }
+  if (minimum > maximum) { minimum = .5; maximum = .5 }
   const padding = Math.max(.025, (maximum - minimum) * .15)
   const lower = scale === 'focus' ? Math.max(0, Math.floor((minimum - padding) * 20) / 20) : 0
   const upper = scale === 'focus' ? Math.min(1, Math.ceil((maximum + padding) * 20) / 20) : 1
@@ -222,7 +239,14 @@ export function HighlightChart({ market, snapshot, outcome, onOutcome, dates, on
     {/* The pointer arrives in DOM pixels and plotWidth is in viewBox units; the
         two only agree while `size` matches the measured box, which it does not on
         the first paint after a hidden panel is revealed. Scale before offsetting. */}
-    <div className="ch-plot" ref={plot} onPointerMove={(event) => { const box = event.currentTarget.getBoundingClientRect(); setHover(Math.max(0, Math.min(1, ((event.clientX - box.left) / Math.max(1, box.width) * size.width - 8) / plotWidth))) }} onPointerLeave={() => setHover(null)}>
+    {/* Sub-pixel pointer movement is discarded. A pointermove arrives per input
+        sample — 120+ a second on a high-rate mouse or a trackpad — and every one
+        of them re-ran this whole render: `span`, `windowed()` for each series,
+        the min/max fold above, and a rebuilt path string per series, all over up
+        to 1200 points a series. Dragging the pointer across the plot was enough
+        to hang the tab. The tooltip cannot resolve finer than one plot column,
+        so returning `previous` below is invisible AND lets React bail out. */}
+    <div className="ch-plot" ref={plot} onPointerMove={(event) => { const box = event.currentTarget.getBoundingClientRect(); const next = Math.max(0, Math.min(1, ((event.clientX - box.left) / Math.max(1, box.width) * size.width - 8) / plotWidth)); setHover(previous => previous !== null && Math.abs(previous - next) * plotWidth < 1 ? previous : next) }} onPointerLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" role="img" aria-label={`Price history for ${series.map((item) => `${item.label}, ${centsLabel(item.probability)}`).join('; ')}`}>
         {/* Wide enough for the r=3.3 endpoint marker at x = 8 + plotWidth, which
             the old plotWidth + 6 rect sliced in half. */}

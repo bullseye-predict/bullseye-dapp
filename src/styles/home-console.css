@@ -1,16 +1,16 @@
 /* Stable section colors; trading and chat use dark surfaces for readable semantics. */
-.solz-home .ch-console { --ch-body: #a6a8b3; --ch-ink: #191c25; --ch-muted: #383e4a; --ch-field: #c4c6d0; --ch-line: #797e8c; }
+.solz-home :is(.ch-console, .ch-stage-corner) { --ch-body: #a6a8b3; --ch-ink: #191c25; --ch-muted: #383e4a; --ch-field: #c4c6d0; --ch-line: #797e8c; }
 .ch-console-trade { --console-accent: #9fcef1; }
 .ch-console-automate { --console-accent: #e2bd77; }
 .ch-console-chat { --console-accent: #e9a9c5; }
 .ch-prompt-accordion { --console-accent: #c7ff00; }
-.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3,
-.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3 > button:hover { background: var(--console-accent); }
-.solz-home .ch-console .sh-console-panel.ch-console-accordion > h3 > button { color: #171c23; }
-.solz-home .ch-console .ch-console-accordion .sh-console-body { background: var(--ch-body); color: var(--ch-ink); }
-.solz-home .ch-console .sh-console-body :focus-visible { outline-color: currentColor; }
-.solz-home .ch-console :is(.ch-console-trade, .ch-console-chat) { --ch-body: #171d21; --ch-ink: #edf1f4; --ch-muted: #aebcc6; --ch-field: #242e35; --ch-line: #3d4a53; }
-.solz-home .ch-console .ch-trade { color: var(--ch-ink); background: var(--ch-body); border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-console-panel.ch-console-accordion > h3,
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-console-panel.ch-console-accordion > h3 > button:hover { background: var(--console-accent); }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-console-panel.ch-console-accordion > h3 > button { color: #171c23; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-console-accordion .sh-console-body { background: var(--ch-body); color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-console-body :focus-visible { outline-color: currentColor; }
+.solz-home :is(.ch-console, .ch-stage-corner) :is(.ch-console-trade, .ch-console-chat) { --ch-body: #171d21; --ch-ink: #edf1f4; --ch-muted: #aebcc6; --ch-field: #242e35; --ch-line: #3d4a53; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade { color: var(--ch-ink); background: var(--ch-body); border-color: var(--ch-line); }
 .solz-home .ch-open-market { display: grid; gap: 9px; margin: 14px 0; padding: 12px; border: 1px dashed #5f6b7b; color: #dfe7f0; }
 .solz-home .ch-open-market > div { display: grid; gap: 4px; }
 .solz-home .ch-open-market strong { font-size: 12px; }
@@ -19,26 +19,26 @@
 .solz-home .ch-open-market button:hover:not(:disabled) { background: #263c29; }
 .solz-home .ch-open-market.is-preparing { border-style: solid; border-color: #69734e; background: #24281f; }
 .solz-home .ch-open-market.is-preparing strong { color: #d7f59c; }
-.solz-home .ch-console .ch-trade-title span { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-title span { color: var(--ch-muted); }
 /* The answer carries its own identity colour; the console theme used to
    flatten it to plain ink, which is why every answer looked alike. */
-.solz-home .ch-console .ch-trade-title strong { color: var(--team-color, var(--ch-ink)); }
-.solz-home .ch-console .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }
-.solz-home .ch-console .ch-trade-controls { border-color: var(--ch-line); }
-.solz-home .ch-console .ch-trade-controls button.is-buy[aria-pressed='true'] { color: #40df9f; }
-.solz-home .ch-console .ch-trade-controls button.is-sell[aria-pressed='true'] { color: #ff7181; }
-.solz-home .ch-console .ch-trade-controls button[aria-pressed='true'] { border-color: currentColor; }
-.solz-home .ch-console .ch-trade-controls button:hover { filter: brightness(1.2); }
-.solz-home .ch-console .ch-trade-controls select { background: var(--ch-body); color: var(--ch-ink); }
-.solz-home .ch-console .ch-trade-amount input { color: var(--ch-ink); border-color: var(--ch-line); }
-.solz-home .ch-console :is(.ch-trade-amount small, .ch-trade-amount > div:last-child > span, .ch-sample-note) { color: var(--ch-muted); }
-.solz-home .ch-console .ch-limit-price > div { background: var(--ch-field); border-color: var(--ch-line); }
-.solz-home .ch-console .ch-limit-price :is(button, input) { color: var(--ch-ink); }
-.solz-home .ch-console .ch-trade-presets button { background: var(--ch-field); color: var(--ch-ink); min-height: 28px; }
-.solz-home .ch-console .ch-trade-presets button:hover { background: #35444f; }
-.solz-home .ch-console .ch-trade-action { background: var(--ch-body); bottom: 0; }
-.solz-home .ch-console .ch-trade > .ch-trade-feedback { color: #7ceaab; }
-.solz-home .ch-console .ch-trade > .ch-trade-feedback.is-error { color: #ff9baa; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-title strong { color: var(--team-color, var(--ch-ink)); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-title .sh-team-mark { padding: 0; background: transparent; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls { border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls button.is-buy[aria-pressed='true'] { color: #40df9f; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls button.is-sell[aria-pressed='true'] { color: #ff7181; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls button[aria-pressed='true'] { border-color: currentColor; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls button:hover { filter: brightness(1.2); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-controls select { background: var(--ch-body); color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-amount input { color: var(--ch-ink); border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) :is(.ch-trade-amount small, .ch-trade-amount > div:last-child > span, .ch-sample-note) { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-limit-price > div { background: var(--ch-field); border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-limit-price :is(button, input) { color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-presets button { background: var(--ch-field); color: var(--ch-ink); min-height: 28px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-presets button:hover { background: #35444f; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade-action { background: var(--ch-body); bottom: 0; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade > .ch-trade-feedback { color: #7ceaab; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-trade > .ch-trade-feedback.is-error { color: #ff9baa; }
 .ch-console-empty { min-height: 260px; display: grid; align-content: center; gap: 8px; padding: 22px; color: var(--ch-ink); }
 .ch-console-empty strong { font-size: 13px; }
 .ch-console-empty span { color: var(--ch-muted); font-size: 10px; line-height: 1.6; }
@@ -83,76 +83,110 @@
 .ch-integration-warning { margin: 0 0 11px; padding: 9px 10px; border: 1px solid #866b34; background: #332b1d; color: #f2d99f; font-size: 9px; line-height: 1.55; }
 .ch-console-automate .ch-integration-warning { border-color: #775f31; background: #eee0bd; color: #493813; }
 .ch-prompt-accordion .ch-integration-warning { margin: 0 0 9px; }
-.solz-home .ch-console .ch-holdings { border-color: var(--ch-line); }
-.solz-home .ch-console .ch-holdings summary { color: var(--ch-ink); }
-.solz-home .ch-console .ch-holdings :is(small, summary > span) { color: var(--ch-muted); }
-.solz-home .ch-console .ch-holdings p { border-color: var(--ch-line); }
-.solz-home .ch-console .ch-holdings button { color: var(--ch-ink); background: var(--ch-field); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-holdings { border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-holdings summary { color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-holdings :is(small, summary > span) { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-holdings p { border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-holdings button { color: var(--ch-ink); background: var(--ch-field); }
 
 /* Chat identity, message content and the input are separate visual levels. */
-.solz-home .ch-console .ch-console-chat .sh-console-body { padding: 10px 12px 12px; gap: 7px; }
-.solz-home .ch-console .sh-chat { margin: 0; padding-right: 4px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-console-chat .sh-console-body { padding: 10px 12px 12px; gap: 7px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat { margin: 0; padding-right: 4px; }
 .ch-chat-message { display: flex; align-items: flex-start; gap: 9px; padding: 12px 0; border-bottom: 1px solid #303b42; }
 .ch-chat-message > div { flex: 1; min-width: 0; }
 .ch-chat-message header { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
-.solz-home .ch-console .ch-chat-message b { font-size: 10px; color: #f1b6d0; margin: 0; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-chat-message b { font-size: 10px; color: #f1b6d0; margin: 0; }
 .ch-chat-message time { margin-left: auto; color: #a0aeb8; font-size: 8px; }
-.solz-home .ch-console .ch-chat-message p { margin: 0; color: #e0e7ed; font-size: 11px; line-height: 1.7; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-chat-message p { margin: 0; color: #e0e7ed; font-size: 11px; line-height: 1.7; }
 .ch-chat-initial { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; background: #402b38; color: #ffc3de; font: 600 11px var(--sh-heading); border-radius: 50%; }
-.solz-home .ch-console .sh-chat .is-self { padding: 10px; background: #26313a; border: 1px solid #4f6472; margin-block: 7px; }
-.solz-home .ch-console .ch-chat-message.is-self b { color: #9cdbff; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat .is-self { padding: 10px; background: #26313a; border: 1px solid #4f6472; margin-block: 7px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-chat-message.is-self b { color: #9cdbff; }
 .ch-chat-message.is-self .ch-chat-initial { background: #314e61; color: #c3e9ff; }
-.solz-home .ch-console .sh-chat-form { background: #242f37; border-color: #586d7a; }
-.solz-home .ch-console .sh-chat-form input { background: transparent; color: #f3f5f6; font-size: 11px; }
-.solz-home .ch-console .sh-chat-form input::placeholder { color: #b7c5cf; }
-.solz-home .ch-console .sh-chat-form button { background: #e9a9c5; color: #34202e; }
-.solz-home .ch-console .ch-console-chat .sh-form-note { color: #aebcc6; font-size: 8px; margin: 0; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat-form { background: #242f37; border-color: #586d7a; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat-form input { background: transparent; color: #f3f5f6; font-size: 11px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat-form input::placeholder { color: #b7c5cf; }
+.solz-home :is(.ch-console, .ch-stage-corner) .sh-chat-form button { background: #e9a9c5; color: #34202e; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-console-chat .sh-form-note { color: #aebcc6; font-size: 8px; margin: 0; }
 
 /* A continuous charcoal prompt surface; lime is reserved for small controls. */
-.solz-home .ch-console .ch-prompt-accordion { --console-accent: #202226; --ch-body: #202226; --ch-ink: #e7eaf0; --ch-muted: #b7bdc7; --ch-field: #292d32; --ch-line: #59616b; color: var(--ch-ink); border-color: var(--ch-line); background: var(--ch-body); }
-.solz-home .ch-console .ch-mini-prompt { height: 224px; padding: 0; background: var(--ch-body); }
-.solz-home .ch-console .ch-mini-prompt > h3 { background: var(--ch-body); }
-.solz-home .ch-console .ch-mini-heading { min-height: 42px; padding: 10px 12px; color: var(--ch-ink); }
-.solz-home .ch-console .ch-mini-heading > span:first-child { color: var(--ch-ink); font: 700 12px var(--sh-heading); }
-.solz-home .ch-console .ch-mini-heading b,
-.solz-home .ch-console .ch-mini-heading > span:first-child > svg { color: #c5e780; }
-.solz-home .ch-console .ch-mini-prompt form { padding: 4px 12px 10px; }
-.solz-home .ch-console .ch-prompt-label { margin-top: 0; color: var(--ch-ink); }
-.solz-home .ch-console .ch-prompt-label > span { color: var(--ch-muted); }
-.solz-home .ch-console .ch-mini-prompt textarea { background: var(--ch-field); color: var(--ch-ink); border-color: var(--ch-line); }
-.solz-home .ch-console .ch-mini-prompt textarea::placeholder { color: #b0b8c3; }
-.solz-home .ch-console .ch-mini-prompt textarea:focus { outline-color: #bada65; background: #30353b; }
-.solz-home .ch-console .ch-prompt-target { flex: 1; min-width: 0; }
-.solz-home .ch-console .ch-prompt-target select { width: 100%; min-height: 34px; background: transparent; color: var(--ch-ink); border: 1px solid var(--ch-line); padding: 6px 22px 6px 8px; font-size: 10px; }
-.solz-home .ch-console .ch-prompt-target option { color: var(--ch-ink); background: var(--ch-field); }
-.solz-home .ch-console .ch-mini-controls button { background: #bada65; color: #1c270e; min-height: 34px; }
-.solz-home .ch-console .is-fueling .ch-mini-controls button { color: #19240d; opacity: 1; }
-.solz-home .ch-console .ch-prompt-hint { color: var(--ch-muted); }
-.solz-home .ch-console .ch-prompt-hint.is-success { color: #c5e780; }
-.solz-home .ch-console .ch-prompt-hint.is-error { color: #ff9fac; }
-.solz-home .ch-console .ch-prompt-details { border-top: 1px solid var(--ch-line); }
-.solz-home .ch-console .ch-agent-energy h4 { color: var(--ch-ink); }
-.solz-home .ch-console :is(.ch-agent-energy p, .ch-prompt-details > p) { color: var(--ch-muted); }
-.solz-home .ch-console .ch-prompt-details dl { border-color: var(--ch-line); }
-.solz-home .ch-console .ch-prompt-details dd { color: var(--ch-ink); }
-.solz-home .ch-console .ch-prompt-examples button { background: var(--ch-field); border-color: var(--ch-line); color: var(--ch-ink); }
-.solz-home .ch-console .ch-prompt-examples button:hover { background: #343a41; border-color: #bada65; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-accordion { --console-accent: #202226; --ch-body: #202226; --ch-ink: #e7eaf0; --ch-muted: #b7bdc7; --ch-field: #292d32; --ch-line: #59616b; color: var(--ch-ink); border-color: var(--ch-line); background: var(--ch-body); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt { height: 224px; padding: 0; background: var(--ch-body); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt > h3 { background: var(--ch-body); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-heading { min-height: 42px; padding: 10px 12px; color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-heading > span:first-child { color: var(--ch-ink); font: 700 12px var(--sh-heading); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-heading b,
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-heading > span:first-child > svg { color: #c5e780; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt form { padding: 4px 12px 10px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-label { margin-top: 0; color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-label > span { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt textarea { background: var(--ch-field); color: var(--ch-ink); border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt textarea::placeholder { color: #b0b8c3; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt textarea:focus { outline-color: #bada65; background: #30353b; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-target { flex: 0 1 auto; min-width: 0; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-target select { width: auto; max-width: 128px; min-height: 34px; background: transparent; color: var(--ch-ink); border: 1px solid var(--ch-line); padding: 6px 22px 6px 8px; font-size: 10px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-target option { color: var(--ch-ink); background: var(--ch-field); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-controls > button { background: #bada65; color: #1c270e; min-height: 34px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .is-fueling .ch-mini-controls > button { color: #19240d; opacity: 1; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-hint { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-hint.is-success { color: #c5e780; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-hint.is-error { color: #ff9fac; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-details { border-top: 1px solid var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-agent-energy h4 { color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) :is(.ch-agent-energy p, .ch-prompt-details > p) { color: var(--ch-muted); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-details dl { border-color: var(--ch-line); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-details dd { color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-examples button { background: var(--ch-field); border-color: var(--ch-line); color: var(--ch-ink); }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-examples button:hover { background: #343a41; border-color: #bada65; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 226px; }
 @media (max-width: 720px) { .ch-home .ch-hero-grid > .ch-console { height: 780px; } }
 
 /* One composer surface groups the directive, recipient and fuel action. */
-.solz-home .ch-console .ch-prompt-accordion { border: 0; }
-.solz-home .ch-console .ch-mini-prompt { height: auto; min-height: 250px; }
-.solz-home .ch-console .ch-mini-prompt form { padding: 4px 12px 12px; }
-.solz-home .ch-console .ch-prompt-label { font-size: 10px; margin-bottom: 8px; }
-.solz-home .ch-console .ch-prompt-composer { border: 1px solid #59616b; border-radius: 16px; padding: 4px; background: #191c20; }
-.solz-home .ch-console .ch-prompt-composer:focus-within { border-color: #bada65; }
-.solz-home .ch-console .ch-prompt-composer textarea { display: block; width: 100%; min-height: 76px; height: 76px; padding: 10px; margin: 0; border: 0; border-radius: 12px; background: transparent; resize: none; font-size: 12px; line-height: 1.6; }
-.solz-home .ch-console .ch-prompt-composer textarea:focus { outline: none; background: transparent; }
-.solz-home .ch-console .ch-prompt-composer .ch-mini-controls { display: flex; gap: 8px; margin: 0; padding: 6px; }
-.solz-home .ch-console .ch-prompt-composer select { height: 36px; min-height: 36px; border-radius: 8px; font-size: 10px; background: #25292e; border-color: #444b55; }
-.solz-home .ch-console .ch-prompt-composer button { min-height: 36px; border-radius: 8px; padding: 8px 10px; }
-.solz-home .ch-console .ch-prompt-hint { margin-top: 8px; font-size: 9px; line-height: 1.6; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-accordion { border: 0; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt { height: auto; min-height: 250px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-mini-prompt form { padding: 4px 12px 12px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-label { font-size: 10px; margin-bottom: 8px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer { border: 1px solid #59616b; border-radius: 16px; padding: 4px; background: #191c20; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer:focus-within { border-color: #bada65; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer textarea { display: block; width: 100%; min-height: 76px; height: 76px; padding: 10px; margin: 0; border: 0; border-radius: 12px; background: transparent; resize: none; font-size: 12px; line-height: 1.6; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer textarea:focus { outline: none; background: transparent; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer .ch-mini-controls { display: flex; gap: 8px; margin: 0; padding: 6px; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer .ch-prompt-target select { height: 36px; min-height: 36px; border-radius: 8px; font-size: 10px; background: #25292e; border-color: #444b55; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer .ch-mini-controls > button { min-height: 36px; border-radius: 8px; padding: 8px 10px; }
+
+/* THE SEND KEY IS CUT OUT OF THE FIELD, not laid on top of it. It reaches the
+   field's bottom-right corner and takes that corner's radius, and the two sides
+   that face back into the field carry concave tips - so the field reads as one
+   surface that wraps around the key, the way a corner tab is notched into a
+   card. The key's far corner keeps a small convex curve; the two edges the tips
+   land on are square, because the tip is what continues those edges.
+
+   The tips are painted on the FIELD, never inside the key: the key clips its
+   own overflow for the fuel animation, so nothing drawn in it can reach past
+   its box. That is why --send-w/--send-h fix the key's box exactly - the tips
+   are placed from the field's own corner and have to know where the key ends.
+   --send-inset-x/y are the controls row's padding PLUS the field's own, both
+   cancelled so the key sits flush against the inside of the field's border -
+   the tips are placed from that same inner edge, so a key that stopped short of
+   it would leave them floating away from the key they belong to. */
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer {
+  --send-w: 60px; --send-h: 38px; --send-tip: 10px; --send-curve: 15px;
+  --send-inset-x: 10px; --send-inset-y: 10px; --send-key: #bada65;
+}
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer .ch-mini-controls > button {
+  align-self: flex-end; width: var(--send-w); min-width: var(--send-w); height: var(--send-h); min-height: var(--send-h); padding: 0;
+  margin: 0 calc(-1 * var(--send-inset-x)) calc(-1 * var(--send-inset-y)) 0;
+  border-radius: var(--send-tip) 0 var(--send-curve) 0;
+}
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(circle at top left, #0000 0 calc(var(--send-tip) - .5px), var(--send-key) calc(var(--send-tip) + .5px)) right 0 bottom var(--send-h) / var(--send-tip) var(--send-tip) no-repeat,
+    radial-gradient(circle at top left, #0000 0 calc(var(--send-tip) - .5px), var(--send-key) calc(var(--send-tip) + .5px)) right var(--send-w) bottom 0 / var(--send-tip) var(--send-tip) no-repeat;
+}
+/* The tips ARE the key, so they carry the key's states with it. A disabled key
+   at half strength beside two solid tips would read as two different controls. */
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-composer:has(.ch-mini-controls > button:disabled)::after { opacity: .5; }
+.solz-home :is(.ch-console, .ch-stage-corner) .ch-prompt-hint { margin-top: 8px; font-size: 9px; line-height: 1.6; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.ch-prompt-accordion { --console-header-height: 250px; }
 
 
@@ -190,3 +224,106 @@
 .ch-alerts-dock__panel li.is-info > svg { opacity: .55; }
 .ch-alerts-dock__panel li > button { border: 0; background: transparent; color: var(--ch-muted); cursor: pointer; padding: 0; line-height: 1; }
 .ch-alerts-dock__panel li > button:hover { color: var(--ch-ink); }
+
+/* The stage's bottom-right cutout, in the same light gray as the AGENT
+   INSTRUCTIONS rail directly beneath it, so the plate and the rail read as one
+   continuous shape rather than two panels that happen to touch. The rail's own
+   pair is .ch-prompt-preview: background var(--sh-gray), ink #171a22. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-accordion {
+  --console-accent: var(--sh-gray); --ch-body: var(--sh-gray);
+  --ch-ink: var(--sh-gray-ink); --ch-muted: var(--sh-gray-ink-muted);
+  --ch-field: #b9bbc4; --ch-line: var(--sh-gray-line);
+  min-height: 0; border: 0; background: transparent;
+}
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt { height: auto; min-height: 0; flex-shrink: 0; background: transparent; }
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt > h3 { background: transparent; }
+.solz-home .ch-stage-corner--prompt .ch-mini-heading { min-height: 30px; padding: 9px 14px 0; }
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt form { padding: 0 14px 10px; }
+.solz-home .ch-stage-corner--prompt :is(.ch-mini-heading, .ch-mini-heading > span:first-child, .ch-prompt-label) { color: var(--sh-gray-ink); }
+.solz-home .ch-stage-corner--prompt .ch-mini-heading b,
+.solz-home .ch-stage-corner--prompt .ch-mini-heading > span:first-child > svg { color: #46550f; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer { background: #b9bbc4; border-color: var(--sh-gray-line); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer:focus-within { border-color: #5c6b2a; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer textarea { height: 58px; min-height: 58px; color: var(--sh-gray-ink); }
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt textarea::placeholder { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer .ch-prompt-target select { background: #cfd1d9; color: var(--sh-gray-ink); border-color: var(--sh-gray-line); }
+.solz-home .ch-stage-corner--prompt .ch-mini-controls > button { background: #c7ff00; color: #141a03; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-price { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-price strong { color: var(--sh-gray-ink); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-price b { color: #46550f; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-price span { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-price .ch-cost-status { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer { border-radius: var(--prompt-curve); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer .ch-prompt-target select { border-radius: 12px; }
+/* The key is docked into this plate's field: its own lime, the field's inner
+   curve, and the 7px/6px it has to cancel - this plate's tighter row padding of
+   4px 4px 3px (below) plus the field's own 3px. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer { --send-key: #c7ff00; --send-curve: calc(var(--prompt-curve) - 1px); --send-inset-x: 7px; --send-inset-y: 6px; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint.is-success { color: #3d520f; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint.is-error { color: #8d1c2c; }
+/* Expanding the detail body grows the plate upward to the cap set on the
+   corner, then scrolls; it must never push its own bottom edge off the stage.
+   The sidebar rail sizes its panels by flex-basis 0 and lets the open one grow
+   into the leftover column height (`.ch-home .ch-console-reveal { flex: 1 1 0 }`
+   in home-hero.css). A corner plate has no leftover height to give, so basis 0
+   collapsed the reveal to nothing and the panel looked like it never opened.
+   Here every part is sized by its content instead. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-accordion { flex: 1 1 auto; }
+.solz-home .ch-stage-corner--prompt .ch-console-reveal { flex: 0 1 auto; min-height: 0; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-details { max-height: min(340px, 34vh); overflow: auto; scrollbar-width: thin; background: var(--sh-gray); border-top: 1px solid var(--sh-gray-line); }
+.solz-home .ch-stage-corner--prompt :is(.ch-agent-energy h4, .ch-prompt-details dd) { color: var(--sh-gray-ink); }
+.solz-home .ch-stage-corner--prompt :is(.ch-agent-energy p, .ch-prompt-details > p, .ch-prompt-details dt) { color: var(--sh-gray-ink-muted); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-examples button { background: #b9bbc4; border-color: var(--sh-gray-line); color: var(--sh-gray-ink); }
+.solz-home .ch-stage-corner--prompt .ch-prompt-examples button:hover { background: #c8cad2; border-color: #5c6b2a; }
+
+/* A narrower stage wraps the directive onto more lines, so the field gives up
+   height rather than the plate growing over the stream card below it. */
+@media (max-width: 1190px) {
+  .solz-home .ch-stage-corner--prompt .ch-prompt-composer textarea { height: 54px; min-height: 54px; font-size: 11px; }
+  .solz-home .ch-stage-corner--prompt .ch-mini-prompt form { padding: 8px; }
+  .solz-home .ch-stage-corner--prompt .ch-mini-heading { padding: 8px 12px 0; }
+}
+@media (max-width: 1020px) {
+  .solz-home .ch-stage-corner--prompt .ch-prompt-composer textarea { height: 52px; min-height: 52px; }
+}
+
+/* In the stage corner the plate IS the directive field. The panel title, the
+   $COOLA cost, the "Your directive 0/220" line and the detail body all belong
+   to the rail version of this composer; here they only made the plate tall. */
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt > h3,
+.solz-home .ch-stage-corner--prompt .ch-prompt-label,
+.solz-home .ch-stage-corner--prompt .ch-console-reveal { display: none; }
+.solz-home .ch-stage-corner--prompt .ch-mini-prompt form { padding: 9px 9px 9px; }
+/* No idle hint line on the plate. The same element still carries send
+   confirmations and errors, so those stay visible - the corner never silently
+   swallows a failed directive. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint { margin-top: 6px; }
+/* The resting tip is noise in the corner, but a reason the Send button is
+   disabled is not: hiding it leaves a dead button and no explanation. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint:not(.is-error):not(.is-success):not(.is-blocked) { display: none; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-hint.is-blocked { color: #8d1c2c; }
+
+/* The composer keeps its own frame - the plate around it is what had to get
+   out of the way, not the field. */
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer { padding: 3px; }
+.solz-home .ch-stage-corner--prompt .ch-prompt-composer .ch-mini-controls { padding: 4px 4px 3px; }
+
+/* AGENT TRADER · HERMES
+   ---------------------
+   The live panel is a directive plus the account it spends from, so the two
+   read as one statement: what you told the agent, and what it is allowed to
+   spend doing it. The balance row is a definition list rather than a form row
+   because none of it is editable here - the ceiling moves by depositing to the
+   vault, not by typing a bigger number. */
+.ch-agent-trader { display: grid; gap: 10px; }
+.ch-agent-trader .sh-console-intro { margin: 0; }
+.ch-agent-trader textarea { width: 100%; resize: vertical; min-height: 74px; line-height: 1.5; }
+.ch-agent-trader .sh-form-note { text-align: left; margin-top: 4px !important; }
+.ch-agent-trader__actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+.ch-agent-trader__actions .sh-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.ch-agent-balance { margin: 0; display: grid; gap: 1px; border: 1px solid var(--ch-line, #cfd6dd); background: var(--ch-line, #cfd6dd); }
+.ch-agent-balance > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 9px; background: var(--ch-panel, #fff); }
+.ch-agent-balance dt { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ch-muted, #6a7681); }
+.ch-agent-balance dd { margin: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.ch-agent-status { margin: 0; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ch-muted, #6a7681); }

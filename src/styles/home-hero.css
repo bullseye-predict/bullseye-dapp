@@ -76,21 +76,29 @@
 .ch-broadcast-roster > span:last-child > span { color: #c2cad6; margin-left: 7px; }
 .ch-broadcast-actions { display: flex; align-items: center; gap: 14px; }
 .ch-broadcast-actions a { display: flex; align-items: center; gap: 6px; font-size: 10px; }
-.ch-view-navigation { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px 12px; padding: 14px 0; border-bottom: 1px solid var(--sh-line); }
-.ch-view-navigation > div:first-child { flex: 1 1 230px; }
-.ch-view-navigation h2 { font: 700 clamp(14px, 1.22vw, 19px) var(--sh-heading); }
 .ch-detail-button, .ch-pinned { color: #b2b6c1; background: transparent; border: 0; padding: 4px 0 0; font-size: 9px !important; display: inline-flex; align-items: center; gap: 5px; }
 .ch-detail-button:hover, .ch-pinned:hover { color: var(--sh-lime); }
 .ch-pinned { margin-left: 12px; color: var(--sh-lime); }
-.ch-view-navigation .mx-tabs { padding: 0; gap: 4px; }
-.ch-view-navigation .mx-tabs__tab { font-size: 10px; text-transform: none; min-height: 33px; padding: 0 9px; gap: 6px; }
-.ch-view-navigation .mx-tabs__tab span { font-size: 8px; opacity: .8; }
+.ch-stage-tabs .mx-tabs { padding: 0; gap: 4px; }
+.ch-stage-tabs .mx-tabs__tab { font-size: 10px; text-transform: none; min-height: 33px; padding: 0 9px; gap: 6px; }
+.ch-stage-tabs .mx-tabs__tab span { font-size: 8px; opacity: .8; }
 .ch-activity { contain: size; grid-template-rows: minmax(0, 1fr); flex: 0 0 190px; height: 190px; min-height: 190px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding-top: 14px; }
 .ch-activity > section { min-height: 0; display: flex; flex-direction: column; min-width: 0; }
-.ch-activity header { display: flex; align-items: center; justify-content: space-between; min-height: 30px; gap: 8px; }
-.ch-activity h3 button { display: flex; align-items: center; gap: 7px; background: transparent; border: 0; color: inherit; padding: 0; font: inherit; }
-.ch-activity h3 { display: flex; align-items: center; gap: 7px; font: 600 10px var(--sh-mono); }
-.ch-activity header > button { background: transparent; border: 0; color: inherit; display: flex; padding: 5px; }
+.ch-activity header { display: flex; align-items: center; justify-content: flex-end; min-height: 24px; gap: 8px; }
+.ch-activity header > button { background: transparent; border: 0; color: inherit; display: flex; padding: 5px; margin-right: -3px; }
+/* The instruction rail's stand-in before anyone has sent a directive: the
+   sample lines themselves, each one opening the composer. */
+.ch-prompt-samples { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ch-prompt-preview article + .ch-prompt-samples { margin-top: 9px; padding-top: 9px; border-top: 1px solid #797d8a; }
+.ch-prompt-samples button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid #797d8a; background: transparent; color: #171a22; font: inherit; font-size: 10px; line-height: 1.5; text-align: left; cursor: pointer; }
+.ch-prompt-samples button:hover { background: #c8cad3; border-color: #4b505c; }
+.ch-prompt-samples svg { flex-shrink: 0; }
+/* Centred rather than stacked at the top, so an empty rail reads as a quiet
+   surface instead of a box with one stranded line in its corner. */
+.ch-chat-preview > div.is-empty { display: flex; align-items: center; justify-content: center; }
+.ch-chat-preview .ch-empty { color: #6d7280; font: 400 10px var(--sh-mono); }
+.ch-activity > section > div { scrollbar-width: none; }
+.ch-activity > section > div::-webkit-scrollbar { width: 0; height: 0; }
 .ch-chat-preview { padding: 7px 13px 10px; background: #191c21; border-bottom: 1px solid #373b44; }
 .ch-chat-preview > div { overflow: auto; flex: 1; min-height: 0; scrollbar-width: thin; }
 .ch-chat-preview article { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; }
@@ -287,7 +295,9 @@
 .ch-console-accordion.is-open { flex: 0 0 auto; min-height: 0; }
 .ch-console .sh-console-panel > h3 > button { min-height: 42px; padding: 10px 13px; font-size: 12px; }
 .ch-console .sh-console-panel > h3 > button > small { font-size: 7px; }
-.ch-console-accordion .sh-console-body { flex: 1; min-height: 0; overflow: auto; max-height: none; overscroll-behavior: contain; scrollbar-width: thin; }
+/* Same rule as the rail: the accordion body scrolls to its end and the same
+   wheel gesture then carries the page, instead of dying inside the panel. */
+.ch-console-accordion .sh-console-body { flex: 1; min-height: 0; overflow: auto; max-height: none; overscroll-behavior-x: contain; scrollbar-width: thin; }
 .ch-console .sh-console-intro { font-size: 11px; }
 .ch-console .sh-form-stack label { font-size: 10px; }
 .ch-console .sh-form-stack :is(input, select, textarea) { font-size: 12px; }
@@ -309,11 +319,39 @@
 .ch-mini-prompt textarea::placeholder { color: #a99fba; }
 .ch-mini-prompt textarea:focus { outline: 2px solid #c0a2ec; outline-offset: -1px; background: #191b25; }
 .ch-mini-controls { display: flex; align-items: center; gap: 9px; margin-top: 8px; }
-.ch-prompt-target { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
+/* The recipient select held the whole row before. It carries one short word, so
+   it takes only the width that word needs, and the fuel price sits against the
+   send button instead of floating in the middle - the number and the control it
+   pays for read as one thing. */
+.ch-prompt-target { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 0 1 auto; margin-right: auto; }
+/* Two figures, because the fee is agreed in stablecoin terms: the USD value
+   leads in parentheses, the token amount that actually leaves the wallet is the
+   one set in the larger type. */
+.ch-prompt-price { display: flex; align-items: baseline; gap: 5px; flex: 0 0 auto; min-width: 0; color: #b1a7c1; font: 400 9px var(--sh-mono); white-space: nowrap; }
+.ch-prompt-price strong { color: #e8e3f2; font: 600 12px var(--sh-heading); }
+.ch-prompt-price b { color: var(--sh-lime); font-weight: 500; font-size: 10px; }
+.ch-prompt-price > span { color: #8f879e; }
+/* The cost slot's other state. It occupies the same line as a price so the row
+   does not resize when an operator opens or prices the relay. */
+.ch-prompt-price .ch-cost-status { font: 500 9px/1 var(--sh-mono); letter-spacing: .1em; font-style: normal; color: #8f879e; }
+
+/* A directive suggestion is one of eight stacked rows. Eight identical arrows
+   read as decoration, so each row carries a word for what clicking it does. */
+.ch-example-use { flex-shrink: 0; font: 500 8px/1 var(--sh-mono); letter-spacing: .12em; padding: 3px 5px; border: 1px solid currentColor; opacity: .55; }
+button:hover > .ch-example-use { opacity: 1; }
+.ch-price-info { align-self: center; display: flex; padding: 2px; margin-left: 1px; border: 0; background: transparent; color: #8f879e; cursor: pointer; }
+.ch-price-info:hover, .ch-price-info[aria-expanded='true'] { color: var(--sh-lime); }
+/* The plate clips its own overflow, so the note lies over the directive field
+   rather than escaping the plate. Anchored to the composer, not the plate, it
+   lands in the same place in the rail and in the stage corner - those two put
+   different things below the controls row. */
+.ch-prompt-composer { position: relative; }
+.ch-price-note { position: absolute; z-index: 3; left: 6px; right: 6px; top: 6px; padding: 8px 10px; border: 1px solid #6e6083; background: #1b1e28; color: #d6cfe4; font: 400 9px/1.55 var(--sh-mono); }
+.ch-price-note strong { color: #f0edf6; }
 .ch-prompt-target small { color: #aa9cbb; font-size: 9px; }
 .ch-prompt-target b { font: 500 10px var(--sh-heading); color: #e2d8ef; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-.ch-mini-controls button { position: relative; overflow: hidden; isolation: isolate; background: #c0a1ec; color: #211332; padding: 7px 9px; border: 0; display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 10px; font-weight: 600; }
-.ch-mini-controls button > :not(.ch-button-soda) { position: relative; z-index: 1; }
+.ch-mini-controls > button { position: relative; overflow: hidden; isolation: isolate; background: #c0a1ec; color: #211332; padding: 7px; border: 0; display: flex; align-items: center; justify-content: center; min-width: 34px; min-height: 32px; }
+.ch-mini-controls > button > :not(.ch-button-soda) { position: relative; z-index: 1; }
 .ch-prompt-hint { font: 400 9px/1.55 var(--sh-mono); color: #b1a7c1; margin-top: 8px !important; min-height: 28px; }
 .ch-prompt-hint.is-success { color: #c9f17e; }
 .ch-prompt-hint.is-error { color: #ffb2bd; }
@@ -407,8 +445,8 @@
   .ch-activity { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 12px; height: 380px; min-height: 380px; flex-basis: 380px; }
   .ch-chat-preview > div { max-height: 130px; min-height: 80px; }
   .ch-prompt-preview > div { max-height: 186px; }
-  .ch-view-navigation .mx-tabs { flex-wrap: wrap; }
-  .ch-view-navigation .mx-tabs__tab { font-size: 9px; padding: 0 7px; }
+  .ch-stage-tabs .mx-tabs { flex-wrap: wrap; }
+  .ch-stage-tabs .mx-tabs__tab { font-size: 9px; padding: 0 7px; }
   .ch-chart-footer button { font-size: 8px; padding: 4px; }
   .ch-chart-tooltip > span { font-size: 8px; }
   .ch-chart-footer > span { font-size: 8px; }
@@ -421,12 +459,9 @@
   .ch-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .ch-screen { height: auto; aspect-ratio: 16 / 10; min-height: 260px; }
   .ch-screen.is-season { min-height: 315px; }
-  .ch-view-navigation { padding: 12px 0; gap: 9px; }
-  .ch-view-navigation > div:first-child { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
-  .ch-view-navigation h2 { font-size: 15px; }
   .ch-detail-button { padding: 3px 0; }
-  .ch-view-navigation .mx-tabs { width: 100%; }
-  .ch-view-navigation .mx-tabs__tab { flex: 1; font-size: 10px; padding: 0 9px; min-height: 37px; }
+  .ch-stage-tabs .mx-tabs { width: 100%; }
+  .ch-stage-tabs .mx-tabs__tab { flex: 1; font-size: 10px; padding: 0 9px; min-height: 37px; }
   .ch-scoreboard strong { font-size: 14px; }
   .ch-score-center strong { font-size: 15px; }
   .ch-scoreboard b { font-size: 24px; }
@@ -436,9 +471,6 @@
   .ch-broadcast-roster > span:last-child > span { display: none; }
   .ch-activity { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); height: 200px; min-height: 200px; flex-basis: 200px; gap: 10px; }
   .ch-chat-preview, .ch-prompt-preview { padding-left: 9px; padding-right: 9px; }
-  .ch-activity h3 button { display: flex; align-items: center; gap: 7px; background: transparent; border: 0; color: inherit; padding: 0; font: inherit; }
-.ch-activity h3 { font-size: 8px; gap: 5px; }
-  .ch-activity h3 svg { display: none; }
   .ch-chat-preview article { gap: 6px; }
   .ch-chat-avatar { height: 19px; width: 19px; font-size: 9px; }
   .ch-chat-preview p, .ch-prompt-preview article p { font-size: 9px; }
@@ -484,9 +516,9 @@
   .sh-wallet .arena-wallet-button, .sh-wallet button { font-size: 8px; padding-inline: 8px; gap: 5px; }
 }
 
-.solz-home .ch-view-navigation .mx-tabs__tab { border-bottom: 2px solid transparent; background: transparent; color: #aab4c5; }
-.solz-home .ch-view-navigation .mx-tabs__tab[aria-selected='true'] { border-color: #70c5ff; color: #91d2ff; background: #152b3a; }
-.ch-view-navigation { min-height: 76px; flex-shrink: 0; }
+.solz-home .ch-stage-tabs .mx-tabs__tab { border-bottom: 2px solid transparent; background: transparent; color: #9aa5b6; }
+.solz-home .ch-stage-tabs .mx-tabs__tab:hover { color: #e6ecf5; }
+.solz-home .ch-stage-tabs .mx-tabs__tab[aria-selected='true'] { border-color: var(--sh-lime); color: var(--sh-lime); background: transparent; }
 .ch-console .sh-console-panel > h3 { flex-shrink: 0; }
 .ch-console .sh-console-panel > h3 > button > span { font-size: 12px; }
 .ch-console .ch-console-trade .sh-console-body { display: flex; padding: 0; background: #1b2026; }
@@ -576,7 +608,6 @@
   .ch-hero-grid > .ch-viewer > .ch-activity { flex-grow: 0; }
 }
 @media (max-width: 720px) {
-  .ch-view-navigation { min-height: 98px; }
   .ch-market-off h2 { font-size: 19px; }
 }
 
@@ -690,13 +721,15 @@
 .ch-home .sh-highlight-heading p { font-size: 12px; }
 .ch-home .ch-hero-grid { --trade-pair-width: 326px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 20px; }
 .ch-home .ch-screen { min-height: 440px; max-height: 620px; }
-.ch-home .ch-view-navigation .mx-tabs__tab { min-height: 40px; font-size: 12px; padding-inline: 12px; }
-.ch-home .ch-view-navigation h2 { font-size: 20px; }
-.ch-home .ch-activity h3 { font-size: 11px; }
+.ch-home .ch-stage-tabs .mx-tabs__tab { min-height: 40px; font-size: 12px; padding-inline: 12px; }
 .ch-home .ch-activity :is(.ch-chat-preview p, .ch-prompt-preview article p) { font-size: 11px; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion { --console-header-height: 42px; flex: 0 0 var(--console-header-height); min-height: var(--console-header-height); transition: flex-grow .3s cubic-bezier(.22, 1, .36, 1); }
 .ch-home .ch-hero-grid > .ch-console .ch-prompt-accordion { --console-header-height: 216px; }
 .ch-home .ch-hero-grid > .ch-console .ch-console-accordion.is-open { flex-grow: 1; }
+/* Trade and Agent Trader are both open by default now that chat and the prompt
+   composer live on the stage. An even split starves the ticket, which is the
+   taller of the two by far, so it takes three quarters of the free space. */
+.ch-home .ch-hero-grid > .ch-console .ch-console-trade.is-open { flex-grow: 3; }
 .ch-home .ch-console-reveal { flex: 1 1 0; min-height: 0; }
 .ch-home .ch-console-reveal > .ch-collapse-inner > .sh-console-body { height: 100%; max-height: 100%; min-height: 0; }
 .ch-home .ch-console-trade .sh-console-body { display: flex; }
@@ -707,7 +740,7 @@
   .ch-home .sh-header nav a { font-size: 10px; padding-inline: 8px; }
   .ch-home .ch-hero-grid { --trade-pair-width: 296px; grid-template-columns: minmax(0, 1fr) var(--ch-rail); gap: 16px; }
   .ch-home .ch-screen { min-height: 450px; }
-  .ch-home .ch-view-navigation .mx-tabs__tab { font-size: 10px; padding-inline: 10px; }
+  .ch-home .ch-stage-tabs .mx-tabs__tab { font-size: 10px; padding-inline: 10px; }
 }
 @media (max-width: 1020px) {
   .ch-home .ch-hero-grid { grid-template-columns: minmax(0, 1fr); }
@@ -721,8 +754,6 @@
   .ch-home .sh-highlight-heading h1 { font-size: 29px; }
   .ch-home .sh-highlight-heading p { font-size: 10px; }
   .ch-home .ch-screen { min-height: 370px; }
-  .ch-home .ch-view-navigation h2 { font-size: 16px; }
-  .ch-home .ch-activity h3 { font-size: 9px; }
   .ch-home .ch-activity :is(.ch-chat-preview p, .ch-prompt-preview article p) { font-size: 9px; }
   .ch-home .ch-hero-grid > .ch-console { height: 710px; }
   .ch-topic-tabs { padding-inline: 10px; gap: 5px; }
@@ -746,7 +777,6 @@
   .ch-home .ch-options { padding-inline: 8px; }
   .ch-options-heading { gap: 6px; }
   .ch-options-heading .ch-simulation { font-size: 6px; }
-  .ch-home .ch-activity h3 { font-size: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ch-collapse, .ch-console-accordion, .ch-mini-heading svg { transition: none !important; }
@@ -762,15 +792,56 @@
 .ch-chart-controls button[aria-pressed='true'] { color: #ebeff6; background: #303640; }
 .ch-chart-controls button:focus-visible { outline: 2px solid #c2f838; outline-offset: 2px; }
 
-/* Viewer navigation shares a grid row with the console's starting edge. */
-.ch-home .ch-hero-grid { grid-template-rows: auto auto; row-gap: 12px; }
-.ch-home .ch-viewer { grid-column: 1; grid-row: 1 / span 2; display: grid; grid-template-rows: subgrid; }
-.ch-home .ch-view-navigation { min-height: 48px; padding: 0; border: 0; align-items: center; }
-.ch-home .ch-view-navigation h2 { font-size: 16px; }
-.ch-home .ch-view-navigation .mx-tabs { flex-shrink: 0; }
+/* The header row is gone: the tabs are notched into the stage and the match
+   identity leads the UP NEXT rail, so the viewer and the console both start at
+   the top of a single grid row. */
+.ch-home .ch-hero-grid { grid-template-rows: auto; row-gap: 12px; }
+.ch-home .ch-viewer { grid-column: 1; grid-row: 1; display: flex; }
 .ch-home .ch-viewer-body { min-width: 0; }
-.ch-home .ch-hero-grid > .ch-console { grid-column: 2; grid-row: 2; }
-.ch-home .ch-viewer-body .ch-activity { padding-top: 16px; }
+.ch-home .ch-hero-grid > .ch-console { grid-column: 2; grid-row: 1; }
+/* A rail is joined to the stage only while a plate is docked into it: no gap,
+   no top corners, one surface. The moment that plate is minimized - or, for
+   chat, was never opened - the rail detaches again and takes its gap and its
+   rounded top back. That detachment IS what minimizing means here. */
+.ch-home .ch-viewer-body .ch-activity { padding-top: 0; }
+/* The stage is a dark card on a dark page and the two ran together, so it is
+   framed. Not with a border: a border moves the padding box, which put the
+   plate's right edge one pixel short of the rail's - a visible step right where
+   the two are supposed to be one surface. Not with an outline either: an inset
+   outline on a non-stacking-context element is painted with that element's own
+   background in Chrome, and every tab panel here is `position: absolute;
+   inset: 0`, so the panel's content covered the frame on all four sides. That
+   is why the stage read as having no frame at all.
+
+   A ring pseudo-element takes no layout space the way an outline does, and
+   z-index puts it back above the panel where a frame belongs. It stays BELOW
+   the plates (7), which is what makes a plate read as notched INTO the stage
+   rather than as a box drawn on top of it: the frame runs the stage's four
+   edges and each plate interrupts it, outer edges and all. A plate is outlined
+   only on the sides that face into the stage - its own inward border and its
+   two notch wedges, in the stage chrome block below. */
+.solz-home.ch-home .ch-screen { border: 0; border-radius: var(--stage-radius) 0 0 0; outline: 0; }
+.solz-home.ch-home .ch-screen::after { content: ''; position: absolute; inset: 0; z-index: 6; pointer-events: none; border: 1px solid var(--stage-line); border-radius: inherit; }
+.solz-home.ch-home .ch-activity > section { transition: margin-top .2s cubic-bezier(.22, 1, .36, 1); }
+/* The prompt plate docks against the rail's right end, the chat plate against
+   its left, so only that end loses its corner. */
+/* Only the corner that meets the stage curves. The rail's other top corner is
+   an outer corner with nothing to wrap around, and rounding it there broke the
+   straight run the stage's bottom edge makes across both rails. */
+.solz-home.ch-home .ch-prompt-preview { border-top-right-radius: 0; border-top-left-radius: 0; }
+.solz-home.ch-home .ch-chat-preview { border-top-left-radius: 0; }
+/* A plate counts as docked only while its own tab panel is the open one. Both
+   plates live inside the livestream panel, and a panel that is not current is
+   `hidden` - still in the DOM, so a plain :has() found the plate from Market
+   and Predictions too and held both rails flush against nothing. */
+.solz-home.ch-home .ch-viewer-body:not(:has([role='tabpanel']:not([hidden]) .ch-stage-corner--chat)) .ch-chat-preview,
+.solz-home.ch-home .ch-viewer-body:has([role='tabpanel']:not([hidden]) .ch-stage-corner--chat.is-minimized) .ch-chat-preview {
+  margin-top: 16px; border-top-left-radius: var(--radius-panel);
+}
+/* Same rule for the prompt rail. */
+.solz-home.ch-home .ch-viewer-body:not(:has([role='tabpanel']:not([hidden]) .ch-stage-corner--prompt)) .ch-prompt-preview {
+  margin-top: 16px; border-top-left-radius: var(--radius-panel); border-top-right-radius: var(--radius-panel);
+}
 .ch-home .sh-highlight-heading { margin-bottom: 16px; }
 
 /* The guide is a separate reading break between the hero and live discovery. */
@@ -796,23 +867,9 @@
   .ch-guide-heading h2 { font-size: 20px; }
   .ch-home .ch-guide .sh-how-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
   .ch-home .sh-community-grid, .ch-home .sh-genesis { margin-top: 48px; }
-  .ch-home .ch-view-navigation { gap: 12px; }
-  .ch-home .ch-view-navigation > div:first-child { flex-basis: 100%; }
 }
 
-/* The heading shares the viewer's first row, immediately above the video frame. */
-.ch-home .ch-view-navigation > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-.ch-home .ch-view-navigation .sh-match-heading { display: grid; gap: 3px; }
-.ch-home .ch-view-navigation .sh-match-heading h1 { margin: 0; font: 700 20px/1 var(--sh-heading); letter-spacing: -.015em; }
-.ch-home .ch-view-navigation .sh-match-heading h1 > span { margin-left: 7px; color: var(--sh-lime); font: 400 18px/1 var(--sh-mono); }
-.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker { margin: 0; gap: 9px; font-size: 8px; line-height: 1; }
-.ch-home .ch-view-navigation .sh-match-heading .sh-highlight-kicker > span:last-child { color: #dfe5ec; font: 700 11px/1 var(--sh-mono); }
-.ch-home .ch-view-navigation .sh-match-heading .sh-status { gap: 4px; font-size: 6px; }
-.ch-home .ch-view-navigation .sh-match-heading .sh-status i { width: 4px; height: 4px; }
-.ch-home .ch-view-navigation .sh-match-heading .sh-match-id { gap: 4px; max-width: 21ch; margin-left: 5px; font-size: 8px; }
-.ch-home .ch-detail-button { padding: 0; }
 .ch-home .ch-screen { width: 100%; max-height: none; }
-@media (max-width: 720px) { .ch-home .ch-view-navigation .sh-match-heading h1 { font-size: 18px; } }
 @media (max-width: 1020px) { .ch-home .sh-highlight-meta { position: static; width: auto; height: auto; padding: 0; } }
 
 /* Shared context controls occupy the row immediately above each trade panel. */
@@ -856,6 +913,15 @@
 .ch-intermission-roster strong { font-size: 9px; }
 .ch-intermission-roster small, .ch-intermission-lock { color: #858c98; font: 600 7px/1 var(--sh-mono); }
 .ch-intermission-lock { grid-column: 1 / -1; justify-self: end; align-self: end; }
+/* THE COIN PAIRING, where an agent roster would be.
+   A MIAW PRIX card has two competitors, not twelve, so the three-column roster
+   grid would leave one crest stranded in a third of the width. Two columns and
+   a larger crest make the fixture read as a fixture. */
+.ch-intermission-roster--coins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.ch-intermission-roster--coins > div { padding: 11px; gap: 11px; }
+.ch-intermission-roster--coins .sh-team-mark { flex: 0 0 34px; width: 34px; height: 36px; }
+.ch-intermission-roster--coins strong { font-size: 13px; }
+.ch-broadcast-roster > span:not(:last-child) .sh-team-mark { width: 100%; height: 100%; }
 @media (max-width: 720px) {
   .ch-market-source, .ch-market-source .ch-network-tabs { justify-items: stretch; width: 100%; }
   .ch-market-source .ch-network-tabs { justify-content: space-between; }
@@ -880,4 +946,246 @@
 @media (max-width: 1020px) {
   .ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-trade-context { grid-row: 2; }
   .ch-home .ch-hero-grid:has(> .ch-network-panel) > .ch-network-panel { grid-row: 3; }
+}
+
+/* ==========================================================================
+   Stage cutouts
+   --------------------------------------------------------------------------
+   The broadcast stage is a cutout card: three plates notch into its corners
+   with concave rounding, so the frame appears to wrap around each one instead
+   of the plate sitting on top of it.
+
+   The concave corner is ADDITIVE, not a mask. Each plate rounds its one inward
+   corner convexly, then two CutoutCorner wedges in the plate's own colour sit
+   just outside that corner and fill the sliver the stage would otherwise show.
+   Three rules make it seamless:
+     - the wedge colour must equal the plate background exactly, which is why
+       every plate declares --plate-bg and the wedges read it;
+     - on the side facing the STAGE's own edge the wedge still overlaps by 1px,
+       against subpixel rounding. Nothing draws a line there: the stage's ring
+       runs above every plate and owns all four outer edges;
+     - on the side facing the PLATE's border the wedge sits on that border's
+       CENTRELINE (-0.5px, not 1px outside its padding box), because there the
+       edge stroke IS the line. At 1px outside, the stroke ran 1.5px beside the
+       border it was continuing and the corner read as two hairlines. The fill
+       still covers the border - CutoutCorner's fill path overspills its box on
+       exactly those two sides, which is what `overflow: visible` below is for.
+   See CutoutCorner in src/components/solz/ui.tsx for the path itself.
+   ========================================================================== */
+.ch-screen {
+  /* The concave notch is cut from the stage, so it reads correctly only while
+     it keeps its proportion to the stage: a fixed 28px wedge looked like a
+     chamfer on a wide screen. Both the wedge and the plate's own convex corner
+     grow with the viewport, and they grow together - the wedge has to finish
+     the arc the plate's corner starts, or the joint shows a step. */
+  --stage-notch: clamp(28px, 3.6vw, 52px);
+  --stage-plate-radius: clamp(18px, 2.4vw, 34px);
+  --stage-tab-height: 48px;
+  /* The width the tab plate holds at this breakpoint. It is kept clear for the
+     plate and nothing is placed inside it; a flat panel's heading sits in the
+     rest of the band, right-aligned, so a plate wider than this crowds the
+     heading rather than running under it. */
+  --stage-tab-width: 404px;
+  --stage-corner-height: 152px;
+  /* A plate is NARROWER than the rail it lands on, the way the reference card's
+     label plate is narrower than the card. The concave wedge at its inner
+     bottom corner is what joins the two smoothly; matching their widths gave a
+     flat butt joint instead. --stage-dock-reserve is the plate's own height
+     held constant, so minimizing it never moves the stage's own content. */
+  --stage-radius: 16px;
+  /* ONE token for the whole frame: the ring, every plate's inward border and
+     every notch wedge's edge stroke all read it, so the stage is outlined in a
+     single colour or none of it is. It is the theme's neon yellow, the same
+     --sh-lime the header chip, the live tab and the Yes side already use, taken
+     half way down to the stage's own surface: at full strength a hairline that
+     long competes with the Yes button and the live tab for the eye, and the
+     frame should place the stage, not shout.
+
+     It is MIXED, not faded. Where a wedge's edge stroke lands on the plate
+     border it continues, the two overlap for about half a pixel; at any alpha
+     below 1 that overlap stacks and the notch sweeps come out brighter than the
+     straight runs. An opaque colour keeps every part of the frame equal. */
+  --stage-line: #6f8c0f; /* the mix below, resolved, for engines without color-mix */
+  --stage-line: color-mix(in srgb, var(--sh-lime, #c7ff00) 50%, #17191e);
+  --stage-dock-reserve: 160px;
+  --stage-chat-height: 128px;
+  --stage-rail-gap: 18px;
+  --stage-corner-width: min(420px, 46%);
+  --stage-chat-width: min(390px, 44%);
+}
+/* The wedge takes its size from the same variable that places it. The size
+   prop on CutoutCorner only sets the SVG's intrinsic width; overriding it here
+   is what keeps the wedge and its offset one number as the stage scales. */
+.ch-stage-cut { position: absolute; display: block; width: var(--stage-notch); height: var(--stage-notch); color: var(--plate-bg); pointer-events: none; transition: opacity .18s ease-out; overflow: visible; }
+.ch-stage-cut .mx-cutout-corner__edge { stroke: var(--stage-line); stroke-width: 1; }
+.ch-stage-plate, .ch-stage-corner { position: absolute; z-index: 7; background: var(--plate-bg); }
+/* A plate is drawn ONLY on the edges that face into the stage. The edges it
+   shares with the stage carry no line: the frame belongs to the stage and stops
+   where a plate notches into it. box-sizing is border-box everywhere, so this
+   insets the plate's contents by a pixel and moves nothing else. */
+.ch-stage-tabs { border-right: 1px solid var(--stage-line); border-bottom: 1px solid var(--stage-line); }
+.ch-stage-corner--prompt { border-top: 1px solid var(--stage-line); border-left: 1px solid var(--stage-line); }
+.ch-stage-corner--chat { border-top: 1px solid var(--stage-line); border-right: 1px solid var(--stage-line); }
+/* Minimized, the plate is no longer notched into anything - it is a chip
+   floating over the stage, so all four of its sides face the stage and all four
+   take the line. Two of them with a radius on all four corners read as a broken
+   L, which the grey line hid and the neon one would not. */
+.ch-stage-corner.is-minimized { border: 1px solid var(--stage-line); }
+/* A plate showing its field is docked into the rail beneath it - one surface,
+   only its inward corner rounded. Minimizing breaks that connection: the tab
+   lifts clear, rounds on every side and drops its notch, because it is no
+   longer part of the rail. */
+.ch-stage-corner { transition: transform .2s cubic-bezier(.22, 1, .36, 1), border-radius .2s ease-out; }
+.ch-stage-corner.is-minimized { border-radius: var(--stage-plate-radius); box-shadow: 0 10px 28px rgb(4 7 12 / 48%); }
+.ch-stage-corner--chat.is-minimized { transform: translate(12px, -12px); }
+.ch-stage-corner.is-minimized .ch-stage-cut { opacity: 0; }
+
+/* Top-left: the view switch. Its wedges point down and right, into the stage.
+
+   The plate's own convex corner may not eat the edge the wedge lands on. The
+   wedge needs --stage-notch of the plate's height to complete its sweep and the
+   corner needs its radius, so anything past the plate's height forks: the sweep
+   arrives at a right edge that curved away several pixels earlier, and the last
+   stretch of it hangs in the stage with nothing to meet. At a desk width that
+   was a 34px notch and a 34px corner inside a 48px plate - the stray tick under
+   the LIVESTREAM tab. Capping the corner at what the notch leaves is the
+   arithmetic the sweep already assumed.
+
+   Its TOP-LEFT corner is square on purpose, and .ch-screen's own `overflow:
+   clip` rounds it instead. That corner is the only place a plate corner sits on
+   a stage corner, so the plate used to round itself to --stage-radius over a
+   ring rounded to the same radius - two rounded rects rasterized separately,
+   which left the ring's antialiased edge showing as a faint arc at 1:1. It
+   vanished under any zoom, because magnifying re-rasterizes both at the higher
+   resolution. Clipped instead of rounded, the plate reaches the clip boundary
+   the ring is measured against, so it covers the ring exactly. */
+.ch-stage-tabs { --stage-notch: min(var(--stage-plate-radius), calc(var(--stage-tab-height) - 12px)); --plate-bg: #14161b; color: #d5dbe5; top: 0; left: 0; height: var(--stage-tab-height); display: flex; align-items: center; padding: 0 14px 0 6px; border-top-left-radius: 0; border-bottom-right-radius: min(var(--stage-plate-radius), calc(var(--stage-tab-height) - var(--stage-notch))); }
+.ch-stage-cut--tl-side { top: -1px; right: calc(-0.5px - var(--stage-notch)); transform: rotate(180deg); }
+.ch-stage-cut--tl-below { left: -1px; bottom: calc(-0.5px - var(--stage-notch)); transform: rotate(180deg); }
+
+/* Bottom-right: the prompt composer, in the same light gray as the AGENT
+   INSTRUCTIONS rail directly below it, so the two read as one shape. */
+/* The big sweep the reference shows is the CONCAVE notch - --stage-notch, where
+   the stage wraps around this plate. The plate's own convex corner stays modest
+   against it; matching it to the notch made the plate bulge into the stage
+   instead of tucking under it.
+
+   --prompt-curve is set from the INSIDE: it is the composer frame's corner, and
+   the plate takes the same number, so the two curves in the top-left read as
+   one radius at every width. It clamps around the frame's own 16px rather than
+   around the larger --stage-plate-radius the other plates use. */
+.ch-stage-corner--prompt { --plate-bg: var(--sh-gray); --prompt-curve: clamp(14px, 1.1vw, 18px); right: 0; bottom: 0; width: var(--stage-corner-width); height: auto; display: flex; flex-direction: column; border-top-left-radius: var(--prompt-curve); color: var(--sh-gray-ink); }
+.ch-stage-cut--br-top { right: -1px; top: calc(-0.5px - var(--stage-notch)); }
+.ch-stage-cut--br-side { bottom: -1px; left: calc(-0.5px - var(--stage-notch)); }
+
+/* Bottom-left: the chat field, matching the CHAT HIGHLIGHTS rail below it. */
+.ch-stage-corner--chat { --plate-bg: #191c21; left: 0; bottom: 0; width: var(--stage-chat-width); display: grid; gap: 6px; padding: 9px 13px 12px; border-top-right-radius: var(--stage-plate-radius); color: #e7ecf3; }
+.ch-stage-cut--bl-top { left: -1px; top: calc(-0.5px - var(--stage-notch)); transform: rotate(90deg); }
+.ch-stage-cut--bl-side { bottom: -1px; right: calc(-0.5px - var(--stage-notch)); transform: rotate(90deg); }
+.ch-stage-corner--chat > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ch-stage-corner--chat h3 { display: flex; align-items: center; gap: 7px; color: #e7ecf3; font: 600 10px var(--sh-mono); }
+.ch-stage-corner--chat > header > span { display: flex; align-items: center; gap: 2px; }
+.ch-stage-corner--chat > header button { display: flex; padding: 4px; background: transparent; border: 0; color: #9aa5b4; }
+.ch-stage-corner--chat .ch-stage-restore:hover, .ch-stage-corner--chat .ch-stage-minimize:hover { color: var(--sh-lime); }
+.ch-stage-corner--chat > header button:hover { color: var(--sh-lime); }
+.ch-stage-corner--chat .sh-chat-form { background: #242f37; border-color: #586d7a; }
+.ch-stage-corner--chat .sh-chat-form input { background: transparent; color: #f3f5f6; font-size: 11px; }
+.ch-stage-corner--chat .sh-chat-form input::placeholder { color: #b7c5cf; }
+.ch-stage-corner--chat .sh-chat-form button { background: #e9a9c5; color: #34202e; }
+.ch-stage-corner--chat .sh-form-note { margin: 0; color: #93a0ad; font-size: 8px; }
+
+/* Minimize drops the plate to a tab, and the stage reclaims the space. */
+.ch-stage-minimize { z-index: 2; display: flex; padding: 3px; border: 0; background: transparent; color: currentColor; }
+.ch-stage-minimize:hover { color: #3d520f; }
+.ch-stage-restore { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 0; background: transparent; color: inherit; font: 700 11px var(--sh-mono); }
+.ch-stage-restore:hover { color: #3d520f; }
+.ch-screen:has(.ch-stage-corner--chat.is-minimized) { --stage-chat-height: 40px; }
+.ch-stage-corner--chat.is-minimized { width: auto; height: auto; padding: 0; }
+/* The embedded game is inert until this is pressed, so a click meant for the
+   page cannot disappear into it. */
+.sh-broadcast-interact { position: absolute; z-index: 6; left: 50%; bottom: calc(var(--stage-corner-height) + 14px); transform: translateX(-50%); }
+.sh-broadcast-interact button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid rgb(225 234 250 / 38%); background: rgb(7 11 19 / 86%); color: #dce6fa; font: 700 9px var(--sh-mono); text-transform: uppercase; }
+.sh-broadcast-interact button:hover { border-color: #c7ff00; color: #eaffb0; }
+.sh-broadcast-interact button[aria-pressed='true'] { border-color: #c7ff00; background: #c7ff00; color: #101510; }
+
+/* The game draws its own HUD in the same corners we do, and the frame paints
+   above the page shade, so our controls were reading straight into it. This
+   scrim sits over the media and under every control. */
+.ch-screen .sh-broadcast-shade { z-index: 3; background: linear-gradient(180deg, rgb(6 9 14 / 88%) 0, rgb(6 9 14 / 34%) 18%, transparent 38%, rgb(4 9 22 / 10%) 60%, rgb(7 11 19 / 88%)); }
+
+/* The tab plate owns the top-left; the source toggle and the clock stack at the
+   top-right, and everything else starts below them. Pushing the strips DOWN
+   rather than indenting them means nothing has to know a plate's width. */
+.ch-screen .sh-broadcast-context { top: calc(var(--stage-tab-height) + 10px); left: auto; right: 18px; transform: none; }
+.ch-screen .sh-broadcast-source { top: calc((var(--stage-tab-height) - 22px) / 2); }
+/* The plate's lower wedge reaches --stage-notch past its bottom edge, and it
+   starts at the stage's own left edge, so the strip below has to clear both -
+   and on the right it has to clear the clock that now lives there. */
+.ch-screen .sh-broadcast-top { top: calc(var(--stage-tab-height) + 16px); padding-left: var(--stage-notch); padding-right: 210px; }
+/* The bottom strip keeps its place and gives the prompt plate room beside it.
+   Once the chat field claims the other corner there is no room left on that
+   line, so the whole strip lifts above both plates instead. */
+.ch-screen .sh-broadcast-bottom { right: calc(var(--stage-corner-width) + 20px); }
+/* The unavailable-stream card centres itself in the frame, which put its
+   buttons under the prompt plate. Centre it in what is left above the plates. */
+.ch-screen .sh-broadcast-fallback { padding-top: calc(var(--stage-tab-height) + 16px); padding-bottom: calc(var(--stage-dock-reserve) + 24px); }
+.ch-screen:has(.ch-stage-corner--chat) .sh-broadcast-bottom { right: 18px; bottom: calc(max(var(--stage-corner-height), var(--stage-chat-height)) + 16px); }
+/* Opening the detail body grows the plate upward from its fixed closed height. */
+.ch-stage-corner--prompt:has(.ch-prompt-accordion.is-open) { height: auto; max-height: calc(100% - var(--stage-tab-height) - 20px); }
+.ch-screen .ch-scoreboard { top: calc(var(--stage-tab-height) + 74px); }
+/* Predictions and Market are flat panels, so their content starts below the
+   tab plate rather than running under it the way the video does. */
+.ch-screen > [role='tabpanel']:not(:has(.sh-broadcast)) { padding-top: var(--stage-tab-height); }
+
+/* Only the plate stands in that band; the rest of the row was empty while both
+   flat panels carried a heading of their own directly underneath it - two rows
+   of chrome before the first prediction. Above a phone, where the plate is
+   still a plate rather than a full-width band, each heading moves up into the
+   band beside it and the panel starts with its content. The heading is out of
+   flow, so the freed row goes to the list and to the plot. */
+@media (min-width: 721px) {
+  .ch-screen .probability-chart .market-chart-header,
+  .ch-screen .ch-options-heading {
+    position: absolute; z-index: 8; top: 0; right: 14px;
+    max-width: calc(100% - var(--stage-tab-width) - 20px);
+    height: var(--stage-tab-height); min-width: 0; gap: 12px;
+    justify-content: flex-end; padding: 0; border-bottom: 0; overflow: hidden;
+  }
+  /* One line, because the band is one line high: the stacked source badge and
+     headline sit side by side, and the count line goes - the tab beside it
+     already carries the number. */
+  .ch-screen .probability-chart .market-chart-header > div:first-child,
+  .ch-screen .ch-options-heading > div:first-child { display: flex; align-items: center; gap: 10px; }
+  .ch-screen .ch-options-heading p { display: none; }
+  .ch-screen .ch-options-heading h2 { font-size: 16px; }
+  .ch-screen .probability-chart .pc-headline { font-size: 15px; }
+  .ch-screen .probability-chart .market-chart-header small { font-size: 10px; }
+  /* Three rows minus the header it no longer holds. */
+  .ch-screen .probability-chart { grid-template-rows: auto minmax(0, 1fr); }
+}
+
+@media (max-width: 1190px) {
+  .ch-screen { --stage-corner-height: 150px; --stage-dock-reserve: 158px; --stage-tab-height: 44px; --stage-tab-width: 356px; --stage-corner-width: min(360px, 52%); }
+}
+@media (max-width: 1020px) {
+  .ch-screen { --stage-corner-height: 148px; --stage-dock-reserve: 156px; --stage-tab-width: 340px; --stage-corner-width: min(340px, 58%); --stage-chat-width: min(300px, 48%); }
+}
+/* A phone has no room for a corner: each plate spans the stage's full width, so
+   it reads as a band rather than a notch and its wedges have nothing to bite
+   into. The timer and the source toggle drop to their own row underneath. */
+@media (max-width: 720px) {
+  .ch-screen { --stage-notch: 20px; --stage-plate-radius: 14px; --stage-tab-height: 42px; --stage-corner-height: 154px; --stage-dock-reserve: 162px; --stage-corner-width: 100%; --stage-chat-width: 100%; }
+  .ch-home .ch-screen { min-height: 580px; }
+  .ch-stage-tabs { width: 100%; justify-content: space-between; padding-inline: 4px; border-bottom-right-radius: 0; }
+  .ch-stage-corner--prompt, .ch-stage-corner--chat { border-top-left-radius: var(--stage-plate-radius); border-top-right-radius: var(--stage-plate-radius); }
+  .ch-stage-cut { display: none; }
+  /* No room to centre the clock between the source toggle's edges here. */
+  .ch-screen .sh-broadcast-context { top: calc(var(--stage-tab-height) + 8px); left: 12px; transform: none; }
+  .ch-screen .sh-broadcast-source { top: calc(var(--stage-tab-height) + 14px); }
+  .ch-screen .sh-broadcast-top { top: calc(var(--stage-tab-height) + 58px); padding-left: 0; }
+  .ch-screen .ch-scoreboard { top: calc(var(--stage-tab-height) + 92px); }
+  .ch-screen .sh-broadcast-bottom { right: 18px; bottom: calc(var(--stage-corner-height) + 12px); }
+  /* Two plates cannot share a phone-width bottom edge. The chat field takes it
+     while it is open; the prompt steps aside rather than overlapping. */
+  .ch-screen:has(.ch-stage-corner--chat) .ch-stage-corner--prompt { display: none; }
 }

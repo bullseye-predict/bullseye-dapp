@@ -81,6 +81,20 @@ describe('trade review dialog', () => {
     expect(markup).not.toContain('Your Solana wallet will sign the first-trader activation')
   })
 
+  test('the rail holds the promised count still rather than discovering it', () => {
+    // Mid-run, with the first of two legs confirmed. The denominator used to be
+    // the row count, which grows: "2 of 2 done" stood on screen looking like a
+    // finished trade while two more prompts were queued behind it.
+    const markup = render({ type: 'limit' }, { type: 'limit', fundingAtoms: 5_000_000n, run: { legs: 2, funds: 1 } }, [
+      { step: TRADE_STEPS.fundRemaining, status: 'preparing' },
+      { step: TRADE_STEPS.fundRemaining, status: 'sent', signature: 'f' },
+      { step: TRADE_STEPS.match, status: 'preparing' },
+      { step: TRADE_STEPS.match, status: 'sent', signature: 'm' },
+    ])
+    expect(markup).toContain('2 signed of 3 to 16')
+    expect(markup).not.toContain('2 of 2 done')
+  })
+
   test('a first-open trade counts every activation and welcomes the trader', () => {
     const markup = render({}, { books: [false, false], questionExists: false, accounts: { ...accounts, vault: false, position: false, walletQuote: false, walletClaims: false, venueQuote: false } })
     expect(markup).toContain('You are opening this market')
@@ -91,10 +105,32 @@ describe('trade review dialog', () => {
     expect(markup).not.toContain('test SOL')
   })
 
-  test('a limit buy says the count can grow rather than hiding the loop', () => {
+  test('a limit buy counts signatures, not the entries on the list', () => {
     const markup = render({ type: 'limit' }, { type: 'limit', fundingAtoms: 5_000_000n })
-    expect(markup).toContain('Up to 2 transactions')
-    expect(markup).toContain('once per price level')
+    // Two entries stand for up to sixteen signatures. Printing the entries is
+    // what told a trader "Up to 2 transactions" and then asked them for four.
+    expect(markup).toContain('2 to 16 transactions')
+    expect(markup).not.toContain('Up to 2 transactions')
+    // A leg ends where the cheaper book changes, not at a price level: one
+    // order takes every level of one book that beats the other book's best.
+    expect(markup).toContain('at or under')
+    expect(markup).toContain('stops at 16 transactions')
+    expect(markup).not.toContain('once per price level')
+  })
+
+  test('the recorded trade announces a range its four signatures fall inside', () => {
+    // The screen recording: "Up to 2 transactions", then four wallet prompts,
+    // two of which arrived as rows the plan had no slot for.
+    const markup = render({ type: 'limit' }, {
+      type: 'limit',
+      route: 'complete-set',
+      accounts: { ...accounts, walletClaims: false },
+      accountsAlternate: accounts,
+      fundingAtoms: 1_000_000_000n,
+      upfrontAtoms: 2_000_000_000n,
+      run: { legs: 2, funds: 1 },
+    })
+    expect(markup).toContain('4 to 17 transactions')
   })
 
   test('confirming swaps the invoice for the rail', () => {
@@ -117,7 +153,7 @@ describe('trade review dialog', () => {
       { step: TRADE_STEPS.submit, status: 'sent', signature: 'sig' },
     ], true)
     expect(markup).toContain('Trade submitted')
-    expect(markup).toContain('1 of 1 done')
+    expect(markup).toContain('1 of 1 signed')
     expect(markup).not.toContain('Agree and sign on Solana')
     expect(markup).toContain('Close')
   })

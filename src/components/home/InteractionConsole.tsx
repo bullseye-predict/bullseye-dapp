@@ -1,6 +1,5 @@
 import "../../styles/home-console.css";
 import {
-  ArrowRight,
   ArrowUpRight,
   Bot,
   ChevronDown,
@@ -22,10 +21,13 @@ import {
   predictionContract,
   type PredictionAnswer,
 } from "../solz/predictionContracts";
+import { AgentTrader } from "./AgentTrader";
 import { AnimatedCollapse } from "./AnimatedCollapse";
 import { PromptComposer } from "./PromptComposer";
 import { TradeTicket } from "./TradeTicket";
 import { MarketErrorBoundary } from "./MarketErrorBoundary";
+import { LiveChatForm } from "./LiveChatForm";
+import { mergeMatchChat, useLiveChat } from "./useLiveChat";
 import type { PublicPredictionVenue } from "../../../packages/prediction-core/market-data";
 import type { ReservedSolanaQuestion } from "./solanaQuestionMarkets";
 
@@ -37,8 +39,10 @@ type Props = {
   market: ArenaMarket;
   outcome: ArenaMarketOutcome;
   onOutcome: (outcome: ArenaMarketOutcome) => void;
-  section: ConsoleSection | null;
-  onSection: (section: ConsoleSection | null) => void;
+  /** Every panel that is currently expanded. The homepage opens two at once; the
+      event page passes at most one and so stays a single-open accordion. */
+  sections: ConsoleSection[];
+  onSections: (sections: ConsoleSection[]) => void;
   promptAgentId?: string;
   intermission: boolean;
   hideChat?: boolean;
@@ -47,8 +51,14 @@ type Props = {
   answer?: PredictionAnswer;
   onAnswer?: (answer: PredictionAnswer) => void;
   marketAvailable?: boolean;
+  /** What to say in place of the ticket when there is no market. The
+      default speaks for a prediction feed that is down; a match whose
+      question was never opened needs its own sentence. */
+  marketNotice?: { title: string; detail: string };
   tradingPanel?: ReactNode;
-  collateralSymbol?: string;
+  /** Required on purpose. A missing symbol used to fall back to COOLA, the
+      simulation's credit, which then printed as a ticker on live pages. */
+  collateralSymbol: string;
   dreamDexApiUrl?: string;
   onDreamDexOpened?: () => void;
   solana?: boolean;
@@ -111,8 +121,8 @@ export function InteractionConsole({
   market,
   outcome,
   onOutcome,
-  section,
-  onSection,
+  sections,
+  onSections,
   promptAgentId,
   intermission,
   hideChat = false,
@@ -121,8 +131,9 @@ export function InteractionConsole({
   answer: externalAnswer,
   onAnswer,
   marketAvailable = true,
+  marketNotice,
   tradingPanel,
-  collateralSymbol = "COOLA",
+  collateralSymbol,
   dreamDexApiUrl,
   onDreamDexOpened,
   solana = false,
@@ -145,7 +156,6 @@ export function InteractionConsole({
   useEffect(() => {
     if (!onAnswer) setLocalAnswer("yes");
   }, [market.id, outcome.id, onAnswer]);
-  const [message, setMessage] = useState("");
   const [trigger, setTrigger] = useState<AutomationTriggerKind>("below");
   const [threshold, setThreshold] = useState("40");
   const [budget, setBudget] = useState(simulation ? "25" : "1");
@@ -155,20 +165,29 @@ export function InteractionConsole({
     error: boolean;
   } | null>(null);
   const chatList = useRef<HTMLDivElement>(null);
-  const messages = snapshot.chat
-    .filter((item) => item.matchId === match.id)
-    .slice(-14);
+  // The arena's public room first, this device's own messages alongside it.
+  // See src/components/home/useLiveChat.ts for why both streams are kept.
+  const room = useLiveChat();
+  const messages = mergeMatchChat(snapshot.chat, room.messages, match.id).slice(
+    -14,
+  );
   const rules = snapshot.automation.filter(
     (item) => item.marketId === market.id,
   );
+  /** The simulated rule form's gate: it also refuses on a live network, where
+   *  arming a sample rule against real money would be a lie. */
   const closed =
     !simulation ||
     market.status !== "open" ||
     snapshot.updatedAt >= market.closesAt;
+  /** The question's own trading state, without the simulation clause above.
+   *  Hermes trades the real question, so it is this that stops it. */
+  const questionClosed =
+    market.status !== "open" || snapshot.updatedAt >= market.closesAt;
   useEffect(() => {
-    if (section === "chat" && chatList.current)
+    if (sections.includes("chat") && chatList.current)
       chatList.current.scrollTop = chatList.current.scrollHeight;
-  }, [section, match.id, messages.length]);
+  }, [sections, match.id, messages.length]);
 
   async function perform(key: string, action: () => Promise<string>) {
     if (pending || !simulation) return;
@@ -187,9 +206,13 @@ export function InteractionConsole({
   }
   const panel = (name: ConsoleSection) => ({
     name,
-    active: section === name,
+    active: sections.includes(name),
     onToggle: () => {
-      onSection(section === name ? null : name);
+      onSections(
+        sections.includes(name)
+          ? sections.filter((item) => item !== name)
+          : [...sections, name],
+      );
       setFeedback(null);
     },
   });
@@ -201,7 +224,7 @@ export function InteractionConsole({
         title="Trade"
         icon={<ArrowUpRight size={16} />}
         meta={
-          tradingPanel ? "ON-CHAIN" : simulation ? "SIMULATION" : solana && market.onchain?.family === "SOLANA" && !market.onchain.opened ? "OFF-CHAIN" : "ON-CHAIN"
+          tradingPanel ? "ON-CHAIN" : !marketAvailable ? "NO MARKET" : simulation ? "SIMULATION" : solana && market.onchain?.family === "SOLANA" && !market.onchain.opened ? "OFF-CHAIN" : "ON-CHAIN"
         }
       >
         {tradingPanel ??
@@ -234,10 +257,10 @@ export function InteractionConsole({
             // broken page; a disabled skeleton shows what will appear and where.
             <div className="ch-trade-skeleton" role="status" aria-busy="true">
               <div className="ch-trade-skeleton__notice">
-                <strong>Prediction feed unavailable.</strong>
+                <strong>{marketNotice?.title ?? "Prediction feed unavailable."}</strong>
                 <span>
-                  The trade ticket will populate when match questions return.
-                  Other arena controls remain independent.
+                  {marketNotice?.detail ??
+                    "The trade ticket will populate when match questions return. Other arena controls remain independent."}
                 </span>
               </div>
               <div className="ch-trade-skeleton__outcomes" aria-hidden="true">
@@ -259,9 +282,13 @@ export function InteractionConsole({
       </ConsolePanel>
       <ConsolePanel
         {...panel("automate")}
-        title="Auto trader"
+        title="Agent Trader"
         icon={<Bot size={16} />}
-        meta={`${rules.filter((rule) => rule.status === "armed").length} ARMED`}
+        meta={
+          simulation
+            ? `${rules.filter((rule) => rule.status === "armed").length} ARMED`
+            : "HERMES"
+        }
       >
         {!marketAvailable ? (
           <div className="ch-console-empty" role="status">
@@ -271,6 +298,18 @@ export function InteractionConsole({
               available.
             </span>
           </div>
+        ) : !simulation ? (
+          // A live network gets the real agent, not a disabled copy of the
+          // sample one. See AgentTrader for why the two cannot share a form.
+          <AgentTrader
+            market={market}
+            outcome={outcome}
+            onOutcome={onOutcome}
+            collateralSymbol={collateralSymbol}
+            venue={solanaVenue}
+            apiUrl={predictionApiUrl}
+            closed={questionClosed}
+          />
         ) : (
           <>
             {automationWarning && (
@@ -286,7 +325,7 @@ export function InteractionConsole({
               onSubmit={(event) => {
                 event.preventDefault();
                 void perform("automate", async () => {
-                  const instruction = `Buy ${contract.label} ${trigger === "below" ? `below ${threshold}%` : trigger === "above" ? `above ${threshold}%` : "on a 2.5-point probability move"}. Spend at most ${budget} COOLA.`;
+                  const instruction = `Buy ${contract.label} ${trigger === "below" ? `below ${threshold}%` : trigger === "above" ? `above ${threshold}%` : "on a 2.5-point probability move"}. Spend at most ${budget} ${collateralSymbol}.`;
                   await source.createAutomation({
                     matchId: market.matchId ?? match.id,
                     marketId: market.id,
@@ -449,36 +488,11 @@ export function InteractionConsole({
               <p>Be the first to make your call.</p>
             )}
           </div>
-          <form
-            className="sh-chat-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!simulation || !message.trim()) return;
-              source.sendChat(match.id, message);
-              setMessage("");
-            }}
-          >
-            <label className="sr-only" htmlFor="chat-message">
-              Message the spectator channel
-            </label>
-            <input
-              id="chat-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Make your call…"
-              maxLength={240}
-              required
-            />
-            <button
-              aria-label="Send simulated chat message"
-              disabled={!simulation || !message.trim()}
-            >
-              <ArrowRight size={18} />
-            </button>
-          </form>
-          <p className="sh-form-note">
-            Local simulation · visible on this device
-          </p>
+          <LiveChatForm
+            source={source}
+            matchId={match.id}
+            note="Local preview · visible on this device"
+          />
         </ConsolePanel>
       )}
       {!hidePrompt && (
@@ -487,7 +501,7 @@ export function InteractionConsole({
           source={source}
           snapshot={snapshot}
           match={match}
-          open={section === "prompt"}
+          open={sections.includes("prompt")}
           onToggle={panel("prompt").onToggle}
           promptAgentId={promptAgentId}
           intermission={intermission}

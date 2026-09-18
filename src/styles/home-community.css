@@ -17,3 +17,126 @@
 .ch-standings-note { margin: 10px 14px 0; color: #b8bbc4; font-size: 9px; line-height: 1.6; }
 @media (max-width: 780px) { .ch-live-row { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; } .ch-live-row > span { display: none; } .ch-live-row > b { padding-inline: 9px; } }
 @media (max-width: 470px) { .ch-live-row { grid-template-columns: 1fr auto; } .ch-live-row .sh-status { grid-column: 1 / -1; } }
+
+/* ------------------------------------------------------------------ *
+ * THE REEL - the scrolling strip of MIAW PRIX cards and CATWALK rows.
+ *
+ * A viewport of fixed height with a track inside it that carries the list
+ * TWICE. `is-rolling` animates the track by exactly half its own height, which
+ * is one full copy, so the list arrives back at its own first row and the loop
+ * has no seam. Without `is-rolling` there is only one copy and no animation:
+ * a list shorter than the frame has nothing to reveal by moving.
+ *
+ * The height matches the panel opposite it - these two sit in one
+ * `.sh-community-grid` row and a mismatch leaves one of them hanging.
+ * ------------------------------------------------------------------ */
+.ch-reel { position: relative; height: 425px; overflow: hidden; background: var(--sh-panel); border-inline: 1px solid #33353d; }
+/* Rows enter and leave under a fade rather than being cut mid-row, so the
+   movement reads as a strip passing rather than as content being clipped. */
+.ch-reel.is-rolling::before, .ch-reel.is-rolling::after { content: ''; position: absolute; left: 0; right: 0; height: 34px; pointer-events: none; z-index: 1; }
+.ch-reel.is-rolling::before { top: 0; background: linear-gradient(#191a1e, #191a1e00); }
+.ch-reel.is-rolling::after { bottom: 0; background: linear-gradient(#191a1e00, #191a1e); }
+.ch-reel.is-rolling { overflow: clip; }
+.ch-reel:not(.is-rolling) { overflow-y: auto; }
+.ch-reel-track { will-change: transform; }
+.ch-reel.is-rolling .ch-reel-track { animation: ch-reel-roll var(--ch-reel-duration, 48s) linear infinite; }
+/* Reading it stops it. A row that slides out from under the pointer cannot be
+   clicked, and a focused link that scrolls itself off screen is worse. */
+.ch-reel.is-rolling:hover .ch-reel-track, .ch-reel.is-rolling:focus-within .ch-reel-track { animation-play-state: paused; }
+@keyframes ch-reel-roll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.ch-reel-list { list-style: none; margin: 0; padding: 0; }
+.ch-reel-row { border-bottom: 1px solid var(--sh-line); }
+.ch-reel-row > a { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 14px; color: #c8cad1; transition: background-color .16s ease; }
+.ch-reel-row > a:hover { background: #22242a; }
+.ch-reel-when { display: grid; gap: 1px; }
+.ch-reel-when b { font: 600 11px var(--sh-mono); color: #dfe0e6; }
+.ch-reel-when small { font-size: 7px; color: var(--sh-muted); text-transform: uppercase; }
+.ch-reel-pair { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ch-reel-pair em { flex-shrink: 0; font: 500 7px var(--sh-mono); font-style: normal; color: #7c7f8a; letter-spacing: .08em; }
+.ch-reel-tag { flex-shrink: 0; padding: 3px 6px; border: 1px solid #4a4d56; color: #9b9ea9; font: 500 7px var(--sh-mono); letter-spacing: .06em; }
+.ch-reel-tag.is-final { border-color: #5c6136; color: var(--sh-lime); }
+.ch-reel-tag.is-live { border-color: var(--sh-pink); color: var(--sh-pink); }
+.ch-reel-empty, .ch-board-empty { min-height: 425px; display: grid; align-content: center; justify-items: center; padding: 20px 14px; background: var(--sh-panel); border-inline: 1px solid #33353d; color: var(--sh-muted); font-size: 10px; text-align: center; }
+/* The frame the reel will occupy, drawn at the size the real rows take so the
+   panel does not resize under the reader when the programme lands. */
+.ch-reel-row--pending { display: grid; grid-template-columns: 54px minmax(0, 1fr) 62px; align-items: center; gap: 12px; padding: 16px 14px; }
+.ch-reel-row--pending > span { height: 11px; background: #25262c; }
+
+/* A coin, as one chip: its crest and its ticker, never one without the other. */
+.ch-coin { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.ch-coin-mark { width: 22px; height: 22px; flex-shrink: 0; }
+.ch-coin b { font: 700 13px var(--sh-heading); color: #eeeef0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-coin--lost b { color: #83868f; }
+.ch-coin--lost .ch-coin-mark { opacity: .55; }
+
+/* The season table's coin cell, which is a chip rather than a button: this
+   panel navigates to the programme, it does not expand a row in place. */
+.ch-table-coin { display: flex; align-items: center; gap: 12px; padding: 10px 13px; }
+.ch-table-coin > span { display: grid; gap: 1px; font: 700 17px var(--sh-heading); }
+.ch-table-coin small { font: 400 7px var(--sh-mono); color: #a6a8b2; }
+.sh-team-table td small[title] { color: #9aa0ad; text-transform: uppercase; letter-spacing: .05em; }
+.ch-panel-state { color: var(--sh-lime); }
+.sh-panel-foot a { color: var(--sh-lime); }
+.sh-panel-foot a:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------ *
+ * THE CATWALK BOARD, as the entry panel's second tab.
+ *
+ * It sits on the panel's light --sh-gray body, so it takes that body's ink
+ * rather than the dark panel's: the same rows in two places would otherwise
+ * need two colour sets for one identity.
+ * ------------------------------------------------------------------ */
+.ch-board-head, .ch-board-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 84px 52px; align-items: center; gap: 10px; padding: 8px 20px; }
+.ch-board-head { color: #3d404b; font: 500 7px var(--sh-mono); letter-spacing: .08em; border-bottom: 1px solid #858893; }
+.sh-entry .ch-reel, .sh-entry .ch-board-empty { height: auto; max-height: 336px; background: transparent; border: 0; }
+/* A rolling reel needs a FIXED frame: the track is two copies tall, so an auto
+   height would simply grow to hold both and the animation would drive the rows
+   off the top of a box nothing is clipping. */
+.sh-entry .ch-reel.is-rolling { height: 336px; }
+.sh-entry .ch-board-empty { min-height: 200px; color: #3f414c; }
+.sh-entry .ch-reel.is-rolling::before { background: linear-gradient(#a6a8b3, #a6a8b300); }
+.sh-entry .ch-reel.is-rolling::after { background: linear-gradient(#a6a8b300, #a6a8b3); }
+.ch-board-row { border-bottom: 1px solid #8b8d98; color: #24262e; }
+/* The runway is the top band - the positions that walk every rotation - and it
+   is marked on the row itself, because the band head is not in this panel. */
+.ch-board-row.is-runway { background: #b1b4bd; }
+.ch-board-row.is-runway .ch-board-spot { background: var(--sh-lime); color: #15180c; }
+.ch-board-spot { display: inline-block; padding: 3px 4px; background: #90939e; color: #1c1e25; font: 500 10px var(--sh-mono); text-align: center; }
+.ch-board-row .ch-coin b { color: #14161c; font-size: 12px; }
+.ch-board-row .ch-coin-mark { width: 20px; height: 20px; }
+.ch-board-lane { font: 500 7px var(--sh-mono); letter-spacing: .06em; color: #3f414c; }
+/* THE SAME THREE HUES CATWALK USES, RE-SEATED ON A LIGHT BODY.
+   /catwalk draws its lanes on a dark panel in sky, amber and violet
+   (--cw-lane-* in src/styles/catwalk.css). Those exact values are near
+   invisible on this panel's --sh-gray body, so each lane keeps its HUE and
+   takes a dark tone of it - the reader carries one colour per lane between the
+   two pages, and this 7px label stays above 4.5:1 on both bands. */
+.ch-board-lane--outbid { color: #083b52; }
+.ch-board-lane--champion { color: #513700; }
+.ch-board-lane--ranked { color: #3b2270; }
+.ch-board-record { text-align: right; font: 500 10px var(--sh-mono); color: #2b2d36; }
+.ch-board-note { padding: 12px 20px 18px; color: #343641; font-size: 8px; line-height: 1.7; }
+.ch-entry-actions { grid-column: 1/-1; display: grid; gap: 8px; margin-top: 4px; }
+.ch-entry-actions small { font-size: 8px; line-height: 1.7; color: #343641; }
+.sh-entry .sh-qualification-check { grid-template-columns: 1fr; }
+
+/* A moving list is unusable for anyone who needs to hold a row still, so the
+   reel stops being a reel and becomes an ordinary scrollable list. */
+@media (prefers-reduced-motion: reduce) {
+  .ch-reel.is-rolling .ch-reel-track { animation: none; }
+  .ch-reel.is-rolling { overflow-y: auto; }
+  .ch-reel.is-rolling::before, .ch-reel.is-rolling::after { display: none; }
+}
+
+@media (max-width: 960px) {
+  .ch-reel, .ch-reel-empty, .ch-board-empty { height: 350px; min-height: 350px; }
+  .sh-entry .ch-reel { height: auto; max-height: 320px; }
+  .ch-reel-row > a { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 9px; }
+}
+
+@media (max-width: 720px) {
+  .ch-reel-when small { display: none; }
+  .ch-coin b { font-size: 12px; }
+  .ch-board-head, .ch-board-row { grid-template-columns: 30px minmax(0, 1fr) 70px 46px; padding-inline: 14px; gap: 8px; }
+  .ch-board-note, .ch-entry-actions { padding-inline: 0; }
+}

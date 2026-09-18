@@ -122,6 +122,62 @@ export function Scanlines({ className }: { className?: string }) {
   return <div className={cx('mx-scan', className)} aria-hidden="true" />
 }
 
+/* cutout corners */
+
+/**
+ * One concave corner wedge: a square minus a quarter of a squircle.
+ *
+ * An inverted corner is drawn by ADDING to a plate, not by masking it. Put a
+ * plate over the surface with one convex radius on its inward corner, then set
+ * two of these just outside that corner in the plate's own colour. The result
+ * reads as the surface wrapping around the plate.
+ *
+ * The control points are not circular on purpose. A true quarter circle would
+ * put the curve midpoint at (141.4, 141.4); these push it out to (158.5, 158.6),
+ * which is the continuous-curvature corner the rest of this shape uses.
+ *
+ * Two rules, or a seam appears:
+ *  - fill must equal the plate background exactly, so this takes `currentColor`
+ *    and the caller sets `color` to the same token as the plate's background;
+ *  - the caller puts the wedge's inward edge on the CENTRELINE of the 1px plate
+ *    border the curve continues, so the edge stroke lands on that border rather
+ *    than beside it.
+ *
+ * The fill runs past the box on the +x and +y sides (H224 V224) while the edge
+ * stroke stops at the box. Those are the two sides that face the plate, so the
+ * overspill hides the plate's border exactly where the notch makes that border
+ * interior - while the stroke, one pixel wide on the border's own centreline,
+ * is the only thing left drawing the line there. Without it the wedge sits half
+ * a pixel off its own border and paints a second hairline beside it. The SVG
+ * therefore needs `overflow: visible` (home-hero.css).
+ *
+ * It must NOT spill on -x or -y. Those sides face away from the plate, along a
+ * border no wedge is covering, and a spill there clips the far side of that
+ * border for a few pixels past the wedge with no stroke over it to make the
+ * line whole again - a short dull notch in an otherwise even hairline.
+ */
+export function CutoutCorner({ size = 32, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={cx('mx-cutout-corner', className)}
+      width={size}
+      height={size}
+      viewBox="0 0 200 200"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M0 200C155.996 199.961 200.029 156.308 200 0H224V224H0Z" fill="currentColor" />
+      <path
+        className="mx-cutout-corner__edge"
+        d="M0 200C155.996 199.961 200.029 156.308 200 0"
+        fill="none"
+        stroke="none"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
 /* tabs */
 
 export type TabItem<T extends string> = { id: T; label: ReactNode; disabled?: boolean }

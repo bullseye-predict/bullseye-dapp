@@ -21,15 +21,30 @@ export function TeamMark({ id, color, logoUrl, className = '' }: { id: string; c
   // was later handed a working one - which is exactly what the token overlay
   // does a moment after the board lands - kept the fallback mark forever.
   const [failed, setFailed] = useState('')
+  // ONE RETRY BEFORE GIVING UP, counted per url.
+  //
+  // Giving up on the first error is what made the crests look random. A crest is
+  // fetched through /api/token-icon, so any single blip on that hop - a cold
+  // serverless start, an upstream rate-limit, a dropped connection - does not
+  // cost one frame, it costs that coin its picture for the whole session, and the
+  // next load misses a different row. The route retries its own upstream fetch;
+  // this covers the hop the route cannot see, the browser's request to us.
+  //
+  // The key carries the attempt, because re-rendering an <img> whose src has not
+  // changed does not re-request it - React writes no attribute, so the browser
+  // has nothing to act on. Remounting does.
+  const [retry, setRetry] = useState({ url: '', attempts: 0 })
+  const attempts = retry.url === logoUrl ? retry.attempts : 0
   if (logoUrl && failed !== logoUrl) return (
     <img
+      key={`${logoUrl}#${attempts}`}
       className={`sh-team-mark sh-team-mark--logo ${className}`}
       src={logoUrl}
       alt=""
       aria-hidden="true"
       loading="lazy"
       style={color ? { color } : undefined}
-      onError={() => setFailed(logoUrl)}
+      onError={() => attempts === 0 ? setRetry({ url: logoUrl, attempts: 1 }) : setFailed(logoUrl)}
     />
   )
   const shapes: Record<string, React.ReactNode> = {
@@ -43,11 +58,34 @@ export function TeamMark({ id, color, logoUrl, className = '' }: { id: string; c
   return <svg className={`sh-team-mark ${className}`} viewBox="0 0 44 48" fill="currentColor" style={color ? { color } : undefined} aria-hidden="true">{shapes[id] ?? <path d="M4 8h14v14H4Zm22 0h14v14H26ZM15 28h14v14H15Z"/>}</svg>
 }
 
-export function AgentPortrait({ number, className = '' }: { number: number; className?: string }) {
+/** Genesis slot order is the numeral each agent carries — c0ke is 0 through to
+ *  12ed 13u11 — so `genesis_agents.slot`, the seed order and this list are the
+ *  same sequence. A caller that already holds the agent passes `slug` instead. */
+export const GENESIS_SKIN_SLUGS = [
+  'c0ke', 'peps1', '2up', 'monst3r', 'fant4', '5prite',
+  '6uiness', '7iger', 'bintan8', 'hei9ken', 'moun10-dew', '12ed-13u11',
+] as const
+
+/** The plain SOLANA ZERO wrap a player's own can wears until they switch it. */
+export const DEFAULT_SKIN_SLUG = 'default'
+
+export function agentSkinSlug(number: number) {
   const index = Math.max(0, Math.min(11, Number.isFinite(number) ? Math.floor(number) - 1 : 0))
-  // The generated atlas has slightly different row boundaries; crop within each row.
-  const row = [{ top: 0, height: 336 }, { top: 340, height: 336 }, { top: 680, height: 344 }][Math.floor(index / 4)]
-  return <div className={`sh-portrait ${className}`} aria-hidden="true" style={{ backgroundSize: `400% ${1024 / row.height * 100}%`, backgroundPosition: `${(index % 4) * 100 / 3}% ${row.top / (1024 - row.height) * 100}%` }} />
+  return GENESIS_SKIN_SLUGS[index]!
+}
+
+/** Each agent's own soda can — the showcase body wearing that agent's wrap, so
+ *  the tile is the can and nothing else. `slug` wins when the caller has one, so
+ *  an agent whose artwork the database has switched shows the new can without
+ *  touching the slot table.
+ *
+ *  The URL goes out as `--portrait-image`, not `background-image`: the tile
+ *  layers the can over a wash of the agent's own accent, and an inline
+ *  `background-image` would replace that whole layer list. */
+export function AgentPortrait({ number, slug, className = '' }: { number: number; slug?: string; className?: string }) {
+  const resolved = slug || agentSkinSlug(number)
+  const image = { '--portrait-image': `url('/images/solz/genesis/body/${resolved}.png')` } as CSSProperties
+  return <div className={`sh-portrait ${className}`} aria-hidden="true" style={image} />
 }
 
 export function StatusDot({ children, pink = false }: { children: React.ReactNode; pink?: boolean }) {

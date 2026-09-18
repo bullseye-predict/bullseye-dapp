@@ -13,7 +13,12 @@ const marketSources: MarketSource[] = configuredSources.length ? configuredSourc
 // per-match links. Keeping this at the host boundary prevents local market
 // development from silently displaying a production arena.
 const gameOrigin = String(import.meta.env.SOLZ_GAME_ORIGIN ?? '').trim().replace(/\/+$/, '')
-const arenaWatchUrl = gameOrigin ? `${gameOrigin}/watch/live/agent-arena` : ''
+// The highlight is the MIAW PRIX programme, which Agent Colosseum broadcasts.
+// Agent Arena is the separate free-for-all show on its own route; pointing the
+// hero at it would stream twelve agents beside a two-coin market.
+// `back=false` is added by arenaEmbedUrl(), so the embed and this link stay one
+// URL with one rule.
+const arenaWatchUrl = gameOrigin ? `${gameOrigin}/watch/live/agent-colosseum` : ''
 // Browser HTTP traffic uses a stable same-origin route. The server route reads
 // PUBLIC_PREDICTION_API_URL and has the deployed Railway service as a fallback.
 const apiUrl = new URL('/api/prediction', Astro.url).toString()

@@ -15,10 +15,24 @@ import '../styles/miaw-prix.css'
 import '../styles/site-footer.css'
 import '../styles/site-header.css'
 import '../styles/site-loading.css'
+// colacat.css re-sizes the arena composer it borrows (the four
+// `.solz-home.cola-app .cola-console ...` rules). Those win on SPECIFICITY,
+// not on order - three and four classes against home-console.css's
+// `.solz-home :is(.ch-console, .ch-stage-corner)` - which is what makes the
+// position of this import here irrelevant. Vite reorders it anyway.
+import '../styles/colacat.css'
 import '../components/agent-arena/arena-history.css'
 import '../components/identity/identity.css'
 import '../components/portfolio/portfolio.css'
 import '../components/prediction/prediction.css'
+// market-rows.css is imported by OutcomeRow, which is a CLIENT-ONLY render: the
+// rows are not in the server HTML, so in development Vite injects their
+// stylesheet from the island's own JS. That leaves a window where the rows have
+// painted and their rules have not arrived, which is the unstyled market list
+// people see on a cold load. Importing it here puts it in the document before
+// any island paints, in dev and in the build alike. Any stylesheet that styles
+// markup a hydrating island produces belongs in this list for the same reason.
+import '../styles/market-rows.css'
 
 interface Props {
   title: string
@@ -44,6 +58,8 @@ const socialImageUrl = new URL('/og.png', trustedOrigin)
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
     <meta name="theme-color" content="#11120f" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="darkreader-lock" />
     <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta property="og:type" content="website" />

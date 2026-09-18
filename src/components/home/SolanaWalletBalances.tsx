@@ -5,10 +5,31 @@ import {
   SOLANA_DEVNET_WALLET_ASSETS,
   type SolanaWalletBalances as BalanceValue,
 } from '../../../packages/adapters/solana/wallet-balances'
+import { schedulePoll } from './venue/pollGate'
+import { noteRpcThrottled } from '../../../packages/adapters/solana/manifest/throttle'
 
 type Props = {
   address: string
   apiUrl?: string
+}
+const CACHE_MAX_AGE_MS = 2 * 60_000
+const CACHE_PREFIX = 'coola:solana-wallet:v1:'
+
+function cacheKey(apiUrl: string, address: string) { return `${CACHE_PREFIX}${apiUrl}:${address}` }
+function readCachedBalance(apiUrl: string, address: string): BalanceValue | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = JSON.parse(window.localStorage.getItem(cacheKey(apiUrl, address)) ?? '') as { at?: unknown; nativeLamports?: unknown; tokens?: unknown }
+    const at = value.at
+    if (typeof at !== 'number' || !Number.isSafeInteger(at) || Date.now() - at > CACHE_MAX_AGE_MS || typeof value.nativeLamports !== 'string' || !value.tokens || typeof value.tokens !== 'object') return null
+    const tokens = Object.fromEntries(Object.entries(value.tokens).filter((entry): entry is [string, string] => typeof entry[1] === 'string').map(([symbol, amount]) => [symbol, BigInt(amount)]))
+    return { nativeLamports: BigInt(value.nativeLamports), tokens }
+  } catch { return null }
+}
+function writeCachedBalance(apiUrl: string, address: string, value: BalanceValue) {
+  if (typeof window === 'undefined') return
+  try { window.localStorage.setItem(cacheKey(apiUrl, address), JSON.stringify({ at: Date.now(), nativeLamports: value.nativeLamports.toString(), tokens: Object.fromEntries(Object.entries(value.tokens).map(([symbol, amount]) => [symbol, amount.toString()])) })) }
+  catch { /* Storage is optional; live values still render. */ }
 }
 
 function compact(amount: bigint, decimals: number) {
@@ -28,23 +49,29 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
     setError(false)
     if (!apiUrl) return
     let active = true
-    let timer: number | undefined
+    let cancelPoll: (() => void) | undefined
     let retryDelay = 15_000
+    const cached = readCachedBalance(apiUrl, address)
+    if (cached) setValue(cached)
     const load = async () => {
       try {
         const config = await getPredictionConfig(apiUrl, AbortSignal.timeout(10_000))
         const venue = config.venues.find((item) => item.family === 'SOLANA' && item.publicRpcUrl)
         if (!venue?.publicRpcUrl) throw new Error('Solana RPC unavailable')
         const next = await readSolanaWalletBalances(venue.publicRpcUrl, address, SOLANA_DEVNET_WALLET_ASSETS)
-        if (active) { setValue(next); setError(false); retryDelay = 15_000 }
-      } catch {
+        if (active) { writeCachedBalance(apiUrl, address, next); setValue(next); setError(false); retryDelay = 15_000 }
+      } catch (reason) {
+        if (/429|rate limit/i.test(reason instanceof Error ? reason.message : String(reason))) noteRpcThrottled()
         if (active) { setError(true); retryDelay = Math.min(retryDelay * 2, 120_000) }
       } finally {
-        if (active) timer = window.setTimeout(() => void load(), retryDelay)
+        if (active) cancelPoll = schedulePoll(() => void load(), retryDelay)
       }
     }
-    void load()
-    return () => { active = false; if (timer) window.clearTimeout(timer) }
+    // The header must not be the request that immediately re-triggers a 429
+    // after a route change. Cached values stay visible; the shared gate decides
+    // when one fresh read is appropriate.
+    cancelPoll = schedulePoll(() => void load(), cached ? 15_000 : 0)
+    return () => { active = false; cancelPoll?.() }
   }, [address, apiUrl])
 
   if (!apiUrl) return null

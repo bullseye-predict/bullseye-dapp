@@ -6,7 +6,7 @@ type Props = {
   homeHref: string
   marketsHref?: string
   walletControl: ReactNode
-  active: 'highlight' | 'markets' | 'agents' | 'catwalk' | 'miawprix' | 'docs' | 'profile'
+  active: 'highlight' | 'markets' | 'agents' | 'catwalk' | 'miawprix' | 'colacat' | 'docs' | 'profile'
   onArena?: () => void
   onMarkets?: () => void
 }
@@ -31,6 +31,7 @@ export function SiteHeader({ homeHref, marketsHref, walletControl, active, onAre
           <a href="/agent-arena" className={active === 'agents' ? 'is-active' : undefined} onClick={close}>Agents</a>
           <a href="/catwalk" className={active === 'catwalk' ? 'is-active' : undefined} onClick={close}>Catwalk</a>
           <a href="/miaw-prix" className={active === 'miawprix' ? 'is-active' : undefined} onClick={close}>Miaw Prix</a>
+          <a href="/colacat" className={active === 'colacat' ? 'is-active' : undefined} onClick={close}>$COLACAT</a>
           <a className={active === 'docs' ? 'is-active' : undefined} href={`${homeHref}#enter-arena`} onClick={close}>Docs</a>
         </div>
         <div className="sh-wallet">{walletControl}</div>

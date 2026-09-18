@@ -10,7 +10,7 @@ type Props = {
   title: string; label: string; side: 'buy' | 'sell'; type: 'market' | 'limit'
   price: number; quantity: number; fee: number; total: number
   priceLimit?: number; maximumTotal?: number; maximumFee?: number; upfrontCollateral?: number
-  expiry: string; onExpiry: (value: string) => void; error?: string; simulation?: boolean; collateralSymbol?: string; network?: 'SOLANA' | 'SOMNIA'
+  expiry: string; onExpiry: (value: string) => void; error?: string; simulation?: boolean; collateralSymbol: string; network?: 'SOLANA' | 'SOMNIA'
   /** Single-line progress, for a venue with no transaction plan of its own.
    *  Somnia signs an approval and then an order with no stage stream behind it,
    *  so this line is still the only account of where that trade has got to. */
@@ -35,7 +35,7 @@ type Props = {
  * the toasts and the alert dock stay parented to an element that is still in
  * the top layer when the wallet prompts start arriving.
  */
-export function TradeReviewDialog({ open, onClose, onConfirm, pending, disabled, title, label, side, type, price, quantity, fee, total, priceLimit, maximumTotal, maximumFee, upfrontCollateral, expiry, onExpiry, error, simulation = true, collateralSymbol = 'COOLA', network = 'SOMNIA', progress, plan = null, steps = [], settled = false, collateralDecimals = 6, explorerUrl }: Props) {
+export function TradeReviewDialog({ open, onClose, onConfirm, pending, disabled, title, label, side, type, price, quantity, fee, total, priceLimit, maximumTotal, maximumFee, upfrontCollateral, expiry, onExpiry, error, simulation = true, collateralSymbol, network = 'SOMNIA', progress, plan = null, steps = [], settled = false, collateralDecimals = 6, explorerUrl }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const headingId = useId()
   useEffect(() => {
@@ -71,7 +71,7 @@ export function TradeReviewDialog({ open, onClose, onConfirm, pending, disabled,
           <div><dt>{type === 'market' ? 'Price' : 'Limit'}</dt><dd>{(price * 100).toFixed(1)}¢</dd></div>
         </dl>
         {plan
-          ? <TradeSteps rows={steps} collateralSymbol={collateralSymbol} collateralDecimals={collateralDecimals} settled={settled} onRetry={onConfirm} retrying={pending} explorerUrl={explorerUrl} />
+          ? <TradeSteps rows={steps} plan={plan} collateralSymbol={collateralSymbol} collateralDecimals={collateralDecimals} settled={settled} onRetry={onConfirm} retrying={pending} explorerUrl={explorerUrl} />
           : progress ? <p role="status" className="ch-dialog-note">{progress}</p> : null}
         {error && !plan && <p className="ch-trade-feedback is-error" role="alert">{error}</p>}
       </div>
