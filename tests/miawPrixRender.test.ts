@@ -1,10 +1,12 @@
-import { expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MiawPrixApp } from '../src/components/miawprix/MiawPrixApp'
 import { EventApp } from '../src/components/events/EventApp'
 import { MatchTable } from '../src/components/miawprix/MatchTable'
 import { MiawPrixEventApp, isMiawPrixMatchId } from '../src/components/miawprix/MiawPrixEventApp'
+import { InteractionConsole } from '../src/components/home/InteractionConsole'
+import { createSolzDataSource } from '../src/components/solz/solzDataSource'
 import { miawPrixEventView } from '../src/components/miawprix/miawPrixEventView'
 import { SeasonPanel } from '../src/components/miawprix/SeasonPanel'
 import { StandingsTable } from '../src/components/miawprix/StandingsTable'
@@ -316,4 +318,52 @@ test('a champion that did not win outright says the tie was broken, and on what'
   expect(outright).toContain('$ALPHA')
   expect(outright).not.toContain('mp-champion-tie')
   expect(outright).not.toContain('Tied on')
+})
+
+/** The recorded card has no question on the venue, so the rail has no ticket to
+ *  show. What it showed instead was worse than nothing: a 50/50 seed printed as
+ *  a live price, and the off-chain simulation's COOLA credit printed as the
+ *  ticker on a page whose wallet header reads fUSDC. */
+describe('a recorded Colosseum card never dresses up as a tradable market', () => {
+  const liveCard = () => miawPrixEventView(match({
+    matchId: `0x534f4c5a${'c'.repeat(56)}`,
+    scheduledStartAt: NOW - 60_000, matchDurationMs: 300_000, status: 'live',
+    sides: [
+      { teamId: 'team-1', mint: 'MintA', symbol: 'SPYx', name: 'Spyx', color: '#3d3dff' },
+      { teamId: 'team-2', mint: 'MintB', symbol: 'PENGU', name: 'Pengu', color: '#888888' },
+    ],
+  }), NOW)!
+
+  const console_ = async (over: Record<string, unknown>) => {
+    const source = createSolzDataSource()
+    const snapshot = await source.load()
+    const view = liveCard()
+    return renderToStaticMarkup(createElement(InteractionConsole, {
+      source, snapshot, match: view.match, market: view.market,
+      outcome: view.market.outcomes[0]!, onOutcome: () => {},
+      sections: ['trade'], onSections: () => {}, intermission: false,
+      simulation: false, collateralSymbol: 'fUSDC', ...over,
+    } as never))
+  }
+
+  test('the rail states there is no market instead of rendering a ticket', async () => {
+    const html = await console_({
+      marketAvailable: false,
+      marketNotice: { title: 'No prediction market for this match.', detail: 'There is no book and no price.' },
+    })
+    expect(html).toContain('No prediction market for this match.')
+    expect(html).toContain('NO MARKET')
+    // The panel used to say ON-CHAIN over a ticket that could not trade.
+    expect(html).not.toContain('>ON-CHAIN<')
+    expect(html).not.toContain('COOLA')
+  })
+
+  test('a ticket over an unpriced market quotes the placeholder, not the 50/50 seed', async () => {
+    const html = await console_({})
+    expect(html).not.toContain('COOLA')
+    expect(html).not.toContain('50¢')
+    expect(html).toContain('--')
+    // The collateral the venue actually settles in, on every figure that names one.
+    expect(html).toContain('fUSDC')
+  })
 })

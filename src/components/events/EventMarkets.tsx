@@ -51,7 +51,7 @@ export function EventMarkets({ actions, markets, market, outcome, snapshot, onSe
       {prediction.outcomes.map((answer, index) => {
         const chance = predictionChances[index]
         const selected = baseOutcomeId(outcome.id) === answer.id
-        const binary = eventAnswerMarket(prediction, answer)
+        const binary = eventAnswerMarket(prediction, answer, collateral)
         const contract = selected ? binary.outcomes.find((item) => item.id === outcome.id) ?? binary.outcomes[0] : binary.outcomes[0]
         const open = expanded === answer.id
         const accent = outcomeColor(answer, snapshot, index)

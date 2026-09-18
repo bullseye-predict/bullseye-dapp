@@ -15,6 +15,8 @@
  * the parsed result, per the repo's adapter rule.
  */
 
+import { rememberValue } from '../solz/liveCache'
+
 export type MiawPrixSeasonStatus = 'upcoming' | 'live' | 'closed'
 
 export type MiawPrixSeason = {
@@ -315,6 +317,18 @@ function volumeUsd(item: Record<string, any>): number | null {
 export type MiawPrixSource = ReturnType<typeof miawPrixSource>
 
 /**
+ * The cache key a programme read is remembered under: its own request URL.
+ *
+ * Exported because the READER needs it too. A hook seeds its first frame from
+ * `cachedValue(miawPrixBoardKey(...))`, and building that string a second time
+ * inside the hook is how the two would quietly drift apart and the seed would
+ * silently stop working. One builder, two callers.
+ */
+export function miawPrixBoardKey(arenaEndpoint: string, seasonId = ''): string {
+  return `${arenaEndpoint}?${new URLSearchParams({ kind: 'miawPrix', ...(seasonId ? { seasonId } : {}) })}`
+}
+
+/**
  * @param arenaEndpoint same-origin arena proxy, e.g. `/api/agent-arena`.
  * @param predictionEndpoint same-origin prediction proxy, e.g. `/api/prediction`.
  */
@@ -330,12 +344,18 @@ export function miawPrixSource(arenaEndpoint: string, predictionEndpoint: string
   }
   return {
     async board(seasonId = '', signal?: AbortSignal): Promise<MiawPrixBoard> {
-      const query = new URLSearchParams({ kind: 'miawPrix', ...(seasonId ? { seasonId } : {}) })
+      const key = miawPrixBoardKey(arenaEndpoint, seasonId)
       // This endpoint is the CATWALK projection. Its cards are immutable lock
       // snapshots, so the frequently-changing live board can no longer alter a
       // published matchup. Raw Colosseum planning slots are deliberately not
       // merged here: a room without CATWALK sides is not a MIAW PRIX card.
-      return parseMiawPrixBoard(await read(`${arenaEndpoint}?${query}`, 'The MIAW PRIX programme is unavailable', signal))
+      const board = parseMiawPrixBoard(await read(key, 'The MIAW PRIX programme is unavailable', signal))
+      // Remembered PARSED, so the island that navigates here next paints the
+      // same object this caller got rather than re-deriving it - and only when
+      // this source is on the realm's OWN transport. A source handed a fetcher
+      // is somebody's private wire; writing its answer under the shared key
+      // would hand the next island a board this page never read.
+      return fetcher === fetch ? rememberValue(key, board).value : board
     },
     async match(matchId: string, signal?: AbortSignal): Promise<MiawPrixMatch | null> {
       const query = new URLSearchParams({ kind: 'miawPrix', matchId })

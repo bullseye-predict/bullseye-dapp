@@ -28,7 +28,12 @@
 .ev-app--community .ev-layout { grid-template-columns: 300px minmax(0, 1fr) var(--ev-rail); gap: 22px; }
 .ev-app--agents .ev-layout { grid-template-columns: 270px minmax(0, 1fr) var(--ev-rail); gap: 24px; }
 .ev-center, .ev-left-rail, .ev-right-rail { min-width: 0; }
-.ev-sticky-rail { position: sticky; top: var(--ev-sticky-top); max-height: calc(100dvh - var(--ev-sticky-top) - 16px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #45474e transparent; overscroll-behavior-y: contain; }
+/* A RAIL THAT REACHED ITS END HANDS THE WHEEL BACK TO THE PAGE. `contain` on
+   the y axis stopped the gesture dead at the last row of the rail, so the page
+   behind it would not move until the pointer was taken off the rail. Vertical
+   chaining is native; only the sideways axis stays contained, because a
+   horizontal swipe here would navigate the browser back. */
+.ev-sticky-rail { position: sticky; top: var(--ev-sticky-top); max-height: calc(100dvh - var(--ev-sticky-top) - 16px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #45474e transparent; overscroll-behavior-x: contain; }
 .ev-right-rail .ev-sticky-rail { padding: 1px 3px 3px; margin: -1px -3px -3px; }
 .ev-event-heading { padding: 4px 0 20px; }
 .ev-app section[id], .ev-app [id='event-title'] { scroll-margin-top: 105px; }
@@ -305,7 +310,7 @@
 .ev-agent-team > button > span > i > i { display: block; height: 100%; transition: width 200ms ease-out; }
 .ev-agent-prompt { margin: 11px; background: #23282f; border-color: #555d69; padding: 10px; }
 .ev-agent-prompt .ch-mini-heading { font-size: 7px; }
-.ev-agent-prompt .ch-mini-controls select { max-width: 100px; }
+.ev-agent-prompt .ch-mini-controls > label select { max-width: 100px; }
 .ev-prompt-balance { font-size: 7px; color: #a6b3c5; margin-top: 10px !important; }
 .ev-prompt-feedback { color: #d5e7ae; font-size: 9px; line-height: 1.7; margin-top: 10px !important; }
 .ev-prompt-feedback.is-error { color: #ffb6a9; }

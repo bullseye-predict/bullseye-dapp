@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createSolzDataSource } from '../src/components/solz/solzDataSource'
+import { hollowSnapshot } from '../src/components/events/EventApp'
 import { eventActivity, eventAnswerMarket, eventHoldings, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, sampleOrderBook } from '../src/components/events/eventModel'
 
 describe('event detail data isolation', () => {
@@ -110,5 +111,34 @@ describe('event detail data isolation', () => {
     expect(reply.matchId).toBe(parent.matchId)
     const other = snapshot.matches.find((match) => match.id !== parent.matchId)!
     expect(() => source.sendChat(other.id, 'Wrong event reply', parent.id)).toThrow('no longer available')
+  })
+})
+
+describe('the fallback snapshot carries no fixture content', () => {
+  test('every seeded record is stripped, and the visitor account survives', async () => {
+    // Regression: the event page rendered `snapshot ?? referenceSnapshot`, so a
+    // slow or failed arena feed painted MATCH_SEEDS - $BONK/$WIF on DIRE MARSH,
+    // 486.2K volume, 12.4K viewers - with nothing marking them as fixtures.
+    const reference = await createSolzDataSource().load()
+    expect(reference.matches.length).toBeGreaterThan(0)
+    const hollow = hollowSnapshot(reference)
+    for (const key of ['matches', 'markets', 'teams', 'agents', 'prompts', 'chat', 'automation', 'tape', 'timeline', 'queue', 'bids', 'results'] as const) {
+      expect(hollow[key]).toEqual([])
+    }
+    expect(hollow.highlightMatchId).toBe('')
+    // The account and the capability flags are this visitor's own state, not
+    // arena inventory, so the page keeps rendering its balances and controls.
+    expect(hollow.account).toBe(reference.account)
+    expect(hollow.capabilities).toBe(reference.capabilities)
+    expect(hollow.updatedAt).toBe(reference.updatedAt)
+  })
+
+  test('no seeded match or market can be resolved out of it', async () => {
+    const reference = await createSolzDataSource().load()
+    const seeded = reference.matches[0]
+    const hollow = hollowSnapshot(reference)
+    expect(resolveEvent(hollow, seeded.id)).toBeUndefined()
+    expect(resolveEvent(hollow, seeded.marketId)).toBeUndefined()
+    expect(resolveEventPrediction(hollow, seeded.id, seeded.marketId)).toBeUndefined()
   })
 })

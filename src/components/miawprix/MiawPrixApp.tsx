@@ -6,7 +6,8 @@ import { MatchTable } from './MatchTable'
 import { ProgrammeLayout, useNarrow, type ProgrammeSurface } from './ProgrammeLayout'
 import { SeasonPanel } from './SeasonPanel'
 import { StandingsTable } from './StandingsTable'
-import { miawPrixSource, type MiawPrixBoard } from './miawPrixSource'
+import { miawPrixBoardKey, miawPrixSource, type MiawPrixBoard } from './miawPrixSource'
+import { cachedValue } from '../solz/liveCache'
 import { useTokenMeta } from '../solz/tokenMeta'
 import { resolvedTokenLogo } from '../solz/tokenIcon'
 import { champion, orderSeasons, rankStandings, seasonMismatch, splitMatches, sectionCount } from './board'
@@ -90,8 +91,23 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   // both trees and never renders more than one of them.
   const narrow = useNarrow()
   const [seasonId, setSeasonId] = useState(initialSeasonId)
-  const [board, setBoard] = useState<MiawPrixBoard | null>(null)
-  const [loading, setLoading] = useState(true)
+  // THE FIRST FRAME IS THE LAST GOOD READ. This page is usually opened from the
+  // home hero or from /catwalk, which are islands over the SAME document and
+  // have already read this exact programme URL. Starting from nothing redrew
+  // three tables of rows the reader had been looking at one click earlier as
+  // skeletons. The read still goes out below - the seed buys a first frame, it
+  // never answers for one. See src/components/solz/liveCache.ts.
+  const seed = useMemo(
+    () => cachedValue<MiawPrixBoard>(miawPrixBoardKey(endpoint, initialSeasonId)),
+    [endpoint, initialSeasonId],
+  )
+  const [board, setBoard] = useState<MiawPrixBoard | null>(seed?.value ?? null)
+  const [loading, setLoading] = useState(!seed)
+  /** The rows on screen were carried in from another route and this mount's own
+   *  read has not landed yet. `loading` is false — there IS a board — so nothing
+   *  draws a skeleton; this is what stops those rows being passed off as fresh.
+   *  Cleared by the first read that settles, and never set by a later one. */
+  const [carried, setCarried] = useState(Boolean(seed))
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
   /** Which table's REFRESH was pressed, or null when nothing is in flight.
@@ -108,20 +124,37 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
   const [refreshingFrom, setRefreshingFrom] = useState<ProgrammeSurface | null>(null)
   /** The season the rows on screen belong to. A refresh re-reads the same
    *  season and keeps them; a season change has nothing worth keeping. */
-  const shownSeason = useRef<string | null>(null)
+  const shownSeason = useRef<string | null>(seed ? initialSeasonId : null)
+  /** Consecutive failed reads, for the backoff below. Reset by any read that
+   *  lands, so one bad minute does not leave the page on a 30s cadence. */
+  const attempts = useRef(0)
 
   useEffect(() => {
     const controller = new AbortController()
+    let retry: number | undefined
     // Skeletons only when there is nothing to keep. Re-reading the season that
     // is already on screen leaves it there and lets the new rows replace it in
     // place, so a refresh no longer looks like a navigation.
     if (shownSeason.current !== seasonId) { setLoading(true); setRefreshingFrom(null) }
     setError('')
     source.board(seasonId, controller.signal)
-      .then((next) => { if (!controller.signal.aborted) { setBoard(next); shownSeason.current = seasonId } })
-      .catch(() => { if (!controller.signal.aborted) setError('The MIAW PRIX programme is unavailable. Retry to reconnect.') })
-      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setRefreshingFrom(null) } })
-    return () => controller.abort()
+      .then((next) => { if (!controller.signal.aborted) { setBoard(next); shownSeason.current = seasonId; attempts.current = 0 } })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        // THE PAGE HEALS ITSELF. This read fails on a slow upstream far more
+        // often than on a broken one, and with no retry a single blip left the
+        // programme dead until a human pressed a button - which the banner told
+        // them to do without giving them one. Capped exponential backoff so a
+        // genuinely down control plane is not hammered.
+        attempts.current += 1
+        setError('The MIAW PRIX programme is unavailable. Retrying…')
+        retry = window.setTimeout(
+          () => setRevision((value) => value + 1),
+          Math.min(30_000, 2_000 * 2 ** (attempts.current - 1)),
+        )
+      })
+      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setCarried(false); setRefreshingFrom(null) } })
+    return () => { controller.abort(); if (retry) window.clearTimeout(retry) }
   }, [source, seasonId, revision])
 
   const data = board ?? EMPTY_BOARD
@@ -195,6 +228,7 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
       <div className="mp-heading-copy">
         <h1 className="sz-page-title">MIAW PRIX</h1>
         <p>One month, one season, one champion. The coins on the CATWALK walk in through the Agent Colosseum programme; the season is won on raw wins.</p>
+        {carried && <p className="mp-carried"><RefreshCw size={12} aria-hidden="true" className="mp-spin" /> Showing the last read programme while it is re-read.</p>}
       </div>
       <div className="mp-heading-season">
         <SeasonPanel
@@ -202,7 +236,14 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
           seasons={seasons}
           champion={winner}
           now={now}
-          loading={loading}
+          // A FAILED READ IS NOT "NO SEASON". With nothing landed, `data.season`
+          // is EMPTY_BOARD's null, and the panel printed "NO SEASON · NO SEASON
+          // OPENED" directly beside a banner saying the programme could not be
+          // reached - a confident claim about the programme sourced from a read
+          // that never arrived. Un-inked is what the panel already renders for
+          // "not known yet", and while the retry above is pending that is also
+          // literally what is happening, so aria-busy stays honest.
+          loading={loading || (!!error && !board)}
           venue={venue}
           onSelect={setSeasonId}
         />
@@ -211,9 +252,20 @@ export function MiawPrixApp({ endpoint, predictionApiUrl, initialSeasonId = '' }
 
     {/* The skeleton below is aria-hidden, so the fact that the page is still
         reading has to reach assistive technology some other way. */}
-    <p className="sr-only" role="status">{loading ? 'Loading the MIAW PRIX season, schedule and standings.' : ''}</p>
+    <p className="sr-only" role="status">{loading
+      ? 'Loading the MIAW PRIX season, schedule and standings.'
+      : carried
+        ? 'Showing the last read MIAW PRIX programme while it is re-read.'
+        : ''}</p>
 
-    {error && <p className="mp-error" role="alert">{error}</p>}
+    {/* The copy says the page is retrying, so it carries the control that does
+        it now rather than naming an action the reader cannot take. */}
+    {error && <p className="mp-error" role="alert">
+      {error}
+      <button type="button" className="mp-refresh mp-refresh--inline" disabled={blocked} onClick={() => refresh('standings')}>
+        <RefreshCw size={13} aria-hidden="true" className={blocked ? 'mp-spin' : undefined} /> Retry now
+      </button>
+    </p>}
     {mismatch && <p className="mp-error" role="alert">{mismatch}</p>}
     <ProgrammeLayout
       narrow={narrow}

@@ -15,12 +15,15 @@ export function resolveEventPrediction(snapshot: SolzSnapshot, matchId: string, 
 }
 
 /** Display one answer's binary contracts without inventing another source market. */
-export function eventAnswerMarket(market: ArenaMarket, answer: ArenaMarketOutcome): ArenaMarket {
+export function eventAnswerMarket(market: ArenaMarket, answer: ArenaMarketOutcome, collateral = 'COOLA'): ArenaMarket {
   return {
     ...market,
     title: `${answer.label} · ${market.title}`,
     outcomes: [{ ...answer, label: 'Yes' }, { ...predictionContract(answer, 'no'), label: 'No' }],
-    rules: `Yes pays the settlement value assigned to ${answer.label}; No pays the remainder of 1 COOLA. ${market.rules}`,
+    // The collateral is the page's, not this module's. A complete set is worth
+    // one unit of whatever the venue settles in, and hard-coding the
+    // simulation's credit here printed COOLA in the rules of a live fUSDC book.
+    rules: `Yes pays the settlement value assigned to ${answer.label}; No pays the remainder of 1 ${collateral}. ${market.rules}`,
   }
 }
 

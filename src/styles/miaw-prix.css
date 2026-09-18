@@ -322,7 +322,13 @@
    block either. "No result was recorded" is a different fact from "this coin
    lost", and the row's own .is-cancelled fade already carries it. */
 
-.mp-error { margin: 0; padding: 13px 16px; border: 1px solid #5c3138; border-radius: var(--mp-radius); background: #251a1c; color: #ffb4b4; font-size: 12px; }
+.mp-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0; padding: 13px 16px; border: 1px solid #5c3138; border-radius: var(--mp-radius); background: #251a1c; color: #ffb4b4; font-size: 12px; }
+/* The banner's own control, so the copy that says the page is retrying also
+   offers to retry now. Tinted to the banner rather than to the lime section
+   controls: it belongs to the alert, not to a table title. */
+.mp-refresh--inline { min-height: 26px; padding: 0 10px; gap: 6px; font-size: 8px; color: #ffb4b4; border-color: #5c3138; flex: none; }
+.mp-refresh--inline:hover:not(:disabled),
+.mp-refresh--inline:focus-visible { border-color: #ffb4b4; color: #fff; outline: none; }
 /* Not an error: the programme is intact and readable. Only the joined
    Volume column is unknown, and saying so is what keeps every em dash in
    that column from reading as "this match has no market". */
@@ -496,3 +502,9 @@
   .mp-market-actions button { width: 28px; height: 28px; }
   .mp-market-actions svg { width: 14px; height: 14px; }
 }
+
+/* Rows carried in from another route, with this page's own read still in
+   flight. It is not an error and it is not a skeleton - the tables below are
+   real, they are simply a moment old - so it reads as a quiet line under the
+   page's own description rather than as a banner. */
+.mp-carried { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; color: var(--mp-muted); font-size: 10px; }

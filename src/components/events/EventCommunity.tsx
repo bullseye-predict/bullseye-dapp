@@ -284,7 +284,7 @@ export function EventCommunity({ snapshot, match, source, market, hideComments, 
   const markets = priced ?? snapshot.markets.filter((item) => item.matchId === match.id)
   const group = markets.find((item) => item.id === marketId) ?? markets[0] ?? market
   const answer = group.outcomes.find((item) => item.id === answerId) ?? group.outcomes[0]
-  const communityMarket = prediction ? market : group.outcomes.length > 2 ? eventAnswerMarket(group, answer) : group
+  const communityMarket = prediction ? market : group.outcomes.length > 2 ? eventAnswerMarket(group, answer, collateral) : group
   // One read for the whole section. TabPanel mounts its children whether or not
   // they are the active tab, so a hook inside each panel would scan the program
   // twice for the same question.

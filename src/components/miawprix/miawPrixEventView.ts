@@ -20,6 +20,9 @@ export function miawPrixEventView(match: MiawPrixMatch, now = Date.now()): {
   const kickoff = match.scheduledStartAt || now
   const teams = match.sides.map((side, index) => ({
     teamId: side.mint || side.teamId,
+    // The mint travels with the side, not just as its id: a renderer reads it
+    // to know this side IS a coin and must be named by its ticker alone.
+    ...(side.mint ? { mint: side.mint } : {}),
     symbol: side.symbol,
     name: side.name,
     ...(side.logoUrl ? { logoUrl: side.logoUrl } : {}),
