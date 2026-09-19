@@ -9,6 +9,7 @@ import {
   MousePointerClick,
   Play,
   Radio,
+  RotateCw,
   X,
 } from "lucide-react";
 import { animate } from "animejs";
@@ -47,14 +48,28 @@ type BroadcastContext = { state: string; time: string; detail: string };
 type HlsInstance = {
   attachMedia: (element: HTMLVideoElement) => void;
   loadSource: (url: string) => void;
+  startLoad: () => void;
+  recoverMediaError: () => void;
+  on: (event: string, handler: (event: string, data: HlsErrorData) => void) => void;
   destroy: () => void;
 };
+type HlsErrorData = { fatal?: boolean; type?: string; details?: string };
 type HlsConstructor = (new (options?: Record<string, unknown>) => HlsInstance) & {
   isSupported?: () => boolean;
+  Events: { ERROR: string; FRAG_BUFFERED: string };
+  ErrorTypes: { NETWORK_ERROR: string; MEDIA_ERROR: string };
 };
 type HlsWindow = Window & { Hls?: HlsConstructor };
 let hlsLoader: Promise<HlsConstructor | null> | null = null;
 
+/**
+ * A FAILED LOAD IS NOT CACHED. This script comes off a public CDN, so a shield,
+ * an extension, a captive portal or one slow second can lose it. Holding the
+ * null in `hlsLoader` made that single miss permanent: every later attempt
+ * short-circuited to null and the stage never played video again for the rest
+ * of the page's life. The promise is cleared on failure so the next mount asks
+ * once more. It is not a loop - nothing re-calls this on a timer.
+ */
 function loadHls(): Promise<HlsConstructor | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
   const existing = (window as HlsWindow).Hls;
@@ -72,11 +87,28 @@ function loadHls(): Promise<HlsConstructor | null> {
     script.async = true;
     script.dataset.solzHls = "true";
     script.onload = () => resolve((window as HlsWindow).Hls ?? null);
-    script.onerror = () => resolve(null);
+    script.onerror = () => { hlsLoader = null; script.remove(); resolve(null); };
     document.head.appendChild(script);
   });
   return hlsLoader;
 }
+
+/* RECOVERING A LIVE STREAM, WITH A CEILING.
+   The relay publishes a six-segment window at two seconds a segment, so the
+   live edge is about twelve seconds wide. A throttled tab, a sleeping laptop
+   or one slow request drops a viewer off that edge and the segments it still
+   wants are already gone. hls.js reports that as a fatal error and expects the
+   page to call startLoad()/recoverMediaError(); nothing did, so one ordinary
+   hiccup ended playback for the rest of the session.
+   Recovery is bounded on three axes, because an unbounded retry against a dead
+   origin is just a load generator: the wait doubles, it never exceeds
+   RECOVERY_MAX_MS, consecutive failures stop at RECOVERY_LIMIT, and total
+   recoveries over the whole mount stop at RECOVERY_TOTAL. Past any of those the
+   viewer gets the unavailable card and an explicit Try again. */
+const RECOVERY_LIMIT = 4;
+const RECOVERY_TOTAL = 12;
+const RECOVERY_BASE_MS = 1_000;
+const RECOVERY_MAX_MS = 15_000;
 
 const BroadcastMedia = memo(function BroadcastMedia({
   source,
@@ -90,6 +122,11 @@ const BroadcastMedia = memo(function BroadcastMedia({
   context: BroadcastContext;
 }) {
   const [failed, setFailed] = useState(false);
+  // Clearing `failed` re-mounts the <video>, but the attach effect keys on
+  // [iframeActive, source] and neither changes on a same-mode retry, so it
+  // would never run again and the fresh element would sit empty. This nonce is
+  // what makes Try again actually try.
+  const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<"iframe" | "video">("video");
   // The embedded game swallows every click it is given, including the ones
   // meant for the page around it, so it starts inert and the viewer opts in.
@@ -108,6 +145,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
     setMode(next);
     setFailed(false);
     setInteractive(false);
+    setAttempt((value) => value + 1);
   };
   const requestMode = async (next: "iframe" | "video") => {
     if (next === "video") { chooseMode(next); return; }
@@ -160,33 +198,73 @@ const BroadcastMedia = memo(function BroadcastMedia({
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
   }, [iframeSrc, onArenaStatus]);
+  // DECLARED BEFORE THE EFFECT THAT DEPENDS ON THEM. A dependency array is
+  // evaluated during render, not inside the callback, so `[iframeActive,
+  // source]` below read `iframeActive` at its own line. With the const still
+  // further down the body that is the temporal dead zone: the render threw
+  // "Cannot access 'y' before initialization" from the minified bundle, the
+  // whole HomeApp island unmounted, and colacat.solz.fun served a blank page
+  // under its header. `astro build` does not type-check, so nothing caught it.
+  const videoAvailable = Boolean(source) && !failed;
+  const iframeActive = mode === "iframe";
   useEffect(() => {
     if (iframeActive || !source || !video.current) return;
     const element = video.current;
     let hls: HlsInstance | null = null;
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let streak = 0;
+    let total = 0;
     element.removeAttribute("src");
     if (element.canPlayType("application/vnd.apple.mpegurl")) {
       element.src = source;
       void element.play().catch(() => undefined);
     } else {
       void loadHls().then((Constructor) => {
-        if (cancelled || !Constructor || !Constructor.isSupported?.()) return;
-        hls = new Constructor({ enableWorker: true });
-        hls.attachMedia(element);
-        hls.loadSource(source);
+        if (cancelled || !Constructor) return;
+        // hls.js loaded but this engine cannot play MSE at all. Say so rather
+        // than leaving an empty player that never fills.
+        if (!Constructor.isSupported?.()) {
+          setFailed(true);
+          return;
+        }
+        const instance = new Constructor({ enableWorker: true });
+        hls = instance;
+        // A buffered fragment means the stream came back. Clearing the streak
+        // is what lets a long session survive several separate hiccups; `total`
+        // is not cleared, so the ceiling still holds over the whole mount.
+        instance.on(Constructor.Events.FRAG_BUFFERED, () => {
+          streak = 0;
+        });
+        instance.on(Constructor.Events.ERROR, (_event, data) => {
+          if (cancelled || !data?.fatal) return;
+          if (streak >= RECOVERY_LIMIT || total >= RECOVERY_TOTAL) {
+            setFailed(true);
+            return;
+          }
+          const wait = Math.min(RECOVERY_BASE_MS * 2 ** streak, RECOVERY_MAX_MS);
+          streak += 1;
+          total += 1;
+          clearTimeout(retry);
+          retry = setTimeout(() => {
+            if (cancelled) return;
+            if (data.type === Constructor.ErrorTypes.MEDIA_ERROR) instance.recoverMediaError();
+            else instance.startLoad();
+          }, wait);
+        });
+        instance.attachMedia(element);
+        instance.loadSource(source);
       });
     }
     return () => {
       cancelled = true;
+      clearTimeout(retry);
       hls?.destroy();
       element.pause();
       element.removeAttribute("src");
       element.load();
     };
-  }, [iframeActive, source]);
-  const videoAvailable = Boolean(source) && !failed;
-  const iframeActive = mode === "iframe";
+  }, [iframeActive, source, attempt]);
   return (
     <>
       {iframeActive ? (
@@ -219,12 +297,23 @@ const BroadcastMedia = memo(function BroadcastMedia({
             </span>
             <strong>Video stream is unavailable.</strong>
             <p>
-              Do you want to proceed with iframe streaming? It opens the game
-              stream directly and can use more device performance. Only continue
-              if your device can handle the load.
+              The broadcast dropped out. Try it again, or proceed with iframe
+              streaming, which opens the game stream directly and can use more
+              device performance. Only continue if your device can handle the
+              load.
             </p>
             <div>
-              <button type="button" onClick={() => void requestMode("iframe")}>
+              {Boolean(source) && (
+                <button type="button" onClick={() => chooseMode("video")}>
+                  <RotateCw size={13} aria-hidden="true" />
+                  Try the video again
+                </button>
+              )}
+              <button
+                type="button"
+                className={source ? "sh-fallback-secondary" : undefined}
+                onClick={() => void requestMode("iframe")}
+              >
                 <Play size={13} fill="currentColor" aria-hidden="true" />
                 Use iframe streaming
               </button>
@@ -446,7 +535,6 @@ export function MatchViewer({
   const [fullscreenError, setFullscreenError] = useState("");
   const [broadcastStatus, setBroadcastStatus] =
     useState<ArenaBroadcastStatus | null>(null);
-  const [livePanel, setLivePanel] = useState<"feed" | "highlights">("feed");
   const [clock, setClock] = useState(() => Date.now());
   // The composer's sentence, held here because the plate that writes it and the
   // rail that shows it are siblings. See PromptComposer's `onHint`.
@@ -654,32 +742,6 @@ export function MatchViewer({
             idPrefix="highlight-view"
             active={view === "live"}
           >
-            <div className="sh-live-tabs" role="tablist" aria-label="Livestream content">
-              <button type="button" role="tab" aria-selected={livePanel === "feed"} onClick={() => setLivePanel("feed")}>
-                <Radio size={12} aria-hidden="true" /> Live feed
-              </button>
-              <button type="button" role="tab" aria-selected={livePanel === "highlights"} onClick={() => setLivePanel("highlights")}>
-                <Play size={12} aria-hidden="true" /> Highlights <span>0</span>
-              </button>
-            </div>
-            {livePanel === "highlights" ? (
-              <div className="sh-highlight-panel" role="tabpanel">
-                <div className="sh-highlight-panel__header">
-                  <div>
-                    <span className="sh-panel-kicker">VIDEO ARCHIVE</span>
-                    <h2>Match highlights</h2>
-                    <p>Clips will appear here as the broadcaster marks key moments.</p>
-                  </div>
-                  <span className="sh-highlight-panel__count">0 CLIPS</span>
-                </div>
-                <div className="sh-highlight-empty">
-                  <span className="sh-highlight-empty__icon"><Play size={16} fill="currentColor" aria-hidden="true" /></span>
-                  <strong>No highlights indexed yet.</strong>
-                  <span>Stay on Live feed to watch the current broadcast. Highlight clips will be added without changing this tab.</span>
-                  <button type="button" onClick={() => setLivePanel("feed")}>Back to live feed <ArrowUpRight size={13} aria-hidden="true" /></button>
-                </div>
-              </div>
-            ) : (
             <div className="sh-broadcast" ref={frame}>
               <BroadcastMedia
                 key={`${match.streamUrl ?? livestreamUrl ?? "iframe"}:${liveHref}`}
@@ -888,7 +950,6 @@ export function MatchViewer({
                 </p>
               )}
             </div>
-            )}
           </TabPanel>
           <TabPanel
             id="market"

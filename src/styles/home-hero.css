@@ -10,7 +10,7 @@
 .ch-viewer { display: flex; flex-direction: column; min-width: 0; }
 .ch-screen { flex-shrink: 0; aspect-ratio: 16 / 9; position: relative; border: 1px solid var(--sh-line); background: #17191e; min-width: 0; overflow: clip; }
 .ch-screen > [role='tabpanel'] { position: absolute; inset: 0; min-width: 0; overflow: clip; }
-.ch-screen .sh-broadcast { flex: 1 1 auto; height: auto; min-height: 0; aspect-ratio: auto; }
+.ch-screen .sh-broadcast { height: 100%; aspect-ratio: auto; }
 .ch-market-empty { min-height: 160px; display: grid; align-content: center; justify-items: start; gap: 8px; padding: 28px; border: 1px dashed #485364; color: #dbe3ef; }
 .ch-market-empty strong { font-size: 15px; }
 .ch-market-empty span { max-width: 48ch; color: #9ca8ba; font-size: 11px; line-height: 1.55; }
@@ -1153,27 +1153,7 @@ button:hover > .ch-example-use { opacity: 1; }
 .ch-screen .ch-scoreboard { top: calc(var(--stage-tab-height) + 74px); }
 /* Predictions and Market are flat panels, so their content starts below the
    tab plate rather than running under it the way the video does. */
-.ch-screen > [role='tabpanel']:not(:has(.sh-broadcast, .sh-live-tabs)) { padding-top: var(--stage-tab-height); }
-
-/* THE LIVESTREAM PANEL'S OWN TAB ROW (Live feed / Highlights).
-   `.sh-live-tabs` is an in-flow strip at the top of the panel, and this stage
-   was built around ONE full-height child with everything else placed
-   absolutely over it. Dropped in unadapted the strip broke the stage twice:
-   its first --stage-tab-width ran under the view-switch plate, which is opaque
-   and above it, so both buttons were invisible; and the 40px it takes pushed
-   `.sh-broadcast` - sized to the full height of the panel - that far past the
-   bottom of the 16:9 frame, where `.ch-screen`'s own `overflow: clip` cut the
-   overhang off. What the clip took was the bottom of both corner plates: the
-   composer lost its recipient select, its price and its Send key.
-   The panel is a column now. The strip takes its line beside the plate and the
-   broadcast takes what is left, so nothing reaches past the frame.
-   `:not([hidden])` is load-bearing: this rule outranks the UA's
-   `[hidden] { display: none }`, and without it the closed panel shows. */
-.ch-screen > [role='tabpanel']:not([hidden]):has(> .sh-live-tabs) { display: flex; flex-direction: column; }
-.ch-screen > [role='tabpanel'] > .sh-live-tabs { flex: 0 0 auto; padding-left: calc(var(--stage-tab-width) + 10px); }
-.ch-screen > [role='tabpanel'] > .sh-highlight-panel { flex: 1 1 auto; min-height: 0; overflow: auto; }
-/* A broadcast-only embed carries no view switch, so there is nothing to clear. */
-.ch-screen:not(:has(.ch-stage-tabs)) > [role='tabpanel'] > .sh-live-tabs { padding-left: 8px; }
+.ch-screen > [role='tabpanel']:not(:has(.sh-broadcast)) { padding-top: var(--stage-tab-height); }
 
 /* Only the plate stands in that band; the rest of the row was empty while both
    flat panels carried a heading of their own directly underneath it - two rows
@@ -1226,7 +1206,4 @@ button:hover > .ch-example-use { opacity: 1; }
   /* Two plates cannot share a phone-width bottom edge. The chat field takes it
      while it is open; the prompt steps aside rather than overlapping. */
   .ch-screen:has(.ch-stage-corner--chat) .ch-stage-corner--prompt { display: none; }
-  /* The view switch is a full-width band here, not a corner plate, so the
-     livestream's own strip cannot sit beside it - it starts underneath. */
-  .ch-screen > [role='tabpanel'] > .sh-live-tabs { margin-top: var(--stage-tab-height); padding-left: 8px; }
 }

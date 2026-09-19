@@ -120,24 +120,6 @@ body { margin: 0; }
 .sh-viewer-format { display: inline-flex; gap: 12px; font-size: 9px; margin-right: 14px; color: #b7b7c1; }
 .sh-viewer-format > span { color: #676873; }
 .sh-broadcast { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #172a4a; }
-.sh-live-tabs { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 5px 8px; border-bottom: 1px solid #34363d; background: #121419; }
-.sh-live-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 29px; padding: 0 11px; border: 1px solid transparent; background: transparent; color: #8f96a3; font: 700 9px var(--sh-mono); letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
-.sh-live-tabs button:hover { color: #f4f5f6; border-color: #59616b; }
-.sh-live-tabs button[aria-selected='true'] { border-color: var(--sh-lime); background: #c7ff00; color: #101510; }
-.sh-live-tabs button span { min-width: 16px; padding: 2px 4px; background: rgb(255 255 255 / 12%); font-size: 8px; text-align: center; }
-.sh-live-tabs button[aria-selected='true'] span { background: rgb(16 21 16 / 16%); }
-.sh-highlight-panel { min-height: 360px; padding: clamp(24px, 4vw, 48px); background: radial-gradient(circle at 70% 10%, rgb(199 255 0 / 7%), transparent 35%), #0b0d11; }
-.sh-highlight-panel__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; max-width: 760px; margin: 0 auto 34px; }
-.sh-panel-kicker { color: var(--sh-lime); font: 700 9px var(--sh-mono); letter-spacing: .12em; }
-.sh-highlight-panel h2 { margin-top: 8px; font-size: clamp(21px, 3vw, 30px); letter-spacing: -.02em; }
-.sh-highlight-panel p { margin-top: 8px; color: #9da5b4; font-size: 11px; line-height: 1.6; }
-.sh-highlight-panel__count { padding: 5px 7px; border: 1px solid #59616b; color: #b6bfcb; font: 700 8px var(--sh-mono); white-space: nowrap; }
-.sh-highlight-empty { display: grid; justify-items: center; gap: 10px; max-width: 520px; margin: 0 auto; padding: 38px 24px; border: 1px dashed #3e4651; background: rgb(18 22 29 / 74%); text-align: center; }
-.sh-highlight-empty__icon { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--sh-lime); color: var(--sh-lime); }
-.sh-highlight-empty strong { color: #f2f4f8; font-size: 14px; }
-.sh-highlight-empty > span:not(.sh-highlight-empty__icon) { color: #9da5b4; font-size: 10px; line-height: 1.6; }
-.sh-highlight-empty button { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 11px; border: 1px solid var(--sh-lime); background: transparent; color: var(--sh-lime); font: 700 9px var(--sh-mono); text-transform: uppercase; cursor: pointer; }
-.sh-highlight-empty button:hover { background: var(--sh-lime); color: #101510; }
 .sh-broadcast:fullscreen { aspect-ratio: auto; }
 .sh-broadcast-image { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center 60%; display: block; }
 .sh-broadcast video { z-index: 2; }
@@ -160,6 +142,10 @@ body { margin: 0; }
 .sh-broadcast-fallback div > div { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
 .sh-broadcast-fallback button, .sh-broadcast-fallback a { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border: 1px solid #a8d922; background: #c7ff00; color: #101510; font: 700 9px var(--sh-mono); text-transform: uppercase; }
 .sh-broadcast-fallback a { border-color: #7a899e; background: transparent; color: #dce6fa; }
+/* When the card offers Try again, that is the primary key and the iframe
+   route steps back to an outline - the same weight as Open the game. */
+.sh-broadcast-fallback button.sh-fallback-secondary { border-color: #7a899e; background: transparent; color: #dce6fa; }
+.sh-broadcast-fallback button.sh-fallback-secondary:hover { border-color: #a8bcd6; background: #2c3a4e; color: #fff; }
 .sh-broadcast-fallback :is(button, a):hover { border-color: #e7f7b3; background: #ddff68; color: #101510; }
 .sh-broadcast-fallback a:hover { background: #2c3a4e; color: #fff; }
 .sh-broadcast-fallback :is(button, a):focus-visible, .sh-broadcast-source button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
