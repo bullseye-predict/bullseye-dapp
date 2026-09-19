@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, test } from 'bun:test'
-import { POST as quotePost, ALL as quoteAll } from '../src/pages/api/catwalk/quote'
-import { POST as confirmPost, ALL as confirmAll } from '../src/pages/api/catwalk/confirm'
+import { postCatwalkQuote as quotePost, rejectCatwalkQuoteMethod as quoteAll } from '../src/server/routes/catwalk-quote'
+import { postCatwalkConfirm as confirmPost, rejectCatwalkConfirmMethod as confirmAll } from '../src/server/routes/catwalk-confirm'
 import { boundedBody, catwalkOrigin, forwardToCatwalk, onlyKeys } from '../src/server/catwalk-quote'
 
 /**
@@ -56,8 +56,8 @@ function upstream(body: unknown, status = 200) {
 const post = (payload: unknown, url = 'https://site.test/api/catwalk/quote') =>
   new Request(url, { method: 'POST', body: JSON.stringify(payload) })
 
-const call = (route: typeof quotePost, request: Request, env: unknown = locals) =>
-  route({ request, locals: env } as never) as Promise<Response>
+const call = (route: typeof quotePost, request: Request, env: typeof locals = locals) =>
+  route(request, env.runtime.env)
 
 /* ── WHAT IT ACCEPTS ─────────────────────────────────────────────────────── */
 

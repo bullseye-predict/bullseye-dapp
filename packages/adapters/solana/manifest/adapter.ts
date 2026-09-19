@@ -8,7 +8,7 @@ import { configAddress, positionAddress, TOKEN_PROGRAM_ID, u64, vaultAddress } f
 import { bindingAddress, decodeBinding, freezeAuthority, guarded, tokenMovement, venueVault, type ManifestBinding, type Outcome } from './wire'
 
 export interface ManifestDeployment { genesisHash: string; predictionProgram: PublicKey; manifestProgram: PublicKey; collateralMint: PublicKey }
-export const MANIFEST_CAPABILITIES = Object.freeze({ matching: 'onchain', offchainMatcher: false, cutoff: 'onchain-timestamp-and-prediction-lock', platformFee: 'immutable-taker-quote-notional', globalOrders: false, reverseOrders: false, agentSigning: false, independentReviewComplete: false })
+export const MANIFEST_CAPABILITIES = Object.freeze({ matching: 'onchain', offchainMatcher: false, cutoff: 'onchain-timestamp-and-prediction-lock', platformFee: 'immutable-taker-quote-notional', globalOrders: false, reverseOrders: false, agentSigning: true, agentOrderTypes: ['IOC'] as const, independentReviewComplete: false })
 export class ManifestAdapter {
   constructor(readonly connection: Connection, readonly deployment: ManifestDeployment) {
     if (deployment.manifestProgram.toBase58()==='MNFSTqtC93rEfYHB6hF82sKdZpUDFWkViLByLd1k1Ms' || deployment.manifestProgram.equals(deployment.predictionProgram)) throw new Error('A separate guarded Manifest deployment is required')

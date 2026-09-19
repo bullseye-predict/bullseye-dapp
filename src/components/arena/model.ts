@@ -102,7 +102,7 @@ export type ArenaMarket = {
   // Venue-tagged binding. DreamDEX records predate the tag and are treated as
   // family DREAMDEX by venueBinding(); read it through useVenueMarket, never by
   // reaching for a chain-specific field in a component.
-  onchain?: ({ family?: 'DREAMDEX'; chainId: '5031' | '50312'; marketId: `0x${string}`; oracleQuestionId: string; voidPolicy: 0 | 2; indexerUrl: string; wsRpcUrl: string } | { family: 'SOLANA'; marketId: string; rpcUrl: string; genesisHash: string; predictionProgram: string; manifestProgram: string; collateralMint: string; collateralDecimals: number }) & { tradingStartsAt: number; tradingLocksAt: number; creationTxHash?: string; sponsoredTransactions?: { label: string; hash: string }[]; volume?: { amount: string; decimals: number }; volume24h?: { amount: string; decimals: number; trades: number; partial?: boolean }; explorer?: { family?: string; chainId?: string; explorerUrl?: string } }
+  onchain?: ({ family?: 'DREAMDEX'; chainId: '5031' | '50312'; marketId: `0x${string}`; oracleQuestionId: string; voidPolicy: 0 | 2; indexerUrl: string; wsRpcUrl: string } | { family: 'SOLANA'; marketId: string; rpcUrl: string; genesisHash: string; predictionProgram: string; manifestProgram: string; collateralMint: string; collateralDecimals: number; opened?: boolean }) & { tradingStartsAt: number; tradingLocksAt: number; creationTxHash?: string; sponsoredTransactions?: { label: string; hash: string }[]; volume?: { amount: string; decimals: number }; volume24h?: { amount: string; decimals: number; trades: number; partial?: boolean }; explorer?: { family?: string; chainId?: string; explorerUrl?: string } }
 }
 
 export type ArenaFeedEvent = {

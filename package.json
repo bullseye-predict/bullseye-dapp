@@ -1,26 +1,21 @@
 {
-  "name": "solz-prediction-market",
+  "name": "solz-prediction-market-vite",
   "private": true,
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "check": "astro check",
-    "test": "bun test",
-    "preview": "astro preview",
-    "astro": "astro",
-    "generate-types": "wrangler types",
-    "test:frontend": "bun test src tests --timeout 30000",
-    "check:shared": "if [ -d ../solz-prediction-backend/packages ]; then diff -r -q --exclude=node_modules --exclude=.DS_Store packages ../solz-prediction-backend/packages && echo \"packages/ in sync with solz-prediction-backend\"; else echo \"../solz-prediction-backend not present - shared-package drift check skipped\"; fi"
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "test": "bun test tests/viteHost.test.ts tests/catwalkQuoteRoute.test.ts tests/siteChrome.test.tsx src/components/arena/solanaRpc.test.ts --timeout 30000",
+    "test:frontend": "bun test src tests/*.test.ts tests/*.test.tsx --timeout 30000",
+    "preview": "vite preview",
+    "start": "bun src/server/production.ts"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^14.2.6",
-    "@astrojs/react": "^6.0.5",
-    "@astrojs/vercel": "^11.0.10",
     "@bonasa-tech/manifest-sdk": "0.2.46",
     "@dynamic-labs-sdk/client": "1.27.1",
     "@dynamic-labs-sdk/react-hooks": "1.27.1",
@@ -39,13 +34,13 @@
     "@solana/web3.js": "1.98.4",
     "@somnia-chain/markets-sdk": "0.29.0",
     "@tanstack/react-query": "5.90.21",
+    "@tanstack/react-router": "1.170.38",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "@wallet-standard/app": "1.0.1",
-    "@wallet-standard/base": "1.0.1",
-    "@wallet-standard/features": "1.0.3",
+    "@wallet-standard/app": "1.1.1",
+    "@wallet-standard/base": "1.1.1",
+    "@wallet-standard/features": "1.1.1",
     "animejs": "^4.5.0",
-    "astro": "^7.2.10",
     "bn.js": "5.2.5",
     "buffer": "6.0.3",
     "colyseus.js": "^0.16.22",
@@ -57,20 +52,24 @@
     "sonner": "^2.0.8",
     "viem": "2.46.3",
     "web-haptics": "^0.0.6",
-    "wrangler": "^4.128.0",
     "zod": "4.4.3",
     "zustand": "^5.0.15"
   },
-  "allowScripts": {
-    "esbuild": true
-  },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
+    "@tanstack/router-plugin": "1.168.40",
     "@types/bn.js": "5.2.0",
     "@types/bun": "^1.4.0",
-    "typescript": "5.9.3"
+    "@types/node": "^24.10.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
   },
   "overrides": {
-    "@solana/web3.js": "1.98.4"
+    "@solana/web3.js": "1.98.4",
+    "@wallet-standard/base": "1.1.1",
+    "@wallet-standard/features": "1.1.1"
+  },
+  "allowScripts": {
+    "esbuild": true
   }
 }

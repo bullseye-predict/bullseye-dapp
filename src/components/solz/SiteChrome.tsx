@@ -43,10 +43,24 @@ export function SiteChrome({ environmentId, apiUrl, colacatMint, allowEvm }: Pro
     onArena={() => chromeHandlers().onArena?.()}
     onMarkets={() => chromeHandlers().onMarkets?.()}
   />
+  const skipLink = skipTo
+    ? <a className="sh-skip-link" href={skipTo}>{skipLabel ?? 'Skip to content'}</a>
+    : null
+
+  // Keep a local checkout useful before public wallet configuration is added.
+  // More importantly, do not download and evaluate the wallet SDK graph just
+  // to render the same disabled setup control.
+  if (!environmentId) {
+    return <>
+      {skipLink}
+      {header(<button className="arena-wallet-button" type="button" disabled>Dynamic setup required</button>)}
+    </>
+  }
+
   return <>
     {/* Ahead of the header so it is still the first thing a keyboard reaches,
         which it would not be if the page island owned it. */}
-    {skipTo && <a className="sh-skip-link" href={skipTo}>{skipLabel ?? 'Skip to content'}</a>}
+    {skipLink}
     <Suspense fallback={header(<button className="arena-wallet-button" type="button" disabled>Wallet loading</button>)}>
       <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} colacatMint={colacatMint} allowEvm={allowEvm}>
         {(session) => header(session.walletControl)}

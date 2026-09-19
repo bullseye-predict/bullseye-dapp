@@ -4,7 +4,7 @@ import {
   parsePumpProfile,
   pumpProfileUrl,
   type TraderProfile,
-} from '../components/identity/profile'
+} from '../components/identity/profile.ts'
 
 type RuntimeEnv = Record<string, unknown>
 type Fetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>

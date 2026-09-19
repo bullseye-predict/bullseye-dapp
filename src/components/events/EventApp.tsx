@@ -3,7 +3,7 @@ import '../../styles/home-hero.css'
 import '../../styles/home-markets.css'
 import '../../styles/events.css'
 import { ArrowUpRight, Bookmark, Check, ChevronRight, Eye, Link as LinkIcon, X } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, ArenaMarketOutcome, SolzDataSource, SolzMatch, SolzSnapshot } from '../solz/model'
 import { OverlayLayer } from '../home/alerts/OverlayLayer'
@@ -12,14 +12,12 @@ import { reservedSolanaView, resolveQuestionEvent, useQuestionIdentity, useReser
 import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { useSolanaMarketPrices } from '../home/useSolanaMarketPrices'
-import { InteractionConsole, type ConsoleSection } from '../home/InteractionConsole'
+import type { ConsoleSection } from '../home/InteractionConsole'
 import { compact, percent, StatusDot, TeamMark } from '../home/HomePrimitives'
 import { MatchAvatar } from '../portfolio/matchIdentity'
 import { AppShell } from '../solz/AppShell'
-import { EventStage, type EventView } from './EventStage'
-import { EventMarkets } from './EventMarkets'
-import { EventComments, EventCommunity } from './EventCommunity'
-import { EventAgentRail, EventMarketRail } from './EventRails'
+import type { EventView } from './EventStage'
+import { EventCommunitySkeleton, EventMarketsSkeleton, EventRailSkeleton, EventRegion, EventStageSkeleton, EventTicketSkeleton } from './EventRegion'
 import { eventAnswerMarket, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, type EventPaths, type EventVariant } from './eventModel'
 import { baseOutcomeId, isNoContract, predictionContract } from '../solz/predictionContracts'
 import { matchLabel } from '../home/heroMarket'
@@ -31,6 +29,17 @@ import { resolvedTokenLogo } from '../solz/tokenIcon'
 import { catalogueQuestions, eventCatalogueItems } from '../markets/marketList'
 import { useMarketCatalogue } from '../markets/useMarketCatalogue'
 import { eventTimingLabel } from './eventTiming'
+
+// Each large surface is its own code/loading boundary. The route and its data
+// producers stay mounted while a rail, chart, market list, activity panel or
+// ticket prepares independently.
+const EventStage = lazy(() => import('./EventStage').then((module) => ({ default: module.EventStage })))
+const EventMarkets = lazy(() => import('./EventMarkets').then((module) => ({ default: module.EventMarkets })))
+const EventComments = lazy(() => import('./EventCommunity').then((module) => ({ default: module.EventComments })))
+const EventCommunity = lazy(() => import('./EventCommunity').then((module) => ({ default: module.EventCommunity })))
+const EventAgentRail = lazy(() => import('./EventRails').then((module) => ({ default: module.EventAgentRail })))
+const EventMarketRail = lazy(() => import('./EventRails').then((module) => ({ default: module.EventMarketRail })))
+const InteractionConsole = lazy(() => import('../home/InteractionConsole').then((module) => ({ default: module.InteractionConsole })))
 
 type Props = { apiUrl?: string; eventId: string; predictionId?: string; initialOutcomeId?: string; variant: EventVariant; paths: EventPaths }
 
@@ -183,7 +192,7 @@ function EventShell({ apiUrl, eventId, predictionId, initialOutcomeId, variant, 
       }
     : snapshot
   return <AppShell className={`solz-home ev-app ev-app--${variant}`} mainId="event-content" mainClassName="ev-main" homeHref={paths.home} marketsHref="/markets" active={miawPrix ? 'miawprix' : 'highlight'} skipTo="#event-content" skipLabel="Skip to event" backToTopHref="#event-content">
-    {!eventSnapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} key={`${match.id}:${prediction?.id ?? 'match'}`} eventId={eventId} predictionId={prediction?.id} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={eventSnapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue} forceReadOnly={!!fallback}/> : error ? <div className="ev-load-state"><h1 className="sz-page-title">The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="ev-load-state"><span className="ch-simulation">EVENT NOT FOUND</span><h1 className="sz-page-title">This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p>{eventSnapshot.highlightMatchId
+    {!eventSnapshot || pending ? <EventSkeleton/> : valid ? <EventDetail apiUrl={apiUrl} key={match.id} eventId={eventId} predictionId={prediction?.id ?? predictionId} initialOutcomeId={initialOutcomeId} variant={variant} paths={paths} source={source} snapshot={eventSnapshot} match={match} questionMarkets={questionMarkets} solanaQuestions={question?.questions} solanaVenue={solanaVenue} forceReadOnly={!!fallback}/> : error ? <div className="ev-load-state"><h1 className="sz-page-title">The event couldn’t load.</h1><p role="alert">{error}</p><button className="sh-button" onClick={retry}>Try again</button></div> : <div className="ev-load-state"><span className="ch-simulation">EVENT NOT FOUND</span><h1 className="sz-page-title">This event isn’t in the arena.</h1><p>Choose a current event to watch the agents and explore its markets.</p>{eventSnapshot.highlightMatchId
       ? <a className="sh-button" href={eventHref(paths.variants[variant], eventSnapshot.highlightMatchId)}>Open the highlight match <ArrowUpRight size={17}/></a>
       // No arena feed means no highlight match to point at. The catalogue is a
       // real destination; a fixture match id was not.
@@ -261,6 +270,13 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   const [clock, setClock] = useState(() => Date.now())
   const tradeRail = useRef<HTMLElement>(null)
   useEffect(() => {
+    if (!predictionId) return
+    setMarketId(predictionId)
+  }, [predictionId])
+  useEffect(() => {
+    if (initialOutcomeId) setOutcomeId(initialOutcomeId)
+  }, [initialOutcomeId])
+  useEffect(() => {
     setClock(Date.now())
     if (match.phase === 'settled') return
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
@@ -279,7 +295,7 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   const ticketMarket = market && answer && market.outcomes.length > 2 ? eventAnswerMarket(market, answer, collateralSymbol) : market
   const outcome = ticketMarket?.outcomes.find((item) => item.id === outcomeId) ?? ticketMarket?.outcomes[0]
   const savedId = prediction?.id ?? match.id
-  const selectionHref = (base: string) => `${eventHref(base, match.id, prediction?.id)}${outcome ? `?outcome=${encodeURIComponent(outcome.id)}` : ''}`
+  const selectionHref = (base: string) => eventHref(base, match.id, prediction?.id, outcome?.id)
   useEffect(() => { try { setSaved(localStorage.getItem(`coola.saved-event.${savedId}`) === 'true') } catch { /* Saving is optional when storage is disabled. */ } }, [savedId])
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 3200); return () => window.clearTimeout(timer) }, [notice])
   const select = (next: ArenaMarket, pick: ArenaMarketOutcome, openTrade = true) => { setMarketId(next.id); setOutcomeId(pick.id); setSection('trade'); if (openTrade) { setMobileTrade(true); setTradeRequest((request) => request + 1) } }
@@ -299,7 +315,7 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
   return <div>
     <div className="ev-mobile-actions"><button onClick={() => setMobileRail(!mobileRail)} aria-expanded={mobileRail} aria-controls="event-left-rail">{variant === 'community' ? 'Comments' : variant === 'agents' ? 'Agents & prompts' : 'Explore events'}<ChevronRight size={14}/></button><button onClick={() => setMobileTrade(!mobileTrade)} aria-expanded={mobileTrade} aria-controls="event-trade-rail">Trade {market.outcomes.length > 2 ? `${answer.label} · ${outcome.label}` : outcome.label} <span>{percent(outcome.probability)}</span></button></div>
     <div className="ev-layout" id="event-detail" aria-label="Event details">
-      <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail">{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</div></aside>
+      <aside id="event-left-rail" className={`ev-left-rail ${mobileRail ? 'is-mobile-open' : ''}`} aria-label={variant === 'community' ? 'Event discussion' : variant === 'agents' ? 'Agent controls' : 'Event navigation'}><div className="ev-sticky-rail"><EventRegion fallback={<EventRailSkeleton/>}>{variant === 'markets' ? <EventMarketRail snapshot={snapshot} match={match} paths={paths} variant={variant} predictionId={prediction?.id}/> : variant === 'community' ? <EventComments snapshot={snapshot} match={match} market={ticketMarket} source={source} rail/> : <EventAgentRail snapshot={snapshot} match={match} source={source}/>}</EventRegion></div></aside>
       <div className="ev-event-heading" id="event-title"><div className="ev-breadcrumb"><span>{isMiawPrixMatchId(match.id) ? 'MIAW PRIX' : 'Genesis Series'}</span>{parentCrumb && <><ChevronRight size={11}/><a href={eventHref(paths.variants[variant], match.id)}>{parentCrumb}</a></>}<ChevronRight size={11}/><span>{prediction ? 'Prediction' : match.mode}</span></div><div className="ev-title-row"><h1>{prediction?.title ?? heading}</h1></div></div>
       {/* Was a "Chart simulation OFF" switch beside a count of unrelated live
           matches — a developer toggle and a number about other events. What a
@@ -311,12 +327,12 @@ function EventDetail({ apiUrl = '', eventId, predictionId, initialOutcomeId, var
         {match.roster.length > 0 && <span>{match.roster.length} agents</span>}
       </div>
       <div className="ev-center">
-        <EventStage simulation={simulation} referenceMarket={linkedOverview ? undefined : referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={linkedOverview ?? market} snapshot={snapshot} outcome={linkedOverview?.outcomes.find((item) => item.id === market.id) ?? answer} onOutcome={(pick) => { const linkedMarket = linkedOverview && markets.find((item) => item.id === pick.id); if (linkedMarket) select(linkedMarket, linkedMarket.outcomes[0]!, false); else { setOutcomeId(pick.id); setSection('trade') } }} prediction={!!prediction} broadcast={hasBroadcast} collateral={collateralSymbol}/>
-        <EventMarkets simulation={simulation} collateral={collateralSymbol} actions={<div className="ev-market-actions"><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div>} markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/>
-        <EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} priced={markets} collateral={collateralSymbol} apiUrl={apiUrl} hideComments={variant === 'community'}/>
+        <EventRegion fallback={<EventStageSkeleton/>}><EventStage simulation={simulation} referenceMarket={linkedOverview ? undefined : referenceSnapshot.markets.find((item) => item.id === market.id)} view={view} match={match} market={linkedOverview ?? market} snapshot={snapshot} outcome={linkedOverview?.outcomes.find((item) => item.id === market.id) ?? answer} onOutcome={(pick) => { const linkedMarket = linkedOverview && markets.find((item) => item.id === pick.id); if (linkedMarket) select(linkedMarket, linkedMarket.outcomes[0]!, false); else { setOutcomeId(pick.id); setSection('trade') } }} prediction={!!prediction} broadcast={hasBroadcast} collateral={collateralSymbol}/></EventRegion>
+        <EventRegion fallback={<EventMarketsSkeleton/>}><EventMarkets simulation={simulation} collateral={collateralSymbol} actions={<div className="ev-market-actions"><button aria-label={saved ? 'Unsave event' : 'Save event'} aria-pressed={saved} onClick={toggleSaved}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'}/></button><button aria-label="Copy event link" onClick={() => void copyLink()}><LinkIcon size={18}/></button></div>} markets={prediction ? [prediction] : markets} market={market} outcome={outcome} snapshot={snapshot} onSelect={select} prediction={prediction && prediction.outcomes.length > 2 ? prediction : undefined} predictionHref={(item) => eventHref(paths.variants[variant], match.id, item.id)}/></EventRegion>
+        <EventRegion fallback={<EventCommunitySkeleton/>}><EventCommunity snapshot={snapshot} match={match} source={source} market={ticketMarket} prediction={prediction} priced={markets} collateral={collateralSymbol} apiUrl={apiUrl} hideComments={variant === 'community'}/></EventRegion>
         <RelatedEvents snapshot={snapshot} match={match} prefix={paths.variants[variant]}/>
       </div>
-      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={collateralSymbol} simulation={simulation} marketAvailable={!forceReadOnly} marketNotice={{ title: 'No prediction market for this match.', detail: 'This match has no question on the prediction venue, so there is no book and no price. The ticket opens when a question exists. The other panels stay available.' }}  sections={section ? [section] : []} onSections={(next) => setSection(next.at(-1) ?? null)} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></div></aside>
+      <aside ref={tradeRail} id="event-trade-rail" className={`ev-right-rail ${mobileTrade ? 'is-mobile-open' : ''}`} aria-label="Trade and interact"><div className="ev-sticky-rail"><div className="ev-mobile-rail-heading"><span>TRADE &amp; INTERACT</span><button aria-label="Close trade panel" onClick={() => setMobileTrade(false)}><X size={18}/></button></div><EventRegion fallback={<EventTicketSkeleton/>}><InteractionConsole source={source} snapshot={snapshot} match={match} market={market} outcome={answer} onOutcome={(pick) => setOutcomeId(pick.id)} answer={isNoContract(outcome.id) ? 'no' : 'yes'} onAnswer={(side) => setOutcomeId((current) => predictionContract(market.outcomes.find((item) => item.id === baseOutcomeId(current)) ?? answer, side).id)} solana={!!solanaQuestion} solanaVenue={solanaVenue} solanaQuestion={solanaQuestion} predictionApiUrl={apiUrl} collateralSymbol={collateralSymbol} simulation={simulation} marketAvailable={!forceReadOnly} marketNotice={{ title: 'No prediction market for this match.', detail: 'This match has no question on the prediction venue, so there is no book and no price. The ticket opens when a question exists. The other panels stay available.' }}  sections={section ? [section] : []} onSections={(next) => setSection(next.at(-1) ?? null)} intermission={match.phase !== 'live'} hideChat={variant === 'community'} hidePrompt={variant === 'agents'}/></EventRegion></div></aside>
     </div>
     {notice && <div className="ev-toast" role="status"><Check size={15}/>{notice}</div>}
   </div>

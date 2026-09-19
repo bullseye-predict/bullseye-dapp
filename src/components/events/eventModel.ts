@@ -3,7 +3,21 @@ import { baseOutcomeId, predictionContract } from '../solz/predictionContracts'
 
 export type EventVariant = 'markets' | 'community' | 'agents'
 export type EventPaths = { home: string; live: string; demo: string; variants: Record<EventVariant, string> }
-export const eventHref = (base: string, id: string, predictionId?: string) => `${base}/${encodeURIComponent(id)}${predictionId ? `/${encodeURIComponent(predictionId)}` : ''}`
+
+/**
+ * Event view, selected market and selected contract are route search state.
+ * They deliberately do not create nested route components: changing any of
+ * them keeps the event shell, data source, video and wallet tree mounted.
+ */
+export function eventHref(base: string, id: string, predictionId?: string, outcomeId?: string) {
+  const queryAt = base.indexOf('?')
+  const pathname = queryAt === -1 ? base : base.slice(0, queryAt)
+  const search = new URLSearchParams(queryAt === -1 ? '' : base.slice(queryAt + 1))
+  if (predictionId) search.set('market', predictionId)
+  if (outcomeId) search.set('outcome', outcomeId)
+  const query = search.toString()
+  return `${pathname}/${encodeURIComponent(id)}${query ? `?${query}` : ''}`
+}
 
 export function resolveEvent(snapshot: SolzSnapshot, id: string) {
   const market = snapshot.markets.find((item) => item.id === id)

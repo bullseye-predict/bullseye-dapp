@@ -3,6 +3,7 @@ import '../../styles/global.css'
 import '../../styles/home.css'
 import '../../styles/site-loading.css'
 import { AppShell } from '../solz/AppShell'
+import { EventBootSkeleton } from '../skeletons/EventBootSkeleton'
 // Home imports venue readers that transitively use the Manifest SDK. Install
 // its browser Buffer/process shim before that module graph evaluates; wallet
 // chrome itself is deferred separately so it cannot block this route.
@@ -17,7 +18,5 @@ export function MarketsDirectoryApp(props: ComponentProps<typeof Markets>) { ret
 const Portfolio = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../portfolio/PortfolioApp')).PortfolioApp } })
 export function PortfolioApp(props: ComponentProps<typeof Portfolio>) { return <Suspense fallback={loading}><Portfolio {...props}/></Suspense> }
 export function HomeApp(props: ComponentProps<typeof Home>) { return <Suspense fallback={loading}><Home {...props}/></Suspense> }
-// No fallback: the event page renders a server-side skeleton that stays on
-// screen until this chunk resolves and the app replaces it.
-export function EventApp(props: ComponentProps<typeof Event>) { return <Suspense fallback={null}><Event {...props}/></Suspense> }
+export function EventApp(props: ComponentProps<typeof Event>) { return <Suspense fallback={<EventBootSkeleton/>}><Event {...props}/></Suspense> }
 export function PredictionApp(props: ComponentProps<typeof Prediction>) { return <Suspense fallback={loading}><Prediction {...props}/></Suspense> }

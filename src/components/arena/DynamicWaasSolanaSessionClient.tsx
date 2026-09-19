@@ -12,7 +12,7 @@ import {
 } from '@dynamic-labs-sdk/react-hooks'
 import { isSolanaWalletAccount, signTransaction } from '@dynamic-labs-sdk/solana'
 import type { SolanaWalletAccount } from '@dynamic-labs-sdk/solana'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { TraderIdentity } from '../identity/TraderIdentity'
 import { shortAddress } from '../identity/profile'
 import { base58 } from '@scure/base'
@@ -47,8 +47,6 @@ type Props = {
   predictionApiUrl: string
   colacatMint?: string
 }
-
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } })
 
 /** The login screen names the cluster it is about to sign against. The endpoint
  *  is the only thing in the browser that knows which one that is, and it throws
@@ -90,6 +88,7 @@ function isEmbeddedAccount(client: ReturnType<typeof predictionDynamicClient>, a
 }
 
 function ModularSession({ children, client, environmentId, predictionApiUrl, colacatMint }: Pick<Props, 'children' | 'environmentId' | 'predictionApiUrl' | 'colacatMint'> & { client: ReturnType<typeof predictionDynamicClient> }) {
+  const queryClient = useQueryClient()
   const { data: initStatus, error: initError } = useInitStatus()
   const { data: user } = useUser()
   const { data: accounts = [] } = useGetWalletAccounts()
@@ -243,5 +242,5 @@ function ModularSession({ children, client, environmentId, predictionApiUrl, col
 export default function DynamicWaasSolanaSessionClient({ children, environmentId, predictionApiUrl, colacatMint }: Props) {
   const client = useMemo(() => predictionDynamicClient(environmentId), [environmentId])
   useEffect(() => { void initializePredictionDynamicClient(client) }, [client])
-  return <QueryClientProvider client={queryClient}><DynamicProvider client={client}><ModularSession client={client} environmentId={environmentId} predictionApiUrl={predictionApiUrl} colacatMint={colacatMint}>{children}</ModularSession></DynamicProvider></QueryClientProvider>
+  return <DynamicProvider client={client}><ModularSession client={client} environmentId={environmentId} predictionApiUrl={predictionApiUrl} colacatMint={colacatMint}>{children}</ModularSession></DynamicProvider>
 }

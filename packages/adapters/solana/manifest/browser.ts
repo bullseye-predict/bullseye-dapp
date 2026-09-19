@@ -1,6 +1,7 @@
 import { Buffer } from 'buffer'
-import { ComputeBudgetProgram, PublicKey, Transaction, TransactionMessage, VersionedTransaction, type Connection } from '@solana/web3.js'
+import { ComputeBudgetProgram, PublicKey, SystemProgram, Transaction, TransactionMessage, VersionedTransaction, type Connection } from '@solana/web3.js'
 import { getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token'
+import { Market as ManifestMarket } from '@bonasa-tech/manifest-sdk'
 import type { ISolana } from '@dynamic-labs/solana-core'
 export interface ManifestWalletPort { address: string; getSigner(): Promise<ISolana> }
 export interface SolanaTransactionPlanner { assertNetwork(): Promise<void>; latestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight: number }> }
@@ -68,8 +69,8 @@ export interface SolanaTransactionNotifier { (stage: SolanaTransactionStage): vo
 import { ManifestAdapter } from './adapter'
 import { TRADE_STEPS } from './steps'
 import { beginSigningRun } from './throttle'
-import { activateBook, bindingAddress, bookAddress, claimMintAddress, initializeClaimMint, moveClaims, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
-import { buildCreateQuestionMarket, changePosition, initializePosition, initializeVault, moveVaultCollateral, positionAddress, questionCreationDigest, questionMarketAddress, vaultAddress } from '../wire'
+import { activateBook, bindingAddress, bookAddress, claimManifestAgentSeat, claimMintAddress, initializeClaimMint, manifestAgentTraderAddress, moveClaims, moveManifestAgentInventory, prepareClaimAccount, registerBinding, type ManifestBinding } from './wire'
+import { authorizeAgent as authorizeVaultAgent, buildCreateQuestionMarket, changePosition, initializePosition, initializeVault, moveVaultCollateral, positionAddress, questionCreationDigest, questionMarketAddress, revokeAgent as revokeVaultAgent, vaultAddress, type SessionPolicy } from '../wire'
 
 export class ManifestBrowserWallet {
   private active = true
@@ -256,6 +257,48 @@ export class ManifestBrowserWallet {
     if (!accounts[3]) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, recipientQuote, b.recipient, b.collateral))
     if (!accounts[4]) tx.add(prepareClaimAccount(this.owner, this.owner, b.mint))
     return tx.instructions.length ? this.send(tx, TRADE_STEPS.accounts) : undefined
+  }
+  /** Provision the canonical program-controlled Manifest trader for one outcome.
+   * The owner pays only the two ATAs and the one 80-byte seat expansion. The
+   * customized venue blocks arbitrary expansion, so no delegated key can turn
+   * this into an open-ended rent drain. */
+  async prepareAgent(b: ManifestBinding): Promise<string[]> {
+    const signatures: string[] = []
+    const prepared = await this.prepare(b)
+    if (prepared) signatures.push(prepared)
+    const p = this.adapter.deployment.predictionProgram
+    const trader = manifestAgentTraderAddress(p, this.owner)
+    const traderQuote = getAssociatedTokenAddressSync(b.collateral, trader, true)
+    const traderClaims = getAssociatedTokenAddressSync(b.mint, trader, true)
+    const [bookInfo, traderInfo, quoteInfo, claimsInfo] = await this.adapter.connection.getMultipleAccountsInfo([b.venue, trader, traderQuote, traderClaims], 'confirmed')
+    if (!bookInfo?.owner.equals(b.program)) throw new Error('Agent order book is unavailable')
+    const book = ManifestMarket.loadFromBuffer({ address: b.venue, buffer: bookInfo.data })
+    if (!book.baseMint().equals(b.mint) || !book.quoteMint().equals(b.collateral)) throw new Error('Wrong agent order-book assets')
+    const tx = new Transaction()
+    if (!quoteInfo) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, traderQuote, trader, b.collateral))
+    if (!claimsInfo) tx.add(createAssociatedTokenAccountIdempotentInstruction(this.owner, traderClaims, trader, b.mint))
+    if (!book.hasSeat(trader)) {
+      // ClaimSeat consumes the venue's reserved free block and restores that
+      // invariant by growing the market exactly once (Manifest block = 80 B).
+      const [beforeRent, afterRent] = await Promise.all([
+        this.adapter.connection.getMinimumBalanceForRentExemption(bookInfo.data.length, 'confirmed'),
+        this.adapter.connection.getMinimumBalanceForRentExemption(bookInfo.data.length + 80, 'confirmed'),
+      ])
+      const funding = Math.max(0, afterRent - beforeRent - (traderInfo?.lamports ?? 0))
+      if (funding) tx.add(SystemProgram.transfer({ fromPubkey: this.owner, toPubkey: trader, lamports: funding }))
+      tx.add(claimManifestAgentSeat(p, this.owner, this.owner, b))
+    }
+    if (tx.instructions.length) signatures.push(await this.send(tx, 'Prepare Hermes account'))
+    return signatures
+  }
+  async agentInventory(b: ManifestBinding, asset: 'USDC' | 'claims', atoms: bigint, direction: 'deposit' | 'withdraw') {
+    return this.send(new Transaction().add(moveManifestAgentInventory(this.adapter.deployment.predictionProgram, this.owner, b, asset, atoms, direction)), `Hermes ${direction} ${asset}`)
+  }
+  async authorizeAgent(policy: Omit<SessionPolicy, 'agent'> & { agent: PublicKey }) {
+    return this.send(new Transaction().add(authorizeVaultAgent(this.adapter.deployment.predictionProgram, this.owner, policy)), 'Authorize Hermes')
+  }
+  async revokeAgent() {
+    return this.send(new Transaction().add(revokeVaultAgent(this.adapter.deployment.predictionProgram, this.owner)), 'Revoke Hermes')
   }
   /** Atomic complete-set purchase: collateralize both outcomes, sell the
    * opposite one with an on-chain minimum return, retain the selected claim.

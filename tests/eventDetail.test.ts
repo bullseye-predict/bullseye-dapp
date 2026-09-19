@@ -12,7 +12,7 @@ describe('event detail data isolation', () => {
     expect(resolveEvent(snapshot, 'unknown-event')).toBeUndefined()
   })
 
-  test('nested predictions stay within their parent match across all three routes', async () => {
+  test('prediction selection stays within one event route across all three perspectives', async () => {
     const snapshot = await createSolzDataSource().load()
     const prediction = snapshot.markets.find((market) => market.matchId && market.outcomes.length > 2)!
     const matchId = prediction.matchId!
@@ -20,9 +20,11 @@ describe('event detail data isolation', () => {
     const other = snapshot.matches.find((match) => match.id !== matchId)!
     expect(resolveEventPrediction(snapshot, other.id, prediction.id)).toBeUndefined()
     expect(resolveEventPrediction(snapshot, matchId, 'missing-prediction')).toBeUndefined()
-    for (const base of ['/events', '/events-2', '/events-3']) {
-      expect(eventHref(base, matchId, prediction.id)).toBe(`${base}/${matchId}/${prediction.id}`)
-    }
+    const hrefs = ['/events', '/events?view=community', '/events?view=agents']
+      .map((base) => new URL(eventHref(base, matchId, prediction.id), 'https://app.test'))
+    expect(hrefs.map((href) => href.pathname)).toEqual(hrefs.map(() => `/events/${matchId}`))
+    expect(hrefs.map((href) => href.searchParams.get('market'))).toEqual(hrefs.map(() => prediction.id))
+    expect(hrefs.slice(1).map((href) => href.searchParams.get('view'))).toEqual(['community', 'agents'])
   })
 
   test('a linked overview charts candidate probabilities without merging their binary markets', async () => {
