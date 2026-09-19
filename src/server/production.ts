@@ -1,7 +1,7 @@
 import { resolve, sep } from 'node:path'
 import { handleApiRequest } from './handle-api.ts'
 
-const port = Number(Bun.argv[2] ?? 4173)
+const port = Number(Bun.argv[2] ?? process.env.PORT ?? 4321)
 const dist = resolve(import.meta.dir, '../../dist')
 const index = Bun.file(resolve(dist, 'index.html'))
 

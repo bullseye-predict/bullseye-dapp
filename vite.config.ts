@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
   const runtimeEnvironment = loadEnv(mode, projectRoot, '')
   return {
     envPrefix: ['VITE_', 'PUBLIC_'],
+    // 4321 is this app's documented port in docs/GENESIS_AGENT_IDENTITY.md.
+    // strictPort makes a clash fail loudly instead of drifting to 5174.
+    server: { port: 4321, strictPort: true },
+    preview: { port: 4321, strictPort: true },
     cacheDir: mode === 'production' ? 'node_modules/.vite-production' : 'node_modules/.vite-development',
     plugins: [
       tanstackRouter({ target: 'react', autoCodeSplitting: true }),
