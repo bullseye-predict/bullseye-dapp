@@ -40,6 +40,7 @@ type Props = {
   dreamDexApiUrl?: string;
   demoHref: string;
   liveHref: string;
+  livestreamUrl?: string;
   eventBasePath: string;
   marketSources: readonly MarketSource[];
 };
@@ -56,6 +57,7 @@ export function HomeApp({
   dreamDexApiUrl = "",
   demoHref,
   liveHref,
+  livestreamUrl,
   eventBasePath,
   marketSources,
 }: Props) {
@@ -69,6 +71,7 @@ export function HomeApp({
       dreamDexApiUrl={dreamDexApiUrl}
       demoHref={demoHref}
       liveHref={liveHref}
+      livestreamUrl={livestreamUrl}
       eventBasePath={eventBasePath}
       marketSources={marketSources}
     />
@@ -81,6 +84,7 @@ function Home({
   dreamDexApiUrl = "",
   demoHref,
   liveHref,
+  livestreamUrl,
   eventBasePath,
   marketSources,
 }: Props) {
@@ -611,6 +615,7 @@ function Home({
                   outcome={displayedOutcome}
                   onSelect={selectPrediction}
                   liveHref={liveHref}
+                  livestreamUrl={livestreamUrl}
                   onChat={() => {
                     setView("live");
                     setChatOpen(true);

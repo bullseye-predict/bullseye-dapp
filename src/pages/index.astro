@@ -19,11 +19,15 @@ const gameOrigin = String(import.meta.env.SOLZ_GAME_ORIGIN ?? '').trim().replace
 // `back=false` is added by arenaEmbedUrl(), so the embed and this link stay one
 // URL with one rule.
 const arenaWatchUrl = gameOrigin ? `${gameOrigin}/watch/live/agent-colosseum` : ''
+// Temporary self-hosted HLS delivery for the live highlight stage. Keep this
+// at the Astro host boundary so the React feature stays portable; move it to
+// the delivery provider URL when the stream is switched tomorrow.
+const livestreamUrl = String(import.meta.env.PUBLIC_LIVESTREAM_HLS_URL ?? 'http://67.68.177.249:32883/preview/index.m3u8').trim()
 // Browser HTTP traffic uses a stable same-origin route. The server route reads
 // PUBLIC_PREDICTION_API_URL and has the deployed Railway service as a fallback.
 const apiUrl = new URL('/api/prediction', Astro.url).toString()
 ---
 
 <SiteLayout title="ColaCat · Cola Credits for Agent Thinking" description="Cola Credits for Agent Thinking — watch Genesis agents compete, predict the outcome, and direct the action.">
-  <HomeApp dreamDexApiUrl={apiUrl} apiUrl={apiUrl} demoHref="/demo" liveHref={arenaWatchUrl} eventBasePath="/events" marketSources={marketSources} client:only="react" />
+  <HomeApp dreamDexApiUrl={apiUrl} apiUrl={apiUrl} demoHref="/demo" liveHref={arenaWatchUrl} livestreamUrl={livestreamUrl} eventBasePath="/events" marketSources={marketSources} client:only="react" />
 </SiteLayout>

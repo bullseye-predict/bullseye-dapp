@@ -311,6 +311,7 @@ type Props = {
     answer?: PredictionAnswer,
   ) => void;
   liveHref: string;
+  livestreamUrl?: string;
   onChat: () => void;
   onPrompt: () => void;
   season: boolean;
@@ -362,6 +363,7 @@ export function MatchViewer({
   marketsPending = false,
   onSelect,
   liveHref,
+  livestreamUrl,
   onChat,
   onPrompt,
   season,
@@ -384,6 +386,7 @@ export function MatchViewer({
   const [fullscreenError, setFullscreenError] = useState("");
   const [broadcastStatus, setBroadcastStatus] =
     useState<ArenaBroadcastStatus | null>(null);
+  const [livePanel, setLivePanel] = useState<"feed" | "highlights">("feed");
   const [clock, setClock] = useState(() => Date.now());
   // The composer's sentence, held here because the plate that writes it and the
   // rail that shows it are siblings. See PromptComposer's `onHint`.
@@ -591,10 +594,36 @@ export function MatchViewer({
             idPrefix="highlight-view"
             active={view === "live"}
           >
+            <div className="sh-live-tabs" role="tablist" aria-label="Livestream content">
+              <button type="button" role="tab" aria-selected={livePanel === "feed"} onClick={() => setLivePanel("feed")}>
+                <Radio size={12} aria-hidden="true" /> Live feed
+              </button>
+              <button type="button" role="tab" aria-selected={livePanel === "highlights"} onClick={() => setLivePanel("highlights")}>
+                <Play size={12} aria-hidden="true" /> Highlights <span>0</span>
+              </button>
+            </div>
+            {livePanel === "highlights" ? (
+              <div className="sh-highlight-panel" role="tabpanel">
+                <div className="sh-highlight-panel__header">
+                  <div>
+                    <span className="sh-panel-kicker">VIDEO ARCHIVE</span>
+                    <h2>Match highlights</h2>
+                    <p>Clips will appear here as the broadcaster marks key moments.</p>
+                  </div>
+                  <span className="sh-highlight-panel__count">0 CLIPS</span>
+                </div>
+                <div className="sh-highlight-empty">
+                  <span className="sh-highlight-empty__icon"><Play size={16} fill="currentColor" aria-hidden="true" /></span>
+                  <strong>No highlights indexed yet.</strong>
+                  <span>Stay on Live feed to watch the current broadcast. Highlight clips will be added without changing this tab.</span>
+                  <button type="button" onClick={() => setLivePanel("feed")}>Back to live feed <ArrowUpRight size={13} aria-hidden="true" /></button>
+                </div>
+              </div>
+            ) : (
             <div className="sh-broadcast" ref={frame}>
               <BroadcastMedia
-                key={`${match.streamUrl ?? "iframe"}:${liveHref}`}
-                source={match.streamUrl}
+                key={`${match.streamUrl ?? livestreamUrl ?? "iframe"}:${liveHref}`}
+                source={match.streamUrl ?? livestreamUrl}
                 iframeSrc={arenaEmbedUrl(liveHref)}
                 onArenaStatus={(status) =>
                   setBroadcastStatus(
@@ -799,6 +828,7 @@ export function MatchViewer({
                 </p>
               )}
             </div>
+            )}
           </TabPanel>
           <TabPanel
             id="market"
