@@ -501,7 +501,7 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
         market: markets[0],
         markets,
         title: views[0].question.presentation?.eventTitle ?? markets[0]?.presentation?.eventTitle ?? linkedQuestionTitle(markets.map((market) => market.title)),
-        collateral: 'fUSDC',
+        collateral: venue.collateralSymbol,
         opened,
         kind: metadata?.kind ?? (views[0].question.questionId.slice(12, 14) === '02' ? 'general' : 'match'),
         eventType: metadata?.eventType ?? (views[0].question.questionId.slice(12, 14) === '02' ? 'general' : 'match'),

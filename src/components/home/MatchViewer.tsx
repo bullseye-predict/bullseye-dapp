@@ -632,12 +632,15 @@ export function MatchViewer({
   // every Colosseum card, because LiveBroadcastPage only posts for the
   // `agent-arena` channel - the stored slot is counting down to its own
   // kickoff. Either way there has to be time left to put on it.
+  // ONLY THE ARENA GETS TO SAY THERE IS A BREAK. The stored-slot fallback was
+  // the lie: `broadcastStatus` is null for every Colosseum card, because
+  // LiveBroadcastPage posts status for the `agent-arena` channel only, so this
+  // fell through to `match.phase === "countdown"` and announced BREAK TIME with
+  // an hour on the clock over a match that was visibly being played. A schedule
+  // row is a plan; the broadcast is the fact. With no status posted the stage
+  // says nothing and the stream speaks for itself.
   const breakTime =
-    intermission &&
-    Boolean(remaining) &&
-    (broadcastStatus
-      ? broadcastStatus.state === "intermission"
-      : match.phase === "countdown");
+    intermission && Boolean(remaining) && broadcastStatus?.state === "intermission";
   const broadcastContext: BroadcastContext = breakTime
     ? {
         state: "BREAK TIME",
@@ -793,135 +796,68 @@ export function MatchViewer({
                   ))}
                 </div>
               )}
-              {breakTime ? (
-                <div className="ch-intermission" role="status">
-                  <div className="ch-intermission-copy">
-                    <span>BREAK TIME</span>
-                    <h2>
-                      Preparing match <b>{matchCode}</b>
-                    </h2>
-                    {remaining && (
-                      <div className="ch-intermission-time">
-                        <span>TIME LEFT</span>
-                        <strong>{remaining}</strong>
-                        <small>BREAK WINDOW</small>
-                      </div>
-                    )}
-                    <p>
-                      {coinSides
-                        ? "The pairing is locked and the room is reserved. Prediction sides remain visible at 50:50 until live pricing begins."
-                        : "The room is reserved and the match system is preparing the next round. Prediction sides remain visible at 50:50 until live pricing begins."}
-                    </p>
-                    <strong>
+              {/* NO BREAK-TIME CARD OVER THE STAGE. The stream already shows
+                  whether a match is being played, and this card did not read
+                  the stream - it read the stored slot. For every Colosseum
+                  match `broadcastStatus` is null, because LiveBroadcastPage
+                  posts status only for the `agent-arena` channel, so it fell
+                  through to `match.phase === "countdown"` and covered a game
+                  that was visibly running with PREPARING MATCH and an
+                  hour-long clock. The stage shows the stream; the stream
+                  speaks for itself. */}
+              <div className="sh-broadcast-bottom">
+                <div>
+                  <span className="sh-map-label">
+                    <Crosshair size={14} />{" "}
+                    {coinSides ? "MIAW PRIX / AGENT COLOSSEUM" : "COOLA / GENESIS SERIES"}
+                  </span>
+                  <h2>
+                    {match.phase === "settled" ? "MATCH COMPLETE" : match.map}
+                  </h2>
+                  <div className="ch-broadcast-roster">
+                    {coinSides
+                      ? coinSides.map((team) => (
+                          <span title={team.name} key={team.teamId}>
+                            <TeamMark
+                              id={team.teamId}
+                              color={team.color}
+                              logoUrl={team.logoUrl}
+                            />
+                          </span>
+                        ))
+                      : match.roster.map((entry) => (
+                          <span title={entry.codename} key={entry.agentId}>
+                            <AgentPortrait
+                              number={Number(entry.agentId.split("-")[1])}
+                            />
+                          </span>
+                        ))}
+                    <span>
                       {coinSides
                         ? coinSides.map((team) => sideLabel(team)).join(" VS ")
-                        : `${match.roster.length} AGENTS CONFIRMED`}
-                    </strong>
-                  </div>
-                  {coinSides ? (
-                    <div
-                      className="ch-intermission-roster ch-intermission-roster--coins"
-                      aria-label="Next match coin pairing"
-                    >
-                      {coinSides.map((team) => (
-                        <div key={team.teamId} style={{ color: team.color }}>
-                          <TeamMark
-                            id={team.teamId}
-                            color={team.color}
-                            logoUrl={team.logoUrl}
-                          />
-                          <span>
-                            <strong>{sideLabel(team)}</strong>
-                            <small>{team.name}</small>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                  <div
-                    className="ch-intermission-roster"
-                    aria-label="Next match agent roster"
-                  >
-                    {match.roster.map((entry) => {
-                      const agent = snapshot.agents.find(
-                        (item) => item.id === entry.agentId,
-                      );
-                      return (
-                        <div key={entry.agentId}>
-                          <AgentPortrait
-                            number={
-                              agent?.number ??
-                              Number(entry.agentId.split("-")[1])
-                            }
-                          />
-                          <span>
-                            <strong>{entry.codename}</strong>
-                            <small>{agent?.archetype ?? "GENESIS AGENT"}</small>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  )}
-                  <small className="ch-intermission-lock">
-                    CHECK THE TRADE PANEL FOR THIS EVENT’S ON-CHAIN CUTOFF
-                  </small>
-                </div>
-              ) : (
-                <div className="sh-broadcast-bottom">
-                  <div>
-                    <span className="sh-map-label">
-                      <Crosshair size={14} />{" "}
-                      {coinSides ? "MIAW PRIX / AGENT COLOSSEUM" : "COOLA / GENESIS SERIES"}
-                    </span>
-                    <h2>
-                      {match.phase === "settled" ? "MATCH COMPLETE" : match.map}
-                    </h2>
-                    <div className="ch-broadcast-roster">
-                      {coinSides
-                        ? coinSides.map((team) => (
-                            <span title={team.name} key={team.teamId}>
-                              <TeamMark
-                                id={team.teamId}
-                                color={team.color}
-                                logoUrl={team.logoUrl}
-                              />
-                            </span>
-                          ))
-                        : match.roster.map((entry) => (
-                            <span title={entry.codename} key={entry.agentId}>
-                              <AgentPortrait
-                                number={Number(entry.agentId.split("-")[1])}
-                              />
-                            </span>
-                          ))}
+                        : `${match.roster.length} CAN AGENTS`}{" "}
                       <span>
-                        {coinSides
-                          ? coinSides.map((team) => sideLabel(team)).join(" VS ")
-                          : `${match.roster.length} CAN AGENTS`}{" "}
-                        <span>
-                          /{" "}
-                          {match.phase === "settled"
-                            ? "INTERMISSION"
-                            : match.mode}
-                        </span>
+                        /{" "}
+                        {match.phase === "settled"
+                          ? "INTERMISSION"
+                          : match.mode}
                       </span>
-                    </div>
-                  </div>
-                  <div className="ch-broadcast-actions">
-                    <a href={liveHref}>
-                      Live arena <ArrowUpRight size={12} />
-                    </a>
-                    <button
-                      className="sh-icon-button"
-                      onClick={fullscreen}
-                      aria-label="Full screen broadcast"
-                    >
-                      <Maximize size={17} />
-                    </button>
+                    </span>
                   </div>
                 </div>
-              )}
+                <div className="ch-broadcast-actions">
+                  <a href={liveHref}>
+                    Live arena <ArrowUpRight size={12} />
+                  </a>
+                  <button
+                    className="sh-icon-button"
+                    onClick={fullscreen}
+                    aria-label="Full screen broadcast"
+                  >
+                    <Maximize size={17} />
+                  </button>
+                </div>
+              </div>
               {/* Mounted inside the livestream panel on purpose: leaving this
                   tab hides the panel and takes both corners with it, which is
                   the "only available in livestream" rule with no extra state. */}

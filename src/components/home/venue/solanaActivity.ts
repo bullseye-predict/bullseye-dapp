@@ -6,7 +6,7 @@ import { MANIFEST_LOG, manifestLogBody, manifestProgramFrames } from '../../../.
 import type { VenueActivityRow } from './types'
 
 /** One outcome's book, as the reader addresses it. */
-export type ActivityBook = { address: string; outcome: 0 | 1; label: string; question?: string; predictionProgram?: string; oppositeLabel?: string }
+export type ActivityBook = { address: string; outcome: 0 | 1; label: string; collateralSymbol?: string; question?: string; predictionProgram?: string; oppositeLabel?: string }
 
 const PRICE_DIVISOR = 10n ** 12n
 const shares = (atoms: bigint) => (Number(atoms) / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 4 })
@@ -128,7 +128,7 @@ export function receiptActivity(transaction: Receipt, manifestProgram: string, b
       if (exported && quantity === input && minimumReturn > 0n && minimumReturn < quantity) return [{
         id: `complete-set:${signature}:${book.address}`, hash: signature, at, block: BigInt(transaction.slot), owner: key(sale, 0), kind: 'fill',
         label: `Buy ${book.oppositeLabel ?? (book.outcome === 0 ? 'NO' : 'YES')} completed`,
-        detail: `${shares(quantity)} shares retained from a complete set; sold ${book.label}. Net cost at most ${shares(quantity - minimumReturn)} fUSDC before fee.`,
+        detail: `${shares(quantity)} shares retained from a complete set; sold ${book.label}. Net cost at most ${shares(quantity - minimumReturn)} ${book.collateralSymbol ?? 'USDC'} before fee.`,
       }]
     }
   }

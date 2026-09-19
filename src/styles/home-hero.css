@@ -406,9 +406,6 @@ button:hover > .ch-example-use { opacity: 1; }
 @keyframes soda-can-fill { 0% { top: 35px; transform: rotate(0); } 55%, 85% { top: 2px; } 100% { top: 35px; transform: rotate(140deg); } }
 @keyframes soda-bubble { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
 @keyframes agent-fueled { 0%, 100% { border-color: #60516f; } 40% { border-color: #c7ff00; background: #344224; box-shadow: inset 0 -14px 22px -16px #c7ff00; transform: translateY(-2px); } }
-.ch-intermission-note { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin-top: 10px; font-size: 9px; color: #b6bfcc; }
-.ch-intermission-note > span { color: var(--sh-lime); font-size: 8px; }
-.ch-intermission-note button { display: inline-flex; align-items: center; gap: 4px; background: transparent; color: #e1e6ed; border: 0; padding: 3px 0; font-size: 9px; }
 /* Nothing on this dialog may set transform, filter, backdrop-filter, perspective,
    contain or will-change: transform. The sonner toast host and the alert dock are
    appended as children of the open <dialog> (src/components/home/alerts/OverlayLayer.tsx)
@@ -621,7 +618,6 @@ button:hover > .ch-example-use { opacity: 1; }
   .ch-trade-dialog .ch-trade-actions { flex-direction: column-reverse; }
   .ch-trade-dialog .ch-dismiss-trade { width: 100%; }
 }
-.ch-intermission-note { min-height: 29px; margin-top: 0; }
 @media (min-width: 721px) {
   .ch-hero-grid > .ch-viewer > .ch-activity { flex-grow: 0; }
 }
@@ -913,43 +909,15 @@ button:hover > .ch-example-use { opacity: 1; }
 .ch-source-detail button:last-child { border-right: 0; }
 .ch-source-detail button[aria-pressed='true'] { background: var(--sh-lime, #c2f838); color: #11170b; }
 .ch-source-detail small { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-intermission { position: absolute; z-index: 4; inset: 0; display: grid; grid-template-columns: minmax(250px, .72fr) 1.28fr; align-content: center; gap: 30px; padding: clamp(62px, 8vw, 110px) clamp(24px, 5vw, 70px) 42px; background: linear-gradient(105deg, rgb(7 10 15 / 96%) 0 42%, rgb(7 10 15 / 78%) 65%, rgb(7 10 15 / 88%)); color: #eef0f4; }
-.ch-intermission-copy { align-self: center; }
-.ch-intermission-copy > span { color: var(--sh-lime, #c2f838); font: 700 9px/1 var(--sh-mono); letter-spacing: .1em; }
-.ch-intermission-copy h2 { margin: 12px 0 14px; font-size: clamp(28px, 3.4vw, 46px); line-height: .98; text-transform: uppercase; }
-.ch-intermission-copy h2 b { display: block; color: var(--sh-lime, #c2f838); }
-.ch-intermission-time { display: flex; align-items: baseline; gap: 9px; margin: -2px 0 13px; font-family: var(--sh-mono); }
-.ch-intermission-time > span, .ch-intermission-time > small { color: #858c98; font-size: 7px; font-weight: 700; }
-.ch-intermission-time > strong { color: #eef0f4; font-size: 22px; letter-spacing: -.02em; }
-.ch-intermission-copy p { max-width: 49ch; color: #b8bec8; font-size: 11px; line-height: 1.65; }
-.ch-intermission-copy > strong { display: inline-block; margin-top: 19px; border: 1px solid #59606b; padding: 8px 10px; font: 700 8px/1 var(--sh-mono); }
-.ch-intermission-roster { align-self: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.ch-intermission-roster > div { min-width: 0; display: flex; align-items: center; gap: 8px; border: 1px solid rgb(163 172 186 / 25%); background: rgb(26 31 39 / 86%); padding: 7px; }
-.ch-intermission-roster .sh-portrait { flex: 0 0 30px; width: 30px; height: 30px; }
-.ch-intermission-roster span { min-width: 0; display: grid; gap: 3px; }
-.ch-intermission-roster strong, .ch-intermission-roster small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-intermission-roster strong { font-size: 9px; }
-.ch-intermission-roster small, .ch-intermission-lock { color: #858c98; font: 600 7px/1 var(--sh-mono); }
-.ch-intermission-lock { grid-column: 1 / -1; justify-self: end; align-self: end; }
 /* THE COIN PAIRING, where an agent roster would be.
    A MIAW PRIX card has two competitors, not twelve, so the three-column roster
    grid would leave one crest stranded in a third of the width. Two columns and
    a larger crest make the fixture read as a fixture. */
-.ch-intermission-roster--coins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-.ch-intermission-roster--coins > div { padding: 11px; gap: 11px; }
-.ch-intermission-roster--coins .sh-team-mark { flex: 0 0 34px; width: 34px; height: 36px; }
-.ch-intermission-roster--coins strong { font-size: 13px; }
 .ch-broadcast-roster > span:not(:last-child) .sh-team-mark { width: 100%; height: 100%; }
 @media (max-width: 720px) {
   .ch-market-source, .ch-market-source .ch-network-tabs { justify-items: stretch; width: 100%; }
   .ch-market-source .ch-network-tabs { justify-content: space-between; }
   .ch-source-detail { justify-content: space-between; }
-  .ch-intermission { grid-template-columns: 1fr; align-content: start; gap: 15px; padding: 66px 18px 18px; overflow: auto; }
-  .ch-intermission-copy h2 { margin-block: 7px 9px; }
-  .ch-intermission-copy p { font-size: 9px; }
-  .ch-intermission-copy > strong { margin-top: 10px; }
-  .ch-intermission-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ch-intermission-lock { justify-self: start; }
 }
 .ch-network-panel { min-width: 0; grid-column: 1 / -1; grid-row: 2; padding: 20px 0; }
 .ch-network-panel .pt-heading h2 { font-size: 22px; }
