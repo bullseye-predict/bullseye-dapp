@@ -45,6 +45,7 @@ type Props = {
   children: (session: SessionValue) => ReactNode
   environmentId: string
   predictionApiUrl: string
+  colacatMint?: string
 }
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } })
@@ -88,7 +89,7 @@ function isEmbeddedAccount(client: ReturnType<typeof predictionDynamicClient>, a
   return Boolean(credential?.embeddedWalletId) || provider?.walletProviderType === 'embeddedWallet'
 }
 
-function ModularSession({ children, client, environmentId, predictionApiUrl }: Pick<Props, 'children' | 'environmentId' | 'predictionApiUrl'> & { client: ReturnType<typeof predictionDynamicClient> }) {
+function ModularSession({ children, client, environmentId, predictionApiUrl, colacatMint }: Pick<Props, 'children' | 'environmentId' | 'predictionApiUrl' | 'colacatMint'> & { client: ReturnType<typeof predictionDynamicClient> }) {
   const { data: initStatus, error: initError } = useInitStatus()
   const { data: user } = useUser()
   const { data: accounts = [] } = useGetWalletAccounts()
@@ -186,7 +187,7 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
 
   const walletControl = selectedWallet ? (
     <div className="arena-wallet-status">
-      <SolanaWalletBalances address={selectedWallet.address} apiUrl={predictionApiUrl}/>
+      <SolanaWalletBalances address={selectedWallet.address} apiUrl={predictionApiUrl} colacatMint={colacatMint}/>
       <details className="arena-wallet-menu">
         <summary aria-label={`${selectedProviderName} account ${compactAddress(selectedWallet.address)}`}><i /><span>{selectedProviderName} · <TraderIdentity address={selectedWallet.address} avatar={false}/></span></summary>
         <div>
@@ -239,8 +240,8 @@ function ModularSession({ children, client, environmentId, predictionApiUrl }: P
   return children({ wallet, evmWallet: null, walletAddress: wallet?.address, walletReady: Boolean(wallet), walletControl })
 }
 
-export default function DynamicWaasSolanaSessionClient({ children, environmentId, predictionApiUrl }: Props) {
+export default function DynamicWaasSolanaSessionClient({ children, environmentId, predictionApiUrl, colacatMint }: Props) {
   const client = useMemo(() => predictionDynamicClient(environmentId), [environmentId])
   useEffect(() => { void initializePredictionDynamicClient(client) }, [client])
-  return <QueryClientProvider client={queryClient}><DynamicProvider client={client}><ModularSession client={client} environmentId={environmentId} predictionApiUrl={predictionApiUrl}>{children}</ModularSession></DynamicProvider></QueryClientProvider>
+  return <QueryClientProvider client={queryClient}><DynamicProvider client={client}><ModularSession client={client} environmentId={environmentId} predictionApiUrl={predictionApiUrl} colacatMint={colacatMint}>{children}</ModularSession></DynamicProvider></QueryClientProvider>
 }

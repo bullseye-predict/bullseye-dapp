@@ -24,6 +24,7 @@ export type DynamicSolanaSessionValue = {
 type Props = {
   environmentId: string
   predictionApiUrl?: string
+  colacatMint?: string
   /** Enables the optional Somnia/EVM wallet flow. Solana is always available. */
   allowEvm?: boolean
   children: (session: DynamicSolanaSessionValue) => ReactNode
@@ -98,7 +99,7 @@ function PublishSession({ session, authToken, children }: { session: DynamicSola
   return <>{children(session)}</>
 }
 
-export function DynamicSolanaSession({ children, environmentId, predictionApiUrl = '', allowEvm = false }: Props) {
+export function DynamicSolanaSession({ children, environmentId, predictionApiUrl = '', colacatMint, allowEvm = false }: Props) {
   const authToken = authTokenReader(environmentId, !allowEvm)
   const publish = (session: DynamicSolanaSessionValue) => <PublishSession session={session} authToken={authToken}>{children}</PublishSession>
   if (!environmentId) {
@@ -114,6 +115,6 @@ export function DynamicSolanaSession({ children, environmentId, predictionApiUrl
   // lifecycle as zero-engine. Keep the legacy mixed-chain client only for the
   // existing Somnia build until its EVM environment is moved to the modular
   // client; this prevents the Solana fix from regressing DreamDEX.
-  if (!allowEvm) return <DynamicWaasSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl}>{publish}</DynamicWaasSolanaSessionClient>
-  return <DynamicSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl} allowEvm>{publish}</DynamicSolanaSessionClient>
+  if (!allowEvm) return <DynamicWaasSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl} colacatMint={colacatMint}>{publish}</DynamicWaasSolanaSessionClient>
+  return <DynamicSolanaSessionClient environmentId={environmentId} predictionApiUrl={predictionApiUrl} colacatMint={colacatMint} allowEvm>{publish}</DynamicSolanaSessionClient>
 }

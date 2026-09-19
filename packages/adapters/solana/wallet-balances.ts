@@ -13,13 +13,6 @@ export type SolanaWalletBalances = {
   tokens: Record<string, bigint>
 }
 
-/** Live SOLZ token. Collateral remains deployment configuration. */
-export const SOLZ_WALLET_ASSET = {
-  symbol: 'SOLZ',
-  mint: 'soLZV1owGUPERxCUNivWUUadNwwNzdtXMU5Wq13BYfV',
-  decimals: 9,
-} as const satisfies SolanaWalletAsset
-
 export const DEVNET_SOLZ_WALLET_ASSET = {
   symbol: 'fSOLZ22',
   mint: '4N7d177zYPmGZeEhvsUaV9u8KCEPaW64L4YBtMf4ZTNf',
@@ -79,22 +72,23 @@ export async function readSolanaWalletBalances(
 ): Promise<SolanaWalletBalances> {
   const rpc = createSolanaRpc(rpcUrl)
   const wallet = address(owner)
-  const [native, tokenAccounts] = await Promise.all([
-    rpc.getBalance(wallet, { commitment: 'confirmed' }).send(),
-    rpc
-      .getTokenAccountsByOwner(
-        wallet,
-        { programId: SPL_TOKEN_PROGRAM },
-        { commitment: 'confirmed', encoding: 'jsonParsed' },
-      )
-      .send(),
-  ])
+  const nativeRequest = rpc.getBalance(wallet, { commitment: 'confirmed' }).send()
+  const tokenRequest = assets.length === 0
+    ? Promise.resolve({ value: [] as unknown[] })
+    : rpc
+        .getTokenAccountsByOwner(
+          wallet,
+          { programId: SPL_TOKEN_PROGRAM },
+          { commitment: 'confirmed', encoding: 'jsonParsed' },
+        )
+        .send()
+  const [native, tokenAccounts] = await Promise.all([nativeRequest, tokenRequest])
   return {
     nativeLamports: native.value,
     tokens: Object.fromEntries(
       assets.map((asset) => [
         asset.symbol,
-        tokenAccounts.value.reduce(
+        tokenAccounts.value.reduce<bigint>(
           (sum, account) => tokenMint(account) === asset.mint ? sum + tokenAmount(account, asset.decimals) : sum,
           0n,
         ),

@@ -2,11 +2,8 @@ import { useEffect, useState } from 'react'
 import { getPredictionConfig } from '../../../packages/sdk/PredictionTradingClient'
 import {
   readSolanaWalletBalances,
-  DEVNET_SOLZ_WALLET_ASSET,
-  SOLZ_WALLET_ASSET,
   type SolanaWalletBalances as BalanceValue,
 } from '../../../packages/adapters/solana/wallet-balances'
-import type { PublicPredictionVenue } from '../../../packages/prediction-core/market-data'
 import { publicSolanaVenue } from './solanaVenueFallback'
 import { schedulePoll } from './venue/pollGate'
 import { noteRpcThrottled } from '../../../packages/adapters/solana/manifest/throttle'
@@ -14,24 +11,25 @@ import { noteRpcThrottled } from '../../../packages/adapters/solana/manifest/thr
 type Props = {
   address: string
   apiUrl?: string
+  colacatMint?: string
 }
 const CACHE_MAX_AGE_MS = 2 * 60_000
-const CACHE_PREFIX = 'coola:solana-wallet:v2:'
+const CACHE_PREFIX = 'coola:solana-wallet:v3:'
 
-function cacheKey(apiUrl: string, address: string) { return `${CACHE_PREFIX}${apiUrl}:${address}` }
-function readCachedBalance(apiUrl: string, address: string): BalanceValue | null {
+function cacheKey(apiUrl: string, address: string, colacatMint: string) { return `${CACHE_PREFIX}${apiUrl}:${address}:${colacatMint}` }
+function readCachedBalance(apiUrl: string, address: string, colacatMint: string): BalanceValue | null {
   if (typeof window === 'undefined') return null
   try {
-    const value = JSON.parse(window.localStorage.getItem(cacheKey(apiUrl, address)) ?? '') as { at?: unknown; nativeLamports?: unknown; tokens?: unknown }
+    const value = JSON.parse(window.localStorage.getItem(cacheKey(apiUrl, address, colacatMint)) ?? '') as { at?: unknown; nativeLamports?: unknown; tokens?: unknown }
     const at = value.at
     if (typeof at !== 'number' || !Number.isSafeInteger(at) || Date.now() - at > CACHE_MAX_AGE_MS || typeof value.nativeLamports !== 'string' || !value.tokens || typeof value.tokens !== 'object') return null
     const tokens = Object.fromEntries(Object.entries(value.tokens).filter((entry): entry is [string, string] => typeof entry[1] === 'string').map(([symbol, amount]) => [symbol, BigInt(amount)]))
     return { nativeLamports: BigInt(value.nativeLamports), tokens }
   } catch { return null }
 }
-function writeCachedBalance(apiUrl: string, address: string, value: BalanceValue) {
+function writeCachedBalance(apiUrl: string, address: string, colacatMint: string, value: BalanceValue) {
   if (typeof window === 'undefined') return
-  try { window.localStorage.setItem(cacheKey(apiUrl, address), JSON.stringify({ at: Date.now(), nativeLamports: value.nativeLamports.toString(), tokens: Object.fromEntries(Object.entries(value.tokens).map(([symbol, amount]) => [symbol, amount.toString()])) })) }
+  try { window.localStorage.setItem(cacheKey(apiUrl, address, colacatMint), JSON.stringify({ at: Date.now(), nativeLamports: value.nativeLamports.toString(), tokens: Object.fromEntries(Object.entries(value.tokens).map(([symbol, amount]) => [symbol, amount.toString()])) })) }
   catch { /* Storage is optional; live values still render. */ }
 }
 
@@ -43,7 +41,7 @@ function compact(amount: bigint, decimals: number) {
 }
 
 /** Compact read-only Solana wallet overview for the shared site header. */
-export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
+export function SolanaWalletBalances({ address, apiUrl = '', colacatMint = '' }: Props) {
   const [value, setValue] = useState<BalanceValue | null>(null)
   const [assets, setAssets] = useState<readonly SolanaWalletAssetView[]>([])
   const [error, setError] = useState(false)
@@ -56,17 +54,17 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
     let active = true
     let cancelPoll: (() => void) | undefined
     let retryDelay = 15_000
-    const cached = readCachedBalance(apiUrl, address)
+    const cached = readCachedBalance(apiUrl, address, colacatMint)
     if (cached) setValue(cached)
     const load = async () => {
       try {
         const config = await getPredictionConfig(apiUrl, AbortSignal.timeout(10_000))
         const venue = config.venues.find((item) => item.family === 'SOLANA' && item.publicRpcUrl) ?? publicSolanaVenue()
         if (!venue?.publicRpcUrl) throw new Error('Solana RPC unavailable')
-        const nextAssets = walletAssets(venue)
+        const nextAssets = walletAssets(colacatMint)
         if (active) setAssets(nextAssets)
         const next = await readSolanaWalletBalances(venue.publicRpcUrl, address, nextAssets)
-        if (active) { writeCachedBalance(apiUrl, address, next); setValue(next); setError(false); retryDelay = 15_000 }
+        if (active) { writeCachedBalance(apiUrl, address, colacatMint, next); setValue(next); setError(false); retryDelay = 15_000 }
       } catch (reason) {
         if (/429|rate limit/i.test(reason instanceof Error ? reason.message : String(reason))) noteRpcThrottled()
         if (active) { setError(true); retryDelay = Math.min(retryDelay * 2, 120_000) }
@@ -79,7 +77,7 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
     // when one fresh read is appropriate.
     cancelPoll = schedulePoll(() => void load(), cached ? 15_000 : 0)
     return () => { active = false; cancelPoll?.() }
-  }, [address, apiUrl])
+  }, [address, apiUrl, colacatMint])
 
   if (!apiUrl) return null
   const pending = error ? 'Retrying…' : 'Loading…'
@@ -92,8 +90,6 @@ export function SolanaWalletBalances({ address, apiUrl = '' }: Props) {
 
 type SolanaWalletAssetView = { symbol: string; mint: string; decimals: number }
 
-function walletAssets(venue: Pick<PublicPredictionVenue, 'chainId' | 'collateralToken' | 'collateralDecimals' | 'collateralSymbol'>): readonly SolanaWalletAssetView[] {
-  const collateral = { symbol: venue.collateralSymbol, mint: venue.collateralToken, decimals: venue.collateralDecimals }
-  const solz = venue.chainId === 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG' ? DEVNET_SOLZ_WALLET_ASSET : SOLZ_WALLET_ASSET
-  return collateral.mint === solz.mint ? [collateral] : [collateral, solz]
+function walletAssets(colacatMint: string): readonly SolanaWalletAssetView[] {
+  return colacatMint ? [{ symbol: 'COLACAT', mint: colacatMint, decimals: 9 }] : []
 }

@@ -15,6 +15,7 @@ const DynamicSolanaSession = lazy(async () => {
 type Props = {
   environmentId: string
   apiUrl?: string
+  colacatMint?: string
   /** Enables the optional Somnia/EVM wallet flow, as the market sources allow. */
   allowEvm?: boolean
 }
@@ -31,7 +32,7 @@ type Props = {
  * Everything below reads the wallets from the session store rather than from a
  * render prop, because those consumers are now in a different island entirely.
  */
-export function SiteChrome({ environmentId, apiUrl, allowEvm }: Props) {
+export function SiteChrome({ environmentId, apiUrl, colacatMint, allowEvm }: Props) {
   const { active, marketsHref, skipTo, skipLabel } = useChrome()
   const lit = active ?? activeForPath(typeof location === 'undefined' ? '/' : location.pathname)
   const header = (walletControl: ReactNode) => <SiteHeader
@@ -47,7 +48,7 @@ export function SiteChrome({ environmentId, apiUrl, allowEvm }: Props) {
         which it would not be if the page island owned it. */}
     {skipTo && <a className="sh-skip-link" href={skipTo}>{skipLabel ?? 'Skip to content'}</a>}
     <Suspense fallback={header(<button className="arena-wallet-button" type="button" disabled>Wallet loading</button>)}>
-      <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} allowEvm={allowEvm}>
+      <DynamicSolanaSession environmentId={environmentId} predictionApiUrl={apiUrl} colacatMint={colacatMint} allowEvm={allowEvm}>
         {(session) => header(session.walletControl)}
       </DynamicSolanaSession>
     </Suspense>

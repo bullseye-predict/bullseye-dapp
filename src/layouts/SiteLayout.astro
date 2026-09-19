@@ -45,6 +45,7 @@ const { title, description } = Astro.props
 // route is used on every page; PUBLIC_PREDICTION_API_URL is a server concern.
 const chromeApiUrl = new URL('/api/prediction', Astro.url).toString()
 const environmentId = String(import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID ?? '').trim()
+const colacatMint = String(import.meta.env.PUBLIC_COLACAT_MINT ?? '').trim()
 const allowEvm = String(import.meta.env.PUBLIC_ARENA_MARKET_SOURCES ?? '').toUpperCase().includes('SOMNIA')
 const trustedOrigin = Astro.site ?? Astro.url.origin
 const canonicalUrl = new URL(Astro.url.pathname, trustedOrigin)
@@ -84,7 +85,7 @@ const socialImageUrl = new URL('/og.png', trustedOrigin)
          the page together, because the header is no longer inside the page's
          own root element. -->
     <div class="sz-shell">
-      <SiteChrome environmentId={environmentId} apiUrl={chromeApiUrl} allowEvm={allowEvm} client:only="react" transition:persist="site-chrome" />
+      <SiteChrome environmentId={environmentId} apiUrl={chromeApiUrl} colacatMint={colacatMint} allowEvm={allowEvm} client:only="react" transition:persist="site-chrome" />
       <slot />
     </div>
   </body>

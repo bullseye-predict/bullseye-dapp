@@ -44,6 +44,40 @@ type ArenaBroadcastStatus = {
 
 type BroadcastContext = { state: string; time: string; detail: string };
 
+type HlsInstance = {
+  attachMedia: (element: HTMLVideoElement) => void;
+  loadSource: (url: string) => void;
+  destroy: () => void;
+};
+type HlsConstructor = (new (options?: Record<string, unknown>) => HlsInstance) & {
+  isSupported?: () => boolean;
+};
+type HlsWindow = Window & { Hls?: HlsConstructor };
+let hlsLoader: Promise<HlsConstructor | null> | null = null;
+
+function loadHls(): Promise<HlsConstructor | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  const existing = (window as HlsWindow).Hls;
+  if (existing) return Promise.resolve(existing);
+  if (hlsLoader) return hlsLoader;
+  hlsLoader = new Promise((resolve) => {
+    const current = document.querySelector<HTMLScriptElement>('script[data-solz-hls]');
+    if (current) {
+      current.addEventListener("load", () => resolve((window as HlsWindow).Hls ?? null), { once: true });
+      current.addEventListener("error", () => resolve(null), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js";
+    script.async = true;
+    script.dataset.solzHls = "true";
+    script.onload = () => resolve((window as HlsWindow).Hls ?? null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+  return hlsLoader;
+}
+
 const BroadcastMedia = memo(function BroadcastMedia({
   source,
   iframeSrc,
@@ -61,6 +95,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
   // meant for the page around it, so it starts inert and the viewer opts in.
   const [interactive, setInteractive] = useState(false);
   const [iframeWarning, setIframeWarning] = useState<ArenaPerformance | null>(null);
+  const video = useRef<HTMLVideoElement>(null);
   const iframe = useRef<HTMLIFrameElement>(null);
   const performanceDialog = useRef<HTMLDialogElement>(null);
   const { inspect } = useArenaPerformance();
@@ -125,6 +160,31 @@ const BroadcastMedia = memo(function BroadcastMedia({
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
   }, [iframeSrc, onArenaStatus]);
+  useEffect(() => {
+    if (iframeActive || !source || !video.current) return;
+    const element = video.current;
+    let hls: HlsInstance | null = null;
+    let cancelled = false;
+    element.removeAttribute("src");
+    if (element.canPlayType("application/vnd.apple.mpegurl")) {
+      element.src = source;
+      void element.play().catch(() => undefined);
+    } else {
+      void loadHls().then((Constructor) => {
+        if (cancelled || !Constructor || !Constructor.isSupported?.()) return;
+        hls = new Constructor({ enableWorker: true });
+        hls.attachMedia(element);
+        hls.loadSource(source);
+      });
+    }
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+      element.pause();
+      element.removeAttribute("src");
+      element.load();
+    };
+  }, [iframeActive, source]);
   const videoAvailable = Boolean(source) && !failed;
   const iframeActive = mode === "iframe";
   return (
@@ -140,8 +200,8 @@ const BroadcastMedia = memo(function BroadcastMedia({
         />
       ) : videoAvailable ? (
         <video
+          ref={video}
           className="sh-broadcast-image"
-          src={source}
           controls
           playsInline
           autoPlay

@@ -19,10 +19,10 @@ const gameOrigin = String(import.meta.env.SOLZ_GAME_ORIGIN ?? '').trim().replace
 // `back=false` is added by arenaEmbedUrl(), so the embed and this link stay one
 // URL with one rule.
 const arenaWatchUrl = gameOrigin ? `${gameOrigin}/watch/live/agent-colosseum` : ''
-// Temporary self-hosted HLS delivery for the live highlight stage. Keep this
-// at the Astro host boundary so the React feature stays portable; move it to
-// the delivery provider URL when the stream is switched tomorrow.
-const livestreamUrl = String(import.meta.env.PUBLIC_LIVESTREAM_HLS_URL ?? 'http://67.68.177.249:32883/preview/index.m3u8').trim()
+// Delivery must be HTTPS when this site is served over HTTPS. Keep the value
+// at the Astro host boundary so the React feature stays portable; configure it
+// only after an HTTPS delivery endpoint exists.
+const livestreamUrl = String(import.meta.env.PUBLIC_LIVESTREAM_HLS_URL ?? '').trim()
 // Browser HTTP traffic uses a stable same-origin route. The server route reads
 // PUBLIC_PREDICTION_API_URL and has the deployed Railway service as a fallback.
 const apiUrl = new URL('/api/prediction', Astro.url).toString()
