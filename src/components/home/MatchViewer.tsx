@@ -110,6 +110,27 @@ const RECOVERY_TOTAL = 12;
 const RECOVERY_BASE_MS = 1_000;
 const RECOVERY_MAX_MS = 15_000;
 
+function youtubeEmbedUrl(value?: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (!["youtube.com", "m.youtube.com", "youtube-nocookie.com", "youtu.be"].includes(host)) return null;
+    const id = host === "youtu.be"
+      ? url.pathname.split("/").filter(Boolean)[0]
+      : url.searchParams.get("v") ?? url.pathname.match(/^\/(?:embed|live|shorts)\/([^/?]+)/)?.[1];
+    if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
+    const embed = new URL(`https://www.youtube-nocookie.com/embed/${id}`);
+    embed.searchParams.set("autoplay", "1");
+    embed.searchParams.set("mute", "1");
+    embed.searchParams.set("playsinline", "1");
+    embed.searchParams.set("rel", "0");
+    return embed.toString();
+  } catch {
+    return null;
+  }
+}
+
 const BroadcastMedia = memo(function BroadcastMedia({
   source,
   iframeSrc,
@@ -207,6 +228,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
   // under its header. `astro build` does not type-check, so nothing caught it.
   const videoAvailable = Boolean(source) && !failed;
   const iframeActive = mode === "iframe";
+  const youtubeSource = youtubeEmbedUrl(source);
   useEffect(() => {
     if (iframeActive || !source || !video.current) return;
     const element = video.current;
@@ -275,6 +297,14 @@ const BroadcastMedia = memo(function BroadcastMedia({
           src={iframeSrc}
           title="SOLZ agent arena livestream"
           allow="autoplay; fullscreen"
+        />
+      ) : videoAvailable && youtubeSource ? (
+        <iframe
+          className="sh-broadcast-image sh-broadcast-frame"
+          src={youtubeSource}
+          title="ColaCat livestream on YouTube"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
         />
       ) : videoAvailable ? (
         <video

@@ -1,20 +1,20 @@
-import { PAIRING_LOCK_MS, matchState } from '../miawprix/board'
-import type { MiawPrixBoard, MiawPrixMatch } from '../miawprix/miawPrixSource'
+import { PAIRING_LOCK_MS } from '../miawprix/board'
+import type { CatwalkBoard } from '../solz/catwalkSource'
 
 /**
  * WHEN THIS BOARD NEXT LOCKS.
  *
- * CATWALK binds a MIAW PRIX pairing `PAIRING_LOCK_MS` before kickoff, so the
- * board a viewer is looking at stops mattering for the next rotation at that
- * moment. That instant is the one countdown on this page a holder can act on:
+ * CATWALK binds one complete MIAW PRIX cycle `PAIRING_LOCK_MS` before the
+ * cycle's first kickoff, so the board a viewer is looking at stops mattering
+ * for all matches in that walk at the same moment. That instant is the one
+ * countdown on this page a holder can act on:
  * the season's own end is a month away and tells nobody whether there is still
  * time to take a slot for the next walk.
  *
- * THE LOCK IS DERIVED, NOT READ. The programme wire carries `scheduledStartAt`
- * per match and NOTHING ELSE about timing - no lock field, no rotation cadence.
- * The twelve hours come from `PAIRING_LOCK_MS`, which is imported rather than
- * re-declared here: two copies would let /catwalk and /miaw-prix disagree about
- * when a pairing binds, on one product, from one schedule.
+ * THE LOCK IS READ FROM THE BOARD AUTHORITY. The public programme deliberately
+ * carries assigned cards only, so it cannot reveal the first unbound slot. The
+ * board payload names that slot's `startsAt` and `locksAt` together; the page
+ * never manufactures one deadline per visible match again.
  *
  * AND IT IS FIVE-VALUED, FOR THE REASON EVERYTHING ELSE ON THIS PAGE IS. A read
  * that has not landed, a read that failed, and a programme with nothing
@@ -24,14 +24,14 @@ import type { MiawPrixBoard, MiawPrixMatch } from '../miawprix/miawPrixSource'
  * `StandingsState` exist to prevent.
  */
 export type CatwalkLock =
-  /** Nobody has asked the programme yet. Say nothing at all. */
+  /** Nobody has asked the board yet. Say nothing at all. */
   | { state: 'unread' }
-  /** The programme read failed. This is a fact about the network, never about
-   *  the schedule: it must not be rendered as "no rotation scheduled". */
+  /** The board read failed or lacks the authority field. This is never evidence
+   *  about the schedule: it must not render as "no rotation scheduled". */
   | { state: 'unreadable' }
-  /** The programme answered and has no upcoming match with a kickoff on it. */
+  /** The board authority found no upcoming unbound cycle. */
   | { state: 'none' }
-  /** The next rotation's lock window has already opened - kickoff is less than
+  /** The next cycle's lock window has already opened - kickoff is less than
    *  PAIRING_LOCK_MS away - so there is no time left to count down to. */
   | { state: 'open'; startsAt: number }
   /** The lock is ahead. `locksAt` is the instant, `startsAt` the kickoff it was
@@ -41,56 +41,30 @@ export type CatwalkLock =
 export const LOCK_WINDOW_MS = PAIRING_LOCK_MS
 
 /**
- * A match that could still lock: on the calendar, not settled, not cancelled,
- * and not already past its kickoff.
+ * The next lock, from the board read.
  *
- * `scheduledStartAt` is 0 when the programme has not scheduled a match yet (see
- * `MiawPrixMatch.scheduledStartAt`), and 0 is not a kickoff.
- *
- * THE `now` BOUND IS LOAD-BEARING. `matchState` reads a row with no result and a
- * 'scheduled' status as UPCOMING however old it is, so a fixture the programme
- * never settled sits there for ever - and without this bound the last branch
- * below answered 'open' about it, putting THE NEXT WALK IS ALREADY PAIRING on
- * the hero for a kickoff three days gone.
- */
-const schedulable = (match: MiawPrixMatch, now: number) => {
-  const state = matchState(match)
-  return match.scheduledStartAt > now && state !== 'final' && state !== 'cancelled'
-}
-
-/**
- * The next lock, from the programme read.
- *
- * It looks for the earliest kickoff whose lock is STILL AHEAD rather than
- * simply the earliest kickoff: a rotation already inside its twelve-hour window
- * has locked, and counting down to an instant in the past would render a clock
- * that never moves. Only when every scheduled rotation is already inside its
- * window does the answer become 'open', which says the window is running rather
- * than that the schedule is empty.
+ * `undefined` means an older/unreadable board did not publish the fact; `null`
+ * means the authority read the schedule and found no unbound cycle. Keeping
+ * those apart prevents an absent field from becoming a confident NO SCHEDULE.
  */
 /** The lead in whole hours, for copy that states it. Rounded, because a lead of
  *  12h 0m 1s is twelve hours to a reader and the copy is a rule, not a clock. */
 export const leadHours = (leadMs: number) => Math.max(1, Math.round(leadMs / 3_600_000))
 
 /**
- * @param leadMs How far ahead of kickoff the board freezes. THE SERVER'S OWN
- *   `lockLeadMs` when it published one; `PAIRING_LOCK_MS` is only a fallback for
- *   a server that has not shipped the field. It used to be this constant
- *   unconditionally, so an operator who moved the lead got a page counting to an
- *   instant the server did not agree with.
+ * The server publishes both instants because `lockLeadMs` is configurable. The
+ * browser validates and renders them; it does not subtract the lead itself.
  */
-export function nextCatwalkLock(board: MiawPrixBoard | null, now: number, leadMs: number = PAIRING_LOCK_MS): CatwalkLock {
-  if (!board) return { state: 'unread' }
-  const scheduled = board.matches.filter((match) => schedulable(match, now)).sort((a, b) => a.scheduledStartAt - b.scheduledStartAt)
-  if (!scheduled.length) return { state: 'none' }
-  const lead = Number.isFinite(leadMs) && leadMs > 0 ? leadMs : PAIRING_LOCK_MS
-  const ahead = scheduled.find((match) => match.scheduledStartAt - lead > now)
-  if (ahead) {
-    return { state: 'counting', locksAt: ahead.scheduledStartAt - lead, startsAt: ahead.scheduledStartAt }
-  }
-  // Every rotation still ahead is inside its window, so the nearest kickoff is
-  // the one the board is being read for right now. A kickoff already in the past
-  // never reaches here - `schedulable` drops it - so 'open' always names a walk
-  // that has not happened yet.
-  return { state: 'open', startsAt: scheduled[0]!.scheduledStartAt }
+export function nextCatwalkLock(
+  timing: CatwalkBoard['nextCycleLock'],
+  now: number,
+): CatwalkLock {
+  if (timing === undefined) return { state: 'unreadable' }
+  if (timing === null) return { state: 'none' }
+  if (timing.locksAt > now)
+    return { state: 'counting', locksAt: timing.locksAt, startsAt: timing.startsAt }
+  // The cycle is due but has not acquired its atomic cycle index yet. This is
+  // an operational state, not permission to skip to its second match and start
+  // another countdown.
+  return { state: 'open', startsAt: timing.startsAt }
 }

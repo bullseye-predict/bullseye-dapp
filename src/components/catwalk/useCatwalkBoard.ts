@@ -3,27 +3,23 @@ import { catwalkReadKey, catwalkSource, standingsByMint, type CatwalkBoard, type
 import { cachedValue, useCacheSeed } from '../solz/liveCache'
 import type { LadderState, StandingsState } from './catwalkBands'
 import type { CatwalkSpot } from '../solz/model'
-import { miawPrixBoardKey, type MiawPrixBoard } from '../miawprix/miawPrixSource'
 
 /**
  * One poll for the whole board.
  *
- * Board, standings, the spot ladder and the MIAW PRIX schedule are four reads of
- * one screen, so they share a single interval and a single AbortController: four
- * timers would let the halves of a row disagree, and a per-slot poll would turn
- * a 36-row board into 36 requests.
+ * Board, standings and the spot ladder are three reads of one screen, so they
+ * share a single interval and a single AbortController: separate timers would
+ * let the halves of a row disagree, and a per-slot poll would turn a 36-row
+ * board into 36 requests.
  *
- * The schedule is read for exactly one fact - when this board next locks for a
- * rotation - because the board payload carries no lock and no cadence. See
- * src/components/catwalk/catwalkLock.ts.
+ * The board payload carries the authoritative next full-cycle lock boundary.
+ * Reading MIAW PRIX as a fourth request cannot recover that fact because its
+ * public programme intentionally contains assigned cards only.
  *
  * The reads are settled independently rather than joined, because they fail for
  * unrelated reasons. A closed ladder between seasons must not blank the board,
  * and a standings outage must not take the coins off the board - each simply
  * degrades to the honest fallback the page already renders.
- *
- * The same holds for the schedule: a programme that could not be READ is not a
- * programme with no rotations on it, and only `scheduleRead` keeps those apart.
  *
  * A ladder read that FAILS is not a ladder that is closed. The proxy answers 502
  * on an upstream error and 503 on a timeout, so folding a rejection into "not
@@ -33,16 +29,6 @@ import { miawPrixBoardKey, type MiawPrixBoard } from '../miawprix/miawPrixSource
 
 export type CatwalkFeed = {
   configuredSeats?: number
-  /**
-   * The MIAW PRIX programme, read for ONE fact: when this board next locks.
-   *
-   * Null covers both "not read yet" and "the read failed", which is why
-   * `scheduleRead` sits beside it - the hero must not print NO ROTATION
-   * SCHEDULED over a 502, the same distinction the ladder and the standings
-   * each keep. See src/components/catwalk/catwalkLock.ts.
-   */
-  schedule: MiawPrixBoard | null
-  scheduleRead: boolean
   closedReason?: string
   board: CatwalkBoard | null
   spots: CatwalkSpot[]
@@ -96,14 +82,6 @@ export function ladderStateOf(spots: PromiseSettledResult<{ available: boolean }
 
 const POLL_MS = 30_000
 
-/** What a schedule read that was never ASKED FOR settles as.
- *
- *  A caller that draws no lock clock must not spend a request on the programme
- *  every poll. Settling its slot as a rejection keeps the tuple one shape, and
- *  `scheduleRead` below refuses to report it as a failure - "we did not ask" and
- *  "nobody answered" are the two states this hook has always kept apart. */
-const SCHEDULE_NOT_ASKED = Error('The MIAW PRIX schedule was not requested.')
-
 /**
  * HOW SOON A FAILED BOARD READ IS TRIED AGAIN.
  *
@@ -120,7 +98,7 @@ const RETRY_MS = 4_000
 
 const EMPTY: CatwalkFeed = {
   board: null, spots: [], outbidSpots: 0, ladder: 'unknown', standings: new Map(), standingRows: [],
-  standingsState: 'unknown', schedule: null, scheduleRead: false, loading: true, refreshing: false,
+  standingsState: 'unknown', loading: true, refreshing: false,
   readAt: 0, error: '',
 }
 
@@ -142,8 +120,7 @@ function seeded(endpoint: string): CatwalkFeed {
   const board = cachedValue<CatwalkBoard>(catwalkReadKey(endpoint, 'catwalk'))
   const standings = cachedValue<{ rows: GrandPrixStanding[] }>(catwalkReadKey(endpoint, 'standings'))
   const spots = cachedValue<CatwalkLadderRead>(catwalkReadKey(endpoint, 'catwalkSpots'))
-  const schedule = cachedValue<MiawPrixBoard>(miawPrixBoardKey(endpoint))
-  if (!board && !standings && !spots && !schedule) return EMPTY
+  if (!board && !standings && !spots) return EMPTY
   const open = Boolean(spots?.value.available)
   return {
     ...EMPTY,
@@ -158,8 +135,6 @@ function seeded(endpoint: string): CatwalkFeed {
     ladder: spots ? (spots.value.available ? 'open' : 'closed') : 'unknown',
     configuredSeats: spots?.value.configuredSeats,
     closedReason: spots?.value.closedReason,
-    schedule: schedule?.value ?? null,
-    scheduleRead: Boolean(schedule),
     loading: !board,
     refreshing: Boolean(board),
     readAt: board?.at ?? standings?.at ?? spots?.at ?? 0,
@@ -167,19 +142,12 @@ function seeded(endpoint: string): CatwalkFeed {
 }
 
 export type CatwalkBoardOptions = {
-  /**
-   * Read the MIAW PRIX programme as well, for the lock clock. The board payload
-   * carries no lock (see src/components/catwalk/catwalkLock.ts), so /catwalk
-   * needs it - and a surface that shows no clock must not spend a second
-   * request on it every poll.
-   */
-  schedule?: boolean
   /** How often to re-read. A summary panel beside other live panels does not
    *  need the board page's cadence. */
   pollMs?: number
 }
 
-export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = true, pollMs = POLL_MS }: CatwalkBoardOptions = {}): CatwalkFeed {
+export function useCatwalkBoard(endpoint: string, { pollMs = POLL_MS }: CatwalkBoardOptions = {}): CatwalkFeed {
   // The first render is the SERVER's render: EMPTY, and identical to the markup
   // this island hydrates against. The seed lands in the layout effect below,
   // after that commit and before paint. See `useCacheSeed`.
@@ -199,11 +167,10 @@ export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = tru
     let retry: ReturnType<typeof setTimeout> | undefined
 
     const read = async () => {
-      const [board, standings, spots, schedule] = await Promise.allSettled([
+      const [board, standings, spots] = await Promise.allSettled([
         source.board(controller.signal),
         source.standings(controller.signal),
         source.spots(controller.signal),
-        wantSchedule ? source.schedule(controller.signal) : Promise.reject(SCHEDULE_NOT_ASKED),
       ])
       if (!live || controller.signal.aborted) return
       setFeed((previous) => ({
@@ -220,22 +187,6 @@ export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = tru
         spots: spots.status === 'fulfilled' && spots.value.available ? spots.value.spots : [],
         outbidSpots: spots.status === 'fulfilled' && spots.value.available ? spots.value.outbidSpots : 0,
         ladder: ladderStateOf(spots),
-        // A failed programme read KEEPS the last schedule, and the clock keeps
-        // counting from it: a lock instant is a fixed point on the calendar and
-        // does not move because the network blinked. The only thing a fresh read
-        // could change is WHICH rotation is next, and that changes once every
-        // twelve hours rather than once every thirty seconds.
-        //
-        // `scheduleRead` therefore answers one narrower question, and it is the
-        // question the hero turns on: has the programme EVER answered? Without
-        // it, a first read that failed is indistinguishable from a first read
-        // still in flight, and the clock states THE SCHEDULE COULD NOT BE READ
-        // before anybody has asked.
-        schedule: schedule.status === 'fulfilled' ? schedule.value : previous.schedule,
-        // A schedule this caller never asked for is not a schedule that failed,
-        // so a seeded one keeps its 'read' rather than being demoted by a
-        // rejection this hook manufactured.
-        scheduleRead: schedule.status === 'fulfilled' || (!wantSchedule && previous.scheduleRead),
         configuredSeats: spots.status === 'fulfilled' ? spots.value.configuredSeats : undefined,
         closedReason: spots.status === 'fulfilled' ? spots.value.closedReason : undefined,
         loading: false,
@@ -260,7 +211,7 @@ export function useCatwalkBoard(endpoint: string, { schedule: wantSchedule = tru
       clearInterval(timer)
       if (retry) clearTimeout(retry)
     }
-  }, [endpoint, wantSchedule, pollMs])
+  }, [endpoint, pollMs])
 
   return feed
 }

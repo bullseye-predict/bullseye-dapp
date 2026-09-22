@@ -664,55 +664,41 @@ test('a front card prints its coin s board slot, never its place in the row', ()
 /* ── when the board next locks ───────────────────────────────────────────── */
 
 /**
- * THE LOCK IS DERIVED FROM THE SCHEDULE, AND IT IS FIVE-VALUED.
+ * THE LOCK IS ONE SERVER-PUBLISHED FULL-CYCLE BOUNDARY.
  *
- * The wire carries `scheduledStartAt` and nothing else about timing, so the
- * lock is kickoff minus PAIRING_LOCK_MS - the same twelve hours /miaw-prix
- * derives it from, imported rather than copied. A read that has not landed, a
- * read that failed and a programme with nothing on it are three different
- * facts, and only the last of them is about the schedule.
+ * The MIAW PRIX feed contains assigned cards only, so the browser cannot infer
+ * the next unbound cycle from its 36 visible matches. The CATWALK board instead
+ * publishes one pair of instants for the complete upcoming schedule.
  */
-test('the next lock is the earliest kickoff whose window has not opened', () => {
+test('the next lock is the board authority for one complete cycle', () => {
   const NOW = 1_800_000_000_000
-  const match = (scheduledStartAt: number, extra: Record<string, unknown> = {}) => ({
-    matchId: `m-${scheduledStartAt}`, displayMatchId: 'm', scheduledStartAt,
-    status: 'scheduled', definitionId: 'colosseum_team_deathmatch_3v3', title: '',
-    sides: [], result: null, rewardPoolL: null, ...extra,
+
+  // An older response without the field is not evidence of an empty schedule.
+  expect(nextCatwalkLock(undefined, NOW)).toEqual({ state: 'unreadable' })
+  // The server explicitly found no unbound full cycle.
+  expect(nextCatwalkLock(null, NOW)).toEqual({ state: 'none' })
+
+  const startsAt = NOW + 2 * PAIRING_LOCK_MS
+  const locksAt = startsAt - PAIRING_LOCK_MS
+  expect(nextCatwalkLock({ startsAt, locksAt }, NOW)).toEqual({
+    state: 'counting', locksAt, startsAt,
   })
-  const programme = (matches: unknown[]) => ({ season: null, seasons: [], standings: [], matches } as never)
 
-  // Nobody has read it, and nobody has answered: two different silences.
-  expect(nextCatwalkLock(null, NOW)).toEqual({ state: 'unread' })
-  // Read, and genuinely nothing on the calendar.
-  expect(nextCatwalkLock(programme([]), NOW)).toEqual({ state: 'none' })
-  // A match with no kickoff is not a kickoff of zero.
-  expect(nextCatwalkLock(programme([match(0)]), NOW)).toEqual({ state: 'none' })
-  // A settled or cancelled fixture will never pair, so it is not a lock.
-  expect(nextCatwalkLock(programme([
-    match(NOW + 5 * PAIRING_LOCK_MS, { result: { winnerTeamId: 't', winnerMint: MINT_A } }),
-    match(NOW + 9 * PAIRING_LOCK_MS, { status: 'cancelled' }),
-  ]), NOW)).toEqual({ state: 'none' })
+  // Once that single atomic deadline arrives, the cycle is open. There is no
+  // second per-match deadline for a card an hour later.
+  expect(nextCatwalkLock({ startsAt, locksAt }, locksAt)).toEqual({ state: 'open', startsAt })
+})
 
-  // The earliest kickoff whose window is still ahead - NOT simply the earliest
-  // kickoff, which would count down to an instant in the past.
-  const soon = NOW + PAIRING_LOCK_MS - 60_000
-  const later = NOW + PAIRING_LOCK_MS + 3_600_000
-  expect(nextCatwalkLock(programme([match(later), match(soon)]), NOW))
-    .toEqual({ state: 'counting', locksAt: later - PAIRING_LOCK_MS, startsAt: later })
-
-  // Every scheduled rotation already inside its window: the lock is open, which
-  // is not the same claim as an empty schedule.
-  expect(nextCatwalkLock(programme([match(soon)]), NOW)).toEqual({ state: 'open', startsAt: soon })
-
-  // A KICKOFF ALREADY IN THE PAST IS NOT A WALK THAT IS ABOUT TO PAIR.
-  // matchState() reads a row with no result and a 'scheduled' status as upcoming
-  // however old it is, so a fixture the programme never settled sits there for
-  // ever. Without a `now` bound it fell into the 'open' branch and the hero said
-  // THE NEXT WALK IS ALREADY PAIRING about a kickoff three days gone.
-  expect(nextCatwalkLock(programme([match(NOW - 3 * 86_400_000)]), NOW)).toEqual({ state: 'none' })
-  // And a stale fixture never outranks a real one still ahead.
-  expect(nextCatwalkLock(programme([match(NOW - 3 * 86_400_000), match(later)]), NOW))
-    .toEqual({ state: 'counting', locksAt: later - PAIRING_LOCK_MS, startsAt: later })
+test('the board parser preserves absent, empty, and published cycle locks', () => {
+  const base = { ok: true, gameKey: 'solz', activeSlots: 0, lineupSize: 36, lineup: [] }
+  expect(parseCatwalkBoard(base).nextCycleLock).toBeUndefined()
+  expect(parseCatwalkBoard({ ...base, nextCycleLock: null }).nextCycleLock).toBeNull()
+  expect(parseCatwalkBoard({
+    ...base,
+    nextCycleLock: { startsAt: 1_900_000_000_000, locksAt: 1_899_956_800_000 },
+  }).nextCycleLock).toEqual({ startsAt: 1_900_000_000_000, locksAt: 1_899_956_800_000 })
+  // A malformed authority field is unreadable, not evidence of no schedule.
+  expect(parseCatwalkBoard({ ...base, nextCycleLock: { startsAt: 'soon' } }).nextCycleLock).toBeUndefined()
 })
 
 test('the rail clock states the lock it has and never invents one', () => {

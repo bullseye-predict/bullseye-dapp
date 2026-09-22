@@ -172,7 +172,8 @@ export type HeroProps = {
    *  board walks in, so the name is the link to it. */
   miawPrixHref?: string
   /** True until the BOARD read lands. Nothing countable may be stated. It is
-   *  deliberately not reused for the schedule: that read fails independently. */
+   *  also the lock clock's pending state because its one full-cycle boundary
+   *  now travels in that same authoritative board response. */
   pending?: boolean
   /** The clock in `now`, from the page's own 60-second tick, so the season's
    *  remaining days and every other figure on the page agree.

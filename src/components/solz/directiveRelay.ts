@@ -279,6 +279,7 @@ const messages: Record<string, string> = {
   action_kind_unavailable: 'This match is not accepting directives.',
   action_quote_expired: 'The quote expired. Send the directive again for a fresh price.',
   action_payment_unconfirmed: 'Waiting for the payment to finalize.',
+  action_delivery_unavailable: 'Payment is confirmed. Waiting for the match room to accept the directive.',
   action_payment_failed: 'The payment transaction failed. Nothing was charged for the directive.',
   action_network_mismatch: 'Your wallet is on a different Solana network than the relay.',
   action_rate_limited: 'Directives are arriving too quickly. Try again in a few seconds.',
@@ -373,6 +374,7 @@ export async function confirmDirectivePayment(
   pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)),
 ): Promise<DirectivePurchase> {
   const deadline = Date.now() + 90_000
+  let retryMs = 1_000
   for (;;) {
     try {
       const payload = await relay('payments', {
@@ -382,8 +384,14 @@ export async function confirmDirectivePayment(
       }, base)
       return parsePurchase(payload.purchase)
     } catch (error) {
-      if (!(error instanceof DirectiveError) || error.code !== 'action_payment_unconfirmed' || Date.now() >= deadline) throw error
-      await pause(3_000)
+      const retryable = error instanceof DirectiveError &&
+        (error.code === 'action_payment_unconfirmed' || error.code === 'action_delivery_unavailable')
+      if (!retryable || Date.now() >= deadline) throw error
+      await pause(retryMs)
+      // Finality and room hand-off are both short transient boundaries. Backing
+      // off to ten seconds keeps the one paid purchase recoverable without
+      // turning an unavailable service into another fixed-rate request loop.
+      retryMs = Math.min(10_000, retryMs * 2)
     }
   }
 }

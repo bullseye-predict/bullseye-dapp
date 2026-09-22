@@ -225,9 +225,10 @@ test('the quote client sends no auth and accepts the explicit SPL payment contra
   expect(quote.payment.quoteId).toBe(quote.purchase.id)
 })
 
-test('a payment is retried only while the relay is still waiting on finality', async () => {
-  const codes = ['action_payment_unconfirmed', 'action_payment_unconfirmed']
+test('a payment backs off while finality or its room delivery is pending', async () => {
+  const codes = ['action_payment_unconfirmed', 'action_delivery_unavailable']
   const calls: number[] = []
+  const delays: number[] = []
   globalThis.fetch = (async () => {
     calls.push(calls.length)
     const code = codes.shift()
@@ -235,7 +236,8 @@ test('a payment is retried only while the relay is still waiting on finality', a
       ? Response.json({ ok: false, error: code }, { status: 400 })
       : Response.json({ ok: true, purchase: { id: 'p1', amountAtoms: '1000000', decimals: 6, state: 'paid' } })
   }) as unknown as typeof fetch
-  const purchase = await confirmDirectivePayment('p1', 'sig', '/api/directives', async () => undefined)
+  const purchase = await confirmDirectivePayment('p1', 'sig', '/api/directives', async (delay) => { delays.push(delay) })
   expect(calls.length).toBe(3)
+  expect(delays).toEqual([1_000, 2_000])
   expect(purchase.state).toBe('paid')
 })

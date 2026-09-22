@@ -119,11 +119,9 @@ function Home({
   // CATWALK IS THE DOOR INTO THE PROGRAMME ABOVE, so the panel that explains it
   // reads the real board rather than describing one.
   //
-  // `schedule: false` because this page draws no lock clock, and the schedule
-  // read is byte-for-byte the programme read `useMiawPrixHighlight` is already
-  // making one line up - asking for it here would double the home page's traffic
-  // to the control plane for a fact nothing on this page renders.
-  const catwalk = useCatwalkBoard("/api/agent-arena", { schedule: false, pollMs: 60_000 });
+  // The board now carries its own full-cycle lock boundary, so this hook never
+  // duplicates the MIAW PRIX programme read made one line above.
+  const catwalk = useCatwalkBoard("/api/agent-arena", { pollMs: 60_000 });
   const [matchId, setMatchId] = useState("");
   const [outcomeId, setOutcomeId] = useState("");
   const [view, setView] = useState<HighlightView>("live");

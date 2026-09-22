@@ -1088,25 +1088,18 @@ export function CatwalkApp({
   }
 
   /**
-   * WHEN THIS BOARD NEXT LOCKS, derived once for the page.
+   * WHEN THIS BOARD NEXT LOCKS, read once for the page.
    *
-   * Three states before the schedule can answer at all, and they are three on
-   * purpose. While the first poll is in flight NOBODY has read the programme,
-   * so the clock says nothing; once it has settled with neither a read nor a
-   * remembered schedule, the read FAILED and the clock says that. Only past both
-   * may `nextCatwalkLock` speak about the schedule itself - which is the same
-   * unread / unreadable / answered discipline the ladder and the standings keep,
-   * and the reason a 502 cannot print NO ROTATION IS SCHEDULED YET.
-   *
-   * A schedule kept from an earlier poll still answers: a lock INSTANT does not
-   * move because the network blinked, and the only thing a fresh read could
-   * change is which rotation is next.
+   * While the first board poll is in flight the clock says nothing. Afterward,
+   * the board's `nextCycleLock` is the only authority: absent means an old or
+   * unreadable response, null means no unbound cycle, and one pair of instants
+   * means one complete schedule lock. Visible match cards never create clocks.
    */
   const lock = useMemo<CatwalkLock>(() => {
     if (feed.loading) return { state: 'unread' }
-    if (!feed.scheduleRead && !feed.schedule) return { state: 'unreadable' }
-    return nextCatwalkLock(feed.schedule, now, feed.board?.lockLeadMs ?? undefined)
-  }, [feed.loading, feed.schedule, feed.scheduleRead, feed.board?.lockLeadMs, now])
+    if (!feed.board) return { state: 'unreadable' }
+    return nextCatwalkLock(feed.board.nextCycleLock, now)
+  }, [feed.loading, feed.board, now])
 
   /**
    * WHAT WALK IS ON SCREEN, said above the rows.
@@ -1242,9 +1235,9 @@ export function CatwalkApp({
         // the epoch.
         lastSeatPaidAt={board?.lastSeatPaidAt ?? null}
         // THE PAGE'S SINGLE LOCK AND THE PAGE'S SINGLE CLOCK. Not recomputed in
-        // the rail: `nextCatwalkLock` never returns 'unreadable' by itself, so a
-        // rail deriving its own would print NO ROTATION IS SCHEDULED YET over a
-        // 502 while another surface correctly said the read had failed.
+        // the rail: the page owns pending/failed board state, and the board owns
+        // the one full-cycle boundary. A second derivation could turn an absent
+        // authority field into NO ROTATION IS SCHEDULED YET.
         lock={lock}
         now={now}
       />

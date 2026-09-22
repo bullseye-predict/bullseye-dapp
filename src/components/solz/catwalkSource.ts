@@ -72,6 +72,9 @@ export type CatwalkBoard = {
    * a specific number of hours in words.
    */
   lockLeadMs: number | null
+  /** One server-owned full-cycle boundary. Undefined means the server did not
+   * publish the field; null means it found no unbound planned cycle. */
+  nextCycleLock?: { startsAt: number; locksAt: number } | null
   season: CatwalkSeason | null
   lineup: CatwalkLineupRow[]
   /**
@@ -473,6 +476,15 @@ export function parseCatwalkBoard(value: unknown): CatwalkBoard {
   const data = object(value)
   if (data.ok !== true || !Array.isArray(data.lineup)) throw Error('The CATWALK board is unavailable.')
   const season = data.season ? object(data.season) : null
+  const rawLock = data.nextCycleLock && typeof data.nextCycleLock === 'object' && !Array.isArray(data.nextCycleLock)
+    ? data.nextCycleLock as Record<string, unknown>
+    : null
+  const nextCycleLock = data.nextCycleLock === null
+    ? null
+    : rawLock && Number.isFinite(rawLock.startsAt) && Number.isFinite(rawLock.locksAt) &&
+        Number(rawLock.startsAt) > 0 && Number(rawLock.locksAt) > 0
+      ? { startsAt: Number(rawLock.startsAt), locksAt: Number(rawLock.locksAt) }
+      : undefined
   return {
     gameKey: text(data.gameKey, 'solz'),
     activeSlots: count(data.activeSlots),
@@ -481,6 +493,7 @@ export function parseCatwalkBoard(value: unknown): CatwalkBoard {
     // number is not one either. Both collapse to null so a renderer falls back
     // rather than counting to now.
     lockLeadMs: Number.isFinite(data.lockLeadMs) && Number(data.lockLeadMs) > 0 ? Number(data.lockLeadMs) : null,
+    ...(Object.prototype.hasOwnProperty.call(data, 'nextCycleLock') ? { nextCycleLock } : {}),
     season: season ? parseCatwalkSeason(season) : null,
     lineup: data.lineup.flatMap((raw: unknown): CatwalkLineupRow[] => {
       const entry = object(raw)

@@ -146,8 +146,6 @@ function feed(overrides: Partial<CatwalkFeed> = {}): CatwalkFeed {
     standings: standingsByMint(RECORDS),
     standingRows: RECORDS,
     standingsState: 'read',
-    schedule: null,
-    scheduleRead: false,
     loading: false,
     refreshing: false,
     readAt: NOW,
