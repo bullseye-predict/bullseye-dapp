@@ -230,7 +230,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
   const iframeActive = mode === "iframe";
   const youtubeSource = youtubeEmbedUrl(source);
   useEffect(() => {
-    if (iframeActive || !source || !video.current) return;
+    if (iframeActive || youtubeSource || !source || !video.current) return;
     const element = video.current;
     let hls: HlsInstance | null = null;
     let cancelled = false;
@@ -286,7 +286,7 @@ const BroadcastMedia = memo(function BroadcastMedia({
       element.removeAttribute("src");
       element.load();
     };
-  }, [iframeActive, source, attempt]);
+  }, [iframeActive, source, attempt, youtubeSource]);
   return (
     <>
       {iframeActive ? (
@@ -300,10 +300,10 @@ const BroadcastMedia = memo(function BroadcastMedia({
         />
       ) : videoAvailable && youtubeSource ? (
         <iframe
-          className="sh-broadcast-image sh-broadcast-frame"
+          className="sh-broadcast-image sh-broadcast-youtube"
           src={youtubeSource}
           title="ColaCat livestream on YouTube"
-          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allow="autoplay; encrypted-media; picture-in-picture; web-share; fullscreen"
           allowFullScreen
         />
       ) : videoAvailable ? (
@@ -777,8 +777,8 @@ export function MatchViewer({
           >
             <div className="sh-broadcast" ref={frame}>
               <BroadcastMedia
-                key={`${match.streamUrl ?? livestreamUrl ?? "iframe"}:${liveHref}`}
-                source={match.streamUrl ?? livestreamUrl}
+                key={`${livestreamUrl || match.streamUrl || "iframe"}:${liveHref}`}
+                source={livestreamUrl || match.streamUrl}
                 iframeSrc={arenaEmbedUrl(liveHref)}
                 onArenaStatus={(status) =>
                   setBroadcastStatus(

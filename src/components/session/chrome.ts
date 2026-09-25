@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { ComponentProps } from 'react'
 import type { SiteHeader } from '../solz/SiteHeader'
+import { brand, type Brand } from '../solz/brand'
 
 export type HeaderActive = ComponentProps<typeof SiteHeader>['active']
 
@@ -54,7 +55,8 @@ export const useChrome = () => useChromeStore()
 export const chromeState = () => useChromeStore.getState()
 
 /** The nav link a path lights, used until the page publishes its own. */
-export function activeForPath(pathname: string): HeaderActive {
+export function activeForPath(pathname: string, of: Brand = brand): HeaderActive {
+  if (pathname === '/') return of.home === 'markets' ? 'markets' : 'highlight'
   if (pathname.startsWith('/markets') || pathname.startsWith('/live')) return 'markets'
   if (pathname.startsWith('/agent-arena')) return 'agents'
   if (pathname.startsWith('/catwalk')) return 'catwalk'

@@ -8,7 +8,7 @@ import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { decodeAccountingTransaction } from '../accounting'
 import { TOKEN_PROGRAM_ID, vaultAddress } from '../wire'
 import { MANIFEST_LOG, manifestLogBody, manifestProgramFrames } from './logs'
-import type { ManifestBinding } from './wire'
+import { manifestAgentTraderAddress, type ManifestBinding } from './wire'
 import type {
   PortfolioEvent,
   PortfolioEventKind,
@@ -39,7 +39,9 @@ export function decodePortfolioEvents(
     decoded = decodeAccountingTransaction(tx, signature)
   const rows: PortfolioEvent[] = [],
     trader = new PublicKey(owner),
+    agentTrader = manifestAgentTraderAddress(new PublicKey(program), trader),
     vault = vaultAddress(program, owner).toBase58()
+  const isTrader = (key: PublicKey) => key.equals(trader) || key.equals(agentTrader)
   const base = {
     signature,
     slot: tx.slot,
@@ -93,8 +95,8 @@ export function decodePortfolioEvents(
         price: price.toString(),
       }
       add('MARK', eventOrder(frame.index), fields)
-      const maker = log.maker.equals(trader),
-        taker = log.taker.equals(trader)
+      const maker = isTrader(log.maker),
+        taker = isTrader(log.taker)
       if (maker === taker) continue
       const buy = taker ? log.takerIsBuy : !log.takerIsBuy
       // The fee transfer is verified from actual token instructions. Allocate a
@@ -112,7 +114,7 @@ export function decodePortfolioEvents(
     if (placed) {
       const [log] = PlaceOrderLog.deserialize(placed),
         b = byBook.get(log.market.toBase58())
-      if (b && log.trader.equals(trader))
+      if (b && isTrader(log.trader))
         add('ORDER', eventOrder(frame.index), {
           marketId: b.question.toBase58(),
           outcome: b.outcome,
@@ -126,7 +128,7 @@ export function decodePortfolioEvents(
     if (cancelled) {
       const [log] = CancelOrderLog.deserialize(cancelled),
         b = byBook.get(log.market.toBase58())
-      if (b && log.trader.equals(trader))
+      if (b && isTrader(log.trader))
         add('CANCEL', eventOrder(frame.index), {
           marketId: b.question.toBase58(),
           outcome: b.outcome,
@@ -140,7 +142,8 @@ export function decodePortfolioEvents(
   )
   if (decoded.innerAvailable)
     instructions.forEach((instruction, outer) => {
-      if (instruction.programId !== manifest) return
+      const delegated = instruction.programId === program && instruction.data[0] === 33
+      if (instruction.programId !== manifest && !delegated) return
       const related = takers.filter(
         (e) => Math.floor(e.index / 1_000_000) === outer,
       )
@@ -160,7 +163,7 @@ export function decodePortfolioEvents(
           inner.programId === TOKEN_PROGRAM_ID.toBase58() &&
           inner.data[0] === 3 &&
           feeAccounts.has(inner.accounts[1]!) &&
-          inner.accounts[2] === owner
+          (inner.accounts[2] === owner || inner.accounts[2] === agentTrader.toBase58())
         )
           actualFee += u64(inner.data)
       const total = related.reduce((n, e) => n + BigInt(e.collateral!), 0n)

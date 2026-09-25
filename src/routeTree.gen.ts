@@ -15,14 +15,19 @@ import { Route as BetOrMarketRouteImport } from './routes/bet-or-market'
 import { Route as CatwalkRouteImport } from './routes/catwalk'
 import { Route as ColacatRouteImport } from './routes/colacat'
 import { Route as DemoRouteImport } from './routes/demo'
+import { Route as HighlightRouteImport } from './routes/highlight'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as MarketsRouteImport } from './routes/markets'
 import { Route as MiawPrixRouteImport } from './routes/miaw-prix'
+import { Route as PitchDeckRouteImport } from './routes/pitch-deck'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as WatchRouteImport } from './routes/watch'
 import { Route as Events2IdRouteImport } from './routes/events-2/$id'
 import { Route as Events3IdRouteImport } from './routes/events-3/$id'
+import { Route as EventsPantaIdRouteImport } from './routes/events-panta/$id'
 import { Route as EventsIdRouteImport } from './routes/events/$id'
+import { Route as MarketsCreateRouteImport } from './routes/markets_.create'
+import { Route as MarketsProposeRouteImport } from './routes/markets_.propose'
 import { Route as ChainNetworkAddressRouteImport } from './routes/$chain/$network/$address'
 import { Route as Events2IdPredictionIdRouteImport } from './routes/events-2/$id/$predictionId'
 import { Route as Events3IdPredictionIdRouteImport } from './routes/events-3/$id/$predictionId'
@@ -58,6 +63,11 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HighlightRoute = HighlightRouteImport.update({
+  id: '/highlight',
+  path: '/highlight',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LiveRoute = LiveRouteImport.update({
   id: '/live',
   path: '/live',
@@ -71,6 +81,11 @@ const MarketsRoute = MarketsRouteImport.update({
 const MiawPrixRoute = MiawPrixRouteImport.update({
   id: '/miaw-prix',
   path: '/miaw-prix',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PitchDeckRoute = PitchDeckRouteImport.update({
+  id: '/pitch-deck',
+  path: '/pitch-deck',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -93,9 +108,24 @@ const Events3IdRoute = Events3IdRouteImport.update({
   path: '/events-3/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventsPantaIdRoute = EventsPantaIdRouteImport.update({
+  id: '/events-panta/$id',
+  path: '/events-panta/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventsIdRoute = EventsIdRouteImport.update({
   id: '/events/$id',
   path: '/events/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketsCreateRoute = MarketsCreateRouteImport.update({
+  id: '/markets_/create',
+  path: '/markets/create',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketsProposeRoute = MarketsProposeRouteImport.update({
+  id: '/markets_/propose',
+  path: '/markets/propose',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChainNetworkAddressRoute = ChainNetworkAddressRouteImport.update({
@@ -126,14 +156,19 @@ export interface FileRoutesByFullPath {
   '/catwalk': typeof CatwalkRoute
   '/colacat': typeof ColacatRoute
   '/demo': typeof DemoRoute
+  '/highlight': typeof HighlightRoute
   '/live': typeof LiveRoute
   '/markets': typeof MarketsRoute
   '/miaw-prix': typeof MiawPrixRoute
+  '/pitch-deck': typeof PitchDeckRoute
   '/profile': typeof ProfileRoute
   '/watch': typeof WatchRoute
   '/events-2/$id': typeof Events2IdRouteWithChildren
   '/events-3/$id': typeof Events3IdRouteWithChildren
+  '/events-panta/$id': typeof EventsPantaIdRoute
   '/events/$id': typeof EventsIdRouteWithChildren
+  '/markets/create': typeof MarketsCreateRoute
+  '/markets/propose': typeof MarketsProposeRoute
   '/$chain/$network/$address': typeof ChainNetworkAddressRoute
   '/events-2/$id/$predictionId': typeof Events2IdPredictionIdRoute
   '/events-3/$id/$predictionId': typeof Events3IdPredictionIdRoute
@@ -146,14 +181,19 @@ export interface FileRoutesByTo {
   '/catwalk': typeof CatwalkRoute
   '/colacat': typeof ColacatRoute
   '/demo': typeof DemoRoute
+  '/highlight': typeof HighlightRoute
   '/live': typeof LiveRoute
   '/markets': typeof MarketsRoute
   '/miaw-prix': typeof MiawPrixRoute
+  '/pitch-deck': typeof PitchDeckRoute
   '/profile': typeof ProfileRoute
   '/watch': typeof WatchRoute
   '/events-2/$id': typeof Events2IdRouteWithChildren
   '/events-3/$id': typeof Events3IdRouteWithChildren
+  '/events-panta/$id': typeof EventsPantaIdRoute
   '/events/$id': typeof EventsIdRouteWithChildren
+  '/markets/create': typeof MarketsCreateRoute
+  '/markets/propose': typeof MarketsProposeRoute
   '/$chain/$network/$address': typeof ChainNetworkAddressRoute
   '/events-2/$id/$predictionId': typeof Events2IdPredictionIdRoute
   '/events-3/$id/$predictionId': typeof Events3IdPredictionIdRoute
@@ -167,14 +207,19 @@ export interface FileRoutesById {
   '/catwalk': typeof CatwalkRoute
   '/colacat': typeof ColacatRoute
   '/demo': typeof DemoRoute
+  '/highlight': typeof HighlightRoute
   '/live': typeof LiveRoute
   '/markets': typeof MarketsRoute
   '/miaw-prix': typeof MiawPrixRoute
+  '/pitch-deck': typeof PitchDeckRoute
   '/profile': typeof ProfileRoute
   '/watch': typeof WatchRoute
   '/events-2/$id': typeof Events2IdRouteWithChildren
   '/events-3/$id': typeof Events3IdRouteWithChildren
+  '/events-panta/$id': typeof EventsPantaIdRoute
   '/events/$id': typeof EventsIdRouteWithChildren
+  '/markets_/create': typeof MarketsCreateRoute
+  '/markets_/propose': typeof MarketsProposeRoute
   '/$chain/$network/$address': typeof ChainNetworkAddressRoute
   '/events-2/$id/$predictionId': typeof Events2IdPredictionIdRoute
   '/events-3/$id/$predictionId': typeof Events3IdPredictionIdRoute
@@ -189,14 +234,19 @@ export interface FileRouteTypes {
     | '/catwalk'
     | '/colacat'
     | '/demo'
+    | '/highlight'
     | '/live'
     | '/markets'
     | '/miaw-prix'
+    | '/pitch-deck'
     | '/profile'
     | '/watch'
     | '/events-2/$id'
     | '/events-3/$id'
+    | '/events-panta/$id'
     | '/events/$id'
+    | '/markets/create'
+    | '/markets/propose'
     | '/$chain/$network/$address'
     | '/events-2/$id/$predictionId'
     | '/events-3/$id/$predictionId'
@@ -209,14 +259,19 @@ export interface FileRouteTypes {
     | '/catwalk'
     | '/colacat'
     | '/demo'
+    | '/highlight'
     | '/live'
     | '/markets'
     | '/miaw-prix'
+    | '/pitch-deck'
     | '/profile'
     | '/watch'
     | '/events-2/$id'
     | '/events-3/$id'
+    | '/events-panta/$id'
     | '/events/$id'
+    | '/markets/create'
+    | '/markets/propose'
     | '/$chain/$network/$address'
     | '/events-2/$id/$predictionId'
     | '/events-3/$id/$predictionId'
@@ -229,14 +284,19 @@ export interface FileRouteTypes {
     | '/catwalk'
     | '/colacat'
     | '/demo'
+    | '/highlight'
     | '/live'
     | '/markets'
     | '/miaw-prix'
+    | '/pitch-deck'
     | '/profile'
     | '/watch'
     | '/events-2/$id'
     | '/events-3/$id'
+    | '/events-panta/$id'
     | '/events/$id'
+    | '/markets_/create'
+    | '/markets_/propose'
     | '/$chain/$network/$address'
     | '/events-2/$id/$predictionId'
     | '/events-3/$id/$predictionId'
@@ -250,14 +310,19 @@ export interface RootRouteChildren {
   CatwalkRoute: typeof CatwalkRoute
   ColacatRoute: typeof ColacatRoute
   DemoRoute: typeof DemoRoute
+  HighlightRoute: typeof HighlightRoute
   LiveRoute: typeof LiveRoute
   MarketsRoute: typeof MarketsRoute
   MiawPrixRoute: typeof MiawPrixRoute
+  PitchDeckRoute: typeof PitchDeckRoute
   ProfileRoute: typeof ProfileRoute
   WatchRoute: typeof WatchRoute
   Events2IdRoute: typeof Events2IdRouteWithChildren
   Events3IdRoute: typeof Events3IdRouteWithChildren
+  EventsPantaIdRoute: typeof EventsPantaIdRoute
   EventsIdRoute: typeof EventsIdRouteWithChildren
+  MarketsCreateRoute: typeof MarketsCreateRoute
+  MarketsProposeRoute: typeof MarketsProposeRoute
   ChainNetworkAddressRoute: typeof ChainNetworkAddressRoute
 }
 
@@ -305,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/highlight': {
+      id: '/highlight'
+      path: '/highlight'
+      fullPath: '/highlight'
+      preLoaderRoute: typeof HighlightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/live': {
       id: '/live'
       path: '/live'
@@ -324,6 +396,13 @@ declare module '@tanstack/react-router' {
       path: '/miaw-prix'
       fullPath: '/miaw-prix'
       preLoaderRoute: typeof MiawPrixRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pitch-deck': {
+      id: '/pitch-deck'
+      path: '/pitch-deck'
+      fullPath: '/pitch-deck'
+      preLoaderRoute: typeof PitchDeckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -354,11 +433,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Events3IdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/events-panta/$id': {
+      id: '/events-panta/$id'
+      path: '/events-panta/$id'
+      fullPath: '/events-panta/$id'
+      preLoaderRoute: typeof EventsPantaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/events/$id': {
       id: '/events/$id'
       path: '/events/$id'
       fullPath: '/events/$id'
       preLoaderRoute: typeof EventsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markets_/create': {
+      id: '/markets_/create'
+      path: '/markets/create'
+      fullPath: '/markets/create'
+      preLoaderRoute: typeof MarketsCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markets_/propose': {
+      id: '/markets_/propose'
+      path: '/markets/propose'
+      fullPath: '/markets/propose'
+      preLoaderRoute: typeof MarketsProposeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$chain/$network/$address': {
@@ -435,14 +535,19 @@ const rootRouteChildren: RootRouteChildren = {
   CatwalkRoute: CatwalkRoute,
   ColacatRoute: ColacatRoute,
   DemoRoute: DemoRoute,
+  HighlightRoute: HighlightRoute,
   LiveRoute: LiveRoute,
   MarketsRoute: MarketsRoute,
   MiawPrixRoute: MiawPrixRoute,
+  PitchDeckRoute: PitchDeckRoute,
   ProfileRoute: ProfileRoute,
   WatchRoute: WatchRoute,
   Events2IdRoute: Events2IdRouteWithChildren,
   Events3IdRoute: Events3IdRouteWithChildren,
+  EventsPantaIdRoute: EventsPantaIdRoute,
   EventsIdRoute: EventsIdRouteWithChildren,
+  MarketsCreateRoute: MarketsCreateRoute,
+  MarketsProposeRoute: MarketsProposeRoute,
   ChainNetworkAddressRoute: ChainNetworkAddressRoute,
 }
 export const routeTree = rootRouteImport

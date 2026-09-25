@@ -13,6 +13,8 @@ export interface SolanaGatewayConfig {
   chainId: string
   rpcUrl: string
   programId: string
+  /** Present for guarded Manifest markets and required by direct Hermes IOC execution. */
+  manifestProgramId?: string
   networkDomain: string
   collateralToken: string
   collateralDecimals: number
@@ -43,7 +45,9 @@ export function parseSolanaConfig(input: unknown): SolanaGatewayConfig {
     })
     return [id, { matchId, outcomes }]
   }))
-  return { family: 'SOLANA', venue: 'SOLANA', chainId: publicKey('chainId'), rpcUrl: rpcUrl.toString(), programId: publicKey('programId'), networkDomain, collateralToken: publicKey('collateralToken'), collateralDecimals: integer(value.collateralDecimals, 'collateralDecimals', 0, 18), collateralSymbol: predictionCollateralSymbol(value.collateralSymbol), oracleAuthority: publicKey('oracleAuthority'), markets }
+  return { family: 'SOLANA', venue: 'SOLANA', chainId: publicKey('chainId'), rpcUrl: rpcUrl.toString(), programId: publicKey('programId'),
+    ...(value.manifestProgramId === undefined ? {} : { manifestProgramId: publicKey('manifestProgramId') }),
+    networkDomain, collateralToken: publicKey('collateralToken'), collateralDecimals: integer(value.collateralDecimals, 'collateralDecimals', 0, 18), collateralSymbol: predictionCollateralSymbol(value.collateralSymbol), oracleAuthority: publicKey('oracleAuthority'), markets }
 }
 
 /** Pinocchio/SPL RPC boundary. Solana keeps funds in owner-controlled vault PDAs. */

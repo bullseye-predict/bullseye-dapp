@@ -4,7 +4,7 @@ import { Market as ManifestMarket } from '@bonasa-tech/manifest-sdk'
 import type { ManifestAdapter } from './adapter'
 import { decodeMarket, decodePosition, decodeVault } from '../accounts'
 import { positionAddress, TOKEN_PROGRAM_ID, vaultAddress, vaultCollateralAddress } from '../wire'
-import { bindingAddress, bookAddress, claimMintAddress, decodeBinding, type Outcome } from './wire'
+import { bindingAddress, bookAddress, claimMintAddress, decodeBinding, manifestAgentTraderAddress, type Outcome } from './wire'
 
 /** Resting price is a 1e18 fixed point of quote atoms per base atom. Both mints
  *  are 6dp, so dividing by 1e12 yields the same collateral-atom price the trade
@@ -160,6 +160,7 @@ export class ManifestPortfolioReader {
     await this.adapter.verifyDeployment()
     const trader = new PublicKey(owner)
     const vault = vaultAddress(predictionProgram, trader)
+    const agentTrader = manifestAgentTraderAddress(predictionProgram, trader)
 
     const head = [vault, vaultCollateralAddress(predictionProgram, vault), getAssociatedTokenAddressSync(collateralMint, trader)]
     const headInfo = await connection.getMultipleAccountsInfo(head, this.commitment)
@@ -220,9 +221,9 @@ export class ManifestPortfolioReader {
           if (!bookInfo.owner.equals(manifestProgram)) throw new Error('Wrong orderbook owner.')
           const book = ManifestMarket.loadFromBuffer({ address: binding.venue, buffer: bookInfo.data })
           if (!book.baseMint().equals(binding.mint) || !book.quoteMint().equals(binding.collateral)) throw new Error('Wrong orderbook assets.')
-          const seat = book.claimedSeats().find(claimed => claimed.publicKey.equals(trader))
+          const seats = book.claimedSeats().filter(claimed => claimed.publicKey.equals(trader) || claimed.publicKey.equals(agentTrader))
           const mine = (side: 'BUY' | 'SELL') => (side === 'BUY' ? book.bids() : book.asks())
-            .filter(order => order.trader.equals(trader))
+            .filter(order => order.trader.equals(trader) || order.trader.equals(agentTrader))
             .map(order => {
               const raw = atoms(order.price)
               const quantity = atoms(order.numBaseAtoms)
@@ -230,9 +231,9 @@ export class ManifestPortfolioReader {
             })
           const bids = mine('BUY'), asks = mine('SELL')
           holding.opened = true
-          holding.seatShares = seat ? atoms(seat.baseBalance) : 0n
-          holding.seatCollateral = seat ? atoms(seat.quoteBalance) : 0n
-          holding.quoteVolume = seat ? atoms(seat.quoteVolume) : 0n
+          holding.seatShares = seats.reduce((sum, seat) => sum + atoms(seat.baseBalance), 0n)
+          holding.seatCollateral = seats.reduce((sum, seat) => sum + atoms(seat.quoteBalance), 0n)
+          holding.quoteVolume = seats.reduce((sum, seat) => sum + atoms(seat.quoteVolume), 0n)
           holding.reservedShares = asks.reduce((sum, order) => sum + order.quantity, 0n)
           holding.reservedCollateral = bids.reduce((sum, order) => sum + order.reserved, 0n)
           holding.orders = [...bids, ...asks]

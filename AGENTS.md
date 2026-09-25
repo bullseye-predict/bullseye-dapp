@@ -27,6 +27,18 @@ For future TanStack integration, put router-specific hooks and links in host wra
 Keep video playback lifecycle independent of odds updates. Dispose player instances, subscriptions, timers, and connections on unmount. Use authoritative server timing for prediction cutoffs.
 Validate changes with bun run check and relevant bun tests. Report limitations honestly; do not claim a framework migration or end-to-end wallet test was completed without performing it.
 
+## Linked question copy
+
+For a price ladder, put the complete question once in the shared event title, for example `OpenAI PreStock above ___ on September 30?`. Each linked answer title and catalogue row label is only its formatted price (`$1,225`, `$1,275`, etc.); its separate Yes/No buttons are the contracts. Do not repeat the question, date, or asset name in every option. For a company comparison, use the company or token name alone as each answer title. Keep the detailed measurement and resolution rules in the rules panel rather than the option label. PreStocks company logos are compact icons, never full-width banners.
+
+## Agent performance linked questions
+
+Each main PreStocks event has a separate agent performance event with the same measured horizon. Prefix the child shared title with `Agent: ` and repeat the parent question title; link the child card and detail page back to the main event. The child has linked answer rows for the agent's hit rate over its scheduled forecasts, not one “over half” Yes/No question and not one row per count. Use at most four accuracy bands: under 50%, 50–79%, 80–99%, and exactly 100%. Each label is the rate, then the count range out of the total (`Under 50% · 0–6 of 14`, `80–99% · 12–13 of 14`, `100% · 14 of 14`); a band that holds one count shows its exact rate (`50% · 1 of 2`). A short schedule drops a band that rounds to no count. The bands must cover every possible score without overlap; one answer resolves Yes and all others No. `accuracyBands()` in `solz-prediction-backend/apps/stake-api/general-events.ts` is the only place that builds them. Forecasts are scored in the separate agent database; the general catalogue stays in the existing prediction database.
+
+## Creating and opening questions
+
+Questions are created only in `solz-prediction-backend`, through the builders and the guard. Read "Create and open a general question" in `solz-prediction-backend/AGENTS.md` first. Do not create a question from this repository, and do not write question rows by hand. This frontend only shows the published rows. The first trader opens a market through `POST /solana/market-permit` on the stake API. If a page shows answer copy that breaks the rules above, run `bun run general:event -- audit` in `solz-prediction-backend`. Do not correct the copy in the UI.
+
 ## Trading colors
 Green means Buy/Yes and red means Sell/No wherever the trader is choosing between a Yes and a No: multi-outcome answer rows, linked-question rows, and the trade ticket of any market whose outcomes are contracts rather than teams. On those surfaces team and agent identity colors dress the text, the mark and the chart — never a Buy control.
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createSolzDataSource } from '../src/components/solz/solzDataSource'
 import { hollowSnapshot } from '../src/components/events/EventApp'
-import { eventActivity, eventAnswerMarket, eventHoldings, eventHref, linkedEventMarket, resolveEvent, resolveEventPrediction, sampleOrderBook } from '../src/components/events/eventModel'
+import { eventActivity, eventAnswerMarket, eventHoldings, eventHref, linkedEventMarket, orderedPriceLadderMarkets, resolveEvent, resolveEventPrediction, sampleOrderBook } from '../src/components/events/eventModel'
 
 describe('event detail data isolation', () => {
   test('resolves match and market links without falling back for unknown events', async () => {
@@ -40,6 +40,15 @@ describe('event detail data isolation', () => {
       ['question-1', 'GENESIS-01', .7], ['question-2', 'GENESIS-02', .3],
     ])
     expect(linked.map((market) => market.id)).toEqual(['question-1', 'question-2'])
+  })
+
+  test('agent accuracy bands read from the lowest band to the exact 100% answer', async () => {
+    const base = (await createSolzDataSource().load()).markets[0]!
+    const labels = ['100% · 14 of 14', 'Under 50% · 0–6 of 14', '80–99% · 12–13 of 14', '50–79% · 7–11 of 14']
+    const bands = labels.map((label, index) => ({ ...base, id: `band-${index}`,
+      presentation: { kind: 'linked' as const, eventTitle: 'Agent: test', answer: { label }, outcomes: [{ id: 0 as const, label: 'Yes' }, { id: 1 as const, label: 'No' }] } }))
+    expect(orderedPriceLadderMarkets(bands).map((market) => market.presentation?.answer?.label))
+      .toEqual(['Under 50% · 0–6 of 14', '50–79% · 7–11 of 14', '80–99% · 12–13 of 14', '100% · 14 of 14'])
   })
 
   test('a nested answer trades No on the authoritative market and isolates its holdings', async () => {

@@ -48,6 +48,25 @@ export function eventMarketVolume(market: ArenaMarket) {
   catch { return market.volume.COOLA }
 }
 
+/** Catalogue identity order is arbitrary; price and agent accuracy bands
+ *  read in numeric order, with the exact 100% answer last. */
+export function orderedPriceLadderMarkets(markets: readonly ArenaMarket[]): ArenaMarket[] {
+  const value = (market: ArenaMarket) => {
+    if (market.presentation?.kind !== 'linked') return null
+    const label = market.presentation.answer?.label ?? ''
+    if (/^\$\d[\d,]*(?:\.\d{2})?$/.test(label)) return { kind: 'price', number: Number(label.slice(1).replaceAll(',', '')) }
+    const band = /· (\d+)(?:–\d+)? of \d+$/.exec(label)
+    if (band) return { kind: 'count', number: Number(band[1]) }
+    // Published before the accuracy bands: one row per count.
+    if (/^\d+(?:–\d+)? correct$/.test(label)) return { kind: 'count', number: Number.parseInt(label, 10) }
+    if (/^All \d+ correct$/.test(label)) return { kind: 'count', number: Number.parseInt(label.slice(4), 10) }
+    return null
+  }
+  const values = markets.map(value)
+  if (markets.length < 2 || values.some(item => item === null || item.kind !== values[0]?.kind)) return [...markets]
+  return [...markets].sort((a, b) => value(a)!.number - value(b)!.number)
+}
+
 /** One chart series per linked answer while every answer keeps its own binary
  *  market, order book and position identity. */
 export function linkedEventMarket(markets: readonly ArenaMarket[]): ArenaMarket | undefined {

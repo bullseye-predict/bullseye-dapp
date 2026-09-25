@@ -15,6 +15,25 @@ import {
 } from "../src/components/home/OpenDreamDexMarket";
 
 describe("highlight livestream navigation", () => {
+  test("configured YouTube livestream overrides the match stream, with an empty-config fallback", async () => {
+    const source = createSolzDataSource();
+    const snapshot = await source.load();
+    const match = { ...snapshot.matches.find(item => item.id === snapshot.highlightMatchId)!, streamUrl: "https://stream.example/match.m3u8" };
+    const markets = snapshot.markets.filter(item => item.matchId === match.id);
+    const market = markets[0];
+    const render = (livestreamUrl: string) => renderToStaticMarkup(
+      <MatchViewer match={match} market={market} markets={markets} snapshot={snapshot}
+        source={source} view="live" onView={() => {}} outcome={market.outcomes[0]}
+        onSelect={() => {}} liveHref="/live" onChat={() => {}} onPrompt={() => {}}
+        livestreamUrl={livestreamUrl} />,
+    );
+    const youtube = render("https://www.youtube.com/watch?v=P789IWNRQso");
+    expect(youtube).toContain("https://www.youtube-nocookie.com/embed/P789IWNRQso?autoplay=1&amp;mute=1&amp;playsinline=1&amp;rel=0");
+    expect(youtube).toContain('class="sh-broadcast-image sh-broadcast-youtube"');
+    expect(youtube).not.toContain("<video");
+    expect(render("")).toContain("<video");
+  });
+
   test("clamps fixed-duration elapsed time and supports open-ended modes", () => {
     expect(
       matchClock(

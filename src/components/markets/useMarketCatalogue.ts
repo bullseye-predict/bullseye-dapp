@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { predictionUrl } from '../../../packages/sdk/prediction-url'
 import { parseMarketList, type CatalogueItem } from './marketList'
 
@@ -100,7 +100,10 @@ export function useMarketCatalogue(
   status: 'eligible' | 'all' = 'eligible',
   pollMs = 30_000,
   depth: CatalogueDepth = 'head',
-): MarketCatalogueState {
+  kind: 'all' | 'general' = 'all',
+): MarketCatalogueState & { retry: () => void } {
+  const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => setAttempt(value => value + 1), [])
   const [state, setState] = useState<MarketCatalogueState>({
     items: [], nextCursor: null, asOf: Date.now(), loaded: false, available: true,
     status: 'unread', extending: false, complete: false,
@@ -111,11 +114,16 @@ export function useMarketCatalogue(
    *  History extend the directory instead of emptying it while the walk runs. */
   const published = useRef<CatalogueItem[]>([])
   published.current = state.items
+  const sourceKey = useRef(`${apiUrl}:${kind}`)
   useEffect(() => {
     if (!apiUrl) { setState(previous => ({ ...previous, loaded: true, available: false, status: 'read' })); return }
     const controller = new AbortController()
     let timer: number | undefined
-    const seed = published.current
+    const changedSource = sourceKey.current !== `${apiUrl}:${kind}`
+    sourceKey.current = `${apiUrl}:${kind}`
+    const seed = changedSource ? [] : published.current
+    if (changedSource) setState(previous => ({ ...previous, items: [], loaded: false, extending: false, complete: false, status: 'unread' }))
+    let failures = 0
     let items: CatalogueItem[] = []
     let indexes = new Map<string, number>()
     let complete = false
@@ -144,6 +152,7 @@ export function useMarketCatalogue(
         const url = predictionUrl('/market/list', apiUrl)
         url.searchParams.set('status', status)
         url.searchParams.set('limit', '100')
+        if (kind !== 'all') url.searchParams.set('kind', kind)
         if (cursor) url.searchParams.set('cursor', cursor)
         try {
           // Inside the 15s budget the Astro proxy allows upstream
@@ -187,6 +196,7 @@ export function useMarketCatalogue(
           if (!controller.signal.aborted) setState(previous => ({ ...previous, loaded: true, available: false, status: 'read' }))
           return
         }
+        failures = 0
         absorb(head.items)
         // The grid can paint from here. Everything below only widens what the
         // filters can reach; it must never hold up the first render.
@@ -211,6 +221,7 @@ export function useMarketCatalogue(
           publish(false, asOf, cursor)
         }
       } catch {
+        failures = Math.min(failures + 1, 4)
         // Keep the last verified catalogue through a transient outage; the next
         // poll replaces it. Availability is not revoked by a timeout, only by the
         // backend explicitly saying it has no such route. `status: 'failed'` is
@@ -219,11 +230,11 @@ export function useMarketCatalogue(
         // read that landed.
         if (!controller.signal.aborted) setState(previous => ({ ...previous, loaded: true, status: 'failed' }))
       } finally {
-        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), pollMs)
+        if (!controller.signal.aborted) timer = window.setTimeout(() => void load(), Math.min(300_000, pollMs * 2 ** failures))
       }
     }
     void load()
     return () => { controller.abort(); if (timer) window.clearTimeout(timer) }
-  }, [apiUrl, status, pollMs, depth])
-  return state
+  }, [apiUrl, status, pollMs, depth, kind, attempt])
+  return useMemo(() => ({ ...state, retry }), [state, retry])
 }

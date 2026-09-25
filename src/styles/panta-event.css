@@ -1,0 +1,29 @@
+/* /events-panta/<id>: a PANTA market shown inside ColaCat. Yes/No tiles keep
+   the trading colours (green Yes, red No); everything else stays neutral. */
+.pe-main { max-width: 920px; margin: 0 auto; padding: 28px 16px 64px; }
+.pe-page .ev-breadcrumb { display: flex; align-items: center; gap: 6px; color: #a6adba; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.pe-page .ev-breadcrumb a { color: #c9d0db; }
+.pe-title { margin: 12px 0 10px; font: 700 clamp(22px, 3.2vw, 32px)/1.2 var(--sh-heading); text-wrap: balance; }
+.pe-status { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 18px; color: #b9c1ce; font-size: 11px; }
+.pe-status span + span::before { content: '·'; margin-right: 16px; color: #5c636e; }
+.pe-prices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+.pe-prices > div { display: flex; justify-content: space-between; align-items: center; min-height: 56px; padding: 12px 16px; border: 1px solid #2d323a; background: #1b1e23; }
+.pe-prices > div span { font: 600 12px var(--sh-heading); }
+.pe-prices > div b { font: 700 20px var(--sh-heading); font-variant-numeric: tabular-nums; }
+.pe-prices .is-yes { border-color: #2f5b40; } .pe-prices .is-yes b { color: #99ddb0; }
+.pe-prices .is-no { border-color: #6a2f3a; } .pe-prices .is-no b { color: #ff8299; }
+.pe-prices p { grid-column: 1 / -1; margin: 0; color: #8d95a3; font-size: 10px; }
+.pe-section { padding-top: 24px; }
+.pe-muted { margin: 10px 0 0; color: #9aa3b2; font-size: 11px; line-height: 1.7; }
+.pe-rules { margin: 0; color: #c9d0db; font-size: 12px; line-height: 1.8; white-space: pre-line; }
+.pe-notice { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #4a515c; color: #d6dce6; font-size: 11px; }
+.pe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 28px; }
+.pe-credit { display: inline-flex; align-items: center; gap: 4px; margin-top: 18px; color: #9aa3b2; font-size: 11px; }
+.pe-actions .pe-credit { margin-top: 0; }
+.pe-group { display: grid; gap: 6px; margin: 18px 0 0; padding: 0; list-style: none; }
+.pe-group a { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 14px; min-height: 48px; padding: 8px 14px; border: 1px solid #2d323a; background: #1b1e23; color: var(--sh-text); font-size: 12px; }
+.pe-group a:hover { background: #22262c; }
+.pe-group b.is-yes { color: #99ddb0; font-variant-numeric: tabular-nums; }
+.pe-group small { color: #8d95a3; font-size: 9px; }
+.pe-skeleton { display: grid; gap: 12px; }
+@media (max-width: 760px) { .pe-group a { grid-template-columns: 1fr auto; } .pe-group small { display: none; } }

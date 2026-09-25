@@ -36,6 +36,7 @@ test('the generated route tree contains every Astro page migrated to TanStack', 
     '/', '/demo', '/live', '/watch', '/markets', '/profile', '/agent-arena', '/catwalk', '/miaw-prix',
     '/colacat', '/bet-or-market', '/events/$id', '/events/$id/$predictionId', '/events-2/$id',
     '/events-2/$id/$predictionId', '/events-3/$id', '/events-3/$id/$predictionId', '/$chain/$network/$address',
+    '/events-panta/$id',
   ]) expect(routeTree).toContain(`'${route}'`)
 })
 

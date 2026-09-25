@@ -1,6 +1,8 @@
 .cc-site-footer { display: flex; align-items: center; gap: 28px; padding: 26px max(var(--site-gutter, 32px), calc((100% - var(--site-content-width, 1600px)) / 2)); background: #0a0b0e; border-top: 1px solid var(--sh-line, #36383f); }
 .cc-site-footer-logo { display: block; flex: 0 0 auto; width: 118px; }
 .cc-site-footer-logo img { display: block; width: 100%; height: auto; }
+.cc-site-footer-logo--bullseye { display: flex; align-items: center; gap: 8px; width: auto; color: #eeeef0; font: 800 12px/1 var(--sh-heading, 'Archivo', sans-serif); font-stretch: 110%; letter-spacing: .14em; }
+.cc-site-footer-logo--bullseye img { width: 35px; height: 28px; }
 .cc-site-footer > span { font: 600 8px/1.3 var(--sh-mono, monospace); letter-spacing: .06em; color: #a1a5b2; white-space: nowrap; }
 .cc-site-footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 16px 22px; margin-left: auto; }
 .cc-site-footer nav a { display: inline-flex; align-items: center; gap: 5px; color: #d0d2da; font-size: 9px; text-decoration: none; text-transform: uppercase; }

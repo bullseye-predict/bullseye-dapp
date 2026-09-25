@@ -621,3 +621,14 @@ test('an unplanned transaction is placed by what ran, not by its step name', () 
   // place in a run it took no part in.
   expect(rows[3]!.status).toBe('skipped')
 })
+
+test('opening a fresh question and both books costs the rent the chain charges: 0.0269 SOL', () => {
+  const plan = planTradeSteps(facts({ books: [false, false], questionExists: false, accounts: fresh }))
+  const opening = plan.steps.filter(step => step.id === 'open-question' || step.id.startsWith('open-book'))
+  expect(opening).toHaveLength(3)
+  const paid = opening.reduce((sum, step) => sum + step.costs.reduce((total, cost) => total + (cost.asset === 'SOL' ? cost.amount : 0n), 0n), 0n)
+  // Market 263 + escrow 165; per book: binding 204, mint 82, the book's 256
+  // bytes plus the 80-byte free block Manifest's CreateMarket adds, and two
+  // 165-byte vaults. Measured against the pinned upstream source.
+  expect(paid - 3n * SIGNATURE_LAMPORTS).toBe(26_921_280n)
+})

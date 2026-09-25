@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { brand } from '../components/solz/brand'
 
 type Props = {
   title: string
@@ -14,7 +15,7 @@ const setMeta = (selector: string, value: string) => {
 export function RouteMeta({ title, description, children }: Props) {
   useEffect(() => {
     const canonical = new URL(window.location.pathname, window.location.origin).toString()
-    const image = new URL('/og.png', window.location.origin).toString()
+    const image = new URL(brand.ogImage, window.location.origin).toString()
     document.title = title
     setMeta('meta[name="description"]', description)
     setMeta('meta[property="og:title"]', title)

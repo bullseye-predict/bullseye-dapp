@@ -225,11 +225,20 @@
 .mk-ffa-row b { font: 600 11px var(--sh-mono); }
 
 /* No teams at all: a standalone question trades as a plain YES/NO pair. */
-.mk-binary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mk-binary-side { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 8px; border: 1px solid var(--sh-line); font-size: 10px; letter-spacing: .07em; }
-.mk-binary-side b { font: 600 13px var(--sh-heading); }
-.mk-binary-side.is-yes { border-color: #2f5d1f; background: #1a2413; color: #b6f36a; }
-.mk-binary-side.is-no { border-color: #6d2233; background: #261319; color: #ff8fae; }
+/* A standalone question reuses the head-to-head button. Yes and No are
+   contracts, so the fill is the brand lime and pink, never an identity hue. */
+.mk-question { display: grid; gap: 10px; }
+.mk-question.has-identity { grid-template-columns: minmax(0, 1fr) 126px; align-items: center; column-gap: 14px; }
+.mk-question-identity { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; column-gap: 11px; min-width: 0; font-size: 14px; }
+.mk-question-identity .sh-team-mark { width: 58px; height: 62px; }
+.mk-question-identity > div { display: grid; gap: 6px; min-width: 0; }
+.mk-question-identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-question-agent { display: flex; align-items: center; gap: 6px; font: 11px var(--sh-mono); opacity: .8; }
+.mk-question-agent img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; }
+.mk-question-picks { display: grid; gap: 10px; }
+.mk-question:not(.has-identity) .mk-question-picks { grid-template-columns: 1fr 1fr; }
+.mk-question-picks .mk-versus-button.is-yes { --mk-identity: var(--sh-lime); --mk-ink: #111215; }
+.mk-question-picks .mk-versus-button.is-no { --mk-identity: var(--sh-pink); --mk-ink: #111215; }
 .mk-card--question .mk-card-title { -webkit-line-clamp: 3; font-size: 15px; }
 .mk-empty, .mk-state { display: grid; gap: 12px; place-items: start; padding: 22px 14px; border-bottom: 1px solid var(--sh-line); color: var(--sh-muted); }
 .mk-state { min-height: 150px; align-content: center; border: 1px solid var(--sh-line); }

@@ -1,27 +1,47 @@
 /* The directory uses one compact stage at every width, so filters never
    reserve empty sections for statuses with no published markets. */
 .mk-app .mk-main { padding-top: 28px; }
-.mk-app .mk-heading { max-width: none; display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 18px; }
-.mk-app .mk-heading > div { max-width: 680px; }
-.mk-app .mk-heading > div > span { color: var(--sh-lime); font: 700 10px var(--sh-mono); letter-spacing: .12em; }
+/* ONE BAND. The title and the live count on the left; status, search, type
+   and sort on the right, as two aligned lines ending on the band's baseline.
+   A rule under the band separates the controls from the grid they drive. */
+.mk-app .mk-heading { max-width: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--sh-line); }
+.mk-app .mk-heading-copy { min-width: 0; max-width: 560px; }
+.mk-app .mk-heading-copy > span { color: var(--sh-lime); font: 700 10px var(--sh-mono); letter-spacing: .12em; }
 .mk-app .mk-heading h1 { margin: 7px 0 8px; }
-.mk-app .mk-heading p { max-width: 620px; margin: 0; color: var(--sh-muted); font-size: 13px; line-height: 1.55; }
-.mk-search { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: var(--radius-panel); color: var(--sh-muted); }
-.mk-search input { width: 220px; min-width: 0; border: 0; background: transparent; color: var(--sh-text); font: 14px var(--sh-heading); outline: none; }
+.mk-app .mk-heading p { max-width: 560px; margin: 0; color: var(--sh-muted); font-size: 13px; line-height: 1.55; }
+.mk-app .mk-heading .mk-results-meta { margin-top: 14px; }
+.mk-heading-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 0; }
+/* Status is a segmented control: one outlined track, the chosen segment lit. */
+.mk-segments { display: inline-flex; gap: 2px; max-width: 100%; overflow-x: auto; padding: 3px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); background: var(--sh-panel-2); scrollbar-width: none; }
+.mk-segments button { min-height: 32px; padding: 0 14px; border: 0; border-radius: calc(var(--radius-control) - 2px); background: transparent; color: var(--sh-muted); font: 600 12px var(--sh-heading); white-space: nowrap; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; }
+.mk-segments button:hover { color: var(--sh-text); }
+.mk-segments button[aria-pressed='true'] { background: var(--sh-lime); color: #152000; }
+.mk-segments button:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
+/* A labelled select: the label rides inside the control as a quiet prefix. */
+.mk-select { position: relative; display: flex; align-items: center; min-height: 40px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); background: var(--sh-panel-2); }
+.mk-select > span { padding-left: 12px; color: var(--sh-dim); font: 700 9px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; pointer-events: none; }
+.mk-select select { min-height: 38px; min-width: 0; max-width: 200px; border: 0; padding: 0 30px 0 8px; background: transparent; color: var(--sh-text); font: 600 12px var(--sh-heading); cursor: pointer; }
+.mk-select select option { background: var(--sh-panel-2); }
+.mk-select:focus-within { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
+.mk-select select:focus { outline: none; }
+.mk-pending--count { display: block; width: 140px; height: 12px; }
+.mk-search { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); background: var(--sh-panel-2); color: var(--sh-muted); }
+.mk-search input { width: 200px; min-width: 0; border: 0; background: transparent; color: var(--sh-text); font: 13px var(--sh-heading); outline: none; }
 .mk-search:focus-within { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
 .mk-search input::placeholder { color: var(--sh-dim); }
-.mk-directory-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-block: 1px solid var(--sh-line); padding: 10px 0; }
+.mk-directory-tools { display: flex; align-items: center; gap: 8px; }
 .mk-filters { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
-.mk-filters button { min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius-panel); background: transparent; color: var(--sh-muted); font: 500 14px var(--sh-heading); cursor: pointer; }
+.mk-filters button { min-height: 40px; padding: 0 16px; border: 0; border-radius: var(--radius-panel); background: transparent; color: var(--sh-muted); font: 500 14px var(--sh-heading); cursor: pointer; }
 .mk-filters button:hover { background: var(--sh-card-hover); color: var(--sh-text); }
 .mk-filters button[aria-pressed='true'] { background: color-mix(in srgb, var(--sh-lime) 13%, transparent); color: var(--sh-lime); }
 .mk-filters button:focus-visible, .mk-app .mk-card:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-type-filter { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--sh-dim); font: 700 10px var(--sh-mono); letter-spacing: .1em; text-transform: uppercase; }
-.mk-type-filter select { min-height: 42px; max-width: 250px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); padding: 0 36px 0 12px; background: var(--sh-panel-2); color: var(--sh-text); font: 600 12px var(--sh-heading); }
-.mk-type-filter select:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
-.mk-filter-note { margin: 10px 0 0; color: var(--sh-dim); font: 11px/1.5 var(--sh-mono); }
-.mk-filter-note b { color: var(--sh-text); }
-.mk-results-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 54px; }
+/* The count and the Featured caveat share one line under the description. */
+.mk-results-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; min-width: 0; }
+.mk-filter-note { color: var(--sh-dim); font: 11px/1.5 var(--sh-mono); }
+.mk-filter-note button { padding: 0; border: 0; background: none; color: var(--sh-text); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.mk-filter-note button:hover { color: var(--sh-lime); }
+.mk-filter-note button:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 2px; }
+.mk-results-bar { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-bottom: 14px; }
 .mk-result-count { display: block; color: var(--sh-muted); font: 12px var(--sh-heading); }
 .mk-pagination { display: flex; align-items: center; gap: 8px; }
 .mk-pagination button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; border: 1px solid var(--sh-card-line); border-radius: var(--radius-control); padding: 0 11px; background: var(--sh-panel-2); color: var(--sh-muted); font: 600 11px var(--sh-heading); cursor: pointer; }
@@ -66,6 +86,9 @@
 /* Mixed toward white on the same grey axis, so it is the same family one step
    up rather than a second grey chosen by eye. */
 .mk-app .mk-card.is-general { --mk-plate: color-mix(in srgb, #fff 22%, var(--sh-gray)); --mk-band: var(--sh-gray-ink); --mk-band-ink: #f3f3f5; }
+/* An agent-performance question is a sub-question about one agent, not a match
+   or a general market, so its band takes the arena's sky accent to say so. */
+.mk-app .mk-card.is-agent { --mk-band: color-mix(in srgb, #65cfff 58%, var(--sh-gray)); --mk-band-ink: var(--sh-gray-ink); }
 .mk-app .mk-card:hover { border-color: var(--sh-gray-ink); background: color-mix(in srgb, var(--sh-gray-ink) 7%, var(--mk-plate)); }
 /* The lime focus ring is invisible on the plate; the entry panel already swaps
    it for the ink (home.css:213) and the cards follow. */
@@ -116,7 +139,6 @@
 .mk-app .mk-versus { gap: 8px; }
 .mk-app .mk-versus-side { flex: 1; min-height: 58px; border: 1px solid color-mix(in srgb, var(--mk-identity) 44%, var(--sh-line)); border-radius: var(--radius-control); padding: 8px; background: color-mix(in srgb, var(--mk-identity) 9%, transparent); }
 .mk-app .mk-versus-side:last-child { justify-content: flex-start; }
-.mk-app .mk-binary-side { border-radius: var(--radius-control); font-size: 12px; }
 /* The skeleton carries no category - nothing has loaded to say which it is - so
    it takes the game plate, the one the great majority of cards resolve to. It
    must be plated at all: --mk-plate is what paints the card, and a placeholder
@@ -132,16 +154,23 @@
 @keyframes mk-pending-sweep { to { background-position: 0 0; } }
 @media (max-width: 1180px) { .mk-app .mk-card { grid-column: span 6; } }
 @media (max-width: 760px) { .mk-app .mk-card { grid-column: span 12; } }
+@media (max-width: 1180px) {
+  .mk-app .mk-heading { flex-direction: column; align-items: stretch; gap: 18px; }
+  .mk-heading-controls { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .mk-heading-controls { flex-direction: column; align-items: stretch; }
+  .mk-segments { display: flex; }
+  .mk-segments button { flex: 1; }
+  .mk-directory-tools { flex-wrap: wrap; }
+  .mk-directory-tools > .mk-search { flex: 1 1 100%; }
+  .mk-directory-tools > .mk-select { flex: 1 1 0; min-width: 0; }
+  .mk-select select { flex: 1; max-width: none; width: 100%; }
+}
 @media (max-width: 600px) {
   .mk-app .mk-main { padding-top: 18px; }
-  .mk-app .mk-heading { flex-wrap: wrap; gap: 12px; }
-  .mk-search { flex: 1; min-width: 170px; }
   .mk-search input { width: 100%; }
-  .mk-directory-controls { align-items: stretch; flex-direction: column; }
-  .mk-type-filter { justify-content: space-between; }
-  .mk-type-filter select { flex: 1; max-width: none; }
   .mk-filters button { padding-inline: 14px; }
-  .mk-results-bar { align-items: flex-start; flex-direction: column; padding-block: 10px; }
   .mk-results-bar .mk-pagination { width: 100%; justify-content: space-between; }
   .mk-pagination span { text-align: center; }
 }
@@ -149,3 +178,12 @@
   .mk-app .mk-card, .mk-app .mk-split i, .mk-app .mk-ffa-bar i { transition: none; }
   .mk-pending { animation: none; }
 }
+
+/* The proposal and PANTA create pages: a back link, then the form on one
+   readable column rather than stretched across the catalogue's width. */
+.mk-form-page { max-width: 920px; }
+.mk-back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; color: var(--sh-muted); font: 600 12px var(--sh-heading); text-decoration: none; }
+.mk-back-link:hover { color: var(--sh-text); }
+.mk-back-link:focus-visible { outline: 2px solid var(--sh-lime); outline-offset: 3px; }
+
+.mk-card-parent { display: inline-block; margin: 12px 18px 0; color: var(--sh-lime); font: 600 12px/1.3 var(--font-mono, monospace); text-decoration: underline; text-underline-offset: 3px; }

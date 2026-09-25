@@ -124,6 +124,7 @@ body { margin: 0; }
 .sh-broadcast-image { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center 60%; display: block; }
 .sh-broadcast video { z-index: 2; }
 .sh-broadcast-frame { border: 0; background: #11161f; z-index: 1; }
+.sh-broadcast-youtube { border: 0; background: #11161f; z-index: 2; }
 .sh-broadcast-context { position: absolute; z-index: 6; top: 48px; left: 18px; display: grid; grid-template-columns: auto auto; align-items: center; gap: 3px 10px; padding: 9px 11px; background: rgb(7 11 19 / 82%); font-family: var(--sh-mono); line-height: 1.1; white-space: nowrap; }
 .sh-broadcast-context > span { grid-row: 1 / span 2; color: #c7ff00; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
 .sh-broadcast-context strong { color: #edf2fa; font-size: 16px; font-weight: 700; }

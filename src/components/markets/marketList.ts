@@ -29,6 +29,11 @@ export type CatalogueItem = {
   tradeLocksAt: string
   outcomes: { id: string; label: string }[]
   presentation?: Presentation
+  /** A general question's topic, such as `stocks`. */
+  category?: string
+  /** How the catalogue says the question settled. `winner` is the answer that
+   *  was paid, present only once resolved. */
+  resolution?: { status: 'pending' | 'resolved' | 'void'; winner?: 'YES' | 'NO' }
 }
 
 const ID = /^0x[0-9a-f]{64}$/i
@@ -49,6 +54,11 @@ function catalogueItem(row: unknown): CatalogueItem | null {
   const startsAt = typeof item.startsAt === 'string' && Number.isFinite(Date.parse(item.startsAt)) ? item.startsAt : undefined
   const presentation = parsePresentation(item.presentation)
   const matchNumber = Number(item.matchNumber)
+  const category = typeof item.category === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(item.category) ? item.category : undefined
+  const settled = item.resolution && typeof item.resolution === 'object' ? item.resolution as { status?: unknown; winner?: unknown } : null
+  const resolution: CatalogueItem['resolution'] = settled && (settled.status === 'pending' || settled.status === 'resolved' || settled.status === 'void')
+    ? { status: settled.status, ...(settled.status === 'resolved' && (settled.winner === 'YES' || settled.winner === 'NO') ? { winner: settled.winner } : {}) }
+    : undefined
   return {
     kind: item.kind, eventId: item.eventId, matchId: String(item.matchId).toLowerCase(), questionId: String(item.questionId).toLowerCase(),
     status: item.status as CatalogueItem['status'], title: item.title, ...(startsAt ? { startsAt } : {}),
@@ -57,6 +67,7 @@ function catalogueItem(row: unknown): CatalogueItem | null {
     ...(typeof item.gameMode === 'string' && item.gameMode ? { gameMode: item.gameMode } : {}),
     ...(typeof item.teamFormat === 'string' && item.teamFormat ? { teamFormat: item.teamFormat } : {}),
     tradeLocksAt: item.tradeLocksAt, outcomes: [outcomes[0]!, outcomes[1]!], ...(presentation ? { presentation } : {}),
+    ...(category ? { category } : {}), ...(resolution ? { resolution } : {}),
   }
 }
 

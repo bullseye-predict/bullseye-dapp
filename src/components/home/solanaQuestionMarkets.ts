@@ -351,7 +351,14 @@ export function useReservedSolanaQuestions(apiUrl: string, venue?: PublicPredict
   const [loaded, setLoaded] = useState(false)
   useEffect(() => {
     let active = true
-    void onchainFallbackQuestions(fallbackMatches).then(value => { if (active) setFallbackQuestions(value) }).catch(() => { if (active) setFallbackQuestions([]) })
+    // Keep the current array when both are empty. A caller that passes a new
+    // `[]` on each render (`snapshot?.matches ?? []` while the arena feed is
+    // down) otherwise gets a new state object on each pass, which re-renders,
+    // which re-runs this effect: a microtask loop that froze the home page.
+    const settle = (value: ReservedSolanaQuestion[]) => {
+      if (active) setFallbackQuestions(current => (value.length || current.length ? value : current))
+    }
+    void onchainFallbackQuestions(fallbackMatches).then(settle).catch(() => settle([]))
     return () => { active = false }
   }, [fallbackMatches])
   useEffect(() => {

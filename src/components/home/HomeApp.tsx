@@ -107,7 +107,7 @@ function Home({
   const { snapshot, referenceSnapshot, error, predictionFeed, predictionFeedSettled, arenaSchedule, retry } =
     useHomeData(source, apiUrl);
   const solanaVenue = useSolanaVenue(apiUrl, marketSources.includes("SOLANA"));
-  const reservedQuestions = useReservedSolanaQuestions(apiUrl, solanaVenue, true, snapshot?.matches ?? []);
+  const reservedQuestions = useReservedSolanaQuestions(apiUrl, solanaVenue, true, snapshot?.matches);
   const reservedSolana = reservedQuestions.questions;
   // THE HIGHLIGHT IS THE MIAW PRIX PROGRAMME. Agent Colosseum runs the coin
   // fixtures this page is about: two coins per match, one of them wins, and the
@@ -560,6 +560,7 @@ function Home({
       onArena={() => setView("live")}
       skipTo="#highlight"
       skipLabel="Skip to the arena"
+      backToTopHref="#highlight"
     >
         <NextMatches
           snapshot={snapshot}

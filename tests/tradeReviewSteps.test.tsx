@@ -99,7 +99,9 @@ describe('trade review dialog', () => {
     const markup = render({}, { books: [false, false], questionExists: false, accounts: { ...accounts, vault: false, position: false, walletQuote: false, walletClaims: false, venueQuote: false } })
     expect(markup).toContain('You are opening this market')
     expect(markup).toContain('5 transactions')
-    expect(markup).toContain('≈0.0386 SOL')
+    // 0.0386 undercounted: Manifest's CreateMarket adds an 80-byte free block
+    // to each new book, paid by the same signer (steps.ts SIZE.book).
+    expect(markup).toContain('≈0.0397 SOL')
     // No network named anywhere in the copy, so mainnet needs no rewrite.
     expect(markup).not.toContain('Devnet')
     expect(markup).not.toContain('test SOL')

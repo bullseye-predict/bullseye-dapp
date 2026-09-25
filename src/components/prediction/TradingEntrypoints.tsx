@@ -15,8 +15,14 @@ const loading = <AppShell className="solz-home cc-loading-shell" active="highlig
 // Buffer/process shim the other trading entrypoints load before their component.
 const Markets = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../markets/MarketsDirectoryApp')).MarketsDirectoryApp } })
 export function MarketsDirectoryApp(props: ComponentProps<typeof Markets>) { return <Suspense fallback={loading}><Markets {...props}/></Suspense> }
+// The proposal and PANTA create pages sign with the wallet but read no venue.
+const MarketForm = lazy(async () => ({ default: (await import('../markets/MarketFormPage')).MarketFormPage }))
+export function MarketFormPage(props: ComponentProps<typeof MarketForm>) { return <Suspense fallback={loading}><MarketForm {...props}/></Suspense> }
 const Portfolio = lazy(async () => { await import('../../../packages/adapters/solana/manifest/runtime'); return { default: (await import('../portfolio/PortfolioApp')).PortfolioApp } })
 export function PortfolioApp(props: ComponentProps<typeof Portfolio>) { return <Suspense fallback={loading}><Portfolio {...props}/></Suspense> }
 export function HomeApp(props: ComponentProps<typeof Home>) { return <Suspense fallback={loading}><Home {...props}/></Suspense> }
 export function EventApp(props: ComponentProps<typeof Event>) { return <Suspense fallback={<EventBootSkeleton/>}><Event {...props}/></Suspense> }
 export function PredictionApp(props: ComponentProps<typeof Prediction>) { return <Suspense fallback={loading}><Prediction {...props}/></Suspense> }
+// A PANTA page trades nothing on our venue, so it needs no Manifest runtime.
+const PantaEvent = lazy(async () => ({ default: (await import('../panta/PantaEventApp')).PantaEventApp }))
+export function PantaEventApp(props: ComponentProps<typeof PantaEvent>) { return <Suspense fallback={<EventBootSkeleton/>}><PantaEvent {...props}/></Suspense> }

@@ -389,6 +389,8 @@ export function TradeTicket({
   // A head-to-head side is coloured from its crest, which is read asynchronously.
   useLogoPalette();
   const linkedAnswer = market.presentation?.kind === "linked" ? market.presentation.answer : undefined;
+  const prestocksLogo = market.presentation?.imageUrl && /^https:\/\/www\.prestocks\.com\/logos\//i.test(market.presentation.imageUrl)
+    ? market.presentation.imageUrl : undefined;
   const outcomeTeam = match?.teams.find((team) => team.teamId === (linkedAnswer?.teamId ?? outcome.teamId));
   // The header names the ANSWER, so it takes the answer's identity. The Yes/No
   // contract underneath has no colour of its own — reading it gave every answer
@@ -1184,11 +1186,13 @@ export function TradeTicket({
           </strong>
         </p>
       )}
-      {market.presentation?.imageUrl && (
+      {market.presentation?.imageUrl && !prestocksLogo && (
         <img className="ch-trade-question-image" src={market.presentation.imageUrl} alt="" />
       )}
       <div className="ch-trade-title">
-        {linkedAnswer?.imageUrl ? (
+        {prestocksLogo ? (
+          <img className="ch-trade-stock-logo" src={prestocksLogo} alt="" />
+        ) : linkedAnswer?.imageUrl ? (
           <img className="ch-trade-answer-image" src={linkedAnswer.imageUrl} alt="" />
         ) : linkedAnswer?.participantId ? (
           <AgentPortrait number={Number(linkedAnswer.participantId.split("-")[1])} />

@@ -3,7 +3,7 @@ import BN from 'bn.js'
 import { FillLog, genAccDiscriminator } from '@bonasa-tech/manifest-sdk'
 import { PublicKey, Transaction, TransactionInstruction, type VersionedTransactionResponse } from '@solana/web3.js'
 import { decodePortfolioEvents } from './portfolioEvents'
-import type { ManifestBinding } from './wire'
+import { manifestAgentTraderAddress, type ManifestBinding } from './wire'
 const key=(n:number)=>new PublicKey(new Uint8Array(32).fill(n))
 const owner=key(1),other=key(2),program=key(3),manifest=key(4)
 const b:ManifestBinding={question:key(5),venue:key(6),mint:key(7),collateral:key(8),recipient:key(9),program:manifest,outcome:0,bps:30}
@@ -22,6 +22,11 @@ test('portfolio decoder keeps maker and taker executions and exact shares',()=>{
  expect(taker.find(e=>e.kind==='BUY')).toMatchObject({shares:'10000000',collateral:'5000000',price:'500000',fee:'0',transactionIndex:2})
  const maker=decodePortfolioEvents(receipt(logs(fill(owner,other))),owner.toBase58(),program.toBase58(),manifest.toBase58(),[b],2)
  expect(maker.some(e=>e.kind==='SELL')).toBe(true)
+})
+test('delegated trader PDA fills accrue to the owning wallet portfolio',()=>{
+ const delegated=manifestAgentTraderAddress(program,owner)
+ const rows=decodePortfolioEvents(receipt(logs(fill(other,delegated))),owner.toBase58(),program.toBase58(),manifest.toBase58(),[b],0)
+ expect(rows.find(e=>e.kind==='BUY')).toMatchObject({owner:owner.toBase58(),shares:'10000000',collateral:'5000000'})
 })
 test('a multi-book receipt is decoded fully with unique identities',()=>{
  const second={...b,outcome:1 as const,venue:key(11),mint:key(12)}

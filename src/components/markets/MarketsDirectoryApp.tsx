@@ -1,6 +1,8 @@
 import '../../styles/home.css'
 import '../../styles/home-markets.css'
 import '../../styles/markets-directory.css'
+import '../../styles/general-questions.css'
+import { PantaMarkets, PantaTrackedList } from './PantaMarkets'
 import { ArrowLeft, ArrowRight, ArrowUpRight, Eye, Users, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { AgentPortrait, StatusDot, TeamMark, compact } from '../home/HomePrimitives'
@@ -9,6 +11,7 @@ import { linkedAnswerLabel, linkedQuestionTitle, questionEvents, reservedSolanaV
 import { useSolanaMarketPrices } from '../home/useSolanaMarketPrices'
 import { useSolanaVenue } from '../home/useSolanaVenue'
 import { AppShell } from '../solz/AppShell'
+import { brand, brands, showsSection } from '../solz/brand'
 import { createSolzDataSource } from '../solz/solzDataSource'
 import type { ArenaMarket, SolzMatch, SolzSnapshot } from '../solz/model'
 import { eventMarketVolume } from '../events/eventModel'
@@ -34,10 +37,13 @@ export type DirectoryRow = {
   kind?: 'match' | 'general'
   opened?: boolean
   eventType?: CatalogueItem['eventType']
+  agentPerformance?: boolean
   matchNumber?: number
   hasHumans?: boolean
   gameMode?: string
   teamFormat?: string
+  /** A general question's topic from the catalogue, such as `stocks`. */
+  category?: string
 }
 
 // All/Live/Upcoming/Settled are statuses; General is a kind (MARKET_LIST_API.md:38
@@ -55,10 +61,12 @@ function scheduleLabel(match: SolzMatch, now: number) {
   return eventTimingLabel(match, now)
 }
 
-const eventTypeLabel = (row: DirectoryRow) => row.hasHumans ? 'HUMAN MATCH' : row.eventType === 'genesis-ffa'
+const eventTypeLabel = (row: DirectoryRow) => row.agentPerformance ? 'AGENT PERFORMANCE · OUR ORACLE'
+  : row.category === 'stocks' ? 'PRESTOCKS · OUR VENUE'
+  : row.hasHumans ? 'HUMAN MATCH' : row.eventType === 'genesis-ffa'
   ? 'GENESIS AGENT FFA'
   : row.eventType === 'miaw-prix' ? 'MIAW PRIX · COLOSSEUM'
-    : row.eventType === 'general' ? 'GENERAL MARKET' : 'RANKED / STAKE MATCH'
+    : row.eventType === 'general' ? (row.category === 'stocks' ? 'STOCKS · PRESTOCKS' : 'GENERAL MARKET') : 'RANKED / STAKE MATCH'
 
 /** General is a market taxonomy, not a game mode. A two-sided general question
  * may be a future human match, but it must never be marketed as a token duel
@@ -107,6 +115,25 @@ const phaseRank = (row: DirectoryRow) => {
   return 6
 }
 
+const rowVolume = (row: DirectoryRow) => row.markets?.reduce((sum, market) => sum + eventMarketVolume(market), 0) ?? (row.market ? eventMarketVolume(row.market) : row.match.volume.COOLA)
+const isOpen = (row: DirectoryRow) => row.match.phase !== 'settled'
+
+export const sorts = [['recommended', 'Recommended'], ['ending', 'Ending soon'], ['newest', 'Newest'], ['volume', 'Highest volume']] as const
+export type MarketSort = typeof sorts[number][0]
+
+/** Recommended is the curated order below. The others are plain orderings, and
+ *  every one of them keeps settled markets behind open ones. */
+export function sortRows(rows: readonly DirectoryRow[], sort: MarketSort) {
+  if (sort === 'recommended') return sortMarketRows(rows)
+  return [...rows].sort((a, b) => {
+    const open = Number(isOpen(b)) - Number(isOpen(a))
+    if (open) return open
+    if (sort === 'volume') return rowVolume(b) - rowVolume(a)
+    if (sort === 'newest') return b.match.startedAt - a.match.startedAt
+    return isOpen(a) ? a.match.endsAt - b.match.endsAt : b.match.endsAt - a.match.endsAt
+  })
+}
+
 export function sortMarketRows(rows: readonly DirectoryRow[]) {
   return [...rows].sort((a, b) => {
     const phase = phaseRank(a) - phaseRank(b)
@@ -144,7 +171,7 @@ function teamOdds(match: SolzMatch, market: ArenaMarket | undefined) {
  *  sits under it, so scanning the grid reads the markets and not the chrome. */
 function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: number; kind: string; children: ReactNode }) {
   const { match } = row
-  const marketVolume = row.markets?.reduce((sum, market) => sum + eventMarketVolume(market), 0) ?? (row.market ? eventMarketVolume(row.market) : match.volume.COOLA)
+  const marketVolume = rowVolume(row)
   const timing = scheduleLabel(match, now)
   const terminal = timing === 'CANCELLED' || timing.startsWith('SETTLED') || timing.startsWith('FINISHED')
   const detail = row.opened === undefined ? row.detail ?? matchDetail(match)
@@ -156,7 +183,7 @@ function CardFrame({ row, now, kind, children }: { row: DirectoryRow; now: numbe
   // event type rather than off whether a programme badge happens to be printed.
   // A Genesis FFA round is a game and carries no badge; tying the two together
   // dropped it onto the general-market grey for want of a label it never has.
-  const category = (row.eventType ?? row.kind) === 'general' ? 'is-general' : 'is-game'
+  const category = `${(row.eventType ?? row.kind) === 'general' ? 'is-general' : 'is-game'}${row.agentPerformance ? ' is-agent' : ''}`
   return <article className={`mk-card mk-card--${kind} ${category}${match.phase === 'live' ? ' is-live' : terminal ? ' is-past' : ''}`}>
     <div className="mk-card-kicker">
       <span>{eventTypeLabel(row)}</span>
@@ -216,7 +243,9 @@ function VersusCard({ row, now }: { row: DirectoryRow; now: number }) {
  *  field with no head-to-head to split. */
 function RankedCard({ row, now, kind, rows, note }: { row: DirectoryRow; now: number; kind: string; rows: { key: string; label: string; color?: string; imageUrl?: string; participantId?: string; probability: number; indicative?: boolean }[]; note: string }) {
   const ranked = [...rows].sort((a, b) => Number(a.indicative) - Number(b.indicative) || b.probability - a.probability)
-  const shown = ranked.slice(0, 4)
+  const shown = kind === 'linked' && row.agentPerformance && ranked.length > 4
+    ? [ranked[0]!, ranked[Math.floor((ranked.length - 1) / 3)]!, ranked[Math.floor(2 * (ranked.length - 1) / 3)]!, ranked.at(-1)!]
+    : ranked.slice(0, 4)
   return <CardFrame row={row} now={now} kind={kind}>
     {shown.length > 0 && <div className="mk-ffa">
       {shown.map((item) => <div className="mk-ffa-row" key={item.key}>
@@ -228,6 +257,7 @@ function RankedCard({ row, now, kind, rows, note }: { row: DirectoryRow; now: nu
         <b>{item.indicative ? '—' : percent(item.probability)}</b>
       </div>)}
     </div>}
+    {row.agentPerformance && <a className="mk-card-parent" href={`/events/${encodeURIComponent(row.match.id.replace(/-agent$/, ''))}`}>View main question ↗</a>}
     <div className="mk-card-note"><Users size={11}/>{note}{ranked.length > shown.length ? ` · ${ranked.length - shown.length} more` : ''}</div>
   </CardFrame>
 }
@@ -273,17 +303,61 @@ function LinkedQuestionsCard({ row, now }: { row: DirectoryRow; now: number }) {
       indicative: chance === undefined,
     }
   })
+  if (row.agentPerformance) rows.sort((a, b) =>
+    (a.label.startsWith('All ') ? Number.POSITIVE_INFINITY : Number.parseInt(a.label, 10))
+    - (b.label.startsWith('All ') ? Number.POSITIVE_INFINITY : Number.parseInt(b.label, 10)))
+  else if (rows.every(item => /^\$[\d,]+/.test(item.label))) rows.sort((a, b) =>
+    Number(a.label.replace(/[^\d.]/g, '')) - Number(b.label.replace(/[^\d.]/g, '')))
   return <RankedCard row={row} now={now} kind="linked" rows={rows} note={`${markets.length} linked questions`}/>
 }
 
-/** A standalone question has no teams at all: it trades as a plain YES/NO pair. */
+/** The two linked PreStock contracts still open as separate YES/NO books;
+ *  this directory card uses the established duel layout to compare them. */
+function LinkedDuelCard({ row, now }: { row: DirectoryRow; now: number }) {
+  const markets = row.markets ?? []
+  const chances = normalisedChances(markets.map(market => market.outcomes[0]))
+  return <CardFrame row={row} now={now} kind="versus"><div className="mk-versus">
+    {markets.map((market, index) => {
+      const symbol = market.presentation?.answer?.label ?? market.title
+      const logoUrl = market.presentation?.answer?.imageUrl
+      const quoted = market.outcomes[0]?.indicative === false && chances[index] !== undefined
+      const team = { teamId: market.id, symbol, name: symbol, logoUrl } as SolzMatch['teams'][number]
+      return <VersusPick key={market.id} team={team} probability={chances[index] ?? 0} indicative={!quoted}
+        href={`/events/${encodeURIComponent(row.match.id)}`}/>
+    })}
+  </div></CardFrame>
+}
+
+/** An agent forecast names itself `ColaCat agent: <SYMBOL> between ...`
+ *  (solz-prediction-backend/apps/stake-api/general-events.ts:313). Yes means the
+ *  agent is right, so the agent and its subject are the two sides of this card.
+ *  Any brand's name matches, so a renamed backend title still reads as a forecast. */
+const AGENT_FORECAST = new RegExp(`^(?:${Object.values(brands).map((item) => item.name).join('|')}) agent:\\s*(\\S+)`, 'i')
+
+/** A standalone question has no teams, but it is still one side against another:
+ *  Yes against No. It takes the head-to-head card's shape - identity on the left,
+ *  the same filled buttons on the right - and the buttons stay semantic, lime for
+ *  Yes and pink for No, because the outcomes are contracts and not teams. */
 function QuestionCard({ row, now }: { row: DirectoryRow; now: number }) {
   const outcomes = row.market?.outcomes ?? []
+  const presentation = row.market?.presentation
+  const forecast = AGENT_FORECAST.exec(presentation?.eventTitle ?? row.title ?? '')
+  const logoUrl = presentation?.imageUrl
+  const href = `/events/${encodeURIComponent(row.match.id)}`
   return <CardFrame row={row} now={now} kind="question">
-    <div className="mk-binary">
-      {outcomes.slice(0, 2).map((outcome, index) => <span className={`mk-binary-side ${index === 0 ? 'is-yes' : 'is-no'}`} key={outcome.id}>
-        {outcome.label}<b>{outcome.indicative ? '—' : percent(outcome.probability)}</b>
-      </span>)}
+    <div className={`mk-question${logoUrl || forecast ? ' has-identity' : ''}`}>
+      {(logoUrl || forecast) && <div className="mk-question-identity">
+        <TeamMark id={row.market?.id ?? row.match.id} logoUrl={logoUrl}/>
+        <div>
+          {forecast && <strong>{forecast[1]}</strong>}
+          {forecast && <span className="mk-question-agent"><img src={brand.badge} alt="" width={16} height={16}/>{brand.name} agent forecast</span>}
+        </div>
+      </div>}
+      <div className="mk-question-picks">
+        {outcomes.slice(0, 2).map((outcome, index) => <a className={`mk-versus-button ${index === 0 ? 'is-yes' : 'is-no'}`} key={outcome.id} href={href} aria-label={`Open ${outcome.label} market`}>
+          <span>{outcome.label}</span><b>{outcome.indicative ? '—' : percent(outcome.probability)}</b>
+        </a>)}
+      </div>
     </div>
   </CardFrame>
 }
@@ -295,7 +369,11 @@ export function MarketCard({ row, now }: { row: DirectoryRow; now: number }) {
   // A team-less question and a one-synthetic-side arena room are the same shape:
   // no opponent to split against, but a set of linked questions to rank.
   if (row.match.teams.length < 2) {
-    if ((row.markets?.length ?? 0) > 1) return <LinkedQuestionsCard row={row} now={now}/>
+    if ((row.markets?.length ?? 0) > 1) {
+      if (!row.agentPerformance && row.markets?.length === 2 && row.markets.every(market => market.presentation?.answer?.imageUrl))
+        return <LinkedDuelCard row={row} now={now}/>
+      return <LinkedQuestionsCard row={row} now={now}/>
+    }
     return row.match.teams.length ? <FreeForAllCard row={row} now={now}/> : <QuestionCard row={row} now={now}/>
   }
   if (row.match.teams.length === 2) return <VersusCard row={row} now={now}/>
@@ -316,21 +394,26 @@ export function needsInventory(filter: MarketFilter, eventType: EventTypeFilter,
   return filter === 'History' || filter === 'All' || eventType !== 'all' || search.trim().length > 0
 }
 
-export function MarketDirectory({ snapshot, questions, loaded = true, error, retry, onScope, extending = false }: {
+export function MarketDirectory({ snapshot, questions, loaded = true, error, retry, onScope, extending = false, apiUrl = '', initialGeneral = false }: {
   snapshot: SolzSnapshot | null
   questions: DirectoryRow[]
   loaded?: boolean
   error: string
   retry: () => void
-  /** Told when the selection needs more than the newest catalogue page, so the
-   *  owner can widen the read. Never called for the default view. */
-  onScope?: (depth: 'head' | 'inventory') => void
+  /** General questions use their own source-side scope; arena history may
+   * widen to the full inventory when a selection needs it. */
+  onScope?: (depth: 'head' | 'inventory', kind: 'all' | 'general') => void
+  apiUrl?: string
+  initialGeneral?: boolean
   /** The wider read is still running behind the rows already on screen. */
   extending?: boolean
 }) {
-  const [filter, setFilter] = useState<MarketFilter>('Featured')
-  const [eventType, setEventType] = useState<EventTypeFilter>('all')
+  const [filter, setFilter] = useState<MarketFilter>(initialGeneral ? 'All' : 'Featured')
+  const [eventType, setEventType] = useState<EventTypeFilter>(initialGeneral ? 'general' : 'all')
+  // Topics exist only among general questions; a match has none.
+  const [topic, setTopic] = useState<'all' | 'stocks'>('all')
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<MarketSort>('recommended')
   const [page, setPage] = useState(1)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -346,7 +429,7 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
       current.push(market)
       snapshotMarkets.set(market.matchId, current)
     }
-    return sortMarketRows(questions.map(row => {
+    return sortRows(questions.map(row => {
       const match = snapshotMatches.get(row.match.id)
       if (!match) return row
       const markets = snapshotMarkets.get(match.id) ?? row.markets ?? []
@@ -359,15 +442,15 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
             : filter === 'History' ? phase === 'settled'
               : phase === 'countdown' || phase === 'queued')
       const typeSelected = eventType === 'all' || row.eventType === eventType
-      return selected && typeSelected && `${row.title ?? ''} ${row.match.mode} ${eventTypeLabel(row)} ${row.match.teams.map(team => team.name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
-    }))
-  }, [snapshot, questions, filter, eventType, search])
-  useEffect(() => setPage(1), [filter, eventType, search])
-  // Widen the catalogue read as soon as the selection needs the tail, and never
-  // narrow it back: the rows are already held, and dropping them would make
-  // stepping back to Featured throw away a walk the reader just paid for.
+      const topicSelected = eventType !== 'general' || topic === 'all' || row.category === topic
+      return selected && typeSelected && topicSelected && `${row.title ?? ''} ${row.match.mode} ${eventTypeLabel(row)} ${row.match.teams.map(team => team.name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())
+    }), sort)
+  }, [snapshot, questions, filter, eventType, search, topic, sort])
+  useEffect(() => setPage(1), [filter, eventType, search, topic, sort])
+  // General questions must not trigger an unrelated walk through match history.
   useEffect(() => {
-    if (needsInventory(filter, eventType, search)) onScope?.('inventory')
+    if (eventType === 'general') onScope?.('head', 'general')
+    else onScope?.(needsInventory(filter, eventType, search) ? 'inventory' : 'head', 'all')
   }, [filter, eventType, search, onScope])
   const pageCount = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE))
   useEffect(() => setPage(current => Math.min(current, pageCount)), [pageCount])
@@ -375,6 +458,7 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
   const setStatusFilter = (value: MarketFilter) => { setFilter(value); setPage(1) }
   const setTypeFilter = (value: EventTypeFilter) => {
     setEventType(value)
+    if (value === 'general') setSearch('')
     if (value === 'genesis-ffa' && filter === 'Featured') setFilter('All')
     setPage(1)
   }
@@ -388,15 +472,33 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
     <button type="button" onClick={() => movePage(page + 1)} disabled={page === pageCount}>Next<ArrowRight size={16}/></button>
   </nav>
   return <AppShell className="solz-home mk-app" mainId="market-directory" mainClassName="mk-main" marketsHref="/markets" active="markets" skipTo="#market-directory" skipLabel="Skip to markets" backToTopHref="#market-directory">
-      <header className="mk-heading"><div><span>EVENT CATALOGUE</span><h1 className="sz-page-title">Prediction markets</h1><p>Live matches first. Every eligible match stays visible before opening, while live human matches take priority.</p></div><label className="mk-search"><Search size={18}/><input type="search" aria-label="Search markets" placeholder="Search markets" value={search} onChange={event => setSearch(event.target.value)}/></label></header>
-      <div className="mk-directory-controls">
-        <nav className="mk-filters" aria-label="Filter by status">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} onClick={() => setStatusFilter(item)}>{item}</button>)}</nav>
-        <label className="mk-type-filter"><span>Event type</span><select value={eventType} onChange={event => setTypeFilter(event.target.value as EventTypeFilter)}>
-          <option value="all">All event types</option><option value="miaw-prix">MIAW Prix · Colosseum</option><option value="match">Ranked / stake match</option><option value="general">General market</option><option value="genesis-ffa">Genesis Agent FFA</option>
-        </select></label>
-      </div>
-      {filter === 'Featured' && eventType === 'all' && <p className="mk-filter-note">Routine 20-minute Genesis FFA rounds are hidden here. Choose <b>Genesis Agent FFA</b> or <b>All</b> to see them.</p>}
-      {error && !snapshot && !questions.length && loaded ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !loaded && !snapshot ? <div className="mk-card-grid" role="status" aria-busy="true" aria-label="Loading markets">
+      {/* One band: what the page is and how many markets match on the left,
+          every control that narrows or orders the grid on the right. */}
+      <header className="mk-heading">
+        <div className="mk-heading-copy">
+          <span>EVENT CATALOGUE</span><h1 className="sz-page-title">{eventType === 'general' ? 'General questions' : 'Prediction markets'}</h1>
+          <p>{eventType === 'general' ? `Explore real-world questions on PANTA and ${brand.name}.` : 'Follow live matches and explore general questions.'}</p>
+          <div className="mk-results-meta">
+            {!loaded && !questions.length ? <span className="mk-pending mk-pending--count" aria-hidden="true"/>
+              : <span className="mk-result-count" role="status">{allRows.length ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, allRows.length)} of ${allRows.length}${extending ? ' so far' : ''}` : extending ? 'Reading the full catalogue…' : '0 markets'}</span>}
+            {filter === 'Featured' && eventType === 'all' && <span className="mk-filter-note">Routine Genesis FFA rounds are hidden. <button type="button" onClick={() => setTypeFilter('genesis-ffa')}>Show them</button></span>}
+          </div>
+        </div>
+        <div className="mk-heading-controls">
+          <nav className="mk-segments" aria-label="Filter by status">{filters.map(item => <button type="button" key={item} aria-pressed={filter === item} onClick={() => setStatusFilter(item)}>{item}</button>)}</nav>
+          <div className="mk-directory-tools">
+            {eventType === 'general'
+              ? <label className="mk-select"><span>Topic</span><select value={topic} onChange={event => setTopic(event.target.value as 'all' | 'stocks')}><option value="all">All topics</option><option value="stocks">Stocks</option></select></label>
+              : <label className="mk-search"><Search size={15}/><input type="search" aria-label="Search markets" placeholder="Search markets" value={search} onChange={event => setSearch(event.target.value)}/></label>}
+            <label className="mk-select"><span>Type</span><select value={eventType} onChange={event => setTypeFilter(event.target.value as EventTypeFilter)}>
+              <option value="all">All events</option>{showsSection('miawprix') && <option value="miaw-prix">MIAW Prix · Colosseum</option>}<option value="match">Ranked / stake match</option><option value="general">General questions</option><option value="genesis-ffa">Genesis Agent FFA</option>
+            </select></label>
+            <label className="mk-select"><span>Sort</span><select value={sort} onChange={event => setSort(event.target.value as MarketSort)}>{sorts.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          </div>
+        </div>
+      </header>
+      {eventType === 'general' && <><PantaTrackedList apiUrl={apiUrl}/><PantaMarkets apiUrl={apiUrl}/><header className="gq-section-heading"><div><h2>{brand.name} questions</h2><p>Community, season and stock questions from the {brand.name} catalogue, settled by their published rules.</p></div></header></>}
+      {error && !questions.length && loaded ? <div className="mk-state" role="alert"><strong>Markets could not load.</strong><span>{error}</span><button className="sh-button" onClick={retry}>Try again</button></div> : !loaded && !questions.length ? <div className="mk-card-grid" role="status" aria-busy="true" aria-label="Loading markets">
         {/* Placeholders in the real grid, at the real card size: the row does not
             jump when the snapshot lands, and a slow upstream reads as the page
             filling in rather than as an empty bordered slab. */}
@@ -411,10 +513,10 @@ export function MarketDirectory({ snapshot, questions, loaded = true, error, ret
         {/* A count taken while the wider read is still running is a count of
             what has arrived, not of what matches — so it says so rather than
             letting a partial number read as the answer. */}
-        <div className="mk-results-bar"><span className="mk-result-count" role="status">{allRows.length ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, allRows.length)} of ${allRows.length}${extending ? ' so far' : ''}` : extending ? 'Reading the full catalogue…' : '0 markets'}</span>{pagination}</div>
+        {pagination && <div className="mk-results-bar">{pagination}</div>}
         {rows.length ? <div className="mk-card-grid">{rows.map(row => <MarketCard key={row.match.id} row={row} now={now}/>)}</div>
           : extending ? <div className="mk-empty" role="status"><strong>Reading the full catalogue…</strong><span>History and search span every match ever listed, so this view is still loading the rest of them.</span></div>
-          : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{search || filter !== 'All' ? 'Try another filter or search.' : 'Every ranked or stake match appears here as soon as it has a match ID.'}</span></div>}
+          : <div className="mk-empty"><strong>{search || filter !== 'All' ? 'No matching markets' : 'No markets available yet'}</strong><span>{eventType === 'general' ? `${brand.name} questions will appear here when published.` : search || filter !== 'All' ? 'Try another filter or search.' : 'Every ranked or stake match appears here as soon as it has a match ID.'}</span></div>}
         {pagination && <div className="mk-pagination-bottom">{pagination}</div>}
       </>}
   </AppShell>
@@ -443,16 +545,19 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
    * skeletons: the commit that would have replaced them never got a free frame.
    */
   const [scope, setScope] = useState<'open' | 'inventory'>('open')
-  const widen = useCallback((depth: 'head' | 'inventory') => {
+  const [kind, setKind] = useState<'all' | 'general'>('all')
+  const widen = useCallback((depth: 'head' | 'inventory', nextKind: 'all' | 'general') => {
+    setKind(nextKind)
     if (depth === 'inventory') setScope('inventory')
   }, [])
   const catalogue = useMarketCatalogue(
     apiUrl,
-    scope === 'open' ? 'eligible' : 'all',
+    kind === 'general' || scope === 'inventory' ? 'all' : 'eligible',
     30_000,
-    scope === 'open' ? 'head' : 'inventory',
+    kind === 'general' || scope === 'open' ? 'head' : 'inventory',
+    kind,
   )
-  const reserved = useReservedSolanaQuestions(apiUrl, venue)
+  const reserved = useReservedSolanaQuestions(apiUrl, venue, !catalogue.available)
   // GET /market/list is the catalogue (docs/MARKET_LIST_API.md). Its market
   // addresses are derived here from (programId, matchId, questionId) rather than
   // read off the wire, so a catalogue row can never point trading at another
@@ -509,6 +614,8 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
         hasHumans: metadata?.hasHumans ?? false,
         gameMode: metadata?.gameMode,
         teamFormat: metadata?.teamFormat,
+        ...(metadata?.category ? { category: metadata.category } : {}),
+        agentPerformance: views[0].question.eventId.endsWith('-agent'),
       }
     }),
     [questionCatalogue, pricedById, metadataByEvent],
@@ -516,10 +623,11 @@ export function MarketsDirectoryApp({ apiUrl = '' }: Props) {
   return <MarketDirectory
     snapshot={snapshot}
     questions={questions}
-    loaded={catalogue.loaded || reserved.loaded}
-    error={error}
-    retry={retry}
+    loaded={catalogue.available ? catalogue.loaded : reserved.loaded}
+    error={catalogue.available ? catalogue.status === 'failed' ? 'The market catalogue is temporarily unavailable.' : '' : error}
+    retry={() => { catalogue.retry(); retry() }}
     onScope={widen}
     extending={catalogue.extending}
+    apiUrl={apiUrl}
   />
 }

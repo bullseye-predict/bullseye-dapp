@@ -25,6 +25,12 @@
 .sz-page-title { font: 600 var(--site-page-title)/1.15 var(--sh-heading); letter-spacing: -.02em; margin: 0; }
 .sz-site-header .sh-logo-colacat { display: block; width: 150px; color: var(--sh-text) !important; text-decoration: none; }
 .sz-site-header .sh-logo-colacat img { display: block; width: 144px; height: auto; }
+/* A mark-only logo with the wordmark set as text beside it. The explicit font
+   and the static span are required: home.css gives every .sh-logo a 58px lime
+   Archivo face, and makes any `.sh-logo > span` a small absolute badge. */
+.sz-site-header .sh-logo-bullseye { display: flex; flex-shrink: 0; align-items: center; gap: 10px; color: var(--sh-text) !important; font: 800 17px/1 var(--sh-heading); font-stretch: 110%; letter-spacing: .14em; text-decoration: none; }
+.sz-site-header .sh-logo-bullseye img { display: block; width: 50px; height: 40px; }
+.sz-site-header .sh-logo-bullseye > span { position: static; font: inherit; letter-spacing: inherit; }
 .sz-site-header nav { display: flex; align-items: center; flex: 1; min-width: 0; gap: 8px; }
 .sz-site-links { display: flex; align-items: center; gap: 8px; }
 .sz-site-header nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
@@ -87,6 +93,8 @@
   .sz-site-header-inner { gap: 16px; }
   .sz-site-header .sh-logo-colacat { width: 132px; }
   .sz-site-header .sh-logo-colacat img { width: 128px; }
+  .sz-site-header .sh-logo-bullseye { gap: 8px; font-size: 15px; }
+  .sz-site-header .sh-logo-bullseye img { width: 45px; height: 36px; }
   .sz-site-header nav .sh-wallet .arena-wallet-status { display: grid; grid-template-columns: 1fr; gap: 9px; }
   .sz-site-header nav .sh-wallet .ch-wallet-overview { width: 100%; }
   .sz-site-header nav .sh-wallet .ch-wallet-overview > span { flex: 1; min-width: 0; padding: 10px; }
@@ -100,6 +108,8 @@
   .sz-site-header-inner { gap: 10px; }
   .sz-site-header .sh-logo-colacat { width: 112px; }
   .sz-site-header .sh-logo-colacat img { width: 108px; }
+  .sz-site-header .sh-logo-bullseye { font-size: 13px; }
+  .sz-site-header .sh-logo-bullseye img { width: 40px; height: 32px; }
   .sz-site-header nav .sh-wallet button { font-size: 9px; padding-inline: 9px; }
 }
 

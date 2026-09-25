@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AppShell } from '../src/components/solz/AppShell'
 import { activeForPath, chromeHandlers, setChrome, chromeState } from '../src/components/session/chrome'
+import { brand, brands } from '../src/components/solz/brand'
+import { SiteHeader } from '../src/components/solz/SiteHeader'
+import { SiteFooter } from '../src/components/solz/SiteFooter'
 
 describe('site chrome', () => {
   test('the page renders no header of its own, on any page family', () => {
@@ -45,6 +48,25 @@ describe('site chrome', () => {
     expect(activeForPath('/profile')).toBe('profile')
     expect(activeForPath('/solana/devnet/abc')).toBe('profile')
     expect(activeForPath('/events/xyz')).toBe('highlight')
-    expect(activeForPath('/')).toBe('highlight')
+    expect(activeForPath('/highlight')).toBe('highlight')
+  })
+
+  test('header and footer carry the brand logo and only the brand\'s sections', () => {
+    const header = renderToStaticMarkup(<SiteHeader homeHref="/" active="markets" walletControl={null} />)
+    const footer = renderToStaticMarkup(<SiteFooter homeHref="/" />)
+    for (const html of [header, footer]) {
+      expect(html).toContain(`src="${brand.logo.src}"`)
+      expect(html).toContain(`aria-label="${brand.name} home"`)
+      expect(html.includes('href="/catwalk"')).toBe(brand.sections.includes('catwalk'))
+      expect(html.includes('href="/miaw-prix"')).toBe(brand.sections.includes('miawprix'))
+      expect(html.includes('href="/colacat"')).toBe(brand.sections.includes('colacat'))
+    }
+    expect(header.includes('href="/agent-arena"')).toBe(brand.sections.includes('agents'))
+    expect(header).toContain('href="/markets"')
+  })
+
+  test('the home path lights whatever the brand opens on', () => {
+    expect(activeForPath('/', brands.colacat)).toBe('highlight')
+    expect(activeForPath('/', brands.bullseye)).toBe('markets')
   })
 })

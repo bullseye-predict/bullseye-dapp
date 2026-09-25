@@ -99,10 +99,15 @@ const SIZE = {
    *  (solz-prediction-backend/programs/prediction_market_pinocchio/src/
    *  manifest_tokens.rs, the a::create call under opcode 26), and the Manifest
    *  SDK's own createMarket allocates the same FIXED_MANIFEST_HEADER_SIZE.
-   *  Manifest grows the account later with its own Expand instruction, which is
-   *  why a traded book reads longer than this and why measuring a live one
-   *  would overstate what activation costs. */
-  book: 256,
+   *  CreateMarket then ends with `expand_market_if_needed`, which adds one
+   *  80-byte block ("Leave a free block on the market so takers can use and
+   *  leave it", upstream create_market.rs at the pinned commit d218ba6), paid
+   *  by the same signer in the same instruction. Leaving it out told the first
+   *  trader 0.0258 SOL for an activation that costs 0.0269 SOL. Manifest grows
+   *  the account further only as orders rest, which is why a traded book reads
+   *  longer than this and why measuring a live one would overstate what
+   *  activation costs. */
+  book: 256 + 80,
   token: ACCOUNT_SIZE, // 165, imported rather than retyped
   mint: MINT_SIZE, // 82, imported rather than retyped
 }
@@ -378,7 +383,7 @@ export function planTradeSteps(facts: StepFacts): StepPlan {
       title: outcome === 0 ? 'Open YES book' : 'Open NO book',
       detail: `Activates the ${outcome === 0 ? 'YES' : 'NO'} order book and the account that holds its shares. Done once per question; every trader after you skips it.`,
       certain: true,
-      // The book's own 256 bytes are exact, but Manifest creates its two vaults
+      // The book's own 336 bytes are exact, but Manifest creates its two vaults
       // itself and this repo never decodes them, so their size is assumed to be
       // a plain token account rather than asserted.
       costs: [sol(BOOK_RENT + SIGNATURE_LAMPORTS, 'rent', true)],
