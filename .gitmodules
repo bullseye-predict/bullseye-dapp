@@ -1,0 +1,3 @@
+[submodule "programs/onchain-prediction-clob"]
+	path = programs/onchain-prediction-clob
+	url = https://github.com/bullseye-predict/onchain-prediction-clob.git

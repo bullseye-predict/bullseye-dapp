@@ -1,76 +1,84 @@
-# SOLZ / ODDS
+# Bullseye
 
-Standalone Astro + React application for prediction markets driven only by SOLZ matches. This repository is intentionally independent from the React + TanStack ZERO ENGINE client.
+A transparent AI agent for pre-stock and stock prediction and trading.
+
+**Watch first. Follow later.** Bullseye publishes what its agent looks at, what changes its mind, and how its conviction moves over time. Users watch the record before they decide to follow it.
+
+This repository is the Bullseye web app: Vite + React + TanStack Router. The product specification is [docs/STOCK_PREDICTION_SYSTEM.md](docs/STOCK_PREDICTION_SYSTEM.md).
+
+## How it works
+
+1. **Pre-stock question.** Each question is about a pre-stock (OpenAI, Polymarket, Anthropic, SpaceX) or a stock, for example `OpenAI PreStock above ___ on October 31?`. Each price is its own Yes/No market.
+2. **Agent sub-question.** Each main question has a linked `Agent: <question>` event. The agent publishes one locked call per window. Users trade on how many calls it gets right, in accuracy bands (`80–99% · 12–13 of 14`).
+3. **Resolution.** Our oracle scores every call and every question from frozen rules and measured price data. The agent never edits a published call and never decides a result.
+
+Questions are created only in `solz-prediction-backend`. This app shows the published rows. The first trader opens a market on chain through the stake API.
+
+## Repository legend
+
+| Folder | Role | Local port |
+| --- | --- | --- |
+| `solz-prediction-market-vite` (this repo) | Web app | `4321` |
+| `solz-prediction-backend` | Stake API, question builders, oracle, settler | `8788` |
+| `solz-prediction-solana` | Solana programs, deploy scripts | — |
+
+## On-chain programs (submodule)
+
+The Solana order-book programs are a git submodule at `programs/onchain-prediction-clob`, from [bullseye-predict/onchain-prediction-clob](https://github.com/bullseye-predict/onchain-prediction-clob).
+
+| Program | Role |
+| --- | --- |
+| `prediction_market_pinocchio` | Markets, orders, fills, positions, collateral vaults, settlement |
+| `manifest_guard` | Customized Manifest order book. Every entry checks a binding owned by the prediction program. |
+
+Get the source after you clone:
+
+```sh
+git submodule update --init programs/onchain-prediction-clob
+```
+
+The submodule is pinned to one commit. Program changes and deploys happen in `solz-prediction-solana`.
 
 ## Routes
 
-- `/demo` — complete local simulation with 12 Genesis agent-athletes, simulated price history, live combat ticks, SOL/SOLZ practice balances, prediction fills, positions, and paid agent directives.
-- `/live` — Dynamic-powered Solana wallet, observed-only price ticks, real SOL and SOLZ balance reads, SOLZ regional activity, official spectator route, Colyseus room telemetry, and honest capability locks for authorities that are not deployed yet.
+| Route | Page |
+| --- | --- |
+| `/` | Markets (home) |
+| `/markets` | Market directory, including PANTA markets |
+| `/markets/propose`, `/markets/create` | Propose a market, or create one on PANTA |
+| `/events/...` | Event detail: price ladder, agent thinking, agent performance |
+| `/profile` | Portfolio and positions |
+| `/pitch-deck` | Bullseye pitch deck (7 slides, illustrative data) |
+| `/highlight`, `/live`, `/demo` | Arena views |
 
-Both routes render `SolzPredictionArena` and swap only the adapter.
-The broadcast panel starts compact, can be minimized, and has a drag/keyboard resizer whose height is persisted locally.
-
-## Authority boundary
-
-- Colyseus owns live roster state, K/D, HP, accepted combat events, `winnerId`, and `winnerTeamId`.
-- The React UI derives display-only signals from those snapshots. It never writes back to gameplay state.
-- Dynamic exposes Solana wallets only.
-- Live custody remains locked until a dedicated SOLZ prediction escrow program is deployed.
-- Live paid directives remain locked until a server-authoritative agent relay can quote, authorize, and acknowledge them.
-
-The locked states are deliberate. The app never relabels a simulated fill as a real SOL or SOLZ transaction.
+The brand is set by `ACTIVE_BRAND` in `src/components/solz/brand.ts`. ColaCat sections are hidden from the navigation but their routes still work.
 
 ## Environment
 
-Copy `.env.example` and configure:
+Copy `.env.example` to `.env` and set:
 
-- `PUBLIC_PREDICTION_API_URL` — the prediction feed/trading backend origin (port `8788` locally; the Railway HTTPS origin in Vercel)
-- `VITE_DYNAMIC_ENVIRONMENT_ID`
-- `SOLZ_COLYSEUS_SERVER_URL` and `SOLZ_GAME_ORIGIN` as Vercel server runtime settings
-- `SOLZ_GAME_API_ORIGIN` for the server-side legacy game API proxy
+- `PUBLIC_PREDICTION_API_URL` — stake API origin (`http://127.0.0.1:8788` locally).
+- `PUBLIC_PREDICTION_CLUSTER`, `PUBLIC_PREDICTION_PROGRAM_ID`, `PUBLIC_PREDICTION_MANIFEST_PROGRAM_ID` — Solana cluster and program IDs.
+- `PUBLIC_PREDICTION_COLLATERAL_MINT`, `_DECIMALS`, `_SYMBOL` — collateral token.
+- `VITE_DYNAMIC_ENVIRONMENT_ID` — Dynamic wallet environment.
+- `VITE_SOLANA_RPC_ENDPOINT` — Solana RPC.
+- `PUBLIC_ARENA_MARKET_SOURCES`, `PUBLIC_LIVESTREAM_HLS_URL` — arena sources and livestream.
+- `SOLZ_COLYSEUS_SERVER_URL`, `SOLZ_CHAT_SERVER_URL`, `SOLZ_GAME_ORIGIN`, `SOLZ_GAME_API_ORIGIN` — server-side game settings.
 
-Prediction reads and sponsored DreamDEX demo actions share `PUBLIC_PREDICTION_API_URL` through the same-origin `/api/prediction` route.
+Never put a server secret in a `PUBLIC_` or `VITE_` variable.
 
 ## Commands
 
 ```sh
 bun install
-bun run dev
-bun run test
-bun run check
+bun run dev        # http://localhost:4321
+bun run check      # TypeScript
+bun run test       # host tests
+bun run test:frontend
 bun run build
+bun run start      # production server
 ```
 
-Local preview: [http://127.0.0.1:4321/demo](http://127.0.0.1:4321/demo)
+## Contact
 
-## Prediction services and chain programs
-
-The backend now lives in `apps/` and shared business logic in `packages/`, independently of the game server and React host. The Solidity contracts are in `contracts/evm`. The Solana Pinocchio program and the guarded Manifest fork live in the solz-prediction-backend repository under `programs/`; this repository holds no on-chain program source. See the existing `ARCHITECTURE.md` for boundaries and current integration limits.
-
-Start the local API:
-
-```sh
-bun run dev:prediction-api
-```
-
-It listens on `127.0.0.1:8788` with a persistent SQLite database in `.data/`. Without explicit deployment configuration it serves health/discovery without accepting live chain orders. Configure the server-only prediction variables documented in `.env.example`. `PREDICTION_VENUES_FILE` is a JSON array; RPC chain identity, collateral, and contract/program bindings are checked before admission.
-
-Public API reads require explicit `venue` and `chainId` query parameters. Routes include `/markets`, `/markets/:id/orderbook`, `/markets/:id/trades`, `/users/:account/orders`, `/users/:account/balance`, and `/matches/:id/telemetry`. Subscribe over WebSocket to `/markets/:id` with the same venue parameters, or `/matches/:id`, using `after` to resume the durable event sequence.
-
-`POST /internal/markets` registers an existing on-chain market with a service bearer token; it does not mint or deploy one. `POST /internal/telemetry` requires an HMAC proof generated by the telemetry package. `POST /orders` accepts a chain-signed order. Cancellation requires a nonce-protected wallet request proof; removing an order from the backend is explicitly distinct from invalidating its signature on-chain. Vault request helpers scope session keys to order cancellation, leaving policy changes with the owner.
-
-Hermes, result settlement, the matcher runner, and the indexer accept explicit provider interfaces. The default API has no relayer wallet, live reasoner, portfolio source, or Hermes control provider. Configure these hosts before real-money operation; the live frontend remains locked. DreamDEX currently has a tested adapter boundary, not a provisioned custom SOLZ event or connected SDK driver. PostgreSQL/Redis and cross-chain liquidity are future deployment work.
-
-Validation:
-
-```sh
-bun run check
-bun test tests
-bun run test:prediction
-bun install --cwd contracts/evm
-bun run test:evm
-bun run build:solana
-bun run test:solana:svm
-```
-
-The SBF build requires the Solana platform toolchain and Rust. Solana VM tests execute the compiled program with real SPL CPIs and Ed25519 precompiles. EVM tests compile pinned Solidity/OpenZeppelin sources and deploy to an isolated local Ganache chain. These checks do not constitute a security audit or a public-chain deployment.
+Telegram [@dellwatson](https://t.me/dellwatson)

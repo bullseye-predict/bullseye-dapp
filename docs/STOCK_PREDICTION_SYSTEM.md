@@ -1,10 +1,154 @@
-# Stock prediction and launch intelligence system
+# Bullseye pre-stock prediction and trading system
 
-Date: 2026-09-22
+Date: 2026-09-22. Updated: 2026-09-26 with the Bullseye product narrative and the pitch deck.
 
-Status: Product and implementation specification. This document does not claim that integrations, live markets, token launches, or deployments have been completed.
+Status: Product and implementation specification. This document does not claim that integrations, live markets, token launches, or deployments have been completed. Sections 1 to 8 describe the Bullseye product and its pitch. Sections 9 to 22 are the data, question and resolution specification. The current question and agent state is in `solz-prediction-backend/docs/PRESTOCKS_QUESTIONS_AND_AGENT_PLAN.md`.
 
-## 1. Product decision
+## 1. Bullseye in one line
+
+Bullseye is a transparent AI agent for pre-stock and stock prediction and trading.
+
+- Watch first. Follow later.
+- Trust is earned, not given.
+
+Bullseye starts with pre-stocks: tokens that give exposure to private companies before an IPO, such as OpenAI, Polymarket, Anthropic and SpaceX. The verified PreStocks assets are in `packages/prediction-core/prestocks.ts`. Listed stocks, for example tokenized NVIDIA, Tesla, Apple and Alphabet, use the same model.
+
+## 2. Problem
+
+More people use AI to help make investment decisions. Few let an AI agent manage their money.
+
+- 30% of U.S. retail investors use AI tools to pick or change investments. That share grew 75% in one year (eToro Retail Investor Beat, 2025).
+- 57% of U.S. affluent investors use AI for financial and investment tasks. Only 7% say AI was the main factor in their last major investment decision (HSBC, "The Trust Threshold", Ipsos survey of 1,128 U.S. investors, 2026).
+
+The cause is visibility. Most AI trading products show only a final answer. They do not show:
+
+- what the agent looked at,
+- what information changed its mind,
+- how its conviction changed over time,
+- how often it was right before.
+
+Without that, a user has no basis for trust.
+
+## 3. What Bullseye shows
+
+Bullseye publishes the agent's work, not only its final trade.
+
+| Bullseye shows | Meaning |
+| --- | --- |
+| Inputs | What the agent follows: company news, market price, volume, momentum and other signals |
+| Conviction timeline | Each change in conviction, with a timestamp. A published entry is never edited. |
+| Reason for a change | What the agent knew, and what changed |
+| Track record | Each call is scored against measured data by our oracle |
+
+Illustrative example, as used in the pitch deck. In the morning the agent is 50% bullish on OpenAI. It then finds new information and sees trading volume accelerate. Its conviction moves to 67% and it calls BUY. The user sees both entries and the reason between them.
+
+Users are not asked to trust the agent blindly. They watch its record first, then decide whether to follow it.
+
+### Gap between the pitch and the current agent
+
+The pitch describes the target product. The current forecast worker is a transparent 24-hour price-momentum baseline with a fixed, uncalibrated 55% confidence. It does not yet read news, external volume, market odds, spread, liquidity or fees. Do not describe the current calls as research-backed or trade-worthy until those inputs and a calibrated model exist. See `solz-prediction-backend/docs/PRESTOCKS_QUESTIONS_AND_AGENT_PLAN.md`.
+
+## 4. Question structure: main question and agent sub-question
+
+Every main pre-stock question has a linked agent sub-question.
+
+| Level | Example title | Answers | Badge |
+| --- | --- | --- | --- |
+| Main pre-stock question | `OpenAI PreStock above ___ on October 31?` | One Yes/No market per price, titled only with the price: `$1,225`, `$1,275` | `PRESTOCKS · OUR VENUE` |
+| Agent sub-question | `Agent: OpenAI PreStock above ___ on October 31?` | Accuracy bands of the agent's scheduled calls | `AGENT PERFORMANCE · OUR ORACLE` |
+
+Agent sub-question rules (summary; the backend plan is authoritative):
+
+1. The agent publishes one immutable forecast before each scheduled window, for example every 12 hours.
+2. Each forecast is scored on the measured result of its own window, not on the final result of the main question.
+3. A missing forecast counts as wrong.
+4. At the main deadline, the oracle counts correct calls and resolves one band Yes and all other bands No.
+5. There are at most four bands: under 50%, 50–79%, 80–99% and exactly 100%. Each label gives the rate, then the count range: `80–99% · 12–13 of 14`, `100% · 14 of 14`. A band that holds no count is dropped.
+6. `accuracyBands()` in `solz-prediction-backend/apps/stake-api/general-events.ts` is the only place that builds the bands.
+7. The agent never edits a published forecast and never supplies the oracle verdict.
+
+Questions are created only in `solz-prediction-backend`, through its builders and guard. This frontend shows the published rows. The first trader opens a market through `POST /solana/market-permit` on the stake API.
+
+### On-chain program
+
+Each Yes/No market trades on the Bullseye Solana order book (CLOB). Its source is [bullseye-predict/onchain-prediction-clob](https://github.com/bullseye-predict/onchain-prediction-clob). This repository holds it as a git submodule at `programs/onchain-prediction-clob`. The local working copy is `solz-prediction-solana`.
+
+| Program | Folder | Role |
+| --- | --- | --- |
+| `prediction_market_pinocchio` | `programs/onchain-prediction-clob/programs/prediction_market_pinocchio` | Markets, orders, fills, positions, collateral vaults and settlement |
+| `manifest_guard` | `programs/onchain-prediction-clob/programs/manifest_guard` | Customized Manifest order book (GPL-3.0). Every entry checks a binding owned by the prediction program. Global and reverse orders are disabled. Upstream audit claims do not cover these changes. |
+
+Get the program source after you clone this repository:
+
+```bash
+git submodule update --init programs/onchain-prediction-clob
+```
+
+The submodule is pinned to one commit. It does not follow the program repository by itself. To move it to the newest `main`, run `git submodule update --remote programs/onchain-prediction-clob` and commit the new pointer. Program changes are made and deployed in `solz-prediction-solana`, not in this folder.
+
+## 5. Why the agent question can add pre-stock volume
+
+The pitch asks: how many times will Bullseye hit the bullseye?
+
+1. Bullseye publishes its calls.
+2. Traders who doubt the agent take the other side on the agent sub-question.
+3. A trader who wants to prove the agent wrong also trades the pre-stock itself.
+4. Pre-stock trading volume increases.
+
+This is a product hypothesis. It is not measured. Measure agent-question volume and pre-stock pool volume separately, and label them separately, before making this claim in public (see section 17).
+
+The agent must never trade a pool to move an outcome that it forecasts.
+
+## 6. Roadmap
+
+| Stage | User action | Precondition |
+| --- | --- | --- |
+| Today | Watch the agent's conviction, calls and record | Published forecasts and oracle scoring |
+| Tomorrow | Follow the agents they trust, per company, market or strategy | A public track record per agent |
+| Later | Let an agent trade for them | Paper trading first; then user-scoped authorization, maximum capital, order, exposure and loss limits, a market allowlist, a stop control and durable intent reconciliation |
+
+Report forecast accuracy, simulated return and realized return separately. A high hit rate does not prove trading profitability.
+
+## 7. Demand evidence
+
+People already follow traders who have a visible record.
+
+- eToro had 4.07 million funded accounts on April 30, 2026. Copy trading volume reached an all-time high in Q1 2026. More than 5,000 traders were in its Pro Investor program on March 31, 2026 (eToro Q1 2026 results).
+- On September 30, 2024, 12 eToro Popular Investors each had more than $10 million of assets copying them (eToro Group Ltd. Form F-1, 2025).
+- eToro Pro Investors build a public track record and share their strategy with the people who copy them (eToro Pro Investor Program guiding principles, 2026).
+- The CFA Institute warns that opaque AI decisions in finance can reduce trust, and asks for AI systems that are transparent and auditable (Explainable AI in Finance, 2025).
+
+Bullseye connects three behaviors: social trading, AI agents and pre-stock markets.
+
+## 8. Pitch deck
+
+The pitch deck is the `/pitch-deck` route in this repository (`solz-prediction-market-vite`). It has 7 slides:
+
+1. Cover: Bullseye, a transparent AI agent for pre-stock and stock prediction and trading.
+2. Problem: people ask AI about investing, few let it trade their money.
+3. Desktop view: the OpenAI pre-stock question and its agent sub-question, with conviction from 50% to 67%.
+4. Product: a public AI trader, with pre-stock and stock logos and the agent thinking feed in a phone.
+5. Trust is earned, not given.
+6. Predict the agent: the accuracy-band question in a phone, and the volume loop from section 5.
+7. Close: today watch, tomorrow follow, and the contact.
+
+Files:
+
+| File | Content |
+| --- | --- |
+| `src/routes/pitch-deck.tsx` | Route. The slide number is in the URL, for example `/pitch-deck?slide=3`. |
+| `src/components/pitch/PitchDeckApp.tsx` | Deck frame, navigation and speaker notes |
+| `src/components/pitch/PitchSlides.tsx` | Slide content. The phones and the desktop frame render the real `AgentThinkingFeed` and `OutcomeRow` components. |
+| `src/components/pitch/pitchDeck.ts` | Illustrative prices, conviction values, agent thoughts, logos, speaker script and contact |
+| `src/components/pitch/pitch-deck.css` | Deck styles |
+
+Controls: arrow keys, Space and Page Up/Down change the slide. Home and End go to the first and last slide. N shows the speaker notes. F sets full screen. Swipe works on a phone.
+
+All prices, conviction values and agent thoughts in the deck are illustrative. They are not a live record.
+
+Contact: Telegram [@dellwatson](https://t.me/dellwatson).
+
+## 9. Product decision
 
 Extend the existing prediction-market engine with stock-token intelligence and prediction questions. Users can inspect measured activity, compare competing launches, trade forecasts, and inspect the evidence used to resolve questions.
 
@@ -17,7 +161,7 @@ There are two distinct data modules sharing the existing prediction engine:
 
 An optional COLACAT launch through ClawPump paired with a PreStocks asset is a separate integration. Its instant DAMM v2 pool is not a DBC launch.
 
-## 2. The aggregate-volume requirement
+## 10. The aggregate-volume requirement
 
 The primary dashboard must show the combined activity of all qualifying tokens/pools in the selected scope, not merely separate token cards. Users should be able to answer: “How active was this entire stock-paired Meteora segment this week compared with last week?”
 
@@ -37,7 +181,7 @@ Example, using hypothetical amounts: pool A records $10,000, B $20,000, and C $5
 
 Do not obtain the segment total by adding token-level totals: one swap can appear under both token mints and would be counted twice. Aggregate canonical swap records once per pool execution.
 
-## 3. Metrics and interpretation
+## 11. Metrics and interpretation
 
 ### Overview metrics
 
@@ -67,7 +211,7 @@ Default week: Monday 00:00:00 UTC inclusive to the following Monday exclusive. F
 
 For comparative predictions, freeze eligible competitors and rules before trading begins. Discovery can continue for dashboards without silently changing an already-open market's candidate set.
 
-## 4. Meteora DBC module
+## 12. Meteora DBC module
 
 ### Discovery and qualification
 
@@ -101,7 +245,7 @@ Issuers see competitor activity, weekly demand, launch completion rates, and whe
 
 No agent is allowed to decide settlement from narrative judgment. Forecasting and deterministic resolution remain separate.
 
-## 5. PreStocks module
+## 13. PreStocks module
 
 ### Asset registry
 
@@ -140,7 +284,7 @@ The selected screenshot asset charges a 1% transfer fee. Current reviewed DBC do
 
 Prediction collateral, stock-pool liquidity, and agent-token holdings remain separately accounted. Do not change prediction collateral or redirect user deposits to stock pools as part of this feature.
 
-## 6. Eligibility boundaries
+## 14. Eligibility boundaries
 
 Interpretations below are based on the supplied challenge screenshots, not written sponsor approval.
 
@@ -157,7 +301,7 @@ A whole-protocol DBC feed can include competing pre-IPO tokens. For a PreStocks-
 
 Existing volume dashboards already exist. The differentiator is the combination of well-defined stock-paired weekly aggregates, competitor comparison, tradable forecasts, and reproducible resolution evidence. Do not claim that no competing product has this combination without a broader market audit.
 
-## 7. Prediction lifecycle and resolution
+## 15. Prediction lifecycle and resolution
 
 1. Discover a pool or scheduled period.
 2. Generate a draft from a versioned question template.
@@ -174,7 +318,7 @@ An evidence bundle should contain market ID, template version, exact pool/mint s
 
 Publish tie rules before opening a market. For “highest volume” linked questions, one possible policy is that all tied leaders resolve Yes; another is void on a tie. Select one product policy before implementation and test it consistently. Never choose after the result is known.
 
-## 8. Proposed architecture
+## 16. Proposed architecture
 
 Preserve the existing React application and prediction engine. Names below describe proposed responsibilities, not claims about deployed components.
 
@@ -205,7 +349,7 @@ Domain calculations remain plain TypeScript. Networking, persistence, wallet acc
 
 Deduplicate events with chain identity plus transaction and instruction/event position. A transaction signature alone is insufficient because one transaction can contain multiple swaps.
 
-## 9. UI requirements
+## 17. UI requirements
 
 ### Main overview
 
@@ -225,7 +369,7 @@ Every question includes measured progress, deadline, rules, data scope, and evid
 
 Use green/red for Yes/No and Buy/Sell according to existing project rules. Preserve table/chart structure during loading. Display unknown metrics as unavailable, not zero. Agents cite source measurements and dates in their commentary.
 
-## 10. Compute and reliability constraints
+## 18. Compute and reliability constraints
 
 Index once for all users. Do not poll every pool from each browser or rescan chain history on dashboard requests.
 
@@ -240,7 +384,7 @@ Index once for all users. Do not poll every pool from each browser or rescan cha
 
 Proposed acceptance targets, not measurements: cached overview p95 under 500 ms; uncached aggregate overview p95 under 1.5 seconds; at most two sequential database round trips for overview; freshness lag visible whenever data misses the configured ingestion target. Measure these in the actual runtime before marking implementation complete. Existing caller deadlines, including the documented 4.5-second director budget, take precedence if a shared path is involved.
 
-## 11. Delivery phases
+## 19. Delivery phases
 
 ### Phase 0 — verify the data universe
 
@@ -268,7 +412,7 @@ Add evidence-linked summaries, competitor explanations, forecasts, and historica
 
 Demonstrate real observed DBC activity, aggregate reconciliation, an operational prediction flow where authorized and funded, and reproducible settlement. Mainnet reads, mainnet prediction trading, and a mainnet token launch are separate milestones; report exactly which were performed.
 
-## 12. Acceptance tests
+## 20. Acceptance tests
 
 - Segment volume equals the sum of canonical included pool executions without token-level double counting.
 - Duplicate ingestion does not change aggregates.
@@ -286,7 +430,7 @@ Demonstrate real observed DBC activity, aggregate reconciliation, an operational
 
 When code is implemented, run `bun run check`, relevant Bun tests, and local browser verification reusing one test tab. A documentation-only change does not demonstrate any runtime behavior.
 
-## 13. Open decisions
+## 21. Open decisions
 
 1. Which verified public-stock quote assets and DBC pools form the first eligible segment?
 2. Which PreStocks tokens and exact pools have enough historical data and liquidity?
@@ -297,7 +441,7 @@ When code is implemented, run `bun run check`, relevant Bun tests, and local bro
 
 These questions do not require a launchpad or buyback feature. They are the prerequisites for trustworthy analytics and resolution.
 
-## 14. Sources and evidence limits
+## 22. Sources and evidence limits
 
 - Meteora DBC events: https://docs.meteora.ag/developer-guides/dbc/program/events
 - Meteora DBC SDK: https://docs.meteora.ag/developer-guides/dbc/typescript-sdk/getting-started
@@ -307,5 +451,11 @@ These questions do not require a launchpad or buyback feature. They are the prer
 - ClawPump launch interface: https://clawpump.tech/launch
 - Tessera docs, for alternative-track assessment: https://docs.tessera.pe
 - Existing analytics examples: https://edge.meteora.ag/ and https://memefees.com/launchpads/meteora-dbc
+- eToro, US retail investors and AI tools, 2025: https://www.etoro.com/en-us/news-and-analysis/latest-news/press-release/us-retail-investors-flock-to-ai-tools-with-usage-surging-75-in-one-year/
+- eToro Q1 2026 results: https://www.etoro.com/en-us/news-and-analysis/latest-news/press-release/etoro-reports-q1-2026-results/
+- eToro Group Ltd. Form F-1: https://www.sec.gov/Archives/edgar/data/1493318/000101376225001589/ea0223534-08.htm
+- eToro Pro Investor Program guiding principles: https://www.etoro.com/wp-content/uploads/2026/01/pro_investor-Program_Starter.pdf
+- HSBC, The Trust Threshold, 2026: https://www.about.us.hsbc.com/newsroom/press-releases/the-trust-threshold-the-majority-of-us-investors-use-ai-to-explore
+- CFA Institute, Explainable AI in Finance, 2025: https://rpc.cfainstitute.org/research/reports/2025/explainable-ai-in-finance
 
 The challenge descriptions and ClawPump screenshots supplied in this conversation are the basis for bounty and UI interpretations. Public documentation confirms relevant protocol capabilities but does not grant bounty eligibility. Exact active pools, mint compatibility, API behavior, source coverage, and production contracts still require verification during implementation.
